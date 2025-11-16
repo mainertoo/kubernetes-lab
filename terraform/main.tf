@@ -5,7 +5,7 @@ data "local_file" "ssh_public_key" {
 resource "proxmox_virtual_environment_hardware_mapping_usb" "usb_device" {
   comment = "USB Device"
   name    = "usb_passthrough"
-  
+
   map = [
     {
       comment = "Sonoff Zigbee 3.0 USB Dongle Plus"
@@ -31,22 +31,34 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
         shell: /bin/bash
         ssh_authorized_keys:
           - ${trimspace(data.local_file.ssh_public_key.content)}
-          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMR5+iuMQAV5C5uwYoaRspziWVueXwcXd+d1XOL4rsku markkristensen@outlook.com
         sudo: ALL=(ALL) NOPASSWD:ALL
+        lock_passwd: false
+
+    chpasswd:
+      list: |
+        ubuntu:${var.ubuntu_password}
+      expire: False
+
+    ssh_pwauth: True
+
+    package_update: true
+    package_upgrade: true
+
     runcmd:
-        - apt update
-        - apt install -y qemu-guest-agent net-tools nfs-common
-        - apt install -y linux-modules-extra-$(uname -r)
-        - timedatectl set-timezone Europe/Copenhagen
-        - systemctl enable qemu-guest-agent
-        - systemctl start qemu-guest-agent
-        - echo "done" > /tmp/cloud-config.done
+      - apt update
+      - apt install -y qemu-guest-agent net-tools nfs-common
+      - apt install -y linux-modules-extra-$(uname -r) || true
+      - apt install -y unattended-upgrades
+      - dpkg-reconfigure -f noninteractive unattended-upgrades
+      - timedatectl set-timezone America/Los_Angeles
+      - systemctl enable qemu-guest-agent
+      - systemctl restart qemu-guest-agent || systemctl start qemu-guest-agent
+      - echo "cloud-init complete" > /var/log/cloud-init-custom.log
     EOF
 
     file_name = "user-data-cloud-config.yaml"
   }
 }
-
 resource "proxmox_virtual_environment_file" "metadata_cloud_config_master" {
   content_type = var.pm_snippet_content_type
   datastore_id = var.pm_datastore_id
@@ -82,12 +94,13 @@ resource "proxmox_virtual_environment_file" "metadata_cloud_config_worker" {
 }
 
 resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
-  count       = var.k3s_master_count
-  name        = join("", [var.cluster_name, var.k3s_master_name_prefix, count.index +1])
-  node_name   = var.pm_node_name
-  vm_id = var.k3s_master_vmids[count.index]
+  count     = var.k3s_master_count
+  name      = join("", [var.cluster_name, var.k3s_master_name_prefix, count.index + 1])
+  node_name = var.pm_node_name
+  vm_id     = var.k3s_master_vmids[count.index]
 
   initialization {
+    datastore_id = var.pm_datastore_id
     ip_config {
       ipv4 {
         address = var.k3s_master_ips[count.index]
@@ -96,16 +109,16 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
     }
 
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
-    meta_data_file_id  = proxmox_virtual_environment_file.metadata_cloud_config_master[count.index].id
+    meta_data_file_id = proxmox_virtual_environment_file.metadata_cloud_config_master[count.index].id
   }
 
   agent {
     enabled = var.qemu_agent
-  }  
+  }
 
   cpu {
     cores = var.k3s_master_cores
-    type = var.k3s_cpu_type
+    type  = var.k3s_cpu_type
   }
 
   memory {
@@ -122,21 +135,23 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
   }
 
   network_device {
-    bridge = var.network_bridge
+    bridge  = var.network_bridge
+    vlan_id = var.network_vlan_id
   }
 
-#  usb {
-#    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
-#  }
+  #  usb {
+  #    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
+  #  }
 }
 
 resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
-  count       = var.k3s_worker_count
-  name        = join("", [var.cluster_name, var.k3s_worker_name_prefix, count.index +1])
-  node_name   = var.pm_node_name
-  vm_id = var.k3s_worker_vmids[count.index]
+  count     = var.k3s_worker_count
+  name      = join("", [var.cluster_name, var.k3s_worker_name_prefix, count.index + 1])
+  node_name = var.pm_node_name
+  vm_id     = var.k3s_worker_vmids[count.index]
 
   initialization {
+    datastore_id = var.pm_datastore_id
     ip_config {
       ipv4 {
         # one address per worker, matched by index
@@ -146,16 +161,16 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
     }
 
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
-    meta_data_file_id  = proxmox_virtual_environment_file.metadata_cloud_config_worker[count.index].id
+    meta_data_file_id = proxmox_virtual_environment_file.metadata_cloud_config_worker[count.index].id
   }
 
   agent {
     enabled = var.qemu_agent
-  }  
+  }
 
   cpu {
     cores = var.k3s_worker_cores
-    type = var.k3s_cpu_type
+    type  = var.k3s_cpu_type
   }
 
   memory {
@@ -172,12 +187,13 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   }
 
   network_device {
-    bridge = var.network_bridge
+    bridge  = var.network_bridge
+    vlan_id = var.network_vlan_id
   }
 
-#  usb {
-#    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
-#  }
+  #  usb {
+  #    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
+  #  }
 }
 
 resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
@@ -196,7 +212,7 @@ output "vm_info" {
       proxmox_virtual_environment_vm.proxmox_vm_worker
     ) :
     {
-      vm_name   = vm.name
+      vm_name    = vm.name
       ip_address = vm.ipv4_addresses[1][0]
     }
   ]
