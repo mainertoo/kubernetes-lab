@@ -9,12 +9,19 @@ terraform {
 }
 
 provider "proxmox" {
-  endpoint      = var.pm_url
-  api_token     = var.pm_token_secret
-  insecure      = var.pm_tls_insecure
+  # Proxmox API endpoint
+  endpoint = var.pm_url
+
+  # Build the token in the required format: USER@REALM!TOKENID=UUID
+  api_token = "${var.pm_token_id}=${var.pm_token_secret}"
+
+  # Ignore self-signed cert issues
+  insecure = var.pm_tls_insecure
+
+  # SSH access to the Proxmox node for certain operations
   ssh {
-    agent = true
     username = var.pm_ssh_username
     password = var.pm_ssh_password
   }
 }
+
