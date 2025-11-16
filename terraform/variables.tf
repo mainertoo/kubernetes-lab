@@ -11,14 +11,14 @@ variable "gateway" {
   description = "Gateway IP"
   type        = string
   # Your VLAN 90 gateway
-  default     = "192.168.90.1"
+  default = "192.168.90.1"
 }
 
 variable "ci_template" {
   description = "Source cloud init template to clone in Proxmox."
   type        = string
   # Your cloud-init template/image name
-  default     = "questing-server-cloudimg-amd64.img"
+  default = "questing-server-cloudimg-amd64.img"
 }
 
 variable "qemu_agent" {
@@ -61,7 +61,7 @@ variable "storage_pool" {
   description = "Storage pool in Proxmox to use for volumes"
   type        = string
   # Your storage ID
-  default     = "local"
+  default = "local"
 }
 
 variable "bios" {
@@ -80,14 +80,20 @@ variable "ipv4_address" {
   description = "IPV4 Address"
   type        = string
   # Usually overridden per-VM; leave as dhcp by default
-  default     = "dhcp"
+  default = "dhcp"
 }
 
 variable "network_bridge" {
   description = "Network device bridge"
   type        = string
   # Your VLAN 90 bridge
-  default     = "vmbr0.90"
+  default = "vmbr0"
+}
+
+variable "network_vlan_id" {
+  description = "VLAN ID for the VM network interface"
+  type        = number
+  default     = 90
 }
 
 variable "host_usb" {
@@ -114,28 +120,28 @@ variable "k3s_master_count" {
   description = "Number of master nodes"
   type        = number
   # You want 3 masters
-  default     = 3
+  default = 3
 }
 
 variable "k3s_master_disk_size" {
   description = "Disk size of the controlplane nodes (GB)"
   type        = string
   # 50 GB per master
-  default     = "50"
+  default = "50"
 }
 
 variable "k3s_master_cores" {
   description = "Cores for each controlplane node"
   type        = number
   # 4 cores per master
-  default     = 4
+  default = 4
 }
 
 variable "k3s_master_memory" {
   description = "Memory for each controlplane node (MB)"
   type        = string
   # 8 GB per master
-  default     = "8192"
+  default = "8192"
 }
 
 variable "k3s_master_name_prefix" {
@@ -147,7 +153,7 @@ variable "k3s_master_name_prefix" {
 variable "k3s_master_ips" {
   description = "IPv4 addresses for k3s master nodes"
   type        = list(string)
-  default     = [
+  default = [
     "192.168.90.161/24",
     "192.168.90.162/24",
     "192.168.90.163/24",
@@ -158,7 +164,7 @@ variable "k3s_master_ips" {
 variable "k3s_master_vmids" {
   description = "VM IDs for the master nodes"
   type        = list(number)
-  default     = [
+  default = [
     661,
     662,
     663,
@@ -172,28 +178,28 @@ variable "k3s_worker_count" {
   description = "Number of worker nodes"
   type        = number
   # You want 3 workers
-  default     = 3
+  default = 3
 }
 
 variable "k3s_worker_disk_size" {
   description = "Disk size of the worker nodes (GB)"
   type        = string
   # 400 GB per worker
-  default     = "400"
+  default = "400"
 }
 
 variable "k3s_worker_cores" {
   description = "Cores for each worker node"
   type        = number
   # 6 cores per worker
-  default     = 6
+  default = 6
 }
 
 variable "k3s_worker_memory" {
   description = "Memory for each worker node (MB)"
   type        = string
   # 16 GB per worker
-  default     = "16384"
+  default = "16384"
 }
 
 variable "k3s_worker_name_prefix" {
@@ -205,7 +211,7 @@ variable "k3s_worker_name_prefix" {
 variable "k3s_worker_ips" {
   description = "IPv4 addresses for k3s worker nodes"
   type        = list(string)
-  default     = [
+  default = [
     "192.168.90.164/24",
     "192.168.90.165/24",
     "192.168.90.166/24",
@@ -216,7 +222,7 @@ variable "k3s_worker_ips" {
 variable "k3s_worker_vmids" {
   description = "VM IDs for the worker nodes"
   type        = list(number)
-  default     = [
+  default = [
     664,
     665,
     666,
@@ -230,7 +236,7 @@ variable "pm_url" {
   description = "The url for the proxmox api on the host"
   type        = string
   # Your Proxmox URL
-  default     = "https://192.168.1.107:8006/"
+  default = "https://192.168.1.107:8006/"
 }
 
 variable "pm_token_secret" {
@@ -254,14 +260,14 @@ variable "pm_node_name" {
   description = "name of the proxmox node to create the VMs on"
   type        = string
   # Your node name
-  default     = "pve-whistler"
+  default = "pve-whistler"
 }
 
 variable "pm_datastore_id" {
   description = "Id of the proxmox datastore used for snippets"
   type        = string
   # You’re using 'local' storage
-  default     = "local"
+  default = "local"
 }
 
 variable "pm_snippet_content_type" {
@@ -280,18 +286,24 @@ variable "pm_cloud_image_url" {
   description = "Url for the Cloud image to be cloned onto proxmox"
   type        = string
   # You already have questing-server-cloudimg-amd64.img locally; this may be unused now
-  default     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+  default = "https://cloud-images.ubuntu.com/questing/current/questing-server-cloudimg-amd64.img"
 }
 
 variable "pm_ssh_username" {
   description = "The user used by proxmox provider to access prommox node"
   type        = string
   # If this module actually SSHes to the node, you can set this to a real user you have (e.g. root)
-  default     = "terraform-prov"
+  default = "terraform-prov"
 }
 
 variable "pm_ssh_password" {
   description = "The password for the user used by proxmox provider to access prommox node"
+  type        = string
+  sensitive   = true
+}
+
+variable "ubuntu_password" {
+  description = "Password for the ubuntu user (used by cloud-init)"
   type        = string
   sensitive   = true
 }
