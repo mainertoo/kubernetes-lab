@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Ensure the state file path is provided as an argument, or use a default path
-STATE_FILE="/root/Hephaestus/terraform/terraform.tfstate"
+# Path to your Terraform state file on your Mac
+STATE_FILE="$HOME/kubernetes-lab/terraform/terraform.tfstate"
 
 # Run Terraform output -json with the specified state file to get the Terraform output
-INPUT_JSON=$(terraform output -json -state=$STATE_FILE)
+INPUT_JSON=$(terraform output -json -state="$STATE_FILE")
 
 # Extract VM details using jq
 masters=$(echo "$INPUT_JSON" | jq -r '.vm_info.value[] | select(.vm_name | contains("master")) | .ip_address')
@@ -39,7 +39,8 @@ cat <<EOF
       $(generate_hosts "$workers")
     ],
     "vars": {
-      "ansible_user": "ubuntu"
+      "ansible_user": "ubuntu",
+      "ansible_ssh_private_key_file": "$HOME/.ssh/id_ed25519_k3s"
     }
   },
   "master": {
@@ -47,8 +48,8 @@ cat <<EOF
       $(generate_hosts "$masters")
     ],
     "vars": {
-      "ip_pool_first": "192.168.0.241",
-      "ip_pool_last": "192.168.0.255"
+      "ip_pool_first": "192.168.90.180",
+      "ip_pool_last": "192.168.90.199"
     }
   },
   "worker": {
