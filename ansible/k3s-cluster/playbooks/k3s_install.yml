@@ -1,87 +1,122 @@
-- hosts: master
-  become: yes  # Ensure root privileges for all tasks
-  tasks:
-    - name: Install K3s on master
-      shell: |
-        curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644 --disable=servicelb --disable=traefik  --kube-apiserver-arg="feature-gates=MutatingAdmissionPolicy=true" --kube-apiserver-arg="runtime-config=admissionregistration.k8s.io/v1alpha1=true"
-      args:
-        creates: /usr/local/bin/k3s
-
-    - name: Wait for K3s to initialize node token
-      wait_for:
-        path: /var/lib/rancher/k3s/server/node-token
-
-    - name: Read the node-token file
-      slurp:
-        src: /var/lib/rancher/k3s/server/node-token
-      register: node_token_content
-
-    - name: Save the node-token as a fact
-      set_fact:
-        global_node_token: "{{ node_token_content['content'] | b64decode | trim }}"
-
-    - name: Allow token sharing by fixing directory permissions
-      file:
-        path: /var/lib/rancher/k3s/server
-        mode: "0755"
-        recurse: yes
-
-    - name: Register kubeconfig file
-      stat:    
-        path: /etc/rancher/k3s/k3s.yaml
-      register: kubeconfig_stat
-
-    - name: Fix kubeconfig permissions if necessary
-      file:
-        path: /etc/rancher/k3s/k3s.yaml
-        mode: '0644'
-        state: file
-      when: kubeconfig_stat.stat.exists and kubeconfig_stat.stat.mode != '0644'
-
-    - name: Fetch and Configure Kubeconfig
-      fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: /tmp/k3s.yaml
-        flat: yes      
-
-- hosts: worker
+---
+# Play 1: Common prep on all nodes (masters + workers)
+- name: Prepare nodes for K3s
+  hosts: k3s_cluster
   become: yes
   tasks:
-    - name: Debug K3S_URL and K3S_TOKEN on worker nodes
-      debug:
-        msg:
-          - "K3S_URL=https://{{ hostvars[groups['master'][0]].inventory_hostname }}:6443"
-          - "K3S_TOKEN={{ hostvars[groups['master'][0]]['global_node_token'] }}"
+    - name: Disable swap (runtime)
+      command: swapoff -a
+      when: ansible_swaptotal_mb | default(0) | int > 0
+      ignore_errors: true
 
-    - name: Install K3s on worker nodes
+    - name: Ensure swap is disabled on boot
+      replace:
+        path: /etc/fstab
+        regexp: '^(.*\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+      register: swap_fstab
+      ignore_errors: true
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - ca-certificates
+          - net-tools
+        state: present
+        update_cache: yes
+
+# Play 2: Install K3s HA control-plane on all masters
+- name: Install K3s servers (embedded etcd HA)
+  hosts: master
+  become: yes
+  vars:
+    # You already saw v1.33.5+k3s1 running; keep that unless you want another version
+    k3s_version: "v1.33.5+k3s1"
+    # First master is our "bootstrap" node
+    first_master: "{{ groups['master'][0] }}"
+    # You can later use kube-vip on this IP; for now this is just a SAN for the cert
+    kube_vip_ip: "192.168.90.160"
+  tasks:
+    - name: Install K3s server on first master (cluster-init)
       shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]].inventory_hostname }}:6443 K3S_TOKEN={{ hostvars[groups['master'][0]]['global_node_token'] }} sh -
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        INSTALL_K3S_EXEC="server \
+          --cluster-init \
+          --tls-san {{ kube_vip_ip }} \
+          --write-kubeconfig-mode=644 \
+          --disable servicelb \
+          --disable traefik" \
+        sh -
       args:
         creates: /usr/local/bin/k3s
+      when: inventory_hostname == first_master
 
+    - name: Wait for node token to exist on first master
+      stat:
+        path: /var/lib/rancher/k3s/server/node-token
+      register: node_token_stat
+      retries: 30
+      delay: 4
+      until: node_token_stat.stat.exists
+      delegate_to: "{{ first_master }}"
+      run_once: true
 
-- hosts: localhost
+    - name: Read K3s node token from first master
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token_raw
+      delegate_to: "{{ first_master }}"
+      run_once: true
+
+    - name: Store K3s cluster token as fact on first master
+      set_fact:
+        k3s_token: "{{ node_token_raw.content | b64decode | trim }}"
+      delegate_to: "{{ first_master }}"
+      run_once: true
+
+    - name: Install K3s server on additional masters (join existing cluster)
+      shell: |
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        K3S_URL="https://{{ first_master }}:6443" \
+        K3S_TOKEN="{{ hostvars[first_master].k3s_token }}" \
+        INSTALL_K3S_EXEC="server \
+          --tls-san {{ kube_vip_ip }} \
+          --write-kubeconfig-mode=644 \
+          --disable servicelb \
+          --disable traefik" \
+        sh -
+      args:
+        creates: /usr/local/bin/k3s
+      when: inventory_hostname != first_master
+
+# Play 3: Install K3s agents on all workers
+- name: Install K3s agents (workers)
+  hosts: worker
+  become: yes
+  vars:
+    first_master: "{{ groups['master'][0] }}"
   tasks:
-    - name: Ensure ~/.kube directory exists
-      file:
-        path: ~/.kube
-        state: directory
-        mode: '0755'
+    - name: Wait until K3s API is reachable on first master
+      uri:
+        url: "https://{{ first_master }}:6443/healthz"
+        method: GET
+        validate_certs: no
+        status_code: 200
+      register: api_health
+      retries: 30
+      delay: 4
+      until: api_health is succeeded
+      delegate_to: localhost
+      run_once: true
 
-    - name: Update kubeconfig to use master IP
-      lineinfile:
-        path: /tmp/k3s.yaml
-        regexp: '^ *server: .*'
-        line: "    server: https://{{ hostvars[groups['master'][0]].inventory_hostname }}:6443"
-
-    - name: Copy updated kubeconfig to Ansible control node
-      copy:
-        src: /tmp/k3s.yaml
-        dest: ~/.kube/config
-        remote_src: no
-
-    - name: Set KUBECONFIG environment variable
-      lineinfile:
-        path: ~/.bashrc
-        regexp: '^export KUBECONFIG='
-        line: 'export KUBECONFIG=~/.kube/config'
+    - name: Install K3s agent on worker nodes
+      shell: |
+        curl -sfL https://get.k3s.io | \
+        K3S_URL="https://{{ first_master }}:6443" \
+        K3S_TOKEN="{{ hostvars[first_master].k3s_token }}" \
+        sh -
+      args:
+        creates: /usr/local/bin/k3s-agent
