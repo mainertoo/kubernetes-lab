@@ -50,3 +50,5 @@ terraform.rc
 
 # Ignore out files
 *.out
+terraform/terraform.tfvars
+.kube/
