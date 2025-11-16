@@ -85,11 +85,13 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
   count       = var.k3s_master_count
   name        = join("", [var.cluster_name, var.k3s_master_name_prefix, count.index +1])
   node_name   = var.pm_node_name
+  vm_id = var.k3s_master_vmids[count.index]
 
   initialization {
     ip_config {
       ipv4 {
-        address = var.ipv4_address
+        address = var.k3s_master_ips[count.index]
+        gateway = var.gateway
       }
     }
 
@@ -132,11 +134,14 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   count       = var.k3s_worker_count
   name        = join("", [var.cluster_name, var.k3s_worker_name_prefix, count.index +1])
   node_name   = var.pm_node_name
+  vm_id = var.k3s_worker_vmids[count.index]
 
   initialization {
     ip_config {
       ipv4 {
-        address = var.ipv4_address
+        # one address per worker, matched by index
+        address = var.k3s_worker_ips[count.index]
+        gateway = var.gateway
       }
     }
 
