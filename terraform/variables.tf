@@ -4,7 +4,7 @@
 variable "cluster_name" {
   description = "Name of cluster"
   type        = string
-  default     = "questing-k3s"
+  default     = "mainertoo"
 }
 
 variable "gateway" {
@@ -144,6 +144,26 @@ variable "k3s_master_name_prefix" {
   default     = "-k3s-master-"
 }
 
+variable "k3s_master_ips" {
+  description = "IPv4 addresses for k3s master nodes"
+  type        = list(string)
+  default     = [
+    "192.168.90.161/24",
+    "192.168.90.162/24",
+    "192.168.90.163/24",
+  ]
+}
+
+# VM IDs for masters
+variable "k3s_master_vmids" {
+  description = "VM IDs for the master nodes"
+  type        = list(number)
+  default     = [
+    661,
+    662,
+    663,
+  ]
+}
 
 ##########
 # Worker #
@@ -180,6 +200,27 @@ variable "k3s_worker_name_prefix" {
   description = "Prefix for the worker node name"
   type        = string
   default     = "-k3s-worker-"
+}
+
+variable "k3s_worker_ips" {
+  description = "IPv4 addresses for k3s worker nodes"
+  type        = list(string)
+  default     = [
+    "192.168.90.164/24",
+    "192.168.90.165/24",
+    "192.168.90.166/24",
+  ]
+}
+
+# VM IDs for workers
+variable "k3s_worker_vmids" {
+  description = "VM IDs for the worker nodes"
+  type        = list(number)
+  default     = [
+    664,
+    665,
+    666,
+  ]
 }
 
 ###########
