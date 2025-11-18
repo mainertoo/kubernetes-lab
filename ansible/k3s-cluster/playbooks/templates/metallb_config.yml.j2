@@ -1,31 +1,19 @@
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: metallb-system
-  name: config
-data:
-  config: |
-    address-pools:
-    - name: default
-      protocol: layer2
-      addresses:
-      - {{ ip_pool_first }}-{{ ip_pool_last }}
----
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
-  name: pool
+  name: mainertoo-l2-pool
   namespace: metallb-system
 spec:
   addresses:
-  - {{ ip_pool_first }}-{{ ip_pool_last }}
+    # Your VLAN 90 LoadBalancer range
+    - 192.168.90.180-192.168.90.199
+
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
-  name: l2-advertisement
+  name: mainertoo-l2-adv
   namespace: metallb-system
 spec:
   ipAddressPools:
-  - pool
+    - mainertoo-l2-pool
