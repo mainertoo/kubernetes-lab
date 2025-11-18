@@ -1,19 +1,20 @@
 - name: Install and configure MetalLB
   hosts: master
+  become: yes
   tasks:
-  - name: Install
-    ansible.builtin.shell: |
-      kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/main/config/manifests/metallb-native.yaml
-    register: res
-    changed_when: res.rc != 0
+    - name: Install MetalLB (native manifests)
+      ansible.builtin.shell: |
+        kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
+      register: metallb_install
+      changed_when: "'created' in metallb_install.stdout or 'configured' in metallb_install.stdout or 'unchanged' not in metallb_install.stdout"
 
-  - name: Copy config file
-    ansible.builtin.template:
-      src: metallb_config.yml.j2
-      dest: /tmp/config.yml
-      mode: "0755"
+    - name: Copy MetalLB config file from template
+      ansible.builtin.template:
+        src: metallb_config.yml.j2
+        dest: /tmp/metallb_config.yml
+        mode: "0644"
 
-  - name: Configure
-    ansible.builtin.shell: kubectl apply -f /tmp/config.yml
-    register: res
-    changed_when: res.rc != 0
+    - name: Apply MetalLB config
+      ansible.builtin.shell: kubectl apply -f /tmp/metallb_config.yml
+      register: metallb_config
+      changed_when: "'created' in metallb_config.stdout or 'configured' in metallb_config.stdout or 'unchanged' not in metallb_config.stdout"
