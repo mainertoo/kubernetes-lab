@@ -99,18 +99,16 @@
   vars:
     first_master: "{{ groups['master'][0] }}"
   tasks:
-    - name: Wait until K3s API is reachable on first master
-      uri:
-        url: "https://{{ first_master }}:6443/healthz"
-        method: GET
-        validate_certs: no
-        status_code: 200
-      register: api_health
-      retries: 30
-      delay: 4
-      until: api_health is succeeded
+    - name: Wait until K3s API port is open on first master
+      become: no
       delegate_to: localhost
       run_once: true
+      wait_for:
+        host: "{{ first_master }}"
+        port: 6443
+        delay: 5         # wait 5 seconds before first check
+        timeout: 300     # give it up to 5 minutes
+        state: started
 
     - name: Install K3s agent on worker nodes
       shell: |
