@@ -151,6 +151,10 @@ spec:
               value: unix:///csi/csi.sock
             - name: CSI_ADDONS_ENDPOINT
               value: unix:///csi/csi-addons.sock
+            - name: CEPHCSI_KEYSTORE
+              value: "k8s_keystore"
+            - name: CEPHCSI_KEYSTORE_K8S_NAMESPACE
+              value: "kube-system"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
