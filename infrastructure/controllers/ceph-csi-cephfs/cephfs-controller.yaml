@@ -130,6 +130,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
           args:
+            - "--nodeid=$(NODE_ID)"
             - "--type=cephfs"
             - "--controllerserver=true"
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -138,14 +139,18 @@ spec:
             - "--drivername=cephfs.csi.ceph.com"
             - "--enableprofiling=false"
           env:
-            - name: CSI_ENDPOINT
-              value: unix:///csi/csi.sock
-            - name: CSI_ADDONS_ENDPOINT
-              value: unix:///csi/csi-addons.sock
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: CSI_ADDONS_ENDPOINT
+              value: unix:///csi/csi-addons.sock
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
