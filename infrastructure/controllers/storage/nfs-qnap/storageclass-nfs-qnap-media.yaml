@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-qnap-media
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.1.252
+  share: /QNAS/data
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
