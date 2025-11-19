@@ -1,0 +1,46 @@
+---
+- name: Install and configure kube-vip for HA control-plane endpoint
+  hosts: master
+  become: yes
+  vars:
+    # 👇 Your virtual IP for the K3s control-plane
+    kubevip_vip: "192.168.90.160"
+
+    # kube-vip image (matches style of Hephaestus repo)
+    kubevip_image: "ghcr.io/kube-vip/kube-vip:v0.8.4"
+
+    # Primary interface on your K3s nodes
+    kubevip_interface: "eth0"
+
+  tasks:
+    - name: Apply kube-vip RBAC
+      ansible.builtin.shell: |
+        kubectl apply -f https://kube-vip.io/manifests/rbac.yaml
+      args:
+        warn: false
+      register: kubevip_rbac
+      changed_when: >
+        'created' in kubevip_rbac.stdout or
+        'configured' in kubevip_rbac.stdout
+      run_once: true
+      delegate_to: "{{ groups['master'][0] }}"
+
+    - name: Render kube-vip DaemonSet manifest to master
+      ansible.builtin.template:
+        src: kubevip_daemonset.yml.j2
+        dest: /tmp/kubevip-daemonset.yml
+        mode: "0644"
+      run_once: true
+      delegate_to: "{{ groups['master'][0] }}"
+
+    - name: Apply kube-vip DaemonSet manifest
+      ansible.builtin.shell: |
+        kubectl apply -f /tmp/kubevip-daemonset.yml
+      args:
+        warn: false
+      register: kubevip_apply
+      changed_when: >
+        'created' in kubevip_apply.stdout or
+        'configured' in kubevip_apply.stdout
+      run_once: true
+      delegate_to: "{{ groups['master'][0] }}"
