@@ -1,0 +1,7 @@
+# TODO: Paste the official CSI NFS driver manifest here
+# (from the Kubernetes CSI NFS driver docs).
+# This manifest should include:
+# - CSIDriver nfs.csi.k8s.io
+# - controller deployment
+# - node daemonset
+# - RBAC, etc.
