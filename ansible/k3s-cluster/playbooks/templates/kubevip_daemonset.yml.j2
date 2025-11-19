@@ -1,46 +1,68 @@
----
-- name: Install and configure kube-vip for HA control-plane endpoint
-  hosts: master
-  become: yes
-  vars:
-    # 👇 Your virtual IP for the K3s control-plane
-    kubevip_vip: "192.168.90.160"
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-vip-ds
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: kube-vip
+  template:
+    metadata:
+      labels:
+        app: kube-vip
+    spec:
+      hostNetwork: true
+      serviceAccountName: kube-vip
 
-    # kube-vip image (matches style of Hephaestus repo)
-    kubevip_image: "ghcr.io/kube-vip/kube-vip:v0.8.4"
+      # Only run on control-plane nodes
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
 
-    # Primary interface on your K3s nodes
-    kubevip_interface: "eth0"
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
 
-  tasks:
-    - name: Apply kube-vip RBAC
-      ansible.builtin.shell: |
-        kubectl apply -f https://kube-vip.io/manifests/rbac.yaml
-      args:
-        warn: false
-      register: kubevip_rbac
-      changed_when: >
-        'created' in kubevip_rbac.stdout or
-        'configured' in kubevip_rbac.stdout
-      run_once: true
-      delegate_to: "{{ groups['master'][0] }}"
+      containers:
+        - name: kube-vip
+          image: {{ kubevip_image }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - manager
+          env:
+            # Interface that has the 192.168.90.x address
+            - name: vip_interface
+              value: "{{ kubevip_interface }}"
 
-    - name: Render kube-vip DaemonSet manifest to master
-      ansible.builtin.template:
-        src: kubevip_daemonset.yml.j2
-        dest: /tmp/kubevip-daemonset.yml
-        mode: "0644"
-      run_once: true
-      delegate_to: "{{ groups['master'][0] }}"
+            # Virtual IP for the API
+            - name: vip_address
+              value: "{{ kubevip_vip }}"
 
-    - name: Apply kube-vip DaemonSet manifest
-      ansible.builtin.shell: |
-        kubectl apply -f /tmp/kubevip-daemonset.yml
-      args:
-        warn: false
-      register: kubevip_apply
-      changed_when: >
-        'created' in kubevip_apply.stdout or
-        'configured' in kubevip_apply.stdout
-      run_once: true
-      delegate_to: "{{ groups['master'][0] }}"
+            # Single IP, not a range
+            - name: vip_cidr
+              value: "32"
+
+            # Enable ARP mode so kube-vip actually announces the VIP
+            - name: vip_arp
+              value: "true"
+
+            # Control-plane HA mode
+            - name: cp_enable
+              value: "true"
+            - name: cp_namespace
+              value: "kube-system"
+
+            # We are *not* using kube-vip for Service LoadBalancers right now
+            - name: svc_enable
+              value: "false"
+
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+            privileged: true
