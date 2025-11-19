@@ -14,7 +14,7 @@ kind: ServiceAccount
 metadata:
   name: rbd-csi-nodeplugin
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -52,7 +52,7 @@ subjects:
   - kind: ServiceAccount
     name: rbd-csi-nodeplugin
     # replace with non-default namespace name
-    namespace: default
+    namespace: ceph-csi
 roleRef:
   kind: ClusterRole
   name: rbd-csi-nodeplugin
@@ -65,7 +65,7 @@ kind: ServiceAccount
 metadata:
   name: rbd-csi-provisioner
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
 
 ---
 kind: ClusterRole
@@ -151,7 +151,7 @@ subjects:
   - kind: ServiceAccount
     name: rbd-csi-provisioner
     # replace with non-default namespace name
-    namespace: default
+    namespace: ceph-csi
 roleRef:
   kind: ClusterRole
   name: rbd-external-provisioner-runner
@@ -162,7 +162,7 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
   name: rbd-external-provisioner-cfg
 rules:
   - apiGroups: [""]
@@ -178,12 +178,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: rbd-csi-provisioner-role-cfg
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
 subjects:
   - kind: ServiceAccount
     name: rbd-csi-provisioner
     # replace with non-default namespace name
-    namespace: default
+    namespace: ceph-csi
 roleRef:
   kind: Role
   name: rbd-external-provisioner-cfg
@@ -196,7 +196,7 @@ apiVersion: apps/v1
 metadata:
   name: csi-rbdplugin
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
 spec:
   selector:
     matchLabels:
@@ -383,8 +383,9 @@ spec:
           hostPath:
             path: /lib/modules
         - name: ceph-config
-          configMap:
-            name: ceph-config
+          hostPath:
+            path: /etc/ceph
+            type: DirectoryOrCreate
         - name: ceph-csi-config
           configMap:
             name: ceph-csi-config
@@ -409,7 +410,7 @@ kind: Service
 metadata:
   name: csi-metrics-rbdplugin
   # replace with non-default namespace name
-  namespace: default
+  namespace: ceph-csi
   labels:
     app: csi-metrics
 spec:
