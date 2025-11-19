@@ -1,0 +1,6 @@
+# TODO: Paste the official Ceph-CSI RBD driver manifest here.
+# For example, this is the big YAML from the Ceph-CSI docs that defines:
+# - CSIDriver rbd.csi.ceph.com
+# - controller Deployment / StatefulSet
+# - node DaemonSet
+# - RBAC, ServiceAccounts, etc.
