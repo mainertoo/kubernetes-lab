@@ -5,7 +5,6 @@ resources:
   - volsync/kustomization.yaml
   - snapshot-controller/
   #- democratic-csi/
-  - node-feature-discovery/kustomization.yaml
   - tinyauth/kustomization.yaml
   - pocket-id/kustomization.yaml
   - storage
