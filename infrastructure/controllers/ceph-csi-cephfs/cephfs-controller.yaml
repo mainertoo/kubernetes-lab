@@ -160,6 +160,8 @@ spec:
               mountPath: /etc/ceph-csi-config/
             - name: ceph-csi-encryption-kms-config
               mountPath: /etc/ceph-csi-encryption-kms-config/
+            - name: keys-tmp-dir
+              mountPath: /tmp/csi/keys
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v4.0.0
           imagePullPolicy: IfNotPresent
@@ -240,3 +242,6 @@ spec:
         - name: ceph-csi-encryption-kms-config
           configMap:
             name: ceph-csi-encryption-kms-config
+        - name: keys-tmp-dir
+          emptyDir:
+            medium: "Memory"
