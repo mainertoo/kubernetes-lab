@@ -1,0 +1,6 @@
+# TODO: Paste the official Ceph-CSI CephFS driver manifest here.
+# From the Ceph-CSI docs: the YAML that defines:
+# - CSIDriver cephfs.csi.ceph.com
+# - controller deployment
+# - node daemonset
+# - RBAC, etc.

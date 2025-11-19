@@ -3,3 +3,6 @@ kind: Kustomization
 resources:
   - traefik-proxy/
   - storage
+  - ceph-csi-rbd/
+  - ceph-csi-cephfs/
+  - nfs-csi/
