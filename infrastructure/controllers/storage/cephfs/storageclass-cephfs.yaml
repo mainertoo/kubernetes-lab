@@ -1,0 +1,27 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs
+provisioner: cephfs.csi.ceph.com
+parameters:
+  # Ceph cluster FSID
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+
+  # CephFS name and associated data pool
+  fsName: cephfs
+  pool: cephfs_data
+
+  # Monitors
+  monitors: 192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789
+
+  # Secrets for CephFS CSI driver
+  csi.storage.k8s.io/provisioner-secret-name: cephfs-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: cephfs-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
+  csi.storage.k8s.io/node-stage-secret-name: cephfs-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
+
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
