@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-csi-encryption-kms-config
+  namespace: ceph-csi
+data:
+  # We’re not using KMS yet; the driver just needs the ConfigMap to exist.
+  config.json: |
+    {}
