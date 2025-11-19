@@ -276,9 +276,10 @@ spec:
         - name: socket-dir
           emptyDir:
             medium: Memory
-        - name: ceph-config
-          configMap:
-            name: ceph-config
+        - name: ceph-config              # <— hostPath, not ConfigMap
+          hostPath:
+            path: /etc/ceph
+            type: DirectoryOrCreate
         - name: ceph-csi-config
           configMap:
             name: ceph-csi-config
