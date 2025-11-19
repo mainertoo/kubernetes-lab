@@ -168,5 +168,4 @@ spec:
           configMap:
             name: ceph-csi-encryption-kms-config
         - name: keys-tmp-dir
-          emptyDir:
-            medium: "Memory"
+          emptyDir: {}
