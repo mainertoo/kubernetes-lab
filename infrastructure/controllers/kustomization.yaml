@@ -4,5 +4,5 @@ resources:
   - traefik-proxy/
   - storage
   - ceph-csi-rbd/
-  - ceph-csi-cephfs/
+#  - ceph-csi-cephfs/
   - nfs-csi/
