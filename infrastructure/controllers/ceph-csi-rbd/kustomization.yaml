@@ -6,3 +6,4 @@ resources:
   - rbd-driver.yaml
   - ceph-config.yaml
   - ceph-csi-encryption-kms-config.yaml
+  - rbd-controller.yaml
