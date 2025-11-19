@@ -2,12 +2,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - traefik-proxy/
-  - volsync/kustomization.yaml
-  - snapshot-controller/
-  #- democratic-csi/
-  - tinyauth/kustomization.yaml
-  - pocket-id/kustomization.yaml
   - storage
-  #- storage-ceph-rbd
-  #- storage-cephfs
-  #- storage-nfs
