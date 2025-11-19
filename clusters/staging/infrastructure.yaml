@@ -25,8 +25,8 @@ metadata:
   name: infra-controllers
   namespace: flux-system
 spec:
-  dependsOn:
-    - name: infra-secrets
+  # dependsOn:
+  #   - name: infra-secrets
   decryption:
     provider: sops
     secretRef:
