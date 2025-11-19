@@ -4,3 +4,5 @@ namespace: ceph-csi
 resources:
   - namespace.yaml
   - rbd-driver.yaml
+  - ceph-config.yaml
+  - ceph-csi-encryption-kms-config.yaml
