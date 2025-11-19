@@ -1,0 +1,181 @@
+# ServiceAccount for CephFS provisioner
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cephfs-csi-provisioner
+  namespace: ceph-csi
+
+---
+# ClusterRole
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cephfs-external-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["nodes","secrets","configmaps","events","persistentvolumeclaims","persistentvolumes","serviceaccounts"]
+    verbs: ["get","list","watch","create","update","patch","delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims/status"]
+    verbs: ["update","patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses","volumeattachments","csinodes"]
+    verbs: ["get","list","watch","update","patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get","list","watch","create","update","delete"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+
+---
+# ClusterRoleBinding
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cephfs-csi-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: cephfs-csi-provisioner
+    namespace: ceph-csi
+roleRef:
+  kind: ClusterRole
+  name: cephfs-external-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Leader election RBAC
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cephfs-external-provisioner-cfg
+  namespace: ceph-csi
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get","list","watch","create","update","delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get","list","watch","create","update","delete"]
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cephfs-csi-provisioner-role-cfg
+  namespace: ceph-csi
+subjects:
+  - kind: ServiceAccount
+    name: cephfs-csi-provisioner
+    namespace: ceph-csi
+roleRef:
+  kind: Role
+  name: cephfs-external-provisioner-cfg
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# CephFS controller Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csi-cephfsplugin-provisioner
+  namespace: ceph-csi
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: csi-cephfsplugin-provisioner
+  template:
+    metadata:
+      labels:
+        app: csi-cephfsplugin-provisioner
+    spec:
+      serviceAccountName: cephfs-csi-provisioner
+      containers:
+        - name: csi-cephfsplugin
+          image: quay.io/cephcsi/cephcsi:v3.15-canary
+          args:
+            - "--type=cephfs"
+            - "--controller=true"
+            - "--drivername=cephfs.csi.ceph.com"
+            - "--endpoint=unix:///csi/csi.sock"
+            - "--csi-addons-endpoint=unix:///csi/csi-addons.sock"
+            - "--v=5"
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: ceph-config
+              mountPath: /etc/ceph
+            - name: ceph-csi-config
+              mountPath: /etc/ceph-csi-config
+            - name: ceph-csi-encryption-kms-config
+              mountPath: /etc/ceph-csi-encryption-kms-config
+
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.1.0
+          args:
+            - "--csi-address=/csi/csi.sock"
+            - "--leader-election=true"
+            - "--leader-election-namespace=ceph-csi"
+            - "--v=2"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.11.0
+          args:
+            - "--csi-address=/csi/csi.sock"
+            - "--leader-election=true"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+
+        - name: csi-snapshotter
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v7.0.2
+          args:
+            - "--csi-address=/csi/csi.sock"
+            - "--leader-election=true"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: ceph-config
+          hostPath:
+            path: /etc/ceph
+            type: DirectoryOrCreate
+        - name: ceph-csi-config
+          configMap:
+            name: ceph-csi-config
+        - name: ceph-csi-encryption-kms-config
+          configMap:
+            name: ceph-csi-encryption-kms-config
+
+---
+# CephFS StorageClass (RWX)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs
+provisioner: cephfs.csi.ceph.com
+parameters:
+  clusterID: "2b142655-7791-4f14-8934-0ea16121b652"
+  fsName: "k3s-fs"
+
+  # CephFS uses same Ceph user and secret as RBD
+  csi.storage.k8s.io/provisioner-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/node-stage-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
+
+mountOptions:
+  - mounter=kernel
+
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
