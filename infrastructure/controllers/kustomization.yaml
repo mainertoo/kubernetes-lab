@@ -4,7 +4,10 @@ resources:
   - traefik-proxy/
   - volsync/kustomization.yaml
   - snapshot-controller/
-  - democratic-csi/
+  #- democratic-csi/
   - node-feature-discovery/kustomization.yaml
   - tinyauth/kustomization.yaml
   - pocket-id/kustomization.yaml
+  - storage-ceph-rbd
+  - storage-cephfs
+  - storage-nfs
