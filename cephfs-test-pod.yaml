@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cephfs-test-pod
+  namespace: default
+spec:
+  containers:
+    - name: tester
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "sleep 3600"]
+      volumeMounts:
+        - name: cephfs-vol
+          mountPath: /mnt/cephfs
+  volumes:
+    - name: cephfs-vol
+      persistentVolumeClaim:
+        claimName: cephfs-test-pvc
