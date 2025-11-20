@@ -1,33 +1,27 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: cephfs-csi-leader-election
-  namespace: ceph-csi
+  name: cephfs-external-attacher-runner
 rules:
-  # Needed for leader election lock (ConfigMap/Lease)
+  # Needs to watch and update PVs
   - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
 
-  # Optional but nice for events around leader election
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch", "update"]
-
+  # Needs full access to VolumeAttachments and their status subresource
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments", "volumeattachments/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: cephfs-csi-leader-election
-  namespace: ceph-csi
+  name: cephfs-csi-attacher-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cephfs-external-attacher-runner
 subjects:
   - kind: ServiceAccount
     name: cephfs-csi-provisioner
     namespace: ceph-csi
-roleRef:
-  kind: Role
-  name: cephfs-csi-leader-election
-  apiGroup: rbac.authorization.k8s.io
