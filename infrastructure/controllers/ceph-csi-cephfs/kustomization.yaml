@@ -5,3 +5,5 @@ namespace: ceph-csi
 resources:
   - cephfs-driver.yaml
   - cephfs-controller.yaml
+  - cephfs-secret.yaml
+  - cephfs-storageclass.yaml
