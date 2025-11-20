@@ -11,3 +11,4 @@ resources:
   - cephfs-sa.yaml
   - cephfs-provisioner-rbac.yaml
   - cephfs-leader-election-rbac.yaml
+  - cephfs-secret-rbac.yaml
