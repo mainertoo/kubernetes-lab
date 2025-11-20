@@ -6,3 +6,4 @@ resources:
   - ceph-csi-rbd/
   - ceph-csi-cephfs/
   - nfs-csi/
+  - snapshot-controller
