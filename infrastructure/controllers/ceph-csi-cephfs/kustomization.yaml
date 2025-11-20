@@ -8,3 +8,4 @@ resources:
   - cephfs-secret.yaml
   - cephfs-storageclass.yaml
   - cephfs-rbac.yaml
+  - cephfs-sa.yaml
