@@ -9,3 +9,4 @@ resources:
   - cephfs-storageclass.yaml
   - cephfs-rbac.yaml
   - cephfs-sa.yaml
+  - cephfs-provisioner-rbac.yaml
