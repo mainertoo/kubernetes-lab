@@ -68,7 +68,7 @@ spec:
             - "--v=2"
             - "--feature-gates=Topology=true"
             - "--leader-election=true"
-            - "--leader-election-namespace=ceph-csi"
+            # - "--leader-election-namespace=ceph-csi"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
@@ -83,7 +83,7 @@ spec:
             - "--csi-address=/csi/csi.sock"
             - "--v=2"
             - "--leader-election=true"
-            - "--leader-election-namespace=ceph-csi"
+            # - "--leader-election-namespace=ceph-csi"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -95,7 +95,7 @@ spec:
             - "--csi-address=/csi/csi.sock"
             - "--v=2"
             - "--leader-election=true"
-            - "--leader-election-namespace=ceph-csi"
+            # - "--leader-election-namespace=ceph-csi"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -127,7 +127,7 @@ spec:
             - "--csi-address=/csi/csi.sock"
             - "--v=2"
             - "--leader-election=true"
-            - "--leader-election-namespace=ceph-csi"
+            # - "--leader-election-namespace=ceph-csi"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
