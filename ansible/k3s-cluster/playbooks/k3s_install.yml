@@ -25,6 +25,29 @@
           - net-tools
         state: present
         update_cache: yes
+    
+    - name: Install ceph-common and load ceph kernel module
+      block:
+        - name: Install ceph-common
+          apt:
+            name: ceph-common
+            state: present
+            update_cache: yes
+
+        - name: Load ceph kernel module now
+          ansible.builtin.command: modprobe ceph
+          register: ceph_modprobe
+          changed_when: ceph_modprobe.rc == 0
+          failed_when: false   # If ceph is already loaded, don't fail
+
+        - name: Persist ceph kernel module across reboots
+          copy:
+            dest: /etc/modules-load.d/ceph.conf
+            content: "ceph\n"
+            owner: root
+            group: root
+            mode: "0644"
+    
 
 # Play 2: Install K3s HA control-plane on all masters
 - name: Install K3s servers (embedded etcd HA)
