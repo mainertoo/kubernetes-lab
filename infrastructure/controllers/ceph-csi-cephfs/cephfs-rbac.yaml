@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cephfs-csi-leader-election
+  namespace: ceph-csi
+rules:
+  # Needed for leader election lock (ConfigMap/Lease)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Optional but nice for events around leader election
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cephfs-csi-leader-election
+  namespace: ceph-csi
+subjects:
+  - kind: ServiceAccount
+    name: cephfs-csi-provisioner
+    namespace: ceph-csi
+roleRef:
+  kind: Role
+  name: cephfs-csi-leader-election
+  apiGroup: rbac.authorization.k8s.io

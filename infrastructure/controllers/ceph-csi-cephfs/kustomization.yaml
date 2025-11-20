@@ -7,3 +7,4 @@ resources:
   - cephfs-controller.yaml
   - cephfs-secret.yaml
   - cephfs-storageclass.yaml
+  - cephfs-rbac.yaml
