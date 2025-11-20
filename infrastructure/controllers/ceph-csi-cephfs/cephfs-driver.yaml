@@ -90,6 +90,9 @@ spec:
             - name: CEPHCSI_KEYSTORE_K8S_NAMESPACE
               value: "kube-system"
           volumeMounts:
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: Bidirectional
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
             - name: mountpoint-dir
@@ -149,6 +152,10 @@ spec:
               mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
 
       volumes:
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
         - name: plugin-dir
           hostPath:
             path: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
