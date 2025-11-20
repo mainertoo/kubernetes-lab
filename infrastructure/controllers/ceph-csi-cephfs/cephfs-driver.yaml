@@ -41,6 +41,7 @@ roleRef:
   name: cephfs-csi-nodeplugin
   apiGroup: rbac.authorization.k8s.io
 ---
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -58,7 +59,6 @@ spec:
       serviceAccountName: cephfs-csi-node
       hostNetwork: true
       containers:
-        # Main cephfs node plugin
         - name: csi-cephfsplugin
           image: quay.io/cephcsi/cephcsi:v3.15-canary
           imagePullPolicy: IfNotPresent
@@ -80,17 +80,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # *** MAIN SOCKET ON THE HOST PATH ***
             - name: CSI_ENDPOINT
-              value: unix:///csi/csi.sock
+              value: unix:///var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi.sock
             - name: CSI_ADDONS_ENDPOINT
-              value: unix:///csi/csi-addons.sock
+              value: unix:///var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi-addons.sock
             - name: CEPHCSI_KEYSTORE
               value: "k8s_keystore"
             - name: CEPHCSI_KEYSTORE_K8S_NAMESPACE
               value: "kube-system"
           volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
             - name: mountpoint-dir
@@ -106,36 +105,29 @@ spec:
               mountPath: /etc/ceph-csi-encryption-kms-config/
             - name: keys-tmp-dir
               mountPath: /tmp/csi/keys
-            - name: registration-dir
-              mountPath: /registration
 
-        # Node driver registrar (this is the one that was crashing)
         - name: driver-registrar
           image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.10.0
           imagePullPolicy: IfNotPresent
           args:
-            - "--v=5"
-            - "--csi-address=/csi/csi.sock"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi.sock"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
           env:
+            # Registrar also talks to the same host-path socket
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Explicitly tell it where to create the registration socket
-            - name: DRIVER_REG_SOCK_PATH
-              value: /registration/cephfs.csi.ceph.com-reg.sock
           volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
             - name: registration-dir
               mountPath: /registration
 
-        # Liveness sidecar
         - name: liveness-prometheus
           image: quay.io/cephcsi/cephcsi:v3.15-canary
           imagePullPolicy: IfNotPresent
@@ -151,17 +143,19 @@ spec:
             - "--timeout=3s"
           env:
             - name: CSI_ENDPOINT
-              value: unix:///csi/csi.sock
+              value: unix:///var/lib/kubelet/plugins/cephfs.csi.ceph.com/csi.sock
           volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
 
       volumes:
-        - name: socket-dir
-          emptyDir: {}
         - name: plugin-dir
           hostPath:
             path: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
             type: DirectoryOrCreate
         - name: mountpoint-dir
           hostPath:
@@ -183,7 +177,3 @@ spec:
             name: ceph-csi-encryption-kms-config
         - name: keys-tmp-dir
           emptyDir: {}
-        - name: registration-dir
-          hostPath:
-            path: /var/lib/kubelet/plugins_registry/
-            type: DirectoryOrCreate
