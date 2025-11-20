@@ -3,39 +3,106 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cephfs-csi-provisioner
 rules:
-  # PV / PVC / SC management
+  # Core PVC / PV / SC management
   - apiGroups: [""]
-    resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    resources:
+      - persistentvolumes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - update
+      - patch
   - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses"]
-    verbs: ["get", "list", "watch"]
+    resources:
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
 
-  # VolumeAttachments (for PUBLISH_UNPUBLISH_VOLUME support)
   - apiGroups: ["storage.k8s.io"]
-    resources: ["volumeattachments"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
 
-  # Secrets (for Ceph creds)
+  # Secrets (for Ceph credentials)
   - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list"]
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+
+  # VolumeAttachments (publish / unpublish)
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+
+  # Nodes / CSINodes / CSIDrivers (some sidecars look at these)
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - csinodes
+      - csidrivers
+    verbs:
+      - get
+      - list
+      - watch
 
   # Events
   - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["list", "watch", "create", "update", "patch"]
+    resources:
+      - events
+    verbs:
+      - list
+      - watch
+      - create
+      - update
+      - patch
 
-  # Snapshot support (you can trim if you don’t care)
+  # Snapshot APIs (harmless if you don’t use them, but standard)
   - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources:
+      - volumesnapshots
+      - volumesnapshotcontents
+      - volumesnapshotclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshots/status", "volumesnapshotcontents/status"]
-    verbs: ["update", "patch"]
+    resources:
+      - volumesnapshots/status
+      - volumesnapshotcontents/status
+    verbs:
+      - update
+      - patch
 
 ---
 kind: ClusterRoleBinding
