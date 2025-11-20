@@ -1,6 +1,27 @@
 - hosts: master
   become: yes  # Ensure root privileges for all tasks
   tasks:
+    - name: Ensure ceph-common installed and ceph module loaded
+      block:
+        - name: Install ceph-common
+          apt:
+            name: ceph-common
+            state: present
+            update_cache: yes
+
+        - name: Load ceph module now
+          ansible.builtin.command: modprobe ceph
+          register: ceph_modprobe
+          changed_when: ceph_modprobe.rc == 0
+          failed_when: false
+
+        - name: Persist ceph kernel module across reboots
+          copy:
+            dest: /etc/modules-load.d/ceph.conf
+            content: "ceph\n"
+            owner: root
+            group: root
+            mode: "0644"
     - name: Upgrade K3s on master
       shell: |
         curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644 --disable=servicelb --disable=traefik  --kube-apiserver-arg="feature-gates=MutatingAdmissionPolicy=true" --kube-apiserver-arg="runtime-config=admissionregistration.k8s.io/v1alpha1=true"
@@ -26,6 +47,27 @@
 - hosts: worker
   become: yes
   tasks:
+    - name: Ensure ceph-common installed and ceph module loaded
+      block:
+        - name: Install ceph-common
+          apt:
+            name: ceph-common
+            state: present
+            update_cache: yes
+
+        - name: Load ceph module now
+          ansible.builtin.command: modprobe ceph
+          register: ceph_modprobe
+          changed_when: ceph_modprobe.rc == 0
+          failed_when: false
+
+        - name: Persist ceph kernel module across reboots
+          copy:
+            dest: /etc/modules-load.d/ceph.conf
+            content: "ceph\n"
+            owner: root
+            group: root
+            mode: "0644"
     - name: Debug K3S_URL and K3S_TOKEN on worker nodes
       debug:
         msg:
