@@ -123,6 +123,8 @@ spec:
               mountPath: /csi
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/cephfs.csi.ceph.com/
+            - name: registration-dir
+              mountPath: /registration
         - name: liveness-prometheus
           image: quay.io/cephcsi/cephcsi:v3.15-canary
           imagePullPolicy: IfNotPresent
@@ -167,5 +169,9 @@ spec:
         - name: ceph-csi-encryption-kms-config
           configMap:
             name: ceph-csi-encryption-kms-config
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: DirectoryOrCreate
         - name: keys-tmp-dir
           emptyDir: {}
