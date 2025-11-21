@@ -1,11 +1,11 @@
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: "ceph-csi-config"
-data:
-  config.json: |-
-    []
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: "ceph-csi-config"
+# data:
+#   config.json: |-
+#     []
 
 ---
 kind: Service
@@ -76,8 +76,8 @@ spec:
               mountPath: /csi
             - name: host-sys
               mountPath: /sys
-            - name: ceph-csi-config
-              mountPath: /etc/ceph-csi-config/
+            # - name: ceph-csi-config
+            #   mountPath: /etc/ceph-csi-config/
             - name: keys-tmp-dir
               mountPath: /tmp/csi/keys
         - name: csi-provisioner
@@ -187,9 +187,9 @@ spec:
         - name: host-sys
           hostPath:
             path: /sys
-        - name: ceph-csi-config
-          configMap:
-            name: ceph-csi-config
+        # - name: ceph-csi-config
+        #   configMap:
+        #     name: ceph-csi-config
         - emptyDir:
             medium: Memory
           name: keys-tmp-dir
@@ -264,10 +264,10 @@ spec:
               mountPath: /dev
             - name: host-mount
               mountPath: /run/mount
-            - name: ceph-config
-              mountPath: /etc/ceph/
-            - name: ceph-csi-config
-              mountPath: /etc/ceph-csi-config/
+            # - name: ceph-config
+            #   mountPath: /etc/ceph/
+            # - name: ceph-csi-config
+            #   mountPath: /etc/ceph-csi-config/
         - name: driver-registrar
           # This is necessary only for systems with SELinux, where
           # non-privileged sidecar containers cannot access unix domain socket
@@ -322,12 +322,12 @@ spec:
         - name: host-mount
           hostPath:
             path: /run/mount
-        - name: ceph-config
-          configMap:
-            name: ceph-config
-        - name: ceph-csi-config
-          configMap:
-            name: ceph-csi-config
+        # - name: ceph-config
+        #   configMap:
+        #     name: ceph-config
+        # - name: ceph-csi-config
+        #   configMap:
+        #     name: ceph-csi-config
 ---
 ---
 apiVersion: v1
