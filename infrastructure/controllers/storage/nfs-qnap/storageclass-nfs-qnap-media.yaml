@@ -2,13 +2,14 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nfs-qnap-media
-provisioner: nfs.csi.ceph.com    # ✅ matches your Ceph-CSI NFS driver
+provisioner: nfs-subdir-external-provisioner
 parameters:
-  server: 192.168.1.252
-  share: /QNAS/data
-mountOptions:
-  - nfsvers=4.1
-  - noatime
+  # Root inside the NFS export where subdirs will be created
+  # This is relative to NFS_PATH (/QNAS/data)
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
+  onDelete: retain
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 volumeBindingMode: Immediate
+mountOptions:
+  - nfsvers=4.1
