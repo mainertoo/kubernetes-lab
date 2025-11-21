@@ -20,7 +20,7 @@ spec:
   storageClassName: ceph-rbd
   resources:
     requests:
-      storage: 1Gi
+      storage: 2Gi
 ---
 apiVersion: v1
 kind: Pod
@@ -45,8 +45,8 @@ spec:
           set -eux
           echo "[init] starting on $(date)"
 
-          echo "hello from cephfs: $(date)" > /mnt/cephfs/from-cephfs.txt
-          echo "hello from rbd:    $(date)" > /mnt/rbd/from-rbd.txt
+          echo "hello from cephfs v2: $(date)" > /mnt/cephfs/from-cephfs.txt
+          echo "hello from rbd v2:    $(date)" > /mnt/rbd/from-rbd.txt
 
           # cross-copy to prove both mounts are writable
           cp /mnt/cephfs/from-cephfs.txt /mnt/rbd/copied-from-cephfs.txt
