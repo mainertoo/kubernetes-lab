@@ -1,0 +1,8 @@
+# .sops.yaml
+# Tell SOPS to encrypt Secret data/stringData in these paths
+creation_rules:
+  # Encrypt any *.sops.yaml / *.sops.yml under clusters/
+  - path_regex: ^clusters/.+\.sops\.ya?ml$
+    encrypted_regex: '^(data|stringData)$'
+    pgp:
+      - "5186178CB0B973E066A3C1C46FCBE5E68F302C0A"
