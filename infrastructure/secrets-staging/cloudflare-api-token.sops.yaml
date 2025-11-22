@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cloudflare-api-token
+    namespace: cert-manager
+type: Opaque
+stringData:
+    #ENC[AES256_GCM,data:PvKyTVQNXJU2NMwAvJeEwFxNWQIzuMGfhAlsRfIqp5HugfcAnSVV0X5Ror1sPiA+85dnru2xF10wuNggowRkaWpe8e+m8n7OwsXlVuk=,iv:dSVd3nXjO3moPt3QJV0ZD4RZEIe6IgNzxaQ8X33Efxw=,tag:Z06GxzW6ojJzxsEZL6heIA==,type:comment]
+    api-token: ENC[AES256_GCM,data:Y4mT4UU1WD0z5euJoZNvy3FbD375Bl+EHPUhK91f8jxXhoVvdoN3EQ==,iv:Gxq5yC86F26iIDV0Fi93u7oseF249CdrGRGWaC0GcRQ=,tag:ig+9V85GRiBUfWrTrJ2kdQ==,type:str]
+sops:
+    lastmodified: "2025-11-22T17:55:30Z"
+    mac: ENC[AES256_GCM,data:SfOy2czoqOazbsjSnjLZI+A6kPz6TgtGoyszJnbq6NVc59RCOuExF9KGPK34KjM7pvkCfbXUfYOVXzp+ur5/kFtA9pq7kxREEfZErFEDlcHY5zF2TOvTWx2TdcOuqTo39rvlnAoTCNR6ZvFaDhx2PEX5XvCirzxy1wfoouLQG80=,iv:9JegzyEW4vUTtL6Ev2rtbPkseC+6B8tBqlH1GDo2UJo=,tag:37wKX86htuF/Apzxq1VX0g==,type:str]
+    pgp:
+        - created_at: "2025-11-22T17:55:30Z"
+          enc: |-
+            -----BEGIN PGP MESSAGE-----
+
+            hQIMA9xVxa/B7U70AQ//enB6WrvmFSmeZhhy1v3kJZQBEDEHJ27YkgMfSJCVVqSZ
+            nen4PNiwxctytZW5ZGR3PNc3Aq+OTP5Mte3fp+s/LlVMgI7yV/Wde5GF1jxLTeQE
+            wTMf1K9pyaVoJxIpq7bhvc/QxI7t2D/kKC/CejgQPIxo/59UwoJwZQEMqRSioCBK
+            AKx+BVcy6lSqyceXFvx2dvhXtIPPklE5pEq5vs2lWqYaN4CWWBV0IFGUZopG7V4h
+            ck5a0BmVCZNp91NipMr+ZuWJ1Trlaizi/R6QrAR8tWngeCSoTN3wCMdpwoHzz2fd
+            5Untk04OvG3nsahvauRPWgVu2aeYh6x7G12PPxWUQR5hOPoj1SFB2sk7Euo9AMLq
+            GwF8y7wky3zikhYIygmJH9XZYTzU1PUI1lvqQr9zLFh3u7oIHL4sQH7ME7P2He0v
+            QHUPjZ6r1YT9vlv+fmw1LfzVUkLOiJeTtDe712QLxvBkfgyGgL/YM8GIQ3mliwLq
+            M5lORK85BMuXR5/9UBWBQgscCrSqCm+pUbe7w9wiJiQXpmRKsl2zCYViHjRyqRiA
+            FgF4l627dE849xOV1SV+eJ0+aDdZRDijonnaDDPiMigyzJQmXuU9HDncGM+j0PA6
+            X0sMs78R5u2mDSQefkZMJ2XD88Dk/ZeLl2Bcvd1aI2fcTglqbyBTS8wruLr8l+fU
+            ZgEJAhAu7eRpUWwx6uQiJoDWfVs+SsDzqeR0YqDAs0zCcKgAD4RzxR9MPakK96Co
+            uZCyMbT2gFZwyVJEEy97PNRpXCgDm6u/L3O2PLnXdpzon+BlPNd9zlwLEUDwKTEN
+            Q16T7ar3dQ==
+            =3pnr
+            -----END PGP MESSAGE-----
+          fp: 5186178CB0B973E066A3C1C46FCBE5E68F302C0A
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
