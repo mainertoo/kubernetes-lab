@@ -6,3 +6,8 @@ creation_rules:
     encrypted_regex: '^(data|stringData)$'
     pgp:
       - "5186178CB0B973E066A3C1C46FCBE5E68F302C0A"
+  # Encrypt any *.sops.yaml / *.sops.yml under infrastructure/
+  - path_regex: ^infrastructure/.+\.sops\.ya?ml$
+    encrypted_regex: '^(data|stringData)$'
+    pgp:
+      - "5186178CB0B973E066A3C1C46FCBE5E68F302C0A"
