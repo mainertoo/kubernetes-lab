@@ -7,4 +7,5 @@ resources:
   - ceph-csi-cephfs/
   - storage-ceph-rbd/
   - nfs-csi/
-  - snapshot-controller
+  - snapshot-controller/
+  - cert-manager
