@@ -4,7 +4,6 @@ resources:
   - ceph-csi-cephfs
   - ceph-csi-rbd
   - cert-manager
-  - democratic-csi
   - nfs-csi
   - pocket-id
   - snapshot-controller
