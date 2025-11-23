@@ -11,5 +11,4 @@ resources:
 
   # CSI drivers & storageclasses
   - nfs-csi
-  - storage          # includes cephfs / ceph-rbd / nfs-qnap storageclasses
-  - storage-nfs      # NFS storage namespace/RBAC/SC
+  - storage          # cephfs / rbd / nfs-qnap storageclasses
