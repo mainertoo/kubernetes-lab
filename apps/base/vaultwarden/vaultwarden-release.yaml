@@ -17,6 +17,10 @@ spec:
         namespace: flux-system
 
   values:
+    controllers:
+      main:
+        type: deployment
+
     image:
       repository: vaultwarden/server
       tag: 1.32.0
