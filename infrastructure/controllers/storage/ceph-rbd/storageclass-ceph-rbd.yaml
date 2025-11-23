@@ -10,13 +10,13 @@ parameters:
   imageFeatures: "layering"
 
   # Secrets for provisioning and node operations
-  csi.storage.k8s.io/provisioner-secret-name: ceph-csi-rbd-secret
+  csi.storage.k8s.io/provisioner-secret-name: ceph-rbd-secret
   csi.storage.k8s.io/provisioner-secret-namespace: kube-system
-  csi.storage.k8s.io/controller-expand-secret-name: ceph-csi-rbd-secret
+  csi.storage.k8s.io/controller-expand-secret-name: ceph-rbd-secret
   csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
-  csi.storage.k8s.io/node-stage-secret-name: ceph-csi-rbd-secret
+  csi.storage.k8s.io/node-stage-secret-name: ceph-rbd-secret
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-
+  
   # Monitors (space-separated)
   monitors: "192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789"
 
