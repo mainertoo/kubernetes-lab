@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-lab-mainertoo-com
+  namespace: traefik
+spec:
+  secretName: wildcard-lab-mainertoo-com-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - "lab.mainertoo.com"
+    - "*.lab.mainertoo.com"
