@@ -4,10 +4,11 @@ metadata:
   name: letsencrypt-production
 spec:
   acme:
+    # Use an email you actually monitor
     email: mainertoo@gmail.com
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
-      name: letsencrypt-production-account-key
+      name: letsencrypt-production
     solvers:
       - dns01:
           cloudflare:
