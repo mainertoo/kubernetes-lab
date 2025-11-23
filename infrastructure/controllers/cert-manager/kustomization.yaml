@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
   - repository.yaml
   - release.yaml
-  - issuer.yaml
-  - certificate.yaml
+  #- issuer.yaml
+  #- certificate.yaml
