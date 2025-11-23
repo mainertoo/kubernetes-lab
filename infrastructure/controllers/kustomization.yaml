@@ -5,12 +5,12 @@ resources:
   - ceph-csi-rbd
   - cert-manager
   - nfs-csi
-  - pocket-id
-  - snapshot-controller
+  #- pocket-id
+  #- snapshot-controller
   - storage
   - storage-ceph-rbd
   - storage-cephfs
   - storage-nfs
-  - tinyauth
+  #- tinyauth
   - traefik-proxy
-  - volsync
+  #- volsync
