@@ -41,5 +41,8 @@ spec:
     persistence:
       data:
         enabled: true
-        type: pvc
-        existingClaim: vaultwarden-data
+        # v4 style: use `existingClaim` inside `volumeSpec`
+        type: custom
+        volumeSpec:
+          persistentVolumeClaim:
+            claimName: vaultwarden-data
