@@ -3,7 +3,7 @@ kind: IngressRoute
 metadata:
   name: paperless-ngx-ingressroute
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=paperless-ngx}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://paperless.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Paperless NGX"
     gethomepage.dev/description: "Document management and OCR system"
@@ -15,7 +15,7 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`${SUBDOMAIN:=paperless-ngx}.hephaestus.markmk.com`)
+    - match: Host(`paperless.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: paperless-ngx-app

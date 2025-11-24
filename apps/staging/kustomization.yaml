@@ -10,3 +10,4 @@ resources:
   # - riven-backend/
   # - plex/
   - vaultwarden/
+  - paperless-ngx/
