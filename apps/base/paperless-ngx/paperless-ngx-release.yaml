@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app paperless-ngx
+  namespace: paperless-ngx
 spec:
   interval: 30m
   chartRef:
@@ -19,12 +20,17 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       paperless-ngx:
-        pod:
-          imagePullSecrets:
-            - name: ghcr-paperless-cred
+        # If you really want to force GHCR auth, you *can* keep this,
+        # but it's not required for the main paperless-ngx image since
+        # it pulls fine anonymously in your cluster.
+        # pod:
+        #   imagePullSecrets:
+        #     - name: ghcr-paperless-cred
+
         containers:
           app:
             image:
@@ -35,34 +41,30 @@ spec:
               PAPERLESS_CONSUMPTION_DIR: /paperless/consume
               PAPERLESS_DATA_DIR: /paperless/data
               PAPERLESS_MEDIA_ROOT: /paperless/media
+
+              # OCR settings – the main image has Tesseract built-in
               PAPERLESS_OCR_LANGUAGE: dan+eng
               PAPERLESS_OCR_LANGUAGES: dan
+
+              # Redis inside this pod
               PAPERLESS_REDIS: redis://localhost:6379
-              PAPERLESS_TIKA_ENABLED: 1
-              PAPERLESS_TIKA_ENDPOINT: http://localhost:9998
-              PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://localhost:3000
+
+              # Tika/gotenberg: we are **not** using the private Tika image anymore.
+              # The main image provides OCR; if you later want external Tika again,
+              # we can revisit, but for now keep this simple & working.
+              PAPERLESS_TIKA_ENABLED: "0"
+
               PAPERLESS_TIME_ZONE: Europe/Copenhagen
               PAPERLESS_URL: https://paperless.lab.mainertoo.com
-              PAPERLESS_ENABLE_HTTP_REMOTE_USER: 1
-              PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: 1
+
+              # Remote user integration (optional)
+              PAPERLESS_ENABLE_HTTP_REMOTE_USER: "1"
+              PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: "1"
 
           redis:
             image:
               repository: docker.io/library/redis
-              tag: 8.2.2
-
-          gotenburg:
-            image:
-              repository: gotenberg/gotenberg
-              tag: 8.24.0
-            command: ["gotenberg"]
-            args:
-              ["--chromium-disable-javascript=true", "--chromium-allow-list=file:///tmp/.*"]
-
-          tika:
-            image:
-              repository: ghcr.io/paperless-ngx/tika
-              tag: 2.9.1-minimal
+              tag: "8.2.2"
 
     service:
       app:
