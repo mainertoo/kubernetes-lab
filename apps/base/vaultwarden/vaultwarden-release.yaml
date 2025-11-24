@@ -3,37 +3,39 @@ kind: HelmRelease
 metadata:
   name: vaultwarden
   namespace: vaultwarden
-  annotations:
-    fluxcd.io/recreate: "true"
 spec:
   interval: 5m
   releaseName: vaultwarden
   chart:
     spec:
       chart: app-template
+      version: 3.7.1
       sourceRef:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
 
+  install:
+    createNamespace: false
+
   values:
     controllers:
       main:
-        type: deployment
-
-    image:
-      repository: vaultwarden/server
-      tag: 1.32.0
-      pullPolicy: IfNotPresent
-
-    env:
-      - name: DOMAIN
-        value: "https://vaultwarden.lab.mainertoo.com"
-      - name: SIGNUPS_ALLOWED
-        value: "false"
+        containers:
+          main:
+            image:
+              repository: vaultwarden/server
+              tag: 1.32.0
+              pullPolicy: IfNotPresent
+            env:
+              - name: DOMAIN
+                value: "https://vaultwarden.lab.mainertoo.com"
+              - name: SIGNUPS_ALLOWED
+                value: "false"
 
     service:
       main:
+        controller: main
         ports:
           http:
             port: 80
@@ -45,8 +47,5 @@ spec:
     persistence:
       data:
         enabled: true
-        # v4 style: use `existingClaim` inside `volumeSpec`
-        type: custom
-        volumeSpec:
-          persistentVolumeClaim:
-            claimName: vaultwarden-data
+        # use the PVC that is already Bound:
+        existingClaim: vaultwarden-data
