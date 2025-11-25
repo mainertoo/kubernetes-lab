@@ -1,0 +1,102 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 30m
+  timeout: 5m
+  releaseName: authentik
+  chart:
+    spec:
+      chart: authentik
+      version: 2025.10.2
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: flux-system
+
+  values:
+    ## --- AUTHENTIK CORE CONFIG ---
+    authentik:
+      log_level: info
+
+      # Secret key for cookies / IDs
+      # Don't change after first install
+      secret_key: "MujRa4dErQAThK17L9Dz6hFe2sAdDFscoz6EZ8GxV3K0LdvJpdzxkkzsYUmHXkjh"
+
+      web:
+        # Root path
+        path: /
+
+      # Email via Gmail SMTP
+      email:
+        host: "smtp.gmail.com"
+        port: 587
+        username: "mainertoo@gmail.com"
+        password: "m@s0N496!!"
+        use_tls: true
+        use_ssl: false
+        from: "mainertoo@gmail.com"
+
+      # DB connection FROM Authentik's perspective
+      postgresql:
+        host: "{{ .Release.Name }}-postgresql"
+        name: "authentik"
+        user: "authentik"
+        password: "authentik"
+        port: 5432
+
+      redis:
+        host: "{{ .Release.Name }}-redis-master"
+        password: ""
+
+    ## --- EMBEDDED REDIS CONFIG ---
+    redis:
+      enabled: true
+      architecture: replication
+      auth:
+        enabled: false
+      master:
+        persistence:
+          enabled: true
+          storageClass: ceph-rbd
+          size: 1Gi
+      replica:
+        persistence:
+          enabled: false
+
+    ## --- EMBEDDED POSTGRES CONFIG ---
+    postgresql:
+      enabled: true
+      postgresqlUsername: "authentik"
+      postgresqlPassword: "authentik"
+      postgresqlDatabase: "authentik"
+
+      persistence:
+        enabled: true
+        storageClass: ceph-rbd
+        size: 5Gi
+
+    ## --- SERVER & WORKER: MOUNT MEDIA PVC ON /media ---
+    server:
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: authentik-media
+      volumeMounts:
+        - name: media
+          mountPath: /media
+
+      # We use Traefik IngressRoute instead of the built-in Ingress
+      ingress:
+        enabled: false
+
+    worker:
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: authentik-media
+      volumeMounts:
+        - name: media
+          mountPath: /media
