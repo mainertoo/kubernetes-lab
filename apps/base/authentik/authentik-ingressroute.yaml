@@ -1,0 +1,20 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: authentik-ingressroute
+  namespace: authentik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`authentik.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: authentik-server
+          port: 80
+  tls:
+    # If you're using a wildcard cert / default certResolver, adjust as needed.
+    # certResolver: cloudflare
+    # domains:
+    #   - main: "authentik.lab.mainertoo.com"
+    {}
