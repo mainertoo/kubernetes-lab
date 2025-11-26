@@ -6,4 +6,4 @@ metadata:
 spec:
   interval: 1h
   url: https://charts.goauthentik.io
-  timeout: 60s
+  timeout: 1m
