@@ -6,3 +6,5 @@ resources:
   - authentik-media-pvc.yaml
   - authentik-release.yaml
   - authentik-ingressroute.yaml
+patches:
+  - path: authentik-media-permissions-patch.yaml
