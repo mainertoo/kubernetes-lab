@@ -29,6 +29,12 @@ spec:
 
     ## --- AUTHENTIK CORE CONFIG ---
     authentik:
+       # 👇 NEW — enforce correct permissions on /media
+      media:
+      # These default to UID/GID 1000 inside container
+        owner: "1000"
+        group: "1000"
+        mode: "0775"
       log_level: info
 
       # Secret key for cookies / IDs
@@ -101,6 +107,10 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
+      podSecurityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
 
       # We use Traefik IngressRoute instead of the built-in Ingress
       ingress:
@@ -114,3 +124,7 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
+      podSecurityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
