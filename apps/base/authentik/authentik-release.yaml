@@ -17,6 +17,16 @@ spec:
         namespace: flux-system
 
   values:
+    ## --- BITNAMI POSTGRES GLOBAL AUTH (fixes password upgrade error) ---
+    global:
+      postgresql:
+        auth:
+          username: authentik
+          database: authentik
+          password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
+          postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
+          replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
+
     ## --- AUTHENTIK CORE CONFIG ---
     authentik:
       log_level: info
@@ -44,7 +54,7 @@ spec:
         host: "{{ .Release.Name }}-postgresql"
         name: "authentik"
         user: "authentik"
-        password: "authentik"
+        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="   # PG_PASS
         port: 5432
 
       redis:
@@ -69,14 +79,18 @@ spec:
     ## --- EMBEDDED POSTGRES CONFIG ---
     postgresql:
       enabled: true
-      postgresqlUsername: "authentik"
-      postgresqlPassword: "authentik"
-      postgresqlDatabase: "authentik"
+      auth:
+        username: "authentik"
+        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
+        database: "authentik"
+        postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
+        replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
 
-      persistence:
-        enabled: true
-        storageClass: ceph-rbd
-        size: 5Gi
+      primary:
+        persistence:
+          enabled: true
+          storageClass: ceph-rbd
+          size: 5Gi
 
     ## --- SERVER & WORKER: MOUNT MEDIA PVC ON /media ---
     server:
