@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authentik-media-perms-fix
+  namespace: authentik
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: fix
+          image: busybox:stable
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Fixing perms on /media..."
+              chown -R 1000:1000 /media || true
+              chmod -R 0775 /media || true
+              echo "Final state:"
+              ls -ld /media /media/* 2>/dev/null || true
+          volumeMounts:
+            - name: media
+              mountPath: /media
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: authentik-media
