@@ -23,13 +23,13 @@ spec:
         auth:
           username: authentik
           database: authentik
-          password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
-          postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
-          replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
+          existingSecret: authentik-postgresql
+          # password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
+          # postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
+          # replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
 
     ## --- AUTHENTIK CORE CONFIG ---
     authentik:
-       # 👇 NEW — enforce correct permissions on /media
       media:
       # These default to UID/GID 1000 inside container
         owner: "1000"
@@ -39,21 +39,25 @@ spec:
 
       # Secret key for cookies / IDs
       # Don't change after first install
-      secret_key: "MujRa4dErQAThK17L9Dz6hFe2sAdDFscoz6EZ8GxV3K0LdvJpdzxkkzsYUmHXkjh"
+      secret_key: ""
+      # secret_key: "MujRa4dErQAThK17L9Dz6hFe2sAdDFscoz6EZ8GxV3K0LdvJpdzxkkzsYUmHXkjh"
 
       web:
         # Root path
         path: /
 
-      # Email via Gmail SMTP
+      # Email via Gmail SMTP, # Email config: static bits here, secrets via env
       email:
         host: "smtp.gmail.com"
         port: 587
-        username: "mainertoo@gmail.com"
-        password: "m@s0N496!!"
+        # username: "mainertoo@gmail.com"
+        # password: "m@s0N496!!"
         use_tls: true
         use_ssl: false
-        from: "mainertoo@gmail.com"
+        username: ""
+        password: ""
+        from: ""
+        # from: "mainertoo@gmail.com"
 
       # DB connection FROM Authentik's perspective
       postgresql:
@@ -87,11 +91,11 @@ spec:
       enabled: true
       auth:
         username: "authentik"
-        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
+        # password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
         database: "authentik"
-        postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
-        replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
-
+        # postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
+        # replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
+        existingSecret: "authentik-postgresql"
       primary:
         persistence:
           enabled: true
@@ -110,6 +114,36 @@ spec:
       podSecurityContext:
         fsGroup: 1000
 
+      # 👇 Pull all secrets from the SOPS-managed Secret
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_SECRET_KEY
+
+        - name: AUTHENTIK_EMAIL__USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__USERNAME
+        - name: AUTHENTIK_EMAIL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__PASSWORD
+        - name: AUTHENTIK_EMAIL__FROM
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__FROM
+
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: password
+
       # We use Traefik IngressRoute instead of the built-in Ingress
       ingress:
         enabled: false
@@ -124,3 +158,15 @@ spec:
           mountPath: /media
       podSecurityContext:
         fsGroup: 1000
+
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_SECRET_KEY
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: password
