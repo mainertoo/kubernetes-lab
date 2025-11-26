@@ -6,8 +6,15 @@ creation_rules:
     encrypted_regex: '^(data|stringData)$'
     age:
       - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
+
   # Encrypt any *.sops.yaml / *.sops.yml under infrastructure/
   - path_regex: ^infrastructure/.+\.sops\.ya?ml$
+    encrypted_regex: '^(data|stringData)$'
+    age:
+      - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
+
+  # 🔹 NEW: encrypt any *.sops.yaml / *.sops.yml under apps/{base,staging,production}/
+  - path_regex: ^apps/(base|staging|production)/.*/.+\.sops\.ya?ml$
     encrypted_regex: '^(data|stringData)$'
     age:
       - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
