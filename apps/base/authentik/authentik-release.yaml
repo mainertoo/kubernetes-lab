@@ -107,9 +107,7 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
+      podSecurityContext:
         fsGroup: 1000
 
       # We use Traefik IngressRoute instead of the built-in Ingress
@@ -124,7 +122,5 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
+      podSecurityContext:
         fsGroup: 1000
