@@ -1,0 +1,46 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rancher
+  namespace: cattle-system
+spec:
+  interval: 30m
+  timeout: 10m
+  releaseName: rancher
+  chart:
+    spec:
+      chart: rancher
+      version: 2.10.0      # example; we can adjust once we pick a target
+      sourceRef:
+        kind: HelmRepository
+        name: rancher-latest
+        namespace: flux-system
+
+  values:
+    hostname: rancher.lab.mainertoo.com
+
+    # Let cert-manager handle TLS for this host
+    ingress:
+      enabled: true
+      ingressClassName: traefik
+      tls:
+        source: letsEncrypt
+      extraAnnotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+
+    # Bootstrap password is read from a Secret; we’ll manage that Secret via SOPS
+    global:
+      cattle:
+        bootstrapPassword: ""
+        bootstrapPasswordSecretName: rancher-bootstrap
+
+    replicas: 1
+
+    # Optional: tighten resources a bit for home-lab
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+      limits:
+        cpu: "500m"
+        memory: "2Gi"
