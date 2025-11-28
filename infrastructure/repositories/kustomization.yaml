@@ -8,3 +8,4 @@ resources:
   - helm-authentik.yaml
   - app-template.yaml
   - bjw-s.yaml
+  - helm-rancher.yaml

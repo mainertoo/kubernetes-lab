@@ -24,10 +24,7 @@ spec:
           username: authentik
           database: authentik
           existingSecret: authentik-postgresql
-          # password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
-          # postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
-          # replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
-
+         
     ## --- AUTHENTIK CORE CONFIG ---
     authentik:
       media:
@@ -40,8 +37,7 @@ spec:
       # Secret key for cookies / IDs
       # Don't change after first install
       secret_key: ""
-      # secret_key: "MujRa4dErQAThK17L9Dz6hFe2sAdDFscoz6EZ8GxV3K0LdvJpdzxkkzsYUmHXkjh"
-
+      
       web:
         # Root path
         path: /
@@ -50,8 +46,6 @@ spec:
       email:
         host: "smtp.gmail.com"
         port: 587
-        # username: "mainertoo@gmail.com"
-        # password: "m@s0N496!!"
         use_tls: true
         use_ssl: false
         username: ""
@@ -91,10 +85,7 @@ spec:
       enabled: true
       auth:
         username: "authentik"
-        # password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="        # PG_PASS
         database: "authentik"
-        # postgresPassword: "AhuVsEULNc5T7ufG1PbM7eg1ItW04uXvg8iirVsH5eU="  # PG_ADMIN
-        # replicationPassword: "es4uNML1rvpbuNuGrBqvoMGTyO9oS2KrILmlP/AxmPg=" # PG_REPL
         existingSecret: "authentik-postgresql"
       primary:
         persistence:
