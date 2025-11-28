@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: rancher-bootstrap
+    namespace: cattle-system
+type: Opaque
+stringData:
+    bootstrapPassword: ENC[AES256_GCM,data:hFt+6Zs2HqYh2YMk,iv:ZmGkYqwxvP3PRRKaaNfBXjdUhDegiaEMUzw3ZMBb4kM=,tag:WOWesPfZhKUF8BQ1SqFpzw==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGdk9URExNYlNET3EzS0d1
+            ampmT0dZZU9jZHZwbXZzbjJOTzBnOUUzcnpNCmNwL2tFUHFtRWh1VmFEblhFbm9K
+            NE5kODZYWVV0b2Y1TjUyNmI1TGdJYkUKLS0tIG9ZdEovL0JFU1hNY0h5enVLVktk
+            bDAyT05XVHd5WTN1ZVN4QVVQamJua3cKPBWGXWYomG+ocD7T35P2unjsDJrX0cXG
+            jHksqB7eVmLvxbV7hvOJ5l9YW/nDo0MPoM3XOu1SPQOk9NSx6V+38w==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-11-28T02:09:40Z"
+    mac: ENC[AES256_GCM,data:PKo6zY8U4AQgbTFn5wugx4r3wKjVvuWgJWFkLWQQHWmBN1LD9QGFPU6opEVm/aAdrj8w7adGZ/6MSgnbuhAkUm/+Fz4/4qMgj1aE1i2qExBZKJsVns2vrIBAc0tgJMzVxVDBMQc/mo5oYolrB5eudfdGKVRZ3F6kZDWDxpODx0M=,iv:IQh7EgkD6nBqYz2/WpE7C1iomWG3FDMK5dQh9ZB0GRg=,tag:bsPbKnbs2Tk5er47r15fRQ==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
