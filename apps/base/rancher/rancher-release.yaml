@@ -27,7 +27,7 @@ spec:
       tls:
         source: letsEncrypt
       extraAnnotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
+        # cert-manager.io/cluster-issuer: letsencrypt-prod
 
     # Bootstrap password is read from a Secret; we’ll manage that Secret via SOPS
     global:
