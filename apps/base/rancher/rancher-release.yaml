@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 30m
   timeout: 10m
+  kubeVersion: "1.31.0" ## hack to satisfy validation; our cluster is 1.26
   releaseName: rancher
   chart:
     spec:
