@@ -20,16 +20,10 @@ spec:
   values:
     hostname: rancher.lab.mainertoo.com
 
-    # Let cert-manager handle TLS for this host
+    # Let Traefik handle ingress; disable Rancher’s own ingress
     ingress:
-      enabled: true
-      ingressClassName: traefik
-      tls:
-        source: letsEncrypt
-      extraAnnotations:
-        # cert-manager.io/cluster-issuer: letsencrypt-prod
+      enabled: false
 
-    # Bootstrap password is read from a Secret; we’ll manage that Secret via SOPS
     global:
       cattle:
         bootstrapPassword: ""

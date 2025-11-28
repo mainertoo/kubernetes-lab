@@ -5,3 +5,4 @@ namespace: cattle-system
 resources:
   - rancher-namespace.yaml
   - rancher-release.yaml
+  - rancher-ingressroute.yaml
