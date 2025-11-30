@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: rclone-mount
+  name: rclone-zurg-mount
   namespace: rclone
   labels:
     app: rclone-mount
