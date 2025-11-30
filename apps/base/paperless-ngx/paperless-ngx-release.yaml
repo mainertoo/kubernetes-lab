@@ -24,19 +24,14 @@ spec:
   values:
     controllers:
       paperless-ngx:
-        # If you really want to force GHCR auth, you *can* keep this,
-        # but it's not required for the main paperless-ngx image since
-        # it pulls fine anonymously in your cluster.
-        # pod:
-        #   imagePullSecrets:
-        #     - name: ghcr-paperless-cred
-
         containers:
           app:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
               tag: 2.19.3
             env:
+              TZ: America/Los_Angeles
+
               COMPOSE_PROJECT_NAME: paperless-ngx
               PAPERLESS_CONSUMPTION_DIR: /paperless/consume
               PAPERLESS_DATA_DIR: /paperless/data
@@ -49,17 +44,19 @@ spec:
               # Redis inside this pod
               PAPERLESS_REDIS: redis://localhost:6379
 
-              # Tika/gotenberg: we are **not** using the private Tika image anymore.
-              # The main image provides OCR; if you later want external Tika again,
-              # we can revisit, but for now keep this simple & working.
+              # We are not using external Tika right now
               PAPERLESS_TIKA_ENABLED: "0"
 
-              PAPERLESS_TIME_ZONE: Europe/Copenhagen
+              PAPERLESS_TIME_ZONE: America/Los_Angeles
               PAPERLESS_URL: https://paperless.lab.mainertoo.com
 
-              # Remote user integration (optional)
+              # Remote user integration (you can later disable if not needed)
               PAPERLESS_ENABLE_HTTP_REMOTE_USER: "1"
               PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: "1"
+
+            envFrom:
+              - secretRef:
+                  name: paperless-oidc  # <-- your SOPS Secret name
 
           redis:
             image:
@@ -81,7 +78,6 @@ spec:
 
     persistence:
       data:
-        # PVC named "paperless-ngx" from paperless-ngx-pvc.yaml
         existingClaim: *app
         globalMounts:
           - path: /paperless
