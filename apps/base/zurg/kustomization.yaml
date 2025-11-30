@@ -5,6 +5,4 @@ resources:
   - zurg-namespace.yaml
   - zurg-deployment.yaml
   - zurg-service.yaml
-  - zurg-config.sops.yaml
-  - zurg-secret.sops.yaml
-  - zurg-ghcr-pull.sops.yaml
+  - zurg-ingress.yaml
