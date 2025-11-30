@@ -5,4 +5,4 @@ resources:
   - zurg-namespace.yaml
   - zurg-deployment.yaml
   - zurg-service.yaml
-  - zurg-ingress.yaml
+  - zurg-ingressroute.yaml
