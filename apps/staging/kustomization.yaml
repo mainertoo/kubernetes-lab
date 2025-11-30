@@ -5,7 +5,7 @@ resources:
   # - homepage/
   # - it-tools/
   - zurg/
-  # - rclone/
+  - rclone/
   # - riven/
   # - riven-backend/
   # - plex/
