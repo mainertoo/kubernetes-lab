@@ -29,39 +29,50 @@ spec:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
               tag: 2.19.3
+            # 1️⃣ pull secrets (including OIDC client/secret) from SOPS Secret
+            envFrom:
+              - secretRef:
+                  name: paperless-oidc
+
+            # 2️⃣ non-secret env here
             env:
               TZ: America/Los_Angeles
-
               COMPOSE_PROJECT_NAME: paperless-ngx
               PAPERLESS_CONSUMPTION_DIR: /paperless/consume
               PAPERLESS_DATA_DIR: /paperless/data
               PAPERLESS_MEDIA_ROOT: /paperless/media
 
-              # OCR settings – the main image has Tesseract built-in
+              # OCR settings
               PAPERLESS_OCR_LANGUAGE: dan+eng
               PAPERLESS_OCR_LANGUAGES: dan
 
               # Redis inside this pod
               PAPERLESS_REDIS: redis://localhost:6379
 
-              # We are not using external Tika right now
-              PAPERLESS_TIKA_ENABLED: "0"
+              # We’re *not* using external Tika
+              PAPERLESS_TIKA_ENABLED: "1"
 
               PAPERLESS_TIME_ZONE: America/Los_Angeles
               PAPERLESS_URL: https://paperless.lab.mainertoo.com
 
-              # Remote user integration (you can later disable if not needed)
-              PAPERLESS_ENABLE_HTTP_REMOTE_USER: "1"
-              PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: "1"
+              # 🔐 Authentik / allauth OIDC integration
+              PAPERLESS_ENABLE_ALLAUTH: "true"
+              PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+              PAPERLESS_AUTO_LOGIN: "true"
+              PAPERLESS_AUTO_CREATE: "true"
+              PAPERLESS_LOGOUT_REDIRECT_URL: "https://authentik.lab.mainertoo.com/application/o/paperless-ngx/end-session/"
+              PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+              PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "true"
 
-            envFrom:
-              - secretRef:
-                  name: paperless-oidc  # <-- your SOPS Secret name
+              # 🔕 Turn OFF remote-user auth to stop the noisy logs
+              PAPERLESS_ENABLE_HTTP_REMOTE_USER: "0"
+              PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: "0"
 
           redis:
             image:
               repository: docker.io/library/redis
               tag: "8.2.2"
+
 
     service:
       app:
