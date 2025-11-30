@@ -1,0 +1,24 @@
+# apps/base/zurg/zurg-ingressroute.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zurg
+  annotations:
+    gethomepage.dev/href: "https://zurg.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Zurg"
+    gethomepage.dev/description: "Real-Debrid/Torbox WebDAV bridge"
+    gethomepage.dev/app: zurg
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/riven.svg"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`zurg.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: zurg-webdav
+          port: 9999
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
