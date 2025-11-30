@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+    .dockerconfigjson: ENC[AES256_GCM,data:ibIpkhslm05tJBeFCcVruRoXN1DbX/koB8WezBXlLHjg3qDjMi4oVjtkGW0SuNH9I8CGBIuvHGZ4Czr5O4XogM1cDw7oWT1aQ/APA3/KN4JNHVccvRiT75LdFZqL9roTfzl+qmXG90PROtlGvOU7ku7nkxnEqAmXcLNd+ZB2W8l5dJ1pRjIyF6dmv5rliM7AJ8zSfpUo9i2pHBFqVcP2j5WULG2+h4+qWlXtvg==,iv:czAJ1HVzm5lqdNfme4Eb/4Nnhp41B5SZEOnN6C52ghg=,tag:IHydEwG/TRJOIHhAHEV4YQ==,type:str]
+kind: Secret
+metadata:
+    name: zurg-ghcr-pull
+    namespace: zurg
+type: kubernetes.io/dockerconfigjson
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFYUJWOFRwbHZWMEs4Y1lF
+            cmVBbkJaUVI3b25RQmVhNjN6dXhwTjE5eWt3CndNQTlJdEFBVWg2RFVtSzFHeWQ2
+            N1cxckx4YmxBYkNGdVlwZWs5TWtKMUkKLS0tIDMvcVFNYTlJYTlLd0VMbGtMbEdR
+            WG1iT0tzclBkQ3FhaWhqcXV1Z3NMUTAKZ9LtIXD+phnwbREzz32elRKbJghZZr6i
+            HEBiKUIAbCZBqDp8fCnS2q2LIRuKOtIcLvMXNzFZ3ZX0ddngv4a9JA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-11-30T16:02:41Z"
+    mac: ENC[AES256_GCM,data:INGyf5sU2LQWWTlYgovt9WA3XVkOrJnkrHqcmpfSoiekGO3LJ1QezUp8ywpzpfPRD+0/wv3b8wtENjbrENcrStI8jPAXF08ML+f7/UULqRojFYQOrE3+5fn/dlCV9rpwrhBbuQCFbVmyMHwE9Xv+MjAeYGkTrk4Hcif401lPNJA=,iv:98yBrEapV8INWKLcM+1WM9yUaVvdYkCHrVbmC3cktF0=,tag:yy+VKSktPYLf5XH/6dP24Q==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
