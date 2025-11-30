@@ -14,7 +14,9 @@ spec:
     metadata:
       labels:
         app: zurg
-    spec:  
+    spec:
+      imagePullSecrets:
+        - name: zurg-ghcr-pull
       initContainers:
         - name: merge-config
           image: busybox
@@ -31,23 +33,22 @@ spec:
             - name: zurg-secret
               mountPath: /zurgsecret
             - name: merged-config
-              mountPath: /config      
+              mountPath: /config
       containers:
-      - name: zurg
-        image: ghcr.io/debridmediamanager/zurg:latest
-        imagePullSecrets:
-        - name: zurg-ghcr-pull
-        volumeMounts:
-        - name: merged-config
-          subPath: config.yml
-          mountPath: /app/config.yml
+        - name: zurg
+          image: ghcr.io/debridmediamanager/zurg:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: merged-config
+              subPath: config.yml
+              mountPath: /app/config.yml
       volumes:
-      - name: zurg-config
-        configMap:
-          name: zurg-config
-      - name: zurg-secret
-        secret:
-          secretName: zurg-secret          
-      - name: merged-config
-        emptyDir: {}
+        - name: zurg-config
+          configMap:
+            name: zurg-config
+        - name: zurg-secret
+          secret:
+            secretName: zurg-secret
+        - name: merged-config
+          emptyDir: {}
       restartPolicy: Always
