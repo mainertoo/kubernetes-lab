@@ -1,20 +1,21 @@
+# apps/base/rclone/rclone-daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: rclone-zurg-mount
   namespace: rclone
   labels:
-    app: rclone-mount
+    app: rclone-zurg
 spec:
   selector:
     matchLabels:
-      app: rclone-mount
+      app: rclone-zurg
   template:
     metadata:
       labels:
-        app: rclone-mount
+        app: rclone-zurg
     spec:
-      # This is the main container for the Zurg mount
+      # This runs on every node and mounts Zurg/Decypharr via FUSE
       containers:
       - name: rclone-zurg
         image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
@@ -42,6 +43,7 @@ spec:
         - name: zurg-mount
           mountPath: /mnt/zurg
           mountPropagation: Bidirectional
+
       - name: rclone-decypharr
         image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
         command: ["rclone", "mount", "decypharr:", "/mnt/decypharr"]
@@ -65,17 +67,22 @@ spec:
         - name: decypharr-mount
           mountPath: /mnt/decypharr
           mountPropagation: Bidirectional
+
       volumes:
       - name: data
         hostPath:
-          path: /var/lib/rclone/
+          path: /var/lib/rclone
+          type: DirectoryOrCreate
       - name: rclone-config
         configMap:
           name: rclone-config
       - name: zurg-mount
         hostPath:
           path: /mnt/zurg
+          type: DirectoryOrCreate
       - name: decypharr-mount
         hostPath:
           path: /mnt/decypharr
+          type: DirectoryOrCreate
+
       restartPolicy: Always
