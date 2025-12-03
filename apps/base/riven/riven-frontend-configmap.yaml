@@ -5,5 +5,5 @@ metadata:
 data:
   PUID: "1000"
   PGID: "1000"
-  TZ: Europe/Copenhagen
-  BACKEND_URL: "http://riven-backend-service.media.svc.cluster.local:8080"
+  TZ: America/Los_Angeles
+  BACKEND_URL: "http://riven-backend.media.svc.cluster.local:8080"
