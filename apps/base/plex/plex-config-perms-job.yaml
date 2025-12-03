@@ -1,3 +1,4 @@
+# apps/base/plex/plex-config-perms-job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -8,21 +9,31 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
       containers:
         - name: fix
           image: busybox:stable
-          command: ["/bin/sh", "-c"]
-          args: |
-            echo "Fixing perms on /config..."
-            chown -R 1000:1000 /config || true
-            chmod -R 0775 /config || true
-            echo "Final state:"
-            ls -ld /config /config/* 2>/dev/null || true
-            echo "Done, sleeping so you can exec in if needed..."
-            sleep 3600
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              echo "Fixing perms on /config..."
+              echo "Before:"
+              ls -ld /config || true
+              find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+
+              echo "Applying chown/chmod..."
+              chown -R 1000:1000 /config || true
+              chmod -R 0775 /config || true
+
+              echo "After:"
+              ls -ld /config || true
+              find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+              echo "Done."
           volumeMounts:
             - name: config
               mountPath: /config
