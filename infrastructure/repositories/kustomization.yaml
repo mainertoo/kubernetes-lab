@@ -9,3 +9,4 @@ resources:
   - app-template.yaml
   - bjw-s.yaml
   - helm-rancher.yaml
+  - helm-intel.yaml
