@@ -14,34 +14,44 @@ spec:
       labels:
         app: intel-gpu-plugin
     spec:
-      hostNetwork: true
+      # Only run on nodes you've labeled as GPU nodes
+      nodeSelector:
+        intel.feature.node.kubernetes.io/gpu: "true"
+
+      # Allow the plugin to talk to host kernel, PCI, and kubelet
       hostPID: true
+      hostNetwork: false
+      dnsPolicy: ClusterFirstWithHostNet
+
+      tolerations:
+        - operator: Exists
+
       containers:
         - name: intel-gpu-plugin
           image: intel/intel-gpu-plugin:0.32.0
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
-          args:
-            # keep it simple for now; we can tune later
-            - "-enable-monitoring=true"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: LOG_LEVEL
+              value: "4"
           volumeMounts:
+            - name: device-plugins
+              mountPath: /var/lib/kubelet/device-plugins
             - name: dev-dri
               mountPath: /dev/dri
               readOnly: true
-            - name: kubelet-device-plugins
-              mountPath: /var/lib/kubelet/device-plugins
-              readOnly: false
-      nodeSelector:
-        intel.feature.node.kubernetes.io/gpu: "true"
-      tolerations:
-        - operator: "Exists"
+
       volumes:
+        - name: device-plugins
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
         - name: dev-dri
           hostPath:
             path: /dev/dri
             type: Directory
-        - name: kubelet-device-plugins
-          hostPath:
-            path: /var/lib/kubelet/device-plugins
-            type: DirectoryOrCreate
