@@ -115,7 +115,8 @@ spec:
               - path: /mnt/library
 
       database:
-        existingClaim: *app
+        # existingClaim: *app
+        existingClaim: riven-backend-pvc
         advancedMounts:
           riven:
             postgres:
