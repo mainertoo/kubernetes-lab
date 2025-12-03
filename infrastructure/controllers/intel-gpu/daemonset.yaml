@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: intel-gpu-plugin
+  namespace: intel-device-plugins-gpu
+  labels:
+    app: intel-gpu-plugin
+spec:
+  selector:
+    matchLabels:
+      app: intel-gpu-plugin
+  template:
+    metadata:
+      labels:
+        app: intel-gpu-plugin
+    spec:
+      # Run only on nodes you already labeled
+      nodeSelector:
+        intel.feature.node.kubernetes.io/gpu: "true"
+
+      # This plugin talks to kubelet and touches /dev/dri
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+
+      containers:
+        - name: intel-gpu-plugin
+          # You can bump the tag later; this is a current GA version
+          image: intel/intel-gpu-plugin:0.32.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          args:
+            - "-shared-dev-num=1"
+            - "-allocation-policy=none"
+            # uncomment if you want monitoring resources too:
+            # - "-enable-monitoring"
+          volumeMounts:
+            - name: dev-dri
+              mountPath: /dev/dri
+
+      volumes:
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
+            type: Directory
