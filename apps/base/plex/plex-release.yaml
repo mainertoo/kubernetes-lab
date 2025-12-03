@@ -39,6 +39,8 @@ spec:
                 value: America/Los_Angeles
               - name: PLEX_ADVERTISE_URL
                 value: "https://plex.lab.mainertoo.com"
+              - name: PLEX_CLAIM        # 👈 ADD THIS
+                value: "claim-tsWH8jYPt-n7Zfy_a1ML"
             securityContext:
               privileged: true
             probes:
