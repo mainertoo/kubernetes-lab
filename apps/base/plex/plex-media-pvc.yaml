@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-media-pvc
+  namespace: plex
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Ti              # logical; with nfs-subdir-external-provisioner this is mostly a quota hint
+  storageClassName: nfs-qnap-media
