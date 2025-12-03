@@ -6,8 +6,7 @@ resources:
   # - it-tools/
   - zurg/
   - rclone/
-  # - riven/
-  # - riven-backend/
+  - riven/
   - plex/
   - vaultwarden/
   - paperless-ngx/
