@@ -1,12 +1,6 @@
-# apps/staging/plex/kustomization.yaml
----
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
-# Use the shared volsync component (same pattern as other apps)
-components:
-  - ../../../components/volsync
-
-# Pull in the base Plex manifests (namespace, HelmRelease, IngressRoute, PVCs)
+# components:
+#   - ../../../components/volsync
 resources:
   - ../../base/plex
