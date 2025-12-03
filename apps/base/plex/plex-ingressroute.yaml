@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: plex
+  namespace: plex
+  annotations:
+    gethomepage.dev/href: "https://plex.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Plex"
+    gethomepage.dev/description: "Plex Media Server"
+    gethomepage.dev/app: plex
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "plex.png"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`plex.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: plex
+          port: 32400
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
