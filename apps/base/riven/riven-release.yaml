@@ -25,7 +25,7 @@ spec:
         containers:
           frontend:
             image:
-              repository: spoked/riven-frontend
+              repository: docker.io/spoked/riven-frontend
               tag: latest
             env:
               - name: TZ
@@ -39,7 +39,7 @@ spec:
 
           backend:
             image:
-              repository: spoked/riven
+              repository: docker.io/spoked/riven
               tag: latest
             env:
               - name: TZ
