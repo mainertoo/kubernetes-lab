@@ -31,7 +31,7 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/home-operations/plex
+              repository: ghcr.io/linuxserver/plex
               # You said "latest version tag" — you can pin this later if you want
               tag: latest
             env:
