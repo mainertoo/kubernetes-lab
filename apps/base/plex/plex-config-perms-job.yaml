@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-config-perms-fix
+  namespace: plex
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: fix
+          image: busybox:stable
+          command: ["/bin/sh", "-c"]
+          args: |
+            echo "Fixing perms on /config..."
+            chown -R 1000:1000 /config || true
+            chmod -R 0775 /config || true
+            echo "Final state:"
+            ls -ld /config /config/* 2>/dev/null || true
+            echo "Done, sleeping so you can exec in if needed..."
+            sleep 3600
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex

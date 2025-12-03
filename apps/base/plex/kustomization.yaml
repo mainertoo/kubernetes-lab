@@ -7,3 +7,4 @@ resources:
   - plex-config-pvc.yaml      # NEW – Plex metadata/config on CephFS
   - plex-media-pvc.yaml       # NEW – QNAP media via NFS- plex-release.yaml
   - plex-release.yaml
+  - plex-config-perms-job.yaml
