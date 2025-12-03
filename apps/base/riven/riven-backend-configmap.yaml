@@ -4,8 +4,7 @@ metadata:
   name: riven-backend-configmap
 data:
   RIVEN_SYMLINK_RCLONE_PATH: /mnt/zurg/__all__
-  TZ: Europe/Copenhagen
+  TZ: America/Los_Angeles
   RIVEN_FORCE_ENV: "false"
   RIVEN_SYMLINK_LIBRARY_PATH: /mnt/library
   RIVEN_SYMLINK_REPAIR_SYMLINKS: "true"
-

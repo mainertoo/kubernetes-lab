@@ -26,38 +26,40 @@ spec:
           frontend:
             image:
               repository: spoked/riven-frontend
-              tag: v0.21.2
+              tag: latest
             env:
               - name: TZ
-                value: Europe/Copenhagen
+                value: America/Los_Angeles
             envFrom:
-            - secretRef:
-                name: riven-frontend-secret              
-            - configMapRef:
-                name: riven-frontend-configmap  
-            dependsOn: backend                
+              - secretRef:
+                  name: riven-frontend-secret
+              - configMapRef:
+                  name: riven-frontend-configmap
+            dependsOn: backend
+
           backend:
             image:
               repository: spoked/riven
-              tag: v0.23.6
+              tag: latest
             env:
               - name: TZ
-                value: Europe/Copenhagen     
+                value: America/Los_Angeles
             envFrom:
-            - secretRef:
-                name: riven-backend-secret              
-            - configMapRef:
-                name: riven-backend-configmap
-            dependsOn: postgres  
+              - secretRef:
+                  name: riven-backend-secret
+              - configMapRef:
+                  name: riven-backend-configmap
+            dependsOn: postgres
+
           postgres:
             image:
               repository: postgres
-              tag: 17.0-alpine3.20    
+              tag: 17.0-alpine3.20
             envFrom:
-            - secretRef:
-                name: riven-postgres-secret              
-            - configMapRef:
-                name: riven-postgres-configmap
+              - secretRef:
+                  name: riven-postgres-secret
+              - configMapRef:
+                  name: riven-postgres-configmap
             probes:
               readiness:
                 enabled: true
@@ -75,12 +77,14 @@ spec:
         ports:
           http:
             port: &portfrontend 3000
+
       backend:
         controller: riven
         type: ClusterIP
         ports:
           http:
             port: &portbackend 8080
+
       postgres:
         controller: riven
         type: ClusterIP
@@ -88,12 +92,11 @@ spec:
           http:
             port: &portpostgres 5432
 
-
     persistence:
       data:
         existingClaim: riven-backend-pvc
         advancedMounts:
-          riven:          
+          riven:
             backend:
               - path: /riven/data
 
