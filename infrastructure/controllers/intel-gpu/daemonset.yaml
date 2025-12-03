@@ -17,6 +17,7 @@ spec:
       nodeSelector:
         intel.feature.node.kubernetes.io/gpu: "true"
       containers:
+
         # --- main Intel GPU plugin ---
         - name: intel-gpu-plugin
           image: intel/intel-gpu-plugin:0.32.0
@@ -31,6 +32,8 @@ spec:
               mountPath: /dev/dri
             - name: kubelet-device-plugins
               mountPath: /var/lib/kubelet/device-plugins
+            - name: cdi-dir
+              mountPath: /var/run/cdi
 
         # --- debug sidecar for inspection ---
         - name: debug
@@ -43,8 +46,11 @@ spec:
               mountPath: /dev/dri
             - name: kubelet-device-plugins
               mountPath: /var/lib/kubelet/device-plugins
+            - name: cdi-dir
+              mountPath: /var/run/cdi
 
       volumes:
+
         - name: devfs
           hostPath:
             path: /dev/dri
@@ -54,3 +60,8 @@ spec:
           hostPath:
             path: /var/lib/kubelet/device-plugins
             type: Directory
+
+        - name: cdi-dir
+          hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
