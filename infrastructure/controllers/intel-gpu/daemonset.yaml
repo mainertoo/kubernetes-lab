@@ -14,33 +14,34 @@ spec:
       labels:
         app: intel-gpu-plugin
     spec:
-      # Run only on nodes you already labeled
-      nodeSelector:
-        intel.feature.node.kubernetes.io/gpu: "true"
-
-      # This plugin talks to kubelet and touches /dev/dri
-      hostNetwork: false
-      hostPID: false
-      hostIPC: false
-
+      hostNetwork: true
+      hostPID: true
       containers:
         - name: intel-gpu-plugin
-          # You can bump the tag later; this is a current GA version
-          image: intel/intel-gpu-plugin:0.32.1
+          image: intel/intel-gpu-plugin:0.32.0
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           args:
-            - "-shared-dev-num=1"
-            - "-allocation-policy=none"
-            # uncomment if you want monitoring resources too:
-            # - "-enable-monitoring"
+            # keep it simple for now; we can tune later
+            - "-enable-monitoring=true"
           volumeMounts:
             - name: dev-dri
               mountPath: /dev/dri
-
+              readOnly: true
+            - name: kubelet-device-plugins
+              mountPath: /var/lib/kubelet/device-plugins
+              readOnly: false
+      nodeSelector:
+        intel.feature.node.kubernetes.io/gpu: "true"
+      tolerations:
+        - operator: "Exists"
       volumes:
         - name: dev-dri
           hostPath:
             path: /dev/dri
             type: Directory
+        - name: kubelet-device-plugins
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: DirectoryOrCreate
