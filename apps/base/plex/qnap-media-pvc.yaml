@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qnap-media-pvc
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Ti           # ≤ PV capacity
+  storageClassName: qnap-media-static
+  volumeName: qnap-media-pv   # 👈 ensures it binds to that specific PV

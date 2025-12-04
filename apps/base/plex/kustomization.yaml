@@ -8,3 +8,5 @@ resources:
   # - plex-media-pvc.yaml       # NEW – QNAP media via NFS- plex-release.yaml
   - plex-release.yaml
   - plex-config-perms-job.yaml
+  - qnap-media-pv.yaml         # logical volume to read qnap 
+  - qnap-media-pvc.yaml        # pvc to bind qnap pv
