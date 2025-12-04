@@ -25,9 +25,9 @@ spec:
     controllers:
       riven:
         # keep Riven pinned to the node that has /mnt/zurg mounted
-        pod:
-          nodeSelector:
-            kubernetes.io/hostname: mainertoo-k3s-worker-2
+        # pod:
+        #   nodeSelector:
+        #     kubernetes.io/hostname: mainertoo-k3s-worker-2
 
         containers:
           postgres:
