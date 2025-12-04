@@ -12,3 +12,4 @@ resources:
   - paperless-ngx/
   - authentik/
   - rancher/
+  - jellyfin/
