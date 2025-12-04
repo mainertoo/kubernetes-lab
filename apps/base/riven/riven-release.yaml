@@ -100,12 +100,12 @@ spec:
             backend:
               - path: /riven/data
 
-      rclone:
-        type: hostPath
-        hostPath: /mnt/zurg/
-        globalMounts:
-          - path: /mnt/zurg
-            readOnly: true
+      # rclone:
+      #   type: hostPath
+      #   hostPath: /mnt/zurg/
+      #   globalMounts:
+      #     - path: /mnt/zurg
+      #       readOnly: true
 
       media:
         existingClaim: shared-media-pvc
