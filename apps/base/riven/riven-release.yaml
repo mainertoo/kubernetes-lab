@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app riven
+  namespace: media
 spec:
   interval: 30m
   chartRef:
@@ -19,38 +20,11 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       riven:
         containers:
-          frontend:
-            image:
-              repository: docker.io/spoked/riven-frontend
-              tag: latest
-            env:
-              - name: TZ
-                value: America/Los_Angeles
-            envFrom:
-              - secretRef:
-                  name: riven-frontend-secret
-              - configMapRef:
-                  name: riven-frontend-configmap
-            dependsOn: backend
-
-          backend:
-            image:
-              repository: docker.io/spoked/riven
-              tag: latest
-            env:
-              - name: TZ
-                value: America/Los_Angeles
-            envFrom:
-              - secretRef:
-                  name: riven-backend-secret
-              - configMapRef:
-                  name: riven-backend-configmap
-            dependsOn: postgres
-
           postgres:
             image:
               repository: postgres
@@ -69,6 +43,35 @@ spec:
                     command: ["pg_isready", "-U", "postgres"]
                   initialDelaySeconds: 10
                   periodSeconds: 5
+
+          backend:
+            image:
+              repository: docker.io/spoked/riven
+              tag: latest
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+            envFrom:
+              - secretRef:
+                  name: riven-backend-secret
+              - configMapRef:
+                  name: riven-backend-configmap
+            dependsOn: postgres
+            # Volumes for backend come from persistence.data/media/rclone below
+
+          frontend:
+            image:
+              repository: docker.io/spoked/riven-frontend
+              tag: latest
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+            envFrom:
+              - secretRef:
+                  name: riven-frontend-secret
+              - configMapRef:
+                  name: riven-frontend-configmap
+            dependsOn: backend
 
     service:
       frontend:
@@ -89,10 +92,12 @@ spec:
         controller: riven
         type: ClusterIP
         ports:
-          http:
+          postgres:
             port: &portpostgres 5432
+            targetPort: 5432
 
     persistence:
+      # Riven backend app data (settings, etc.)
       data:
         existingClaim: riven-backend-pvc
         advancedMounts:
@@ -100,13 +105,15 @@ spec:
             backend:
               - path: /riven/data
 
-      # rclone:
-      #   type: hostPath
-      #   hostPath: /mnt/zurg/
-      #   globalMounts:
-      #     - path: /mnt/zurg
-      #       readOnly: true
+      # HostPath rclone mount for Zurg
+      rclone:
+        type: hostPath
+        hostPath: /mnt/zurg/
+        globalMounts:
+          - path: /mnt/zurg
+            readOnly: true
 
+      # Media library (your Ceph/NFS-backed shared-media-pvc)
       media:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -114,8 +121,8 @@ spec:
             backend:
               - path: /mnt/library
 
+      # Postgres data on the same PVC we used for riven-pg-debug
       database:
-        # existingClaim: *app
         existingClaim: riven-backend-pvc
         advancedMounts:
           riven:
