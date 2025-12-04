@@ -18,7 +18,7 @@ spec:
     - match: Host(`plex.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: plex
+        - name: media-plex
           port: 32400
   tls:
     secretName: wildcard-lab-mainertoo-com-tls
