@@ -29,6 +29,11 @@ spec:
             image:
               repository: postgres
               tag: 17.0-alpine3.20
+            env:
+              # Match the working debug deployment:
+              # PVC mounted at /var/lib/postgresql/data, PGDATA points to subdir
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: riven-postgres-secret
@@ -57,7 +62,6 @@ spec:
               - configMapRef:
                   name: riven-backend-configmap
             dependsOn: postgres
-            # Volumes for backend come from persistence.data/media/rclone below
 
           frontend:
             image:
@@ -113,7 +117,7 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      # Media library (your Ceph/NFS-backed shared-media-pvc)
+      # Media library (your shared media PVC)
       media:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -121,10 +125,11 @@ spec:
             backend:
               - path: /mnt/library
 
-      # Postgres data on the same PVC we used for riven-pg-debug
+      # Postgres data — PVC mounted at /var/lib/postgresql/data
+      # with PGDATA set to /var/lib/postgresql/data/pgdata
       database:
         existingClaim: riven-backend-pvc
         advancedMounts:
           riven:
             postgres:
-              - path: /var/lib/postgresql/data/pgdata
+              - path: /var/lib/postgresql/data
