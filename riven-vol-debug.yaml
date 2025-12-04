@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: riven-vol-debug
+  namespace: media
+  labels:
+    app: riven-vol-debug
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: mainertoo-k3s-worker-2
+  containers:
+    - name: tester
+      image: docker.io/library/busybox:stable
+      command: ["sh", "-c", "echo 'riven volume debug running'; sleep 3600"]
+      volumeMounts:
+        - name: data
+          mountPath: /riven/data
+        - name: media
+          mountPath: /mnt/library
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: riven-backend-pvc
+    - name: media
+      persistentVolumeClaim:
+        claimName: shared-media-pvc

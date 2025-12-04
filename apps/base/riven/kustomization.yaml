@@ -16,3 +16,4 @@ resources:
   - riven-backend-secret.sops.yaml
   - riven-frontend-secret.sops.yaml
   - riven-postgres-secret.sops.yaml
+  - riven-data-pvc.yaml

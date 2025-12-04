@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riven-debug-worker2
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riven-debug-worker2
+  template:
+    metadata:
+      labels:
+        app: riven-debug-worker2
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: mainertoo-k3s-worker-2
+      containers:
+        - name: backend
+          image: docker.io/spoked/riven:latest
+          command: ["sleep", "3600"]
+          env:
+            - name: TZ
+              value: America/Los_Angeles
