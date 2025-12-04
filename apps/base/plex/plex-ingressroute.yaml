@@ -2,7 +2,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: plex
-  namespace: plex
+  namespace: media
   annotations:
     gethomepage.dev/href: "https://plex.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
