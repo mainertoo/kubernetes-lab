@@ -1,22 +1,24 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: jellyfin-ingressroute
+  name: jellyfin
+  namespace: media
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=jellyfin}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://jellyfin.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "jellyfin"
+    gethomepage.dev/name: "Jellyfin"
     gethomepage.dev/description: "Open-source media server"
     gethomepage.dev/app: jellyfin
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg"
+    gethomepage.dev/icon: "jellyfin.png"
 spec:
   entryPoints:
     - websecure
-    - web
   routes:
-    - match: Host(`${SUBDOMAIN:=jellyfin}.hephaestus.markmk.com`)
+    - match: Host(`jellyfin.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: jellyfin
+        - name: media-jellyfin #may need to drop the media, matching what plex did
           port: 8096
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
