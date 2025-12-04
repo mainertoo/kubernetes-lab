@@ -24,8 +24,8 @@ spec:
   values:
     controllers:
       riven:
-        # Run Riven on the node where we KNOW /mnt/zurg is mounted and working
         pod:
+          # Run where Zurg (/mnt/zurg) is definitely mounted and tested
           nodeSelector:
             kubernetes.io/hostname: mainertoo-k3s-worker-2
 
@@ -35,7 +35,7 @@ spec:
               repository: postgres
               tag: 17.0-alpine3.20
             env:
-              # Match the working riven-pg-debug setup
+              # EXACTLY like riven-pg-debug
               - name: PGDATA
                 value: /var/lib/postgresql/data/pgdata
             envFrom:
@@ -105,15 +105,9 @@ spec:
             targetPort: 5432
 
     persistence:
-      # Riven backend app data (settings, etc.)
-      data:
-        existingClaim: riven-backend-pvc
-        advancedMounts:
-          riven:
-            backend:
-              - path: /riven/data
+      # ⚠️ NO more "data" PVC for backend here – let backend use container FS for /riven/data
 
-      # Rclone/Zurg mount — only mount into backend, not Postgres
+      # HostPath rclone mount for Zurg – backend only
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -123,7 +117,7 @@ spec:
               - path: /mnt/zurg
                 readOnly: true
 
-      # Media library (shared-media-pvc) — backend only
+      # Media library PVC – backend only (just like your debug volume pod)
       media:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -131,7 +125,7 @@ spec:
             backend:
               - path: /mnt/library
 
-      # Postgres data PVC, mounted EXACTLY like riven-pg-debug
+      # Postgres data PVC (only Postgres uses riven-backend-pvc)
       database:
         existingClaim: riven-backend-pvc
         advancedMounts:
