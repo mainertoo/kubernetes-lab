@@ -11,4 +11,6 @@ spec:
       targetPort: 32400
       protocol: TCP
   selector:
-    app.kubernetes.io/name: plex
+    app.kubernetes.io/component: plex
+    app.kubernetes.io/instance: media-plex
+    app.kubernetes.io/name: media-plex
