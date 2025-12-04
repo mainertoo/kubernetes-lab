@@ -1,9 +1,8 @@
-# apps/base/plex/plex-config-perms-job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: plex-config-perms-fix
-  namespace: plex
+  namespace: media
 spec:
   backoffLimit: 0
   template:

@@ -32,15 +32,14 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/plex
-              # You said "latest version tag" — you can pin this later if you want
               tag: latest
             env:
               - name: TZ
                 value: America/Los_Angeles
               - name: PLEX_ADVERTISE_URL
                 value: "https://plex.lab.mainertoo.com"
-              # - name: PLEX_CLAIM        # 👈 ADD THIS
-              #   value: "claim-tsWH8jYPt-n7Zfy_a1ML"
+              # - name: PLEX_CLAIM
+              #   value: "claim-xxxx"   # optional; you can add this when re-claiming
             securityContext:
               privileged: true
             probes:
@@ -62,7 +61,7 @@ spec:
                   failureThreshold: 30
                   periodSeconds: 10
 
-    # Default pod options (these can be relaxed if needed later)
+    # Default pod options
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -81,7 +80,7 @@ spec:
             port: &port 32400
 
     persistence:
-      # Plex config PVC (named "plex" to match &app)
+      # Plex config PVC (named "plex" to match &app) on CephFS
       config:
         existingClaim: *app
         advancedMounts:
@@ -103,7 +102,7 @@ spec:
             app:
               - path: /config/Library/Application Support/Plex Media Server/Logs
 
-      # rclone / zurg mount (adjust path if your DaemonSet uses something else)
+      # rclone / zurg mount (same as Riven: /mnt/zurg)
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -111,12 +110,15 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      media:
+      # NEW: shared library volume used by Riven + Plex
+      # This references the EXISTING CephFS PVC in the "media" namespace:
+      #   media / shared-media-pvc
+      library:
         existingClaim: shared-media-pvc
         advancedMounts:
           plex:
             app:
-              - path: /data/media
+              - path: /mnt/library
 
       transcode:
         type: emptyDir
@@ -125,7 +127,7 @@ spec:
             app:
               - path: /transcode
 
-      # NEW: pass the GPU device nodes straight through like the working smoke pod
+      # GPU device nodes passthrough
       dri:
         type: hostPath
         hostPath: /dev/dri
