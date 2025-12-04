@@ -56,7 +56,7 @@ spec:
           backend:
             image:
               repository: docker.io/spoked/riven
-              tag: latest
+              tag: v0.23.6
             env:
               - name: TZ
                 value: America/Los_Angeles
@@ -70,7 +70,7 @@ spec:
           frontend:
             image:
               repository: docker.io/spoked/riven-frontend
-              tag: latest
+              tag: v0.21.2
             env:
               - name: TZ
                 value: America/Los_Angeles
