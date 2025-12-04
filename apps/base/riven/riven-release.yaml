@@ -24,8 +24,8 @@ spec:
   values:
     controllers:
       riven:
+        # keep Riven pinned to the node that has /mnt/zurg mounted
         pod:
-          # Run where Zurg (/mnt/zurg) is definitely mounted and tested
           nodeSelector:
             kubernetes.io/hostname: mainertoo-k3s-worker-2
 
@@ -34,15 +34,15 @@ spec:
             image:
               repository: postgres
               tag: 17.0-alpine3.20
-            env:
-              # EXACTLY like riven-pg-debug
-              - name: PGDATA
-                value: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: riven-postgres-secret
               - configMapRef:
                   name: riven-postgres-configmap
+            env:
+              # use a subdir in the mounted volume as PGDATA
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
             probes:
               readiness:
                 enabled: true
@@ -105,9 +105,15 @@ spec:
             targetPort: 5432
 
     persistence:
-      # ⚠️ NO more "data" PVC for backend here – let backend use container FS for /riven/data
+      # 🔹 Riven backend app data (settings, logs, etc.) – persistent
+      data:
+        existingClaim: riven-data-pvc
+        advancedMounts:
+          riven:
+            backend:
+              - path: /riven/data
 
-      # HostPath rclone mount for Zurg – backend only
+      # 🔹 HostPath rclone mount for Zurg – backend only
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -117,7 +123,7 @@ spec:
               - path: /mnt/zurg
                 readOnly: true
 
-      # Media library PVC – backend only (just like your debug volume pod)
+      # 🔹 Media library (Ceph-backed shared-media-pvc)
       media:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -125,10 +131,12 @@ spec:
             backend:
               - path: /mnt/library
 
-      # Postgres data PVC (only Postgres uses riven-backend-pvc)
+      # 🔹 Postgres data – persistent, on riven-backend-pvc
       database:
         existingClaim: riven-backend-pvc
         advancedMounts:
           riven:
             postgres:
+              # PVC will be mounted at /var/lib/postgresql/data
+              # with PGDATA=/var/lib/postgresql/data/pgdata
               - path: /var/lib/postgresql/data
