@@ -19,17 +19,65 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       jellyfin:
+        pod:
+          # land on GPU node(s), same pattern as Plex
+          nodeSelector:
+            intel.feature.node.kubernetes.io/gpu: "true"
+
+        # initContainer to fix config perms BEFORE Jellyfin starts
+        initContainers:
+          fix-config-perms:
+            image: busybox:stable
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                echo "Fixing perms on /config..."
+                echo "Before:"
+                ls -ld /config || true
+                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+
+                echo "Applying chown/chmod..."
+                chown -R 1000:1000 /config || true
+                chmod -R 0775 /config || true
+
+                echo "After:"
+                ls -ld /config || true
+                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+                echo "Done."
+
+            volumeMounts:
+              - name: config
+                mountPath: /config
+
         containers:
           app:
             image:
               repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.0
+              tag: latest
             env:
               - name: TZ
-                value: Europe/Copenhagen
+                value: America/Los_Angeles
+            # You can add GPU-related env vars here later if needed
+
+    # default pod security (same vibe as Plex)
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementalGroups:
+          - 991
 
     service:
       app:
@@ -39,20 +87,31 @@ spec:
             port: &port 8096
 
     persistence:
+      # Jellyfin config PVC on CephFS
       config:
         existingClaim: *app
         advancedMounts:
           jellyfin:
             app:
-              - path: /config  
-      
-      media:
+              - path: /config
+
+      # Shared CephFS library from Riven (/mnt/library)
+      library:
         existingClaim: shared-media-pvc
         advancedMounts:
           jellyfin:
             app:
-              - path: /mnt/library         
+              - path: /mnt/library
 
+      # QNAP big media library
+      qnap-media:
+        existingClaim: qnap-media-pvc
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /data/qnas
+
+      # rclone / Zurg mount (same as Plex & Riven)
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -60,6 +119,7 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
+      # cache + transcode
       tmp:
         type: emptyDir
         advancedMounts:
@@ -68,4 +128,11 @@ spec:
               - path: /cache
                 subPath: cache
               - path: /transcode
-                subPath: transcode        
+                subPath: transcode
+
+      # GPU device nodes passthrough
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        globalMounts:
+          - path: /dev/dri
