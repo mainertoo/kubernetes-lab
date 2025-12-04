@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-media-pv
+spec:
+  capacity:
+    storage: 20Ti           # logical; must be >= what you expect to store
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-media-static
+  nfs:
+    # 👇 replace with your real QNAP IP/hostname and export path
+    server: 192.168.1.252
+    path: /QNAS/data

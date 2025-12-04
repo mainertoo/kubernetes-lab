@@ -7,7 +7,7 @@ spec:
   interval: 30m
 
   targetNamespace: media
-  
+
   chartRef:
     kind: OCIRepository
     name: app-template
@@ -123,6 +123,13 @@ spec:
           plex:
             app:
               - path: /mnt/library
+
+      qnap-media:                   # 👈 NEW: your big NAS library
+        existingClaim: qnap-media-pvc
+        advancedMounts:
+          plex:
+            app:
+              - path: /data/qnas    # this is what you’ll use in Plex UI
 
       transcode:
         type: emptyDir
