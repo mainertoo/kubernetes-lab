@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zilean-pgadmin
+  namespace: media
+spec:
+  type: ClusterIP
+  selector:
+    app: zilean-pgadmin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zilean-pgadmin
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zilean-pgadmin
+  template:
+    metadata:
+      labels:
+        app: zilean-pgadmin
+    spec:
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-pgadmin-env
+                  key: PGADMIN_DEFAULT_EMAIL
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-pgadmin-env
+                  key: PGADMIN_DEFAULT_PASSWORD
+            - name: PGADMIN_CONFIG_SERVER_MODE
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-pgadmin-env
+                  key: PGADMIN_CONFIG_SERVER_MODE
+            - name: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-pgadmin-env
+                  key: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: pgadmin-data
+              mountPath: /var/lib/pgadmin
+            - name: pgadmin-config
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+            - name: pgadmin-config
+              mountPath: /pgpass
+              subPath: pgpass
+      volumes:
+        - name: pgadmin-data
+          persistentVolumeClaim:
+            claimName: zilean-pgadmin-data
+        - name: pgadmin-config
+          secret:
+            secretName: zilean-pgadmin-config
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zilean-pgadmin-data
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: k3s-rbd
+  resources:
+    requests:
+      storage: 5Gi

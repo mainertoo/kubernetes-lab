@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: zilean-env
+    namespace: media
+type: Opaque
+stringData:
+    #ENC[AES256_GCM,data:oJPXXg6TgNWCwPkPYYjweIY9DNjD8pYzLJiCUX0I6RNX/Bg9zE0HP8iOvyWaw5znRo8j5gq+GKLU/vEecKmJaMk/IUnTcfD+lyTtdKsJSxqym0ungvSUuLdUAJY=,iv:Dv6gJOsKDBWTmjtZAbJTy4PVDe1mMncw9nNdCFPJN4U=,tag:ygYLKUqxOXTjWFbUac5ZVQ==,type:comment]
+    #ENC[AES256_GCM,data:yhZnIeKKTqMN+tJ6DMt78sCXBq+QFx9QO38iV9QGNPm38XbzJBcSGL6GAWD0m+fNGpVtZHIcrXnfxRGGU5GeySqMl5MA7TSVd/JjNw4T1uo8ERFPTyw+k1OvYgJXToOlXML+dt3Eim8RV5l/tWBcGeBTtkIkMXWiag==,iv:v+PrWGMHHrwczhw4dPNmL1/0Zgqwdh2GHkPJENr/cQs=,tag:jSZ5VS4eeeLSmztnGIGwoA==,type:comment]
+    ZILEAN_DB_CONNECTION: ENC[AES256_GCM,data:79H/ZI7fZ+a70/xTxuwoGpogZaOhKRSgEkIdvhtsoubx+v61rsGqfKHNyd1qvGZSQsPiOGsm2NlOGr60TojMv8kSxXGKjCYalwjt4/SPRqv0fFWk6fCL3VeKPpH784X3cfDSsiGJ9SXglYoCmQB9pMSab2cnes77X/F5wE/itE/uWW3tZQLDfptiavHMp21wKQnJaiCsd6UY6YaxWlE8xbRBkyk=,iv:SobJriFdJxB4Z5p9yynVsmBXHuqZY8w5EwAjTN9Eews=,tag:vFYLSqukif1TqvcQlhcPjA==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQSW5ndklDclVUSjlQeDJ6
+            MjEvT3FJVVNsZituOUtBcWM2RitpNUhISEY0Ci9nZ2lOTlQ4Yit2NHRNZmJ3N0xU
+            RTNkL0YvQVdPZmM3QkFPUjVEc0RYNUkKLS0tIDQyVVczZHNFR2dPalQwak82bEk4
+            NkJyejF3MzlkK0VmNm10b1gyYUJ1RXMKY9p7YqoKLhWt8Dalt3JAbZVA8lEYc1Vm
+            y6lmZDSyL81MQVGhjH/cKUs3aBpjeju8kG8SHSHZHSU/YCAGbosSzg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-12-05T04:04:12Z"
+    mac: ENC[AES256_GCM,data:5flADjby6dQc9swlD/SI+XAw2hDx6MZ1T/2aYZlZrsW/N8KU+qKfJnCxfmsGITyPjxwIlDpkIemcjrfvwCTDLdVt/ybRGuPQoodSbzBxhL1+ViCFMFPn4+PWZE50J8lEYY+dFm49JBZNI9pec10hzXQn3/Ij3VoEov1s/WX5n3Y=,iv:za5BGPdYz4dhZKZwXQGFPNmfZ1oRXvqX5RR9vDHdrQA=,tag:/06dljFIBV0gSrWAOuHCfA==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

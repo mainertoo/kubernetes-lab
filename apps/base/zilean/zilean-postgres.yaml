@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zilean-postgres
+  namespace: media
+spec:
+  type: ClusterIP
+  selector:
+    app: zilean-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zilean-postgres
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zilean-postgres
+  template:
+    metadata:
+      labels:
+        app: zilean-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16.3-alpine3.20
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-postgres-env
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-postgres-env
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: zilean-postgres-env
+                  key: POSTGRES_DB
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data/pgdata
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: zilean-postgres-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zilean-postgres-data
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: k3s-rbd # set if you want to force Ceph RBD

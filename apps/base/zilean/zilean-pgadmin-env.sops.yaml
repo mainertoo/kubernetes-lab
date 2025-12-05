@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: zilean-pgadmin-env
+    namespace: media
+type: Opaque
+stringData:
+    #ENC[AES256_GCM,data:MKZ90VgBR3VAT6DctOe7nMoJudTdCS0oQcH+glQRUMk=,iv:awBy9Hc2QrSKmbDMD4UEje0QdCkGk0yVeuu9X8fViHA=,tag:Ab3tjxopMZWbYnnatvjObQ==,type:comment]
+    PGADMIN_DEFAULT_EMAIL: ENC[AES256_GCM,data:zYr0uRokrGB+/Fb4W/B0hJE=,iv:v+vtFUR6/JBGNexjxgYG+jF5AYjNxY+thtxRQcS/GYU=,tag:XLOHItF2JhHAnSEPnR4XmQ==,type:str]
+    #ENC[AES256_GCM,data:AE58mgpJyZ2vUXHUyOApkaU=,iv:H852zegjSTXeiTE4lUCp0kpdXuMt4ssakCdoGJx/YJU=,tag:boyqA8o/2eJU7CY9iIP4iA==,type:comment]
+    PGADMIN_DEFAULT_PASSWORD: ENC[AES256_GCM,data:32NMqbWemKc=,iv:GKvfeXuO9soijopfDAxFtqt4wpcsRUEUZ58NGb20ZiI=,tag:xmC6RgshaWZqS7QO3v4C5Q==,type:str]
+    #ENC[AES256_GCM,data:qIanmUf8K3BdEQiR8nFWlolqW5m9bE3eOGbpU+w/DA==,iv:GVsxugfbS0EWyee8S1Dp/tIOv5p8cCqVMkjlRvxy6r0=,tag:JvjOv6E9esGTHyHiNgfijA==,type:comment]
+    PGADMIN_CONFIG_SERVER_MODE: ENC[AES256_GCM,data:CyfkwYY=,iv:SrkEQXCHyai1UUL/gY93FLP4cdKbxHb9Bw4oDADEvTI=,tag:2W5F1CC1XU586CnAP400Ag==,type:str]
+    PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: ENC[AES256_GCM,data:m+VPkTk=,iv:P8bWkNNSjqd2pFmda6l8LrqEemFS67m41BdqotM0YQI=,tag:ZFQxLkKFAaWGlaBY2SRzTA==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA0U0R0bW0xeVdMMGNOY1Vj
+            Z1AwZkNLeDVlaE01UEFMemo4eTlCM2UzTDBzClNlaTMvYWpBVHZVNkU3TXVKOWNq
+            R0JRL1ZscWR3aHByM2dma05tZEZ4NFEKLS0tIDAvM21ndlRGS2FMNlQvODl4S2Np
+            Szd5SkVSUTM4UUl4a1NHWnF4V0t2WHcKSVcJ7gL3K9Easm2884MFm+6KGVb5aQT3
+            I6c98LiFKiOlZ1fKIpvh2OcZcZVsr/JFiIPCBS9sALIqXsH1jEMyvw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-12-05T04:19:01Z"
+    mac: ENC[AES256_GCM,data:JVhSssJFgdgUfosIy6LWSy69GAp9gWGgVICf5ptWiTiZfQOMfGc6k4mwk27doZnGFEa7hNetOWlmpegRIsho4P8f05eA67AXVMUspjZwzB7a9Rcdv9VJN493ZjpswI1fkS7qU8BfQ1z6LtgjcBvDdrHaVEoCGAgFGJBYXmnsfuo=,iv:LUJsI4krsR9ncBEDRMA74JHYDo6GZvhJujgIIcOvjiA=,tag:Ztzf72XaaKS9n4zGRgEmpQ==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

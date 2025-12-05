@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zilean-pgadmin-ingress
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://zilean-pgadmin.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Zilean pgAdmin"
+    gethomepage.dev/description: "pgAdmin for Zilean's Postgres database"
+    gethomepage.dev/app: zilean-pgadmin
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/postgresql.svg"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`zilean-pgadmin.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: zilean-pgadmin
+          port: 80
+      # You probably *don't* want SSO here, but you can add it:
+      # middlewares:
+      #   - name: authentik
+      #     namespace: authentik
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls

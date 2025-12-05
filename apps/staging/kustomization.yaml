@@ -13,3 +13,4 @@ resources:
   - authentik/
   - rancher/
   - jellyfin/
+  - jackett/
