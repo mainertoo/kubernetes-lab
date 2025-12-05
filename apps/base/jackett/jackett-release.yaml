@@ -2,16 +2,19 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: media-jackett
+  namespace: media
 spec:
   interval: 10m
   chart:
     spec:
       chart: app-template
+      # you *can* bump this to 3.7.3 later; keeping 3.5.1 for now to match what Flux shows
       version: 3.5.1
       sourceRef:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
+      reconcileStrategy: ChartVersion
   install:
     remediation:
       retries: 3
@@ -29,6 +32,7 @@ spec:
               repository: ghcr.io/linuxserver/jackett
               tag: latest
               pullPolicy: IfNotPresent
+
             env:
               PUID:
                 valueFrom:
@@ -53,8 +57,9 @@ spec:
               RUN_OPTS:
                 valueFrom:
                   secretKeyRef:
-                    name: jackett-env
+                    name: JACKETT_RUN_OPTS
                     key: JACKETT_RUN_OPTS
+
             resources:
               requests:
                 cpu: 50m
@@ -75,7 +80,7 @@ spec:
       config:
         enabled: true
         type: persistentVolumeClaim
-        storageClass: k3s-rbd
+        storageClass: ceph-rbd          # <== use your existing RBD storage class
         accessMode: ReadWriteOnce
         size: 2Gi
         globalMounts:
@@ -84,7 +89,7 @@ spec:
       downloads:
         enabled: true
         type: persistentVolumeClaim
-        storageClass: k3s-rbd
+        storageClass: ceph-rbd          # <== same here
         accessMode: ReadWriteOnce
         size: 50Gi
         globalMounts:
