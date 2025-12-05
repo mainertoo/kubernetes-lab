@@ -6,10 +6,10 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: ceph-rbd
   resources:
     requests:
       storage: 5Gi
+  storageClassName: ceph-rbd
 ---
 apiVersion: v1
 kind: Service
@@ -17,13 +17,12 @@ metadata:
   name: zilean-postgres
   namespace: media
 spec:
-  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
   selector:
     app: zilean-postgres
-  ports:
-    - name: postgres
-      port: 5432
-      targetPort: 5432
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -58,8 +57,6 @@ spec:
                 secretKeyRef:
                   name: zilean-env
                   key: ZILEAN_DB_PASSWORD
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
