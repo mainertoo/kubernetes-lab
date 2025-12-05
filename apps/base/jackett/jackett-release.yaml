@@ -57,7 +57,7 @@ spec:
               RUN_OPTS:
                 valueFrom:
                   secretKeyRef:
-                    name: JACKETT_RUN_OPTS
+                    name: jackett-env
                     key: JACKETT_RUN_OPTS
 
             resources:
