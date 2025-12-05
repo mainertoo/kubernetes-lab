@@ -69,4 +69,4 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: k3s-rbd # set if you want to force Ceph RBD
+  storageClassName: ceph-rbd # set if you want to force Ceph RBD

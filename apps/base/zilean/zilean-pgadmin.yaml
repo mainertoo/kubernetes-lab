@@ -80,7 +80,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: k3s-rbd
+  storageClassName: ceph-rbd
   resources:
     requests:
       storage: 5Gi
