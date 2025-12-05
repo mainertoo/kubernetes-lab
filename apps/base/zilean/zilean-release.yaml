@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: media-zilean
+  namespace: media  # keep this if Zilean lives in media; drop if your Kustomization sets namespace
 spec:
   interval: 10m
   chart:
@@ -12,6 +13,7 @@ spec:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
+
   install:
     remediation:
       retries: 3
@@ -34,7 +36,7 @@ spec:
               # From your Swarm stack:
               ASPNETCORE_URLS: "http://+:8282"
 
-              # DB connection string – you will store the full value in a Secret:
+              # DB connection string – stored in Secret zilean-env
               Zilean__Database__ConnectionString:
                 valueFrom:
                   secretKeyRef:
@@ -66,11 +68,9 @@ spec:
         size: 10Gi
         globalMounts:
           - path: /data
+
       tmp:
         enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 5Gi
+        type: emptyDir
         globalMounts:
           - path: /tmp
