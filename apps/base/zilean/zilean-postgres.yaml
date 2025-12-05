@@ -1,4 +1,17 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zilean-postgres-data
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: zilean-postgres
@@ -29,44 +42,28 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16.3-alpine3.20
+          image: postgres:16
+          ports:
+            - containerPort: 5432
           env:
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_DB
+              value: zilean
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: zilean-postgres-env
-                  key: POSTGRES_USER
+                  name: zilean-env
+                  key: ZILEAN_DB_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: zilean-postgres-env
-                  key: POSTGRES_PASSWORD
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: zilean-postgres-env
-                  key: POSTGRES_DB
-          ports:
-            - containerPort: 5432
+                  name: zilean-env
+                  key: ZILEAN_DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data/pgdata
+              mountPath: /var/lib/postgresql/data
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: zilean-postgres-data
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: zilean-postgres-data
-  namespace: media
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: ceph-rbd # set if you want to force Ceph RBD
