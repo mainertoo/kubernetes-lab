@@ -1,19 +1,18 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: media-zilean
-  namespace: media  # keep this if Zilean lives in media; drop if your Kustomization sets namespace
+  name: zilean
+  namespace: media
 spec:
   interval: 10m
   chart:
     spec:
       chart: app-template
-      version: 3.5.1 # keep in sync with your existing apps
+      version: 3.5.1
       sourceRef:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
-
   install:
     remediation:
       retries: 3
@@ -22,6 +21,8 @@ spec:
       retries: 3
 
   values:
+    fullnameOverride: zilean
+
     controllers:
       main:
         replicas: 1
@@ -33,10 +34,8 @@ spec:
               pullPolicy: IfNotPresent
 
             env:
-              # From your Swarm stack:
               ASPNETCORE_URLS: "http://+:8282"
 
-              # DB connection string – stored in Secret zilean-env
               Zilean__Database__ConnectionString:
                 valueFrom:
                   secretKeyRef:
@@ -68,9 +67,11 @@ spec:
         size: 10Gi
         globalMounts:
           - path: /data
-
       tmp:
         enabled: true
-        type: emptyDir
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
+        accessMode: ReadWriteOnce
+        size: 5Gi
         globalMounts:
           - path: /tmp
