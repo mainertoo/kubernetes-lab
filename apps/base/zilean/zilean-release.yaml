@@ -1,0 +1,73 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: media-zilean
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.5.1 # keep in sync with your existing apps
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+
+  values:
+    controllers:
+      main:
+        replicas: 1
+        containers:
+          main:
+            image:
+              repository: ipromknight/zilean
+              tag: latest
+              pullPolicy: IfNotPresent
+
+            env:
+              # From your Swarm stack:
+              ASPNETCORE_URLS: "http://+:8282"
+
+              # DB connection string – you will store the full value in a Secret:
+              Zilean__Database__ConnectionString:
+                valueFrom:
+                  secretKeyRef:
+                    name: zilean-env
+                    key: ZILEAN_DB_CONNECTION
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
+
+    service:
+      main:
+        enabled: true
+        controller: main
+        ports:
+          http:
+            port: 8282
+
+    persistence:
+      data:
+        enabled: true
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        mountPath: /app/data
+        storageClass: k3s-rbd # uncomment if you want to force Ceph RBD
+
+      tmp:
+        enabled: true
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        mountPath: /tmp
+        storageClass: k3s-rbd

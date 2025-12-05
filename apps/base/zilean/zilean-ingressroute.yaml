@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zilean-ingress
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://zilean.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Zilean"
+    gethomepage.dev/description: "Zurg/Torrent scraper backend feeding Riven"
+    gethomepage.dev/app: zilean
+    gethomepage.dev/group: "Media"
+    # swap this icon if you prefer a generic one
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jackett.svg"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`zilean.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: media-zilean
+          port: 8282
+      # middlewares:
+      #   - name: authentik
+      #     namespace: authentik
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls

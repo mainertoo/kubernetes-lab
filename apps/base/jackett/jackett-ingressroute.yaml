@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jackett-ingress
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://jackett.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Jackett"
+    gethomepage.dev/description: "Indexer aggregator for media downloads"
+    gethomepage.dev/app: jackett
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jackett.svg"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`jackett.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: media-jackett
+          port: 9117
+      # middlewares:
+      #   - name: authentik
+      #     namespace: authentik
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
