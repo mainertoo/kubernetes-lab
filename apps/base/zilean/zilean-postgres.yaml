@@ -17,12 +17,13 @@ metadata:
   name: zilean-postgres
   namespace: media
 spec:
-  ports:
-    - port: 5432
-      targetPort: 5432
-      name: postgres
+  type: ClusterIP
   selector:
     app: zilean-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,8 +43,7 @@ spec:
       containers:
         - name: postgres
           image: postgres:16
-          ports:
-            - containerPort: 5432
+          imagePullPolicy: IfNotPresent
           env:
             - name: POSTGRES_DB
               value: zilean
@@ -57,6 +57,11 @@ spec:
                 secretKeyRef:
                   name: zilean-env
                   key: ZILEAN_DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgres
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
