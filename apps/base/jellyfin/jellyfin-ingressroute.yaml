@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Open-source media server"
     gethomepage.dev/app: jellyfin
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "jellyfin.png"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg"
 spec:
   entryPoints:
     - websecure
@@ -18,7 +18,7 @@ spec:
     - match: Host(`jellyfin.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: media-jellyfin #may need to drop the media, matching what plex did
+        - name: media-jellyfin   # <- matches Helm-generated Service name
           port: 8096
   tls:
     secretName: wildcard-lab-mainertoo-com-tls
