@@ -37,7 +37,9 @@ spec:
             - sh
             - -c
             - |
+              mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage /var/lib/pgadmin/logs
               chown -R 5050:5050 /var/lib/pgadmin
+              chmod -R 775 /var/lib/pgadmin
           volumeMounts:
             - name: pgadmin-data
               mountPath: /var/lib/pgadmin
@@ -45,6 +47,10 @@ spec:
         - name: pgadmin
           image: dpage/pgadmin4:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 5050
+            runAsGroup: 5050
+            allowPrivilegeEscalation: false
           env:
             - name: PGADMIN_DEFAULT_EMAIL
               valueFrom:
