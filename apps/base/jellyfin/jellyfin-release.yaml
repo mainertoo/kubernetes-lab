@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app jellyfin
+  namespace: media
 spec:
   interval: 30m
   chartRef:
@@ -23,19 +24,26 @@ spec:
   values:
     controllers:
       jellyfin:
+        # optional: land Jellyfin on GPU nodes, like Plex
         pod:
-          # land on GPU node(s), same pattern as Plex
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
 
-        # initContainer to fix config perms BEFORE Jellyfin starts
+        containers:
+          app:
+            image:
+              repository: ghcr.io/jellyfin/jellyfin
+              tag: 10.11.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+
+        # 👇 initContainer with *object* image and NO volumeMounts here
         initContainers:
           fix-config-perms:
-            image: busybox:stable
-            imagePullPolicy: IfNotPresent
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
+            image:
+              repository: busybox
+              tag: stable
             command:
               - /bin/sh
               - -c
@@ -54,22 +62,12 @@ spec:
                 ls -ld /config || true
                 find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
                 echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
 
-            volumeMounts:
-              - name: config
-                mountPath: /config
-
-        containers:
-          app:
-            image:
-              repository: ghcr.io/jellyfin/jellyfin
-              tag: latest
-            env:
-              - name: TZ
-                value: America/Los_Angeles
-            # You can add GPU-related env vars here later if needed
-
-    # default pod security (same vibe as Plex)
+    # Match Plex-style pod security defaults
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -82,20 +80,23 @@ spec:
     service:
       app:
         controller: jellyfin
+        type: ClusterIP
         ports:
           http:
             port: &port 8096
 
     persistence:
-      # Jellyfin config PVC on CephFS
+      # Jellyfin config on CephFS (PVC named "jellyfin")
       config:
-        existingClaim: *app
+        existingClaim: jellyfin
         advancedMounts:
           jellyfin:
             app:
               - path: /config
+            fix-config-perms:   # mount /config into initContainer
+              - path: /config
 
-      # Shared CephFS library from Riven (/mnt/library)
+      # Shared Riven/Plex/Jellyfin library (CephFS PVC in media ns)
       library:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -103,7 +104,7 @@ spec:
             app:
               - path: /mnt/library
 
-      # QNAP big media library
+      # Big QNAP media share (static NFS PV / qnap-media-pvc)
       qnap-media:
         existingClaim: qnap-media-pvc
         advancedMounts:
@@ -111,7 +112,7 @@ spec:
             app:
               - path: /data/qnas
 
-      # rclone / Zurg mount (same as Plex & Riven)
+      # rclone / zurg – same pattern as Plex & Riven
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -119,7 +120,7 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      # cache + transcode
+      # Cache / transcode scratch
       tmp:
         type: emptyDir
         advancedMounts:
