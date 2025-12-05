@@ -10,7 +10,6 @@ metadata:
     gethomepage.dev/description: "Zurg/Torrent scraper backend feeding Riven"
     gethomepage.dev/app: zilean
     gethomepage.dev/group: "Media"
-    # swap this icon if you prefer a generic one
     gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jackett.svg"
 spec:
   entryPoints:
@@ -19,7 +18,7 @@ spec:
     - match: Host(`zilean.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: media-zilean
+        - name: zilean          # ⬅️ was media-zilean
           port: 8282
       # middlewares:
       #   - name: authentik

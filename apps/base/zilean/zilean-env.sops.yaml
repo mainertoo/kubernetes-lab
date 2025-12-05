@@ -5,6 +5,7 @@ metadata:
     namespace: media
 type: Opaque
 stringData:
+    #ENC[AES256_GCM,data:CD3/QCSD2ijQc8s5ullG04+5pWABzBWOKo4IvUb57Juynm4lJBUSJBveclwaqLZGdWMoTz6I1LktAKz77tPaANLQ5ab56fBrgE5loz2Ocnh62qE=,iv:7BIPVDInbMONSNDmVXxwHIr9CUP/d7UnQmlpouyzvbE=,tag:rJuTBGA48Ob7DeVnAluVCQ==,type:comment]
     #ENC[AES256_GCM,data:1LYFFPtGdeyg4FhuPFuy/B8KPlW87nNea++C61w2zh3kWoXAjo+Reg0RVTkX8DLW,iv:N5SvsyZtSeL0GvIdUPXfd95Wq4mfzYbWfx0IEpcbTW4=,tag:Iai+271WBJYJknLGJtgxRg==,type:comment]
     ZILEAN_DB_USER: ENC[AES256_GCM,data:GDkTJEdF4+o=,iv:GOid9YCXW73NHqeA3DZeRYkVgZp7F7bXRsUto0kI254=,tag:BumGSi8ceom1Eh2B9sZrWQ==,type:str]
     ZILEAN_DB_PASSWORD: ENC[AES256_GCM,data:9l5DALfBlnI=,iv:5fxZePM+VZOE8MOqX8XtqFDlR5Q0R1KzIxdWsj+UiZA=,tag:uyIsuo1EVHB6DR8X1z9xMg==,type:str]
@@ -22,7 +23,7 @@ sops:
             NkJyejF3MzlkK0VmNm10b1gyYUJ1RXMKY9p7YqoKLhWt8Dalt3JAbZVA8lEYc1Vm
             y6lmZDSyL81MQVGhjH/cKUs3aBpjeju8kG8SHSHZHSU/YCAGbosSzg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-05T19:02:51Z"
-    mac: ENC[AES256_GCM,data:AAx7EorBN+yHf6pMyD873EBijpwYc91HQzwIk9Vb2MBV+OVLmIJxZoiLuz5jfjEJ1+SroZ6KQ6E8+/Jeo0ZnC1PTgUGb3mWdw+Gltt5tCPz88N4g1MHPSeccQO0CHGnSnBvDinRcVcTDQp0wrSjRRNOBVXD5ucbTNmYk4nqJcxE=,iv:mCa7RGg9hSugwPCj4aMfIH2KlXq1igEw0cbgW0PwkQ8=,tag:e8jCdOGbdhDjkz1u1s1JOg==,type:str]
+    lastmodified: "2025-12-05T19:15:11Z"
+    mac: ENC[AES256_GCM,data:9d71J5A7chq3YFxCa2oHNoSOblZaG2OL6HK90sFtqneSvZK32DVJMn4a4WVu83VvKMsFO5nv4WZhIazBPm1axgb9oOmfDXbfWCGnf2hz0GbzjK0DiW2a7sLjYolLc1lJX2yU/fA+huwnqe8ZLbfdpGRl9mV8q29jkisoBjcyTPQ=,iv:st6dLSbZOg9a9pwa9MwtuTWEWNyOj5gVOrx55FtA0Hw=,tag:ZIKw9iCZ7f0lRFhz14+4+g==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
