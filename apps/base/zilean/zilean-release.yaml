@@ -60,14 +60,17 @@ spec:
     persistence:
       data:
         enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
         accessMode: ReadWriteOnce
         size: 10Gi
-        mountPath: /app/data
-        storageClass: k3s-rbd # uncomment if you want to force Ceph RBD
-
+        globalMounts:
+          - path: /data
       tmp:
         enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
         accessMode: ReadWriteOnce
-        size: 2Gi
-        mountPath: /tmp
-        storageClass: k3s-rbd
+        size: 5Gi
+        globalMounts:
+          - path: /tmp
