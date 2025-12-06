@@ -38,7 +38,7 @@ spec:
               PGID:
                 value: "1000"
               TZ:
-                value: America/Los_Angeles
+                value: America/Edmonton
 
             resources:
               requests:

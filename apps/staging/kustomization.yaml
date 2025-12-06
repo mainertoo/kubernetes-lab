@@ -16,4 +16,4 @@ resources:
   - jackett/
   - zilean/
   - jellyseerr/
-  # - tautulli/
+  - tautulli/
