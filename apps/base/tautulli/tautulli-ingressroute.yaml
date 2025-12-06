@@ -1,0 +1,23 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tautulli-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://tautulli.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Tautulli"
+    gethomepage.dev/description: "Plex usage statistics and monitoring"
+    gethomepage.dev/app: tautulli
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/tautulli.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`tautulli.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: tautulli
+          port: 8181
