@@ -1,0 +1,76 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app tautulli
+  namespace: media
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.5.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      reconcileStrategy: ChartVersion
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+
+  values:
+    controllers:
+      main:
+        replicas: 1
+        containers:
+          main:
+            image:
+              repository: lscr.io/linuxserver/tautulli
+              tag: latest
+              pullPolicy: IfNotPresent
+
+            env:
+              PUID:
+                value: "1000"
+              PGID:
+                value: "1000"
+              TZ:
+                value: America/Los_Angeles
+
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementalGroups:
+          - 991
+
+    service:
+      main:
+        enabled: true
+        controller: main
+        ports:
+          http:
+            port: 8181
+
+    persistence:
+      config:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /config
