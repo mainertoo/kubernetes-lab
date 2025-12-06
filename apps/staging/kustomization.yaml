@@ -15,3 +15,5 @@ resources:
   - jellyfin/
   - jackett/
   - zilean/
+  - jellyseerr/
+  # - tautulli/
