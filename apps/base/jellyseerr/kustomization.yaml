@@ -6,3 +6,4 @@ resources:
   - jellyseerr-pvc.yaml
   - jellyseerr-release.yaml
   - jellyseerr-ingressroute.yaml
+  - jellyseerr-lb-service.yaml
