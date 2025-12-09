@@ -1,0 +1,23 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: seerr-ingressroute
+  namespace: seerr
+  annotations:
+    gethomepage.dev/href: "https://seerr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Seerr"
+    gethomepage.dev/description: "Next-gen media request manager (successor to Jellyseerr/Overseerr)"
+    gethomepage.dev/app: seerr
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyseerr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`seerr.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: seerr
+          port: 80
