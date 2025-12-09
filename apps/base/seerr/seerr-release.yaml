@@ -33,7 +33,8 @@ spec:
               # For now Seerr is still built from the jellyseerr image
               # When a dedicated seerr image/tag is published, just change these two lines.
               repository: ghcr.io/seerr-team/seerr
-              tag: "sha-15356df"
+              # tag: "sha-15356df"
+              tag: "develop"
               pullPolicy: IfNotPresent
 
             env:
