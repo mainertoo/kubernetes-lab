@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: seerr-external
+  namespace: seerr
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 80          # what CF tunnel will hit
+      targetPort: 80    # Seerr container listens on 80
+      protocol: TCP
+  selector:
+    app.kubernetes.io/instance: seerr
+    app.kubernetes.io/name: seerr
+    app.kubernetes.io/component: seerr
