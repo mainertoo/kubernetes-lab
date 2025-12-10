@@ -19,5 +19,6 @@ spec:
     - match: Host(`jellystat.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: jellystat
+        - name: jellystat-app
           port: 3000
+          scheme: http
