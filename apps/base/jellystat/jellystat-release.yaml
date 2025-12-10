@@ -40,19 +40,18 @@ spec:
             # These come from your SOPS secret:
             #   POSTGRES_USER
             #   POSTGRES_PASSWORD
-            #   (optional) JELLYSTAT_JWT_SECRET
             envFrom:
               - secretRef:
                   name: jellystat-secret
 
             env:
-              # Tell Postgres to use a subdirectory under the mount point
-              - name: PGDATA
-                value: /var/lib/postgresql/data
-
               # Name of the DB Jellystat will use
               - name: POSTGRES_DB
                 value: jellystat
+
+              # Use a subdirectory so we don't hit the lost+found issue
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
 
       # =========================
       # Jellystat app
@@ -67,7 +66,7 @@ spec:
               tag: latest
               pullPolicy: IfNotPresent
 
-            # Pull POSTGRES_USER / POSTGRES_PASSWORD / JWT_SECRET from the same secret
+            # Pull POSTGRES_USER / POSTGRES_PASSWORD (and others) from the secret
             envFrom:
               - secretRef:
                   name: jellystat-secret
@@ -77,11 +76,23 @@ spec:
                 value: America/Los_Angeles
 
               # Internal service name for Postgres
+              # (Service will be named "jellystat-postgres")
               - name: POSTGRES_IP
-                value: postgres
+                value: jellystat-postgres
 
               - name: POSTGRES_PORT
                 value: "5432"
+
+              # DB name the app will connect to
+              - name: POSTGRES_DB
+                value: jellystat
+
+              # Wire your SOPS secret key into the env var the app expects
+              - name: JWT_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: jellystat-secret
+                    key: JWT_SECRET
 
               # You explicitly wanted this
               - name: REJECT_SELF_SIGNED_CERTIFICATES
@@ -117,8 +128,7 @@ spec:
         advancedMounts:
           postgres:
             app:
-              # ⬅️ Mount PVC at /var/lib/postgresql (one level up)
-              - path: /var/lib/postgresql
+              - path: /var/lib/postgresql/data
 
       # Backup data (RBD or CephFS depending on your PVC)
       backup-data:
