@@ -5,6 +5,7 @@ resources:
 - repository.yaml
 - release.yaml
 - traefik-namespace.yaml
+- file-provider-pve-config.yaml   # <<-- add this line
 configMapGenerator:
 - name: traefik-values
   files:

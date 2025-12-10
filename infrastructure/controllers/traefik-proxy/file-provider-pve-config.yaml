@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-file-provider-pve
+  namespace: traefik-system
+data:
+  app-pve.yaml: |
+    http:
+      routers:
+        pve-whistler:
+          rule: "Host(`pve-whistler.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-whistler
+          tls:
+            certResolver: cloudflare
+
+        pve-s13:
+          rule: "Host(`pve-s13.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-s13
+          tls:
+            certResolver: cloudflare
+
+        pve-s12:
+          rule: "Host(`pve-s12.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-s12
+          tls:
+            certResolver: cloudflare
+
+        pve-ugreen:
+          rule: "Host(`pve-ugreen.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-ugreen
+          tls:
+            certResolver: cloudflare
+
+        pve-mac:
+          rule: "Host(`pve-mac.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-mac
+          tls:
+            certResolver: cloudflare
+
+        pve-zermatt:
+          rule: "Host(`pve-zermatt.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-zermatt
+          tls:
+            certResolver: cloudflare
+
+        pve-mammoth:
+          rule: "Host(`pve-mammoth.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pve-mammoth
+          tls:
+            certResolver: cloudflare
+
+        pbs:
+          rule: "Host(`pbs.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pbs
+          tls:
+            certResolver: cloudflare
+
+        kopia:
+          rule: "Host(`kopia.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: kopia
+          tls:
+            certResolver: cloudflare
+
+        docker-swarm-1:
+          rule: "Host(`docker-swarm-1.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: docker-swarm-1
+          tls:
+            certResolver: cloudflare
+
+      services:
+        pve-whistler:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.108:8006/"
+
+        pve-s13:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.20:8006/"
+
+        pve-s12:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.244:8006/"
+
+        pve-ugreen:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.251:8006/"
+
+        pve-mac:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.250:8006/"
+
+        pve-zermatt:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.107:8006/"
+
+        pve-mammoth:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.109:8006/"
+
+        pbs:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: "pve"
+            servers:
+              - url: "https://192.168.1.245:8007/"
+
+        kopia:
+          loadBalancer:
+            servers:
+              - url: "http://192.168.1.110:51515"
+
+        docker-swarm-1:
+          loadBalancer:
+            servers:
+              - url: "http://192.168.1.11:8080"
+
+      serversTransports:
+        pve:
+          insecureSkipVerify: true
