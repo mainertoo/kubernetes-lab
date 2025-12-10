@@ -26,57 +26,57 @@ data:
           rule: "Host(`pve-whistler.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-whistler
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-s13:
           rule: "Host(`pve-s13.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-s13
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-s12:
           rule: "Host(`pve-s12.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-s12
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-ugreen:
           rule: "Host(`pve-ugreen.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-ugreen
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-mac:
           rule: "Host(`pve-mac.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-mac
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-zermatt:
           rule: "Host(`pve-zermatt.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-zermatt
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pve-mammoth:
           rule: "Host(`pve-mammoth.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-mammoth
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         pbs:
           rule: "Host(`pbs.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pbs
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
         kopia:
           rule: "Host(`kopia.lab.mainertoo.com`)"
@@ -84,8 +84,8 @@ data:
           service: kopia
           middlewares:
             - authentik-sso@file
-          tls:
-            certResolver: cloudflare
+          # tls:
+          #   certResolver: cloudflare
 
       services:
         pve-whistler:
