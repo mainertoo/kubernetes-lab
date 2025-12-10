@@ -8,4 +8,4 @@ resources:
   - jellystat-backup-pvc.yaml
   - jellystat-secret.sops.yaml
   - jellystat-release.yaml
-  - jellystat-ingress.yaml
+  - jellystat-ingressroute.yaml
