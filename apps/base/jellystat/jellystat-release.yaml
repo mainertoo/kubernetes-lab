@@ -46,10 +46,9 @@ spec:
                   name: jellystat-secret
 
             env:
-              # Make Postgres use a subdirectory under the PVC mount
-              # so initdb doesn't choke on the lost+found directory.
+              # Tell Postgres to use a subdirectory under the mount point
               - name: PGDATA
-                value: /var/lib/postgresql/data/pgdata
+                value: /var/lib/postgresql/data
 
               # Name of the DB Jellystat will use
               - name: POSTGRES_DB
@@ -118,7 +117,8 @@ spec:
         advancedMounts:
           postgres:
             app:
-              - path: /var/lib/postgresql/data
+              # ⬅️ Mount PVC at /var/lib/postgresql (one level up)
+              - path: /var/lib/postgresql
 
       # Backup data (RBD or CephFS depending on your PVC)
       backup-data:
