@@ -46,6 +46,11 @@ spec:
                   name: jellystat-secret
 
             env:
+              # Make Postgres use a subdirectory under the PVC mount
+              # so initdb doesn't choke on the lost+found directory.
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
+
               # Name of the DB Jellystat will use
               - name: POSTGRES_DB
                 value: jellystat
