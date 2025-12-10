@@ -23,3 +23,14 @@ ports:
         to: websecure
         scheme: https
         permanent: true
+
+# 👇 NEW: tell Traefik to use the file provider from /config
+additionalArguments:
+  - "--providers.file.directory=/config"
+  - "--providers.file.watch=true"
+
+# 👇 NEW: mount the ConfigMap we created as /config inside the Traefik pod
+volumes:
+  - name: traefik-file-provider-pve
+    mountPath: "/config"
+    type: configMap
