@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: jellystat
+
+resources:
+  - jellystat-namespace.yaml
+  - jellystat-postgres-pvc.yaml
+  - jellystat-backup-pvc.yaml
+  - jellystat-secret.sops.yaml
+  - jellystat-release.yaml
+  - jellystat-ingress.yaml
