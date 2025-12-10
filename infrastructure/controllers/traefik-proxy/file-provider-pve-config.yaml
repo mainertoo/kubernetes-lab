@@ -70,13 +70,6 @@ data:
           tls:
             certResolver: cloudflare
 
-        docker-swarm-1:
-          rule: "Host(`docker-swarm-1.lab.mainertoo.com`)"
-          entryPoints: [websecure]
-          service: docker-swarm-1
-          tls:
-            certResolver: cloudflare
-
       services:
         pve-whistler:
           loadBalancer:
@@ -138,11 +131,6 @@ data:
           loadBalancer:
             servers:
               - url: "http://192.168.1.117:51515"
-
-        docker-swarm-1:
-          loadBalancer:
-            servers:
-              - url: "http://192.168.1.11:22"
 
       serversTransports:
         pve:
