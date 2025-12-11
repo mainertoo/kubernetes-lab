@@ -30,12 +30,27 @@ spec:
       main:
         type: deployment
         replicas: 1
+
+        # Init container for CephFS perms on /wiki/config + /wiki/data
+        initContainers:
+          chown-wiki-data:
+            image:
+              repository: busybox
+              tag: "1.37.0"
+            command:
+              - sh
+              - -c
+              - |
+                mkdir -p /wiki/config /wiki/data
+                chown -R 1000:1000 /wiki/config /wiki/data || true
+                chmod -R g+rwX /wiki/config /wiki/data || true
+
         containers:
-          # 1) Wiki.js application container
+          # 1) Wiki.js app
           app:
             image:
               repository: ghcr.io/requarks/wiki
-              tag: "2"
+              tag: "2.5.308"
               pullPolicy: IfNotPresent
 
             envFrom:
@@ -66,7 +81,6 @@ spec:
                   name: wiki-js-secret
 
             env:
-              # Postgres official env variable names
               POSTGRES_DB:
                 valueFrom:
                   secretKeyRef:
@@ -82,7 +96,7 @@ spec:
                   secretKeyRef:
                     name: wiki-js-secret
                     key: POSTGRES_PASSWORD
-              # Use a subdirectory so Ceph RBD's lost+found doesn't break initdb
+              # keep the PGDATA subdir trick for Ceph RBD
               PGDATA: /var/lib/postgresql/data/pgdata
 
             resources:
@@ -123,10 +137,9 @@ spec:
                   timeoutSeconds: 5
                   failureThreshold: 5
 
-    # 🔑 Important change: no runAsNonRoot here anymore.
-    # We let each image run as whatever user it defines (node / root).
     defaultPodOptions:
       securityContext:
+        # simple, no runAsNonRoot — we let images use their own UIDs
         fsGroupChangePolicy: "OnRootMismatch"
 
     service:
@@ -146,10 +159,27 @@ spec:
             port: 5432
 
     persistence:
-      # Persist Postgres data only. Do NOT mount anything at /wiki.
+      # Postgres data on Ceph RBD
       db-data:
         enabled: true
         existingClaim: wiki-js-postgres
         globalMounts:
           - path: /var/lib/postgresql/data
             subPath: pgdata
+
+      # CephFS for config + data
+      wiki-data:
+        enabled: true
+        existingClaim: wiki-js-data
+        advancedMounts:
+          main:
+            app:
+              - path: /wiki/config
+                subPath: config
+              - path: /wiki/data
+                subPath: data
+            chown-wiki-data:
+              - path: /wiki/config
+                subPath: config
+              - path: /wiki/data
+                subPath: data

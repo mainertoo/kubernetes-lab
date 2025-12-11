@@ -4,6 +4,7 @@ namespace: wiki-js
 resources:
   - wiki-js-namespace.yaml
   - wiki-js-postgres-pvc.yaml
+  - wiki-js-data-pvc.yaml         # 👈 add this line
   - wiki-js-secret.sops.yaml
   - wiki-js-release.yaml
   - wiki-js-ingressroute.yaml
