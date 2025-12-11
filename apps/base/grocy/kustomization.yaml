@@ -3,5 +3,6 @@ kind: Kustomization
 namespace: grocy
 resources:
   - grocy-namespace.yaml
+  - grocy-pvc.yaml
   - grocy-release.yaml
   - grocy-ingressroute.yaml

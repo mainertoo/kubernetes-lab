@@ -4,19 +4,22 @@ metadata:
   name: grocy-ingressroute
   namespace: grocy
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=placeholder}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://grocy.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Grocy"
-    gethomepage.dev/description: "Web-based self-hosted groceries & household management"
+    gethomepage.dev/description: "Groceries & household management"
     gethomepage.dev/app: grocy
     gethomepage.dev/group: "Tools"
     gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/grocy.svg"
 spec:
   entryPoints:
     - websecure
+    - web
   routes:
-    - match: Host(`${SUBDOMAIN:=placeholder}.hephaestus.markmk.com`)
+    - match: Host(`grocy.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: grocy
-          port: 9283
+          port: 80
+      middlewares:
+        - name: authentik-sso@file
