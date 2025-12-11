@@ -35,15 +35,13 @@ spec:
           app:
             image:
               repository: ghcr.io/requarks/wiki
-              tag: "2.5.308"
+              tag: "2"
               pullPolicy: IfNotPresent
 
-            # Use env from the SOPS Secret
             envFrom:
               - secretRef:
                   name: wiki-js-secret
 
-            # Non-secret env overrides (optional)
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
@@ -56,11 +54,12 @@ spec:
                 cpu: 1000m
                 memory: 1Gi
 
-          # 2) Postgres DB sidecar (same pattern as your docker-compose)
+          # 2) Postgres DB sidecar
           db:
             image:
               repository: postgres
               tag: "15-alpine"
+              pullPolicy: IfNotPresent
 
             envFrom:
               - secretRef:
@@ -83,6 +82,8 @@ spec:
                   secretKeyRef:
                     name: wiki-js-secret
                     key: POSTGRES_PASSWORD
+              # Use a subdirectory so Ceph RBD's lost+found doesn't break initdb
+              PGDATA: /var/lib/postgresql/data/pgdata
 
             resources:
               requests:
@@ -122,12 +123,10 @@ spec:
                   timeoutSeconds: 5
                   failureThreshold: 5
 
+    # 🔑 Important change: no runAsNonRoot here anymore.
+    # We let each image run as whatever user it defines (node / root).
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        # Let the image's own user work; don't override with 1000 so we don't
-        # break /wiki contents in the container image.
-        # If you really want 1000 later, we can add it back once everything is stable.
         fsGroupChangePolicy: "OnRootMismatch"
 
     service:
@@ -147,7 +146,7 @@ spec:
             port: 5432
 
     persistence:
-      # 🚨 Only persist Postgres data; do NOT mount anything at /wiki
+      # Persist Postgres data only. Do NOT mount anything at /wiki.
       db-data:
         enabled: true
         existingClaim: wiki-js-postgres
