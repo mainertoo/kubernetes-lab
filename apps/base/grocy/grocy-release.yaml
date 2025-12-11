@@ -2,47 +2,80 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app grocy
+  namespace: grocy
 spec:
   interval: 30m
-  chartRef:
-    kind: OCIRepository
-    name: app-template
-    namespace: flux-system
+  chart:
+    spec:
+      chart: app-template
+      version: 3.5.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      reconcileStrategy: ChartVersion
+
   maxHistory: 2
+
   install:
     createNamespace: true
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       main:
+        replicas: 1
         containers:
           app:
             image:
-              repository: linuxserver/grocy
-              tag:  4.5.0
+              repository: lscr.io/linuxserver/grocy
+              tag: "4.5.0"
+              pullPolicy: IfNotPresent
+
             env:
-              - name: TZ
-                value: Europe/Copenhagen
-              - name: PUID
-                value: "1000"
-              - name: PGID
-                value: "1000"
+              TZ: America/Los_Angeles
+              PUID: "1000"
+              PGID: "1000"
+
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+    # Match your other linuxserver apps (tautulli style)
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+        supplementalGroups:
+          - 991   # ceph group, same pattern you use elsewhere
+
     service:
       main:
+        enabled: true
         controller: main
         ports:
           http:
-            port: &port 8080
+            port: 80   # grocy listens on 80 in-container
 
     persistence:
       data:
+        enabled: true
         existingClaim: *app
         globalMounts:
           - path: /config
