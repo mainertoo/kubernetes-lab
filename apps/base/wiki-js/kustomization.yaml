@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: wiki-js
 resources:
   - wiki-js-namespace.yaml
-  - wiki-js-ingressroute.yaml
-  - wiki-js-release.yaml
+  - wiki-js-postgres-pvc.yaml
   - wiki-js-secret.sops.yaml
+  - wiki-js-release.yaml
+  - wiki-js-ingressroute.yaml

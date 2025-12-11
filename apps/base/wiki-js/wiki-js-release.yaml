@@ -4,7 +4,7 @@ metadata:
   name: &app wiki-js
   namespace: wiki-js
 spec:
-  interval: 10m
+  interval: 15m
   chart:
     spec:
       chart: app-template
@@ -16,6 +16,7 @@ spec:
       reconcileStrategy: ChartVersion
 
   install:
+    createNamespace: true
     remediation:
       retries: 3
   upgrade:
@@ -27,33 +28,25 @@ spec:
   values:
     controllers:
       main:
+        type: deployment
         replicas: 1
-
         containers:
+          # 1) Wiki.js application container
           app:
             image:
               repository: ghcr.io/requarks/wiki
               tag: "2.5.308"
               pullPolicy: IfNotPresent
 
-            # Secrets for DB credentials etc.
+            # Use env from the SOPS Secret
             envFrom:
               - secretRef:
                   name: wiki-js-secret
 
-            # Non-secret configuration
+            # Non-secret env overrides (optional)
             env:
               TZ: America/Los_Angeles
-              # wiki-js listens on this port internally
               PORT: "3000"
-              DB_TYPE: postgres
-              DB_HOST: "localhost"
-              DB_PORT: "5432"
-              DB_NAME: "wiki"
-
-            securityContext:
-              runAsUser: 1000
-              runAsGroup: 1000
 
             resources:
               requests:
@@ -63,47 +56,40 @@ spec:
                 cpu: 1000m
                 memory: 1Gi
 
-            probes:
-              liveness:
-                enabled: true
-                custom: true
-                spec:
-                  httpGet:
-                    path: /
-                    port: http
-                  initialDelaySeconds: 30
-                  periodSeconds: 30
-              readiness:
-                enabled: true
-                custom: true
-                spec:
-                  httpGet:
-                    path: /
-                    port: http
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
-
+          # 2) Postgres DB sidecar (same pattern as your docker-compose)
           db:
             image:
               repository: postgres
               tag: "15-alpine"
-              pullPolicy: IfNotPresent
 
-            # Uses POSTGRES_* from the same secret
             envFrom:
               - secretRef:
                   name: wiki-js-secret
 
             env:
-              # Use a subdirectory to avoid the ceph-rbd `lost+found` issue
-              PGDATA: /var/lib/postgresql/data/pgdata
+              # Postgres official env variable names
+              POSTGRES_DB:
+                valueFrom:
+                  secretKeyRef:
+                    name: wiki-js-secret
+                    key: POSTGRES_DB
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: wiki-js-secret
+                    key: POSTGRES_USER
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: wiki-js-secret
+                    key: POSTGRES_PASSWORD
 
             resources:
               requests:
                 cpu: 50m
                 memory: 256Mi
               limits:
-                cpu: 1000m
+                cpu: 500m
                 memory: 1Gi
 
             probes:
@@ -111,31 +97,38 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  tcpSocket:
-                    port: 5432
-                  initialDelaySeconds: 20
-                  periodSeconds: 20
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 5
               readiness:
                 enabled: true
                 custom: true
                 spec:
-                  tcpSocket:
-                    port: 5432
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1
                   initialDelaySeconds: 10
                   periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 5
 
-        # Init container to fix CephFS permissions for /wiki/data and /wiki/config
-        initContainers:
-          chown-wiki-data:
-            image:
-              repository: busybox
-              tag: "1.37.0"
-            command:
-              - sh
-              - -c
-              - |
-                chown -R 1000:1000 /wiki/data /wiki/config || true
-                chmod -R g+rwX /wiki/data /wiki/config || true
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        # Let the image's own user work; don't override with 1000 so we don't
+        # break /wiki contents in the container image.
+        # If you really want 1000 later, we can add it back once everything is stable.
+        fsGroupChangePolicy: "OnRootMismatch"
 
     service:
       main:
@@ -145,35 +138,19 @@ spec:
           http:
             port: 3000
 
-    persistence:
-      # Wiki configuration + uploaded data -> CephFS (RWX)
-      # We mount this PVC ONLY on /wiki/data and /wiki/config,
-      # *not* on /wiki itself (so /wiki/server from the image remains intact).
-      wiki-data:
+      db:
         enabled: true
-        type: persistentVolumeClaim
-        storageClass: cephfs
-        accessMode: ReadWriteMany
-        size: 20Gi
-        advancedMounts:
-          main:
-            app:
-              - path: /wiki/data
-                subPath: data
-              - path: /wiki/config
-                subPath: config
-            chown-wiki-data:
-              - path: /wiki/data
-                subPath: data
-              - path: /wiki/config
-                subPath: config
+        controller: main
+        ports:
+          postgres:
+            enabled: true
+            port: 5432
 
-      # Postgres data -> Ceph RBD (RWO, block)
+    persistence:
+      # 🚨 Only persist Postgres data; do NOT mount anything at /wiki
       db-data:
         enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 10Gi
+        existingClaim: wiki-js-postgres
         globalMounts:
           - path: /var/lib/postgresql/data
+            subPath: pgdata
