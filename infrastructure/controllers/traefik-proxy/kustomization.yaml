@@ -5,7 +5,8 @@ resources:
 - repository.yaml
 - release.yaml
 - traefik-namespace.yaml
-- file-provider-pve-config.yaml   # <<-- add this line
+- file-provider-pve-config.yaml
+- authentik-middleware.yaml
 configMapGenerator:
 - name: traefik-values
   files:
