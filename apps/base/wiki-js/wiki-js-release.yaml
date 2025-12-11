@@ -96,6 +96,10 @@ spec:
               - secretRef:
                   name: wiki-js-secret
 
+            env:
+              # 👇 Force Postgres to use a subdirectory inside the PVC mount
+              PGDATA: /var/lib/postgresql/data/pgdata
+
             resources:
               requests:
                 cpu: 50m
