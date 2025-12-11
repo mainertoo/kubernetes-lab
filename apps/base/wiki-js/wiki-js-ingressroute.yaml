@@ -19,7 +19,7 @@ spec:
     - match: Host(`wiki.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: wiki-js
+        - name: wiki-js-main
           port: 3000
       # middlewares:
       #   - name: tinyauth
