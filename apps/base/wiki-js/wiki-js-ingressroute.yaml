@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Personal knowledge base"
     gethomepage.dev/app: wiki-js
     gethomepage.dev/group: "Utilities"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/wikijs.svg"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/wiki.js.svg"
 spec:
   entryPoints:
     - websecure
@@ -18,9 +18,9 @@ spec:
   routes:
     - match: Host(`wiki.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: wiki-js-main
           port: 3000
-      # middlewares:
-      #   - name: tinyauth
-      #     namespace: tinyauth
