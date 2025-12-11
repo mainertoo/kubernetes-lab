@@ -1,0 +1,165 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app wiki-js
+  namespace: wiki-js
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.5.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      reconcileStrategy: ChartVersion
+
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      main:
+        replicas: 1
+
+        # We run both wiki-js (app) and Postgres (db) in the same pod,
+        # like paperless-ngx uses a Redis sidecar.
+        containers:
+          app:
+            image:
+              repository: ghcr.io/requarks/wiki
+              tag: "2"
+              pullPolicy: IfNotPresent
+
+            # Secrets for DB credentials etc.
+            envFrom:
+              - secretRef:
+                  name: wiki-js-secret
+
+            # Non-secret configuration
+            env:
+              TZ: America/Los_Angeles
+              # wiki-js listens on this port internally
+              PORT: "3000"
+              DB_TYPE: postgres
+              DB_HOST: "localhost"
+              DB_PORT: "5432"
+              DB_NAME: "wiki"
+
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+
+          db:
+            image:
+              repository: postgres
+              tag: "15-alpine"
+              pullPolicy: IfNotPresent
+
+            # Uses POSTGRES_* from the same secret
+            envFrom:
+              - secretRef:
+                  name: wiki-js-secret
+
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 5432
+                  initialDelaySeconds: 20
+                  periodSeconds: 20
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 5432
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+
+        # Init container to fix CephFS permissions for /wiki (cephfs)
+        initContainers:
+          chown-wiki-data:
+            image:
+              repository: busybox
+              tag: "1.37.0"
+            command:
+              - sh
+              - -c
+              - |
+                chown -R 1000:1000 /wiki || true
+                chmod -R g+rwX /wiki || true
+
+    service:
+      main:
+        enabled: true
+        controller: main
+        ports:
+          http:
+            port: 3000
+
+    persistence:
+      # Wiki configuration + uploaded data -> CephFS (RWX)
+      wiki-data:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: cephfs
+        accessMode: ReadWriteMany
+        size: 20Gi
+        globalMounts:
+          - path: /wiki
+
+      # Postgres data -> Ceph RBD (RWO, block)
+      db-data:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        globalMounts:
+          - path: /var/lib/postgresql/data
