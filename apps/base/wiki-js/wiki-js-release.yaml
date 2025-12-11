@@ -96,8 +96,8 @@ spec:
                   secretKeyRef:
                     name: wiki-js-secret
                     key: POSTGRES_PASSWORD
-              # keep the PGDATA subdir trick for Ceph RBD
-              PGDATA: /var/lib/postgresql/data/pgdata
+              # # keep the PGDATA subdir trick for Ceph RBD
+              # PGDATA: /var/lib/postgresql/data/pgdata
 
             resources:
               requests:
