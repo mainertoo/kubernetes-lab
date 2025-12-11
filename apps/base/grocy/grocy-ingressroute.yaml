@@ -21,5 +21,5 @@ spec:
       services:
         - name: grocy
           port: 80
-      middlewares:
-        - name: authentik-sso@file
+      # middlewares:
+      #   - name: authentik-sso@file
