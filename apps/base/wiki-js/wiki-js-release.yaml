@@ -29,13 +29,11 @@ spec:
       main:
         replicas: 1
 
-        # We run both wiki-js (app) and Postgres (db) in the same pod,
-        # like paperless-ngx uses a Redis sidecar.
         containers:
           app:
             image:
               repository: ghcr.io/requarks/wiki
-              tag: "2"
+              tag: "2.5.308"
               pullPolicy: IfNotPresent
 
             # Secrets for DB credentials etc.
@@ -97,7 +95,7 @@ spec:
                   name: wiki-js-secret
 
             env:
-              # 👇 Force Postgres to use a subdirectory inside the PVC mount
+              # Use a subdirectory to avoid the ceph-rbd `lost+found` issue
               PGDATA: /var/lib/postgresql/data/pgdata
 
             resources:
@@ -126,7 +124,7 @@ spec:
                   initialDelaySeconds: 10
                   periodSeconds: 10
 
-        # Init container to fix CephFS permissions for /wiki (cephfs)
+        # Init container to fix CephFS permissions for /wiki/data and /wiki/config
         initContainers:
           chown-wiki-data:
             image:
@@ -136,8 +134,8 @@ spec:
               - sh
               - -c
               - |
-                chown -R 1000:1000 /wiki || true
-                chmod -R g+rwX /wiki || true
+                chown -R 1000:1000 /wiki/data /wiki/config || true
+                chmod -R g+rwX /wiki/data /wiki/config || true
 
     service:
       main:
@@ -149,14 +147,26 @@ spec:
 
     persistence:
       # Wiki configuration + uploaded data -> CephFS (RWX)
+      # We mount this PVC ONLY on /wiki/data and /wiki/config,
+      # *not* on /wiki itself (so /wiki/server from the image remains intact).
       wiki-data:
         enabled: true
         type: persistentVolumeClaim
         storageClass: cephfs
         accessMode: ReadWriteMany
         size: 20Gi
-        globalMounts:
-          - path: /wiki
+        advancedMounts:
+          main:
+            app:
+              - path: /wiki/data
+                subPath: data
+              - path: /wiki/config
+                subPath: config
+            chown-wiki-data:
+              - path: /wiki/data
+                subPath: data
+              - path: /wiki/config
+                subPath: config
 
       # Postgres data -> Ceph RBD (RWO, block)
       db-data:
