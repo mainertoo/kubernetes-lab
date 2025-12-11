@@ -57,13 +57,12 @@ spec:
     # Match your other linuxserver apps (tautulli style)
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        # Let linuxserver entrypoint run as root and drop to PUID/PGID internally.
+        # We only keep the group bits for Ceph access.
         fsGroup: 1000
         fsGroupChangePolicy: "OnRootMismatch"
         supplementalGroups:
-          - 991   # ceph group, same pattern you use elsewhere
+          - 991
 
     service:
       main:
