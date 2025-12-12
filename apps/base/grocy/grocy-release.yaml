@@ -45,6 +45,8 @@ spec:
               TZ: America/Los_Angeles
               PUID: "1000"
               PGID: "1000"
+              GROCY_AUTH_CLASS: "Grocy\\Middleware\\ReverseProxyAuthMiddleware"
+              GROCY_REVERSE_PROXY_AUTH_HEADER: "HTTP_X_AUTHENTIK_USERNAME"
 
             resources:
               requests:
