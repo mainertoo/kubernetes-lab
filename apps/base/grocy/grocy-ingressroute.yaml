@@ -18,9 +18,9 @@ spec:
   routes:
     - match: Host(`grocy.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: grocy
           port: 80
-      middlewares:
-        - name: authentik-sso
-        - namespace: traefik-system
