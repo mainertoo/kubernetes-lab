@@ -51,7 +51,7 @@ spec:
               GROCY_AUTH_CLASS:
                 value: "Grocy\\Middleware\\ReverseProxyAuthMiddleware"
               GROCY_REVERSE_PROXY_AUTH_HEADER:
-                value: "HTTP_X_AUTHENTIK_USERNAME"
+                value: "X-authentik-username"
 
             resources:
               requests:
