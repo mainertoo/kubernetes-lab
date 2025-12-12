@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: stirling-pdf-ingressroute
+  namespace: stirling-pdf
+  annotations:
+    gethomepage.dev/href: "https://pdf.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Stirling PDF"
+    gethomepage.dev/description: "PDF tools & OCR"
+    gethomepage.dev/app: stirling-pdf
+    gethomepage.dev/group: "Tools"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/stirlingpdf.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`pdf.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: stirling-pdf
+          port: 8080
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
