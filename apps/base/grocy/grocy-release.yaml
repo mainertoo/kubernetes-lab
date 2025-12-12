@@ -48,6 +48,8 @@ spec:
                 value: "1000"
               PGID:
                 value: "1000"
+              GROCY_BASE_URL:
+                value: "https://grocy.lab.mainertoo.com"
               GROCY_AUTH_CLASS:
                 value: "Grocy\\Middleware\\ReverseProxyAuthMiddleware"
               GROCY_REVERSE_PROXY_AUTH_HEADER:
