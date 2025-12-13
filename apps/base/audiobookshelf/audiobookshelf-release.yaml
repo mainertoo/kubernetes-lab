@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app audiobookshelf
+  namespace: media
 spec:
   interval: 30m
   chartRef:
@@ -9,8 +10,9 @@ spec:
     name: app-template
     namespace: flux-system
   maxHistory: 2
+
   install:
-    createNamespace: true
+    createNamespace: false
     remediation:
       retries: 3
   upgrade:
@@ -19,9 +21,29 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       audiobookshelf:
+        initContainers:
+          fix-config-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                echo "Fixing perms on /config..."
+                chown -R 1000:1000 /config || true
+                chmod -R 0775 /config || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
         containers:
           app:
             image:
@@ -29,7 +51,7 @@ spec:
               tag: 2.30.0
             env:
               - name: TZ
-                value: Europe/Copenhagen
+                value: America/Los_Angeles
               - name: AUDIOBOOKSHELF_UID
                 value: "1000"
               - name: AUDIOBOOKSHELF_GID
@@ -42,22 +64,48 @@ spec:
               startup:
                 enabled: false
 
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+        supplementalGroups:
+          - 991
+
     service:
       app:
         controller: audiobookshelf
         ports:
           http:
-            port: &port 80
+            port: 80
 
     persistence:
+      # Config on CephFS RWX (new PVC below)
       config:
-        existingClaim: *app
-        globalMounts:
-          - path: /config
+        existingClaim: audiobookshelf
+        advancedMounts:
+          audiobookshelf:
+            app:
+              - path: /config
+            fix-config-perms:
+              - path: /config
 
+      # QNAP NFS books directory mounted as the *root library directory* inside the app
+      # This points at /QNAS/data/media/books on the NAS
+      qnap-books:
+        type: nfs
+        server: 192.168.1.252
+        path: /QNAS/data/media/books
+        globalMounts:
+          - path: /books
+            readOnly: true
+
+      # Optional: keep your zurg mount for later Decypharr integration
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/audiobooks
         globalMounts:
-          - path: /audiobooks
+          - path: /mnt/zurg/audiobooks
             readOnly: true
