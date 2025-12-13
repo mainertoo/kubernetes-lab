@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app audiobookshelf
+  name: audiobookshelf
   namespace: media
 spec:
   interval: 30m
@@ -35,9 +35,12 @@ spec:
               - -c
             args:
               - |
-                echo "Fixing perms on /config..."
-                chown -R 1000:1000 /config || true
-                chmod -R 0775 /config || true
+                set -e
+                echo "Preparing /config and /metadata..."
+                mkdir -p /config /metadata || true
+                echo "Fixing perms..."
+                chown -R 1000:1000 /config /metadata || true
+                chmod -R 0775 /config /metadata || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -56,6 +59,9 @@ spec:
                 value: "1000"
               - name: AUDIOBOOKSHELF_GID
                 value: "1000"
+              # Explicitly set metadata path (matches our mount)
+              - name: METADATA_PATH
+                value: /metadata
             probes:
               liveness:
                 enabled: false
@@ -82,18 +88,21 @@ spec:
             port: 80
 
     persistence:
-      # Config on CephFS RWX (new PVC below)
+      # CephFS RWX PVC (same claim provides /config + /metadata via subPaths)
       config:
         existingClaim: audiobookshelf
         advancedMounts:
           audiobookshelf:
             app:
               - path: /config
+                subPath: config
+              - path: /metadata
+                subPath: metadata
             fix-config-perms:
               - path: /config
+              - path: /metadata
 
-      # QNAP NFS books directory mounted as the *root library directory* inside the app
-      # This points at /QNAS/data/media/books on the NAS
+      # QNAP NFS books directory mounted as the library root inside the app
       qnap-books:
         type: nfs
         server: 192.168.1.252
