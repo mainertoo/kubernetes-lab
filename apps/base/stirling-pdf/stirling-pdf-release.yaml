@@ -60,6 +60,45 @@ spec:
               TZ: America/Los_Angeles
               DOCKER_ENABLE_SECURITY: "false"
 
+              # ---- Stirling-PDF OIDC via Authentik (GitOps-driven) ----
+              SECURITY_ENABLELOGIN: "true"
+
+              # keep loginMethod in the secret so you can switch oauth2/all without touching the release
+              SECURITY_LOGINMETHOD:
+                valueFrom:
+                  secretKeyRef:
+                    name: stirling-pdf-oidc
+                    key: loginMethod
+
+              SECURITY_OAUTH2_ENABLED: "true"
+
+              SECURITY_OAUTH2_ISSUER:
+                valueFrom:
+                  secretKeyRef:
+                    name: stirling-pdf-oidc
+                    key: issuer
+
+              SECURITY_OAUTH2_CLIENTID:
+                valueFrom:
+                  secretKeyRef:
+                    name: stirling-pdf-oidc
+                    key: clientId
+
+              SECURITY_OAUTH2_CLIENTSECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: stirling-pdf-oidc
+                    key: clientSecret
+
+              SECURITY_OAUTH2_USEASUSERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: stirling-pdf-oidc
+                    key: useAsUsername
+
+              # Optional (safe default): allow user auto-create
+              SECURITY_OAUTH2_AUTOCREATEUSER: "true"
+
             resources:
               requests:
                 cpu: 50m
