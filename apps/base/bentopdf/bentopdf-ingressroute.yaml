@@ -1,0 +1,29 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bentopdf-ingressroute
+  namespace: bentopdf
+  annotations:
+    gethomepage.dev/href: "https://bentopdf.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "BentoPDF"
+    gethomepage.dev/description: "Client-side PDF tools"
+    gethomepage.dev/app: bentopdf
+    gethomepage.dev/group: "Tools"
+    # pick any icon you like; leaving a safe placeholder:
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/pdf.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`bentopdf.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: bentopdf
+          port: 8080
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
