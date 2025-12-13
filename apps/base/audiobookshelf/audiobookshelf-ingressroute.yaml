@@ -2,8 +2,9 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: audiobookshelf-ingressroute
+  namespace: media
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=placeholder}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://audiobookshelf.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Audiobookshelf"
     gethomepage.dev/description: "Self-hosted audiobook and podcast server"
@@ -15,8 +16,13 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`${SUBDOMAIN:=placeholder}.hephaestus.markmk.com`)
+    - match: Host(`audiobookshelf.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: audiobookshelf
           port: 80
+  tls:
+    secretName: wildcard-lab-mainertoo-com-tls
