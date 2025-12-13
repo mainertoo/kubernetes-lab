@@ -23,6 +23,7 @@ spec:
       #     namespace: traefik-system
       services:
         - name: stirling-pdf
-          port: 8080
+          # port: 8080
+          port: 8011
   tls:
     secretName: wildcard-lab-mainertoo-com-tls
