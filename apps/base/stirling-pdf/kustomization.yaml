@@ -3,6 +3,5 @@ kind: Kustomization
 namespace: stirling-pdf
 resources:
   - stirling-pdf-namespace.yaml
-  - stirling-pdf-secret.sops.yaml
   - stirling-pdf-release.yaml
   - stirling-pdf-ingressroute.yaml
