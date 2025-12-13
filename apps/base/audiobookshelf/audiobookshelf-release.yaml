@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: audiobookshelf
+  name: &app audiobookshelf
   namespace: media
 spec:
   interval: 30m
@@ -25,22 +25,33 @@ spec:
   values:
     controllers:
       audiobookshelf:
+        # Init runs as root and fixes perms on BOTH mounts
         initContainers:
-          fix-config-perms:
+          init-perms:
             image:
               repository: busybox
               tag: stable
             command:
               - /bin/sh
-              - -c
+              - -lc
             args:
               - |
                 set -e
-                echo "Preparing /config and /metadata..."
-                mkdir -p /config /metadata || true
-                echo "Fixing perms..."
+                echo "== audiobookshelf init-perms =="
+
+                echo "-- Before --"
+                ls -ld /config /metadata || true
+
+                echo "Creating expected dirs..."
+                mkdir -p /config /metadata /metadata/logs || true
+
+                echo "Fixing ownership/permissions..."
                 chown -R 1000:1000 /config /metadata || true
                 chmod -R 0775 /config /metadata || true
+
+                echo "-- After --"
+                ls -ld /config /metadata || true
+                ls -ld /metadata/logs || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -59,9 +70,6 @@ spec:
                 value: "1000"
               - name: AUDIOBOOKSHELF_GID
                 value: "1000"
-              # Explicitly set metadata path (matches our mount)
-              - name: METADATA_PATH
-                value: /metadata
             probes:
               liveness:
                 enabled: false
@@ -88,21 +96,19 @@ spec:
             port: 80
 
     persistence:
-      # CephFS RWX PVC (same claim provides /config + /metadata via subPaths)
+      # CephFS RWX PVC (must exist already in media ns): audiobookshelf
       config:
         existingClaim: audiobookshelf
-        advancedMounts:
-          audiobookshelf:
-            app:
-              - path: /config
-                subPath: config
-              - path: /metadata
-                subPath: metadata
-            fix-config-perms:
-              - path: /config
-              - path: /metadata
+        globalMounts:
+          - path: /config
 
-      # QNAP NFS books directory mounted as the library root inside the app
+      # Metadata stored locally on the node (fixes your /metadata EACCES)
+      metadata:
+        type: emptyDir
+        globalMounts:
+          - path: /metadata
+
+      # QNAP NFS books directory mounted into the container as /books
       qnap-books:
         type: nfs
         server: 192.168.1.252
@@ -111,7 +117,7 @@ spec:
           - path: /books
             readOnly: true
 
-      # Optional: keep your zurg mount for later Decypharr integration
+      # Optional: keep your zurg mount for later
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/audiobooks
