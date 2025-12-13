@@ -97,7 +97,7 @@ spec:
                     key: useAsUsername
 
               # Optional (safe default): allow user auto-create
-              SECURITY_OAUTH2_AUTOCREATEUSER: "true"
+              SECURITY_OAUTH2_AUTOCREATEUSER: "false"
 
             resources:
               requests:
