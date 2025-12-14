@@ -25,5 +25,4 @@ spec:
         - name: code-server
           port: 8443
           scheme: http
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}
