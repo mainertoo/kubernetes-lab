@@ -23,5 +23,4 @@ spec:
       # middlewares:
       #   - name: authentik
       #     namespace: authentik
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}

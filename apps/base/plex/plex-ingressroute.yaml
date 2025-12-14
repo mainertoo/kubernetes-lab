@@ -20,5 +20,4 @@ spec:
       services:
         - name: media-plex
           port: 32400
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}
