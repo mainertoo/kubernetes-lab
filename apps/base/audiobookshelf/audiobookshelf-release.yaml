@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app audiobookshelf
+  name: audiobookshelf
   namespace: media
 spec:
   interval: 30m
@@ -12,51 +12,30 @@ spec:
   maxHistory: 2
 
   install:
-    createNamespace: false
     remediation:
       retries: 3
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
-  uninstall:
-    keepHistory: false
 
   values:
     controllers:
       audiobookshelf:
-        # Init runs as root and fixes perms on BOTH mounts
         initContainers:
           init-perms:
             image:
               repository: busybox
               tag: stable
-            command:
-              - /bin/sh
-              - -lc
-            args:
-              - |
-                set -e
-                echo "== audiobookshelf init-perms =="
-
-                echo "-- Before --"
-                ls -ld /config /metadata || true
-
-                echo "Creating expected dirs..."
-                mkdir -p /config /metadata /metadata/logs || true
-
-                echo "Fixing ownership/permissions..."
-                chown -R 1000:1000 /config /metadata || true
-                chmod -R 0775 /config /metadata || true
-
-                echo "-- After --"
-                ls -ld /config /metadata || true
-                ls -ld /metadata/logs || true
-                echo "Done."
+            command: ["/bin/sh", "-lc"]
+            args: |
+              set -e
+              mkdir -p /config /metadata /metadata/logs
+              chown -R 1000:1000 /config /metadata
+              chmod -R 0775 /config /metadata
             securityContext:
               runAsUser: 0
               runAsGroup: 0
-              runAsNonRoot: false
 
         containers:
           app:
@@ -70,23 +49,13 @@ spec:
                 value: "1000"
               - name: AUDIOBOOKSHELF_GID
                 value: "1000"
-            probes:
-              liveness:
-                enabled: false
-              readiness:
-                enabled: false
-              startup:
-                enabled: false
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-        fsGroupChangePolicy: "OnRootMismatch"
-        supplementalGroups:
-          - 991
+        fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
@@ -96,7 +65,11 @@ spec:
             port: 80
 
     persistence:
-      # Single RWX CephFS PVC created by Helm, mounted at BOTH /config and /metadata
+      # 🚨 Disable the chart’s built-in metadata volume
+      metadata:
+        enabled: false
+
+      # ✅ Single CephFS PVC mounted twice
       abs:
         enabled: true
         type: pvc
@@ -107,19 +80,10 @@ spec:
           - path: /config
           - path: /metadata
 
-      # QNAP NFS books directory mounted into the container as /books
       qnap-books:
         type: nfs
         server: 192.168.1.252
         path: /QNAS/data/media/books
         globalMounts:
           - path: /books
-            readOnly: true
-
-      # Optional: keep your zurg mount for later
-      rclone:
-        type: hostPath
-        hostPath: /mnt/zurg/audiobooks
-        globalMounts:
-          - path: /mnt/zurg/audiobooks
             readOnly: true
