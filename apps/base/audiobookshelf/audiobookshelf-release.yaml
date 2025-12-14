@@ -96,17 +96,16 @@ spec:
             port: 80
 
     persistence:
-      config:
-        existingClaim: audiobookshelf
+      # Single RWX CephFS PVC created by Helm, mounted at BOTH /config and /metadata
+      abs:
+        enabled: true
+        type: pvc
+        storageClass: cephfs
+        accessMode: ReadWriteMany
+        size: 100Gi
         globalMounts:
           - path: /config
-            subPath: config
-
-      metadata:
-        existingClaim: audiobookshelf
-        globalMounts:
           - path: /metadata
-            subPath: metadata
 
       # QNAP NFS books directory mounted into the container as /books
       qnap-books:
