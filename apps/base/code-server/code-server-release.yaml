@@ -54,39 +54,20 @@ spec:
               repository: ghcr.io/linuxserver/code-server
               tag: latest
 
+            # app-template v3 expects env as a MAP, not a list
             env:
-              - name: PUID
-                value: "1000"
-              - name: PGID
-                value: "1000"
-              - name: TZ
-                value: America/Los_Angeles
+              PUID: "1000"
+              PGID: "1000"
+              TZ: "America/Los_Angeles"
+              PROXY_DOMAIN: "vscode.lab.mainertoo.com"
+              DEFAULT_WORKSPACE: "/config/workspace"
+              PWA_APPNAME: "code-server"
 
-              # You can leave PASSWORD empty and rely on Authentik forward-auth,
-              # or set it for "two layers" of auth.
-              # Recommend: store these in a Secret (see optional secret below).
-              - name: PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: code-server-secret
-                    key: PASSWORD
-                    optional: true
+            # Pull PASSWORD / SUDO_PASSWORD (etc) from a Secret as env vars
+            envFrom:
+              - secretRef:
+                  name: code-server-secret
 
-              - name: SUDO_PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: code-server-secret
-                    key: SUDO_PASSWORD
-                    optional: true
-
-              - name: PROXY_DOMAIN
-                value: vscode.lab.mainertoo.com
-              - name: DEFAULT_WORKSPACE
-                value: /config/workspace
-              - name: PWA_APPNAME
-                value: code-server
-
-            # Turn off probes while you're first validating auth/proxying.
             probes:
               liveness:
                 enabled: false
@@ -109,7 +90,6 @@ spec:
         controller: code-server
         ports:
           http:
-            # linuxserver/code-server listens on 8443 by default
             port: 8443
 
     persistence:
