@@ -12,12 +12,15 @@ spec:
   maxHistory: 2
 
   install:
+    createNamespace: false
     remediation:
       retries: 3
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+  uninstall:
+    keepHistory: false
 
   values:
     controllers:
@@ -30,12 +33,26 @@ spec:
             command: ["/bin/sh", "-lc"]
             args: |
               set -e
-              mkdir -p /config /metadata /metadata/logs
-              chown -R 1000:1000 /config /metadata
-              chmod -R 0775 /config /metadata
+              echo "== audiobookshelf init-perms =="
+
+              echo "-- Before --"
+              ls -ld /config /metadata || true
+
+              echo "Creating expected dirs..."
+              mkdir -p /config /metadata /metadata/logs || true
+
+              echo "Fixing ownership/permissions..."
+              chown -R 1000:1000 /config /metadata || true
+              chmod -R 0775 /config /metadata || true
+
+              echo "-- After --"
+              ls -ld /config /metadata || true
+              ls -ld /metadata/logs || true
+              echo "Done."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
+              runAsNonRoot: false
 
         containers:
           app:
@@ -49,13 +66,23 @@ spec:
                 value: "1000"
               - name: AUDIOBOOKSHELF_GID
                 value: "1000"
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
 
     defaultPodOptions:
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+        fsGroupChangePolicy: "OnRootMismatch"
+        supplementalGroups:
+          - 991
 
     service:
       app:
@@ -65,20 +92,24 @@ spec:
             port: 80
 
     persistence:
-      # 🚨 Disable the chart’s built-in metadata volume
+      # IMPORTANT:
+      # Disable any built-in chart volumes that may mount /config or /metadata
+      # (this is what was over-mounting /metadata onto /dev/vda1)
+      config:
+        enabled: false
       metadata:
         enabled: false
 
-      # ✅ Single CephFS PVC mounted twice
+      # Single RWX PVC, mounted twice using subPaths so the dirs are separated
       abs:
         enabled: true
-        type: pvc
-        storageClass: cephfs
-        accessMode: ReadWriteMany
-        size: 100Gi
+        type: persistentVolumeClaim
+        existingClaim: audiobookshelf
         globalMounts:
           - path: /config
+            subPath: config
           - path: /metadata
+            subPath: metadata
 
       qnap-books:
         type: nfs
@@ -86,4 +117,11 @@ spec:
         path: /QNAS/data/media/books
         globalMounts:
           - path: /books
+            readOnly: true
+
+      rclone:
+        type: hostPath
+        hostPath: /mnt/zurg/audiobooks
+        globalMounts:
+          - path: /mnt/zurg/audiobooks
             readOnly: true
