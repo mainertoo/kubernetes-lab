@@ -22,4 +22,4 @@ spec:
       - X-authentik-meta-app
       - X-authentik-meta-version
       - Authorization
-    authResponseHeadersRegex: ".*"
+    authResponseHeadersRegex: "^(X-authentik-|Set-Cookie|Authorization)$"
