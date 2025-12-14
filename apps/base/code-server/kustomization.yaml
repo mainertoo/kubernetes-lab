@@ -4,6 +4,6 @@ namespace: code-server
 resources:
   - code-server-release.yaml
   - code-server-ingressroute.yaml
-  - code-server-servers-transport.yaml
+  # - code-server-servers-transport.yaml
   - code-server-namespace.yaml
   - code-server-secret.sops.yaml

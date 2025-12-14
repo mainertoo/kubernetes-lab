@@ -24,7 +24,6 @@ spec:
       services:
         - name: code-server
           port: 8443
-          scheme: https
-          serversTransport: code-server-transport
+          scheme: http
   tls:
     secretName: wildcard-lab-mainertoo-com-tls
