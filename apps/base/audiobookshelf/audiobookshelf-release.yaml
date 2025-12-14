@@ -93,14 +93,11 @@ spec:
 
     persistence:
       # IMPORTANT:
-      # Disable any built-in chart volumes that may mount /config or /metadata
-      # (this is what was over-mounting /metadata onto /dev/vda1)
-      config:
-        enabled: false
-      metadata:
-        enabled: false
+      # Do NOT define persistence.config or persistence.metadata at all.
+      # Those keys are special in the chart schema and "enabled: false" breaks validation.
 
-      # Single RWX PVC, mounted twice using subPaths so the dirs are separated
+      # This is the single RWX CephFS PVC created/managed separately (GitOps PVC manifest)
+      # and mounted twice with subPaths.
       abs:
         enabled: true
         type: persistentVolumeClaim
