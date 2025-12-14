@@ -12,9 +12,4 @@ spec:
       services:
         - name: authentik-server
           port: 80
-  tls:
-    # If you're using a wildcard cert / default certResolver, adjust as needed.
-    # certResolver: cloudflare
-    # domains:
-    #   - main: "authentik.lab.mainertoo.com"
-    {}
+  tls: {}
