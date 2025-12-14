@@ -15,4 +15,5 @@ spec:
   path: ./apps/staging
   prune: true
   wait: true
+  force: true
   timeout: 5m0s
