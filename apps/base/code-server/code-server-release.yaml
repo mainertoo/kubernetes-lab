@@ -1,0 +1,131 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app code-server
+  namespace: code-server
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      code-server:
+        type: deployment
+        replicas: 1
+
+        initContainers:
+          init-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh","-lc"]
+            args:
+              - |
+                set -e
+                echo "== code-server init-perms =="
+                mkdir -p /config
+                chown -R 1000:1000 /config || true
+                chmod -R 0775 /config || true
+                ls -ld /config || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
+        containers:
+          app:
+            image:
+              repository: ghcr.io/linuxserver/code-server
+              tag: latest
+
+            env:
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+              - name: TZ
+                value: America/Los_Angeles
+
+              # You can leave PASSWORD empty and rely on Authentik forward-auth,
+              # or set it for "two layers" of auth.
+              # Recommend: store these in a Secret (see optional secret below).
+              - name: PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: code-server-secret
+                    key: PASSWORD
+                    optional: true
+
+              - name: SUDO_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: code-server-secret
+                    key: SUDO_PASSWORD
+                    optional: true
+
+              - name: PROXY_DOMAIN
+                value: vscode.lab.mainertoo.com
+              - name: DEFAULT_WORKSPACE
+                value: /config/workspace
+              - name: PWA_APPNAME
+                value: code-server
+
+            # Turn off probes while you're first validating auth/proxying.
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+
+    service:
+      app:
+        enabled: true
+        controller: code-server
+        ports:
+          http:
+            # linuxserver/code-server listens on 8443 by default
+            port: 8443
+
+    persistence:
+      config:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: cephfs
+        accessMode: ReadWriteMany
+        size: 20Gi
+        globalMounts:
+          - path: /config
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
