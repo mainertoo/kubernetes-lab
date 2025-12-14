@@ -24,5 +24,4 @@ spec:
       services:
         - name: stirling-pdf
           port: 8080
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}

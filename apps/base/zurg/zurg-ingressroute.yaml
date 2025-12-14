@@ -21,5 +21,4 @@ spec:
       services:
         - name: zurg-webdav
           port: 9999
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}

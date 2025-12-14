@@ -20,5 +20,4 @@ spec:
       services:
         - name: jellyfin   # <- matches Helm-generated Service name
           port: 8096
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}

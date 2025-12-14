@@ -11,5 +11,4 @@ spec:
       services:
         - name: vaultwarden
           port: 80
-  tls:
-    secretName: wildcard-lab-mainertoo-com-tls
+  tls: {}
