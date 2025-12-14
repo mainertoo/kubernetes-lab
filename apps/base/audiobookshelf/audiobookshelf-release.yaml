@@ -96,17 +96,17 @@ spec:
             port: 80
 
     persistence:
-      # CephFS RWX PVC (must exist already in media ns): audiobookshelf
       config:
         existingClaim: audiobookshelf
         globalMounts:
           - path: /config
+            subPath: config
 
-      # Metadata stored locally on the node (fixes your /metadata EACCES)
       metadata:
-        type: emptyDir
+        existingClaim: audiobookshelf
         globalMounts:
           - path: /metadata
+            subPath: metadata
 
       # QNAP NFS books directory mounted into the container as /books
       qnap-books:
