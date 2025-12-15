@@ -3,4 +3,3 @@ kind: Kustomization
 namespace: it-tools
 resources:
   - ../../base/it-tools
-  - it-tools-ingressroute.yaml
