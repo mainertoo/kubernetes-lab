@@ -1,9 +1,10 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: it-tools
+  name: it-tools-ingressroute
+  namespace: it-tools
   annotations:
-    gethomepage.dev/href: "https://${HOSTNAME:=it-tools.hephaestus.markmk.com}"
+    gethomepage.dev/href: "https://it-tools.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "IT - Tools"
     gethomepage.dev/description: "Collection of handy online tools for developers"
@@ -13,13 +14,15 @@ metadata:
 spec:
   entryPoints:
     - websecure
+    - web
   routes:
-    - match: Host(`${HOSTNAME:=it-tools.hephaestus.markmk.com}`) 
+    - match: Host(`it-tools.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: it-tools
           port: 80
-          namespace: it-tools
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+          scheme: http
+  tls: {}
