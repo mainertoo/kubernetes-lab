@@ -2,10 +2,11 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: omni-tools-ingressroute
+  namespace: omni-tools
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=omni-tools}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://omni-tools.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "omni-tools"
+    gethomepage.dev/name: "Omni Tools"
     gethomepage.dev/description: "Collection of powerful web-based tools"
     gethomepage.dev/app: omni-tools
     gethomepage.dev/group: "Tools"
@@ -15,12 +16,13 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`${SUBDOMAIN:=omni-tools}.hephaestus.markmk.com`)
+    - match: Host(`omni-tools.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: omni-tools
           port: 80
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
-
+          scheme: http
+  tls: {}
