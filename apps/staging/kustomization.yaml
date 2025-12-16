@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   # - podinfo/
   # - homepage/
-  # - it-tools/
   - zurg/
   - rclone/
   - riven/
@@ -25,3 +24,4 @@ resources:
   - audiobookshelf/
   - code-server/
   - it-tools/
+  - omni-tools/
