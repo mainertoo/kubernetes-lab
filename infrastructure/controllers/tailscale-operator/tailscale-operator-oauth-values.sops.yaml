@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: tailscale-operator-oauth-values
+    namespace: tailscale
+type: Opaque
+stringData:
+    values.yaml: ENC[AES256_GCM,data:WoX2VcBur/8k1QRNFIWV/d2N1Tlw/14U/YbX+f+vtES8o+RlUAtCMHZPJ4sTJFcQ9L4u3xRun/nSK34fJ7kyFycJUPHeB2pN02JAq5USogP2aEhiu0hCoCcvput2JlJMp7RmDSDmRUWpzjJTx6NHBjFpsO+UQpG0,iv:6+49lUdYOrJDcQhj+esrp+1U5pJqRtQFc14waVm8NKY=,tag:MFYXeRVOMHhP3WdTgv1d+w==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJTTN1aGJkWTIzejg3SFVT
+            dU1acUpUbDlCK25nN2hnQUJLdnU2bWNnSnhnCm5SZXdyTTZIWG5pa0NrU1JLdWV3
+            MnNBRFpqSHg1UVRwN1ZmY1lSUm5VMFEKLS0tIHRuSkd4UlpKOThXcElLbG12TnA4
+            NzZLbnBXbWt0R21MczNrNWthbVVXdVEK/8k0DoDdqoDGqpcBfPz8hDOp0yCk56nu
+            lafzYJO126iyS3saZBQKrWAhNx7ED5E4N1uezzAdP2LPtLCiBMy5Dw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-12-17T16:30:30Z"
+    mac: ENC[AES256_GCM,data:Z8ANAcot1/DGqAbr4DxL8dyNSI4M4YnIbWUT8AYpVk+advtVWWeyMlNL9KsiJVoioZa7Kj/BM/Z9MX2TIrOi70PQyJ/jOwLg54AfRvbMQ0cnc6NUqEaOj0nWUZArAfnjzZjlhhsG4zcQ8j5aC5leiKh7P6mOLWqgXSrlWFUAGVo=,iv:kKW4Z5hmFKGGTqX60dtCsa2cb5hCFNOeu1QfWNYFdVg=,tag:jqYAieBDlsS5FVqEzoer4w==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
