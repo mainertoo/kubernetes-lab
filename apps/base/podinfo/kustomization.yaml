@@ -5,4 +5,4 @@ resources:
   - podinfo-namespace.yaml
   - podinfo-repository.yaml
   - podinfo-release.yaml
-  - podinfo-values.yaml
+  # - podinfo-values.yaml
