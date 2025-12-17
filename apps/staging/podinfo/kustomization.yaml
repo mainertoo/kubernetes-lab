@@ -3,8 +3,3 @@ kind: Kustomization
 namespace: podinfo
 resources:
   - ../../base/podinfo
-  - ingressroute.yaml
-patches:
-  - path: podinfo-values.yaml
-    target:
-      kind: HelmRelease
