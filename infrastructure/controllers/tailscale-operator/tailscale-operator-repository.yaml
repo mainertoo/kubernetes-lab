@@ -4,5 +4,5 @@ metadata:
   name: tailscale
   namespace: tailscale
 spec:
-  interval: 30m
+  interval: 1h
   url: https://pkgs.tailscale.com/helmcharts
