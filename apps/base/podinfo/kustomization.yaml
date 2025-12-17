@@ -3,5 +3,6 @@ kind: Kustomization
 namespace: homepage
 resources:
   - podinfo-namespace.yaml
-  - repository.yaml
-  - release.yaml
+  - podinfo-repository.yaml
+  - podinfo-release.yaml
+  - podinfo-values.yaml
