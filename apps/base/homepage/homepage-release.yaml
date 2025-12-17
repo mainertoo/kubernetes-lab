@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app homepage
+  namespace: homepage
 spec:
   interval: 30m
   chartRef:
@@ -19,6 +20,7 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       homepage:
@@ -29,35 +31,76 @@ spec:
               tag: v1.5.0
             env:
               - name: TZ
-                value: Europe/Copenhagen
+                value: America/Los_Angeles
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: hephaestus.markmk.com,markmk.com,homepage.hephaestus.markmk.com
+                value: homepage.lab.mainertoo.com
+
+        initContainers:
+          init-config:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                set -eu
+                echo "Bootstrapping /app/config (only missing files)..."
+                mkdir -p /app/config
+                for f in bookmarks.yaml docker.yaml kubernetes.yaml services.yaml settings.yaml widgets.yaml; do
+                  if [ ! -s "/app/config/$f" ]; then
+                    echo "  -> seeding $f"
+                    cp "/defaults/$f" "/app/config/$f"
+                  else
+                    echo "  -> keeping existing $f"
+                  fi
+                done
+
+                echo "Fixing perms..."
+                chown -R 1000:1000 /app/config || true
+                chmod -R 0775 /app/config || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
 
     service:
       app:
-        controller: homepage
+        controller: *app
         ports:
           http:
-            port: &port 3000
+            port: 3000
 
     persistence:
+      # CephFS PVC (editable config persists)
       config:
+        existingClaim: homepage-config
+        advancedMounts:
+          homepage:
+            app:
+              - path: /app/config
+            init-config:
+              - path: /app/config
+
+      # Defaults from git (seeded into PVC only once / when missing)
+      defaults:
         type: configMap
-        name: homepage-config
-        globalMounts:
-          - subPath: bookmarks.yaml
-            path: /app/config/bookmarks.yaml
-          - subPath: docker.yaml
-            path: /app/config/docker.yaml
-          - subPath: kubernetes.yaml
-            path: /app/config/kubernetes.yaml
-          - subPath: services.yaml
-            path: /app/config/services.yaml
-          - subPath: settings.yaml
-            path: /app/config/settings.yaml
-          - subPath: widgets.yaml
-            path: /app/config/widgets.yaml
+        name: homepage-default-config
+        advancedMounts:
+          homepage:
+            init-config:
+              - path: /defaults
+                readOnly: true
 
     serviceAccount:
       create: true
-      name: *app            
+      name: *app

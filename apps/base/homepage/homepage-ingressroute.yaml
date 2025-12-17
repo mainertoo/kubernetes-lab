@@ -1,38 +1,28 @@
----
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: traefik-homepage-default
+  name: homepage-ingressroute
   namespace: homepage
+  annotations:
+    gethomepage.dev/href: "https://homepage.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Homepage"
+    gethomepage.dev/description: "Cluster dashboard"
+    gethomepage.dev/app: homepage
+    gethomepage.dev/group: "Tools"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/homepage.svg"
 spec:
   entryPoints:
     - websecure
+    - web
   routes:
-    - match: Host(`hephaestus.markmk.com`)
+    - match: Host(`homepage.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: homepage
           port: 3000
-          namespace: homepage
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: traefik-homepage
-  namespace: homepage
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`homepage.hephaestus.markmk.com`) 
-      kind: Rule
-      services:
-        - name: homepage
-          port: 3000
-          namespace: homepage
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+          scheme: http
+  tls: {}
