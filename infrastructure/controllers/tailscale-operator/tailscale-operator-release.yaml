@@ -13,9 +13,11 @@ spec:
         kind: HelmRepository
         name: tailscale
         namespace: tailscale
+      # optional: pin a version once you confirm what you want
+      # version: ">=1.0.0"
 
   install:
-    createNamespace: false
+    createNamespace: true
     remediation:
       retries: 3
 
@@ -27,7 +29,6 @@ spec:
   uninstall:
     keepHistory: false
 
-  # Pull oauth clientId/clientSecret from the SOPS-encrypted Secret above
   valuesFrom:
     - kind: Secret
       name: tailscale-operator-oauth-values
