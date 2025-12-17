@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-default-config
+  namespace: homepage
+data:
+  bookmarks.yaml: |
+    - Developer:
+        - kubernetes-lab (GitHub):
+            - abbr: KLAB
+              href: https://github.com/mainertoo/kubernetes-lab
+        - Hephaestus (upstream):
+            - abbr: HEPH
+              href: https://github.com/willnotcy/Hephaestus
+        - Kubesearch:
+            - abbr: KS
+              href: https://kubesearch.dev/
+        - Selfh.st icons:
+            - abbr: ICONS
+              href: https://selfh.st/icons/
+
+  docker.yaml: |
+    {}
+
+  kubernetes.yaml: |
+    mode: cluster
+    traefik: true
+
+  services.yaml: |
+    - Infrastructure:
+        - pve-whistler:
+            href: https://pve-whistler.lab.mainertoo.com:8006
+            description: Proxmox (whistler)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-s13:
+            href: https://pve-s13.lab.mainertoo.com:8006
+            description: Proxmox (s13)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-s12:
+            href: https://pve-s12.lab.mainertoo.com:8006
+            description: Proxmox (s12)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-ugreen:
+            href: https://pve-ugreen.lab.mainertoo.com:8006
+            description: Proxmox (ugreen)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-mac:
+            href: https://pve-mac.lab.mainertoo.com:8006
+            description: Proxmox (mac)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-zermatt:
+            href: https://pve-zermatt.lab.mainertoo.com:8006
+            description: Proxmox (zermatt)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pve-mammoth:
+            href: https://pve-mammoth.lab.mainertoo.com:8006
+            description: Proxmox (mammoth)
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+        - pbs:
+            href: https://pbs.lab.mainertoo.com:8007
+            description: Proxmox Backup Server
+            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+
+  settings.yaml: |
+    title: "mainertoo lab"
+    theme: dark
+
+  widgets.yaml: |
+    - search:
+        provider: [google]
+        focus: false
+        target: _blank
+    - greeting:
+        text_size: xl
+        text: "Hey Darcy 👋"
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: "k3s"
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true

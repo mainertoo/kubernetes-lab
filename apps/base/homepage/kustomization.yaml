@@ -3,9 +3,8 @@ kind: Kustomization
 namespace: homepage
 resources:
   - homepage-namespace.yaml
-  - homepage-ingressroute.yaml
-  - homepage-release.yaml
-  - homepage-configmap.yaml
+  - homepage-default-configmap.yaml
+  - homepage-config-pvc.yaml
   - homepage-rbac.yaml
-generatorOptions:
-  disableNameSuffixHash: true
+  - homepage-release.yaml
+  - homepage-ingressroute.yaml

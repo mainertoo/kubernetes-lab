@@ -3,14 +3,3 @@ kind: Kustomization
 namespace: homepage
 resources:
   - ../../base/homepage
-  - ingressroute.yaml
-patches:
-  - path: release.yaml
-    target:
-      kind: HelmRelease
-configMapGenerator:
-  - name: homepage-values
-    files:
-      - values.yaml=homepage-values.yaml
-configurations:
-  - kustomizeconfig.yaml
