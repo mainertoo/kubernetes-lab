@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
   - tailscale-operator-namespace.yaml
   - tailscale-operator-repository.yaml
-  - release.yaml
+  - tailscale-operator-release.yaml
   - tailscale-operator-oauth-values.sops.yaml
