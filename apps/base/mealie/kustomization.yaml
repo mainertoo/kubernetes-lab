@@ -3,5 +3,6 @@ kind: Kustomization
 namespace: mealie
 resources:
   - mealie-namespace.yaml
+  - mealie-pvc.yaml
   - mealie-release.yaml
   - mealie-ingressroute.yaml

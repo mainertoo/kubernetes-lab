@@ -1,10 +1,10 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: mealie-ingressroute
+  name: mealie
   namespace: mealie
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=placeholder}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://mealie.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Mealie"
     gethomepage.dev/description: "Self-hosted recipe manager and meal planner"
@@ -15,8 +15,9 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`${SUBDOMAIN:=placeholder}.hephaestus.markmk.com`)
+    - match: Host(`mealie.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: mealie
           port: 9000
+  tls: {}
