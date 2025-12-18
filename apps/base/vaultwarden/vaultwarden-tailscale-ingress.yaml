@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vaultwarden-tailscale
+  namespace: vaultwarden
+  annotations:
+    # Expose this Ingress via Funnel (public internet) in addition to tailnet access
+    tailscale.com/funnel: "true"
+
+    # Optional: set tags on initial provisioning (only applied on first create)
+    tailscale.com/tags: "tag:k8s"
+spec:
+  ingressClassName: tailscale
+
+  # This determines the *first label* of the MagicDNS name.
+  # With "vaultwarden2" you'll get:
+  #   https://vaultwarden2.<your-tailnet>.ts.net
+  tls:
+    - hosts:
+        - vaultwarden2
+
+  defaultBackend:
+    service:
+      name: vaultwarden
+      port:
+        number: 80

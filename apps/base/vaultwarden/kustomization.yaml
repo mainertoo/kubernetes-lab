@@ -6,3 +6,4 @@ resources:
   - vaultwarden-pvc.yaml
   - vaultwarden-release.yaml
   - vaultwarden-ingressroute.yaml
+  - vaultwarden-tailscale-ingress.yaml
