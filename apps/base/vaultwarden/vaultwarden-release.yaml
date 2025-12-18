@@ -44,7 +44,7 @@ spec:
               # Authentik often looks like:
               #   https://authentik.company/application/o/<application_slug>
               - name: SSO_AUTHORITY
-                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden"
+                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden/"
 
               - name: SSO_SCOPES
                 value: "openid email profile offline_access"
