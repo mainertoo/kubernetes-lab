@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 5m
   releaseName: vaultwarden
+
   chart:
     spec:
       chart: app-template
@@ -25,13 +26,41 @@ spec:
           main:
             image:
               repository: vaultwarden/server
-              tag: 1.32.0
+              tag: 1.34.3
               pullPolicy: IfNotPresent
+
+            # Non-secret env vars
             env:
               - name: DOMAIN
                 value: "https://vaultwarden.lab.mainertoo.com"
               - name: SIGNUPS_ALLOWED
                 value: "false"
+
+              # SSO / OIDC
+              - name: SSO_ENABLED
+                value: "true"
+
+              # IMPORTANT (per vaultwarden): should be base URL, no trailing slash
+              # Authentik often looks like:
+              #   https://authentik.company/application/o/<application_slug>
+              - name: SSO_AUTHORITY
+                value: "https://authentik.company/application/o/<application_slug>"
+
+              - name: SSO_SCOPES
+                value: "openid email profile offline_access"
+              - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
+                value: "false"
+              - name: SSO_CLIENT_CACHE_EXPIRATION
+                value: "0"
+              - name: SSO_ONLY
+                value: "false"
+              - name: SSO_SIGNUPS_MATCH_EMAIL
+                value: "true"
+
+            # Secret env vars (SSO_CLIENT_ID / SSO_CLIENT_SECRET)
+            envFrom:
+              - secretRef:
+                  name: vaultwarden-sso-secret
 
     service:
       main:
@@ -47,5 +76,4 @@ spec:
     persistence:
       data:
         enabled: true
-        # use the PVC that is already Bound:
         existingClaim: vaultwarden-data
