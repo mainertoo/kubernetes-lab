@@ -25,3 +25,4 @@ resources:
   - code-server/
   - it-tools/
   - omni-tools/
+  - mealie/
