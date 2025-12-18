@@ -26,7 +26,8 @@ spec:
           main:
             image:
               repository: vaultwarden/server
-              tag: 1.34.3
+              # tag: 1.34.3
+              tag: testing
               pullPolicy: IfNotPresent
 
             # Non-secret env vars
