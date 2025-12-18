@@ -17,7 +17,7 @@ spec:
   #   https://vaultwarden2.<your-tailnet>.ts.net
   tls:
     - hosts:
-        - vaultwarden2
+        - vaultwarden
 
   defaultBackend:
     service:
