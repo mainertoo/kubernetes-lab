@@ -40,7 +40,7 @@ spec:
                 value: "https://kitchenowl.lab.mainertoo.com"
             envFrom:
               - secretRef:
-                  name: kitchenowl-sso-secret
+                  name: kitchenowl-secret
 
     service:
       main:
