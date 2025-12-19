@@ -29,24 +29,19 @@ spec:
             args:
               - |
                 set -e
-                echo "Preparing writable paths for non-root entrypoint..."
+                echo "Preparing writable paths for Dispatcharr entrypoint..."
 
-                # PVC-backed data dir (needed for /data/jwt mktemp)
+                # /data must exist and be writable for jwt + embedded postgres dir
                 mkdir -p /data
                 chown -R 1000:1000 /data
                 chmod -R 0775 /data
 
-                # Writable /etc/profile.d (mounted emptyDir)
+                # /etc/profile.d is mounted as emptyDir => writable
                 mkdir -p /etc/profile.d
                 chown -R 1000:1000 /etc/profile.d
                 chmod -R 0775 /etc/profile.d
 
-                # Writable /etc/environment (mounted file via subPath)
-                touch /etc/environment
-                chown 1000:1000 /etc/environment
-                chmod 0664 /etc/environment
-
-                # Writable /root/.bashrc (root home mounted emptyDir)
+                # /root is mounted as emptyDir => writable for /root/.bashrc
                 mkdir -p /root
                 touch /root/.bashrc
                 chown -R 1000:1000 /root
@@ -55,7 +50,7 @@ spec:
 
                 echo "Done. Debug:"
                 ls -ld /data /etc/profile.d /root || true
-                ls -l /etc/environment /root/.bashrc || true
+                ls -l /root/.bashrc || true
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -105,7 +100,7 @@ spec:
             init-perms:
               - path: /data
 
-      # make /etc/profile.d writable without changing the image layer
+      # writable /etc/profile.d without changing image layer
       profile-d:
         type: emptyDir
         advancedMounts:
@@ -115,19 +110,7 @@ spec:
             init-perms:
               - path: /etc/profile.d
 
-      # mount a writable /etc/environment *file* (not the whole /etc)
-      etc-environment:
-        type: emptyDir
-        advancedMounts:
-          main:
-            main:
-              - path: /etc/environment
-                subPath: environment
-            init-perms:
-              - path: /etc/environment
-                subPath: environment
-
-      # make /root writable for /root/.bashrc writes
+      # writable /root for /root/.bashrc writes
       root-home:
         type: emptyDir
         advancedMounts:
