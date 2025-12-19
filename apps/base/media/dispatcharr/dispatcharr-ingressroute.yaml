@@ -19,5 +19,5 @@ spec:
       kind: Rule
       services:
         - name: dispatcharr
-          port: 9191
+          port: 80
   tls: {}
