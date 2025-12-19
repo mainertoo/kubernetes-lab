@@ -1,0 +1,89 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tandoor
+  namespace: tandoor
+spec:
+  interval: 5m
+  releaseName: tandoor
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+
+  install:
+    createNamespace: false
+
+  values:
+    controllers:
+      main:
+        initContainers:
+          create-db:
+            image:
+              repository: docker.io/library/busybox
+              tag: stable
+            command:
+              - sh
+              - -c
+              - |
+                set -e
+                if [ ! -f /opt/recipes/db.sqlite3 ]; then
+                  mkdir -p /opt/recipes
+                  touch /opt/recipes/db.sqlite3
+                fi
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+
+        containers:
+          main:
+            image:
+              repository: ghcr.io/tandoorrecipes/recipes
+              tag: 2.3.6
+              pullPolicy: IfNotPresent
+            env:
+              - name: TZ
+                value: "America/Los_Angeles"
+              - name: DEBUG
+                value: "0"
+              - name: ENABLE_SIGNUP
+                value: "0"
+
+              # OIDC / django-allauth OpenID Connect provider
+              - name: SOCIAL_PROVIDERS
+                valueFrom:
+                  secretKeyRef:
+                    name: tandoor-sso-secret
+                    key: SOCIAL_PROVIDERS
+              - name: SOCIALACCOUNT_PROVIDERS
+                valueFrom:
+                  secretKeyRef:
+                    name: tandoor-sso-secret
+                    key: SOCIALACCOUNT_PROVIDERS
+
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 8080
+
+    ingress:
+      main:
+        enabled: false
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: tandoor-data
+        globalMounts:
+          - path: /opt/recipes
+      temp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
