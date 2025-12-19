@@ -15,17 +15,6 @@ spec:
         name: bjw-s
         namespace: flux-system
 
-  install:
-    createNamespace: false
-    remediation:
-      retries: 3
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
-  uninstall:
-    keepHistory: false
-
   values:
     controllers:
       main:
@@ -40,11 +29,33 @@ spec:
             args:
               - |
                 set -e
-                echo "Fixing perms..."
-                mkdir -p /data /etc/profile.d
-                chown -R 1000:1000 /data /etc/profile.d
-                chmod -R 0775 /data /etc/profile.d
-                ls -ld /data /etc/profile.d || true
+                echo "Preparing writable paths for non-root entrypoint..."
+
+                # PVC-backed data dir (needed for /data/jwt mktemp)
+                mkdir -p /data
+                chown -R 1000:1000 /data
+                chmod -R 0775 /data
+
+                # Writable /etc/profile.d (mounted emptyDir)
+                mkdir -p /etc/profile.d
+                chown -R 1000:1000 /etc/profile.d
+                chmod -R 0775 /etc/profile.d
+
+                # Writable /etc/environment (mounted file via subPath)
+                touch /etc/environment
+                chown 1000:1000 /etc/environment
+                chmod 0664 /etc/environment
+
+                # Writable /root/.bashrc (root home mounted emptyDir)
+                mkdir -p /root
+                touch /root/.bashrc
+                chown -R 1000:1000 /root
+                chmod 0775 /root
+                chmod 0664 /root/.bashrc
+
+                echo "Done. Debug:"
+                ls -ld /data /etc/profile.d /root || true
+                ls -l /etc/environment /root/.bashrc || true
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -74,7 +85,6 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-        fsGroupChangePolicy: "OnRootMismatch"
 
     service:
       main:
@@ -95,8 +105,8 @@ spec:
             init-perms:
               - path: /data
 
-      # Make /etc/profile.d writable for the entrypoint (fixes dispatcharr.sh permission denied)
-      profile:
+      # make /etc/profile.d writable without changing the image layer
+      profile-d:
         type: emptyDir
         advancedMounts:
           main:
@@ -104,3 +114,25 @@ spec:
               - path: /etc/profile.d
             init-perms:
               - path: /etc/profile.d
+
+      # mount a writable /etc/environment *file* (not the whole /etc)
+      etc-environment:
+        type: emptyDir
+        advancedMounts:
+          main:
+            main:
+              - path: /etc/environment
+                subPath: environment
+            init-perms:
+              - path: /etc/environment
+                subPath: environment
+
+      # make /root writable for /root/.bashrc writes
+      root-home:
+        type: emptyDir
+        advancedMounts:
+          main:
+            main:
+              - path: /root
+            init-perms:
+              - path: /root
