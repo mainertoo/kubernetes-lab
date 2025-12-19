@@ -1,86 +1,60 @@
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata:
-  name: dispatcharr
-  namespace: media
-spec:
-  interval: 30m
-  releaseName: dispatcharr
-  chart:
-    spec:
-      chart: app-template
-      version: 3.7.1
-      sourceRef:
-        kind: HelmRepository
-        name: bjw-s
-        namespace: flux-system
+values:
+  controllers:
+    main:
+      containers:
+        main:
+          image:
+            repository: ghcr.io/dispatcharr/dispatcharr
+            tag: 0.14.0
+            pullPolicy: IfNotPresent
 
-  install:
-    remediation:
-      retries: 3
-  upgrade:
-    remediation:
-      retries: 3
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            - name: DISPATCHARR_ENV
+              value: aio
+            - name: DISPATCHARR_LOG_LEVEL
+              value: info
 
-  values:
-    controllers:
-      main:
-        containers:
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+
+  defaultPodOptions:
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+
+  service:
+    main:
+      controller: main
+      type: ClusterIP
+      ports:
+        http:
+          port: 80
+          targetPort: http   # <-- IMPORTANT: forwards to container port named "http" (8001)
+
+  persistence:
+    data:
+      enabled: true
+      existingClaim: dispatcharr
+      advancedMounts:
+        main:
           main:
-            image:
-              repository: ghcr.io/dispatcharr/dispatcharr
-              tag: 0.14.0
-              pullPolicy: IfNotPresent
+            - path: /data
 
-            env:
-              - name: TZ
-                value: America/Los_Angeles
-              - name: DISPATCHARR_ENV
-                value: aio
-              - name: DISPATCHARR_LOG_LEVEL
-                value: info
-
-            ports:
-              - name: http
-                containerPort: 80
-                protocol: TCP
-
-    # Run as root (this image expects to write to /etc/* and /root/.bashrc during startup)
-    defaultPodOptions:
-      securityContext:
-        runAsUser: 0
-        runAsGroup: 0
-        runAsNonRoot: false
-
-    service:
-      main:
-        controller: main
-        type: ClusterIP
-        ports:
-          http:
-            port: 80
-
-    persistence:
-      data:
-        enabled: true
-        existingClaim: dispatcharr
-        advancedMounts:
+    profile-d:
+      type: emptyDir
+      advancedMounts:
+        main:
           main:
-            main:
-              - path: /data
+            - path: /etc/profile.d
 
-      # allow entrypoint to write /etc/profile.d/dispatcharr.sh without touching image layer
-      profile-d:
-        type: emptyDir
-        advancedMounts:
+    root-home:
+      type: emptyDir
+      advancedMounts:
+        main:
           main:
-            main:
-              - path: /etc/profile.d
-
-      # allow entrypoint to write /root/.bashrc without touching image layer
-      root-home:
-        type: emptyDir
-        advancedMounts:
-          main:
-            main:
-              - path: /root
+            - path: /root
