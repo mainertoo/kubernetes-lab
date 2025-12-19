@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app dispatcharr
+  name: dispatcharr
   namespace: media
 spec:
   interval: 30m
@@ -30,7 +30,7 @@ spec:
     controllers:
       main:
         initContainers:
-          init-data-perms:
+          init-perms:
             image:
               repository: busybox
               tag: stable
@@ -40,11 +40,11 @@ spec:
             args:
               - |
                 set -e
-                echo "Ensuring /data exists and is writable..."
-                mkdir -p /data
-                chown -R 1000:1000 /data
-                chmod -R 0775 /data
-                ls -ld /data
+                echo "Fixing perms..."
+                mkdir -p /data /etc/profile.d
+                chown -R 1000:1000 /data /etc/profile.d
+                chmod -R 0775 /data /etc/profile.d
+                ls -ld /data /etc/profile.d || true
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -54,7 +54,7 @@ spec:
           main:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
-              tag: latest
+              tag: 0.14.0
               pullPolicy: IfNotPresent
             env:
               - name: TZ
@@ -74,6 +74,7 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
 
     service:
       main:
@@ -91,5 +92,15 @@ spec:
           main:
             main:
               - path: /data
-            init-data-perms:
+            init-perms:
               - path: /data
+
+      # Make /etc/profile.d writable for the entrypoint (fixes dispatcharr.sh permission denied)
+      profile:
+        type: emptyDir
+        advancedMounts:
+          main:
+            main:
+              - path: /etc/profile.d
+            init-perms:
+              - path: /etc/profile.d
