@@ -1,0 +1,23 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dispatcharr
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://dispatcharr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Dispatcharr"
+    gethomepage.dev/description: "Arr request dispatching & orchestration"
+    gethomepage.dev/app: dispatcharr
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://raw.githubusercontent.com/Dispatcharr/Dispatcharr/main/docs/assets/logo.png"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dispatcharr.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: dispatcharr
+          port: 8080
+  tls: {}
