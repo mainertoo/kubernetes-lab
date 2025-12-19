@@ -5,72 +5,52 @@ metadata:
   namespace: media
 spec:
   interval: 30m
-  releaseName: dispatcharr
-
-  chart:
-    spec:
-      chart: app-template
-      version: 3.7.1
-      sourceRef:
-        kind: HelmRepository
-        name: bjw-s
-        namespace: flux-system
-
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
   maxHistory: 2
-
   install:
     createNamespace: false
     remediation:
       retries: 3
-
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
-
   uninstall:
     keepHistory: false
 
   values:
     controllers:
-      main:
+      dispatcharr:
         containers:
-          main:
+          app:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
               tag: latest
-              pullPolicy: IfNotPresent
-
             env:
               - name: TZ
                 value: America/Los_Angeles
-
-            ports:
-              - name: http
-                containerPort: 8080
-                protocol: TCP
+              - name: DISPATCHARR_ENV
+                value: aio
+              # optional logging:
+              - name: DISPATCHARR_LOG_LEVEL
+                value: info
 
     service:
-      main:
-        controller: main
+      app:
+        controller: dispatcharr
         type: ClusterIP
         ports:
           http:
-            port: 8080
-
-    ingress:
-      main:
-        enabled: false
+            port: 9191
 
     persistence:
-      config:
-        existingClaim: dispatcharr
-        globalMounts:
-          - path: /config
-
-    defaultPodOptions:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+      data:
+        enabled: true
+        existingClaim: dispatcharr-data
+        advancedMounts:
+          dispatcharr:
+            app:
+              - path: /data
