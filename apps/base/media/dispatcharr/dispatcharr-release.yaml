@@ -18,7 +18,7 @@ values:
 
           ports:
             - name: http
-              containerPort: 8001
+              containerPort: 9191
               protocol: TCP
 
   defaultPodOptions:
@@ -34,7 +34,7 @@ values:
       ports:
         http:
           port: 80
-          targetPort: http   # <-- IMPORTANT: forwards to container port named "http" (8001)
+          targetPort: 9191   # <-- IMPORTANT: forwards to container port named "http" (8001)
 
   persistence:
     data:
