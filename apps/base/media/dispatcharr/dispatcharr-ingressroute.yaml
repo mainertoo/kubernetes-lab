@@ -7,9 +7,10 @@ metadata:
     gethomepage.dev/href: "https://dispatcharr.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Dispatcharr"
-    gethomepage.dev/description: "Arr-stack dispatch/queue manager"
+    gethomepage.dev/description: "Arr request dispatching & orchestration"
     gethomepage.dev/app: dispatcharr
     gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://raw.githubusercontent.com/Dispatcharr/Dispatcharr/main/docs/assets/logo.png"
 spec:
   entryPoints:
     - websecure
