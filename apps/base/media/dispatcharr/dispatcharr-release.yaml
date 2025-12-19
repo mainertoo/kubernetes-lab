@@ -15,53 +15,23 @@ spec:
         name: bjw-s
         namespace: flux-system
 
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+
   values:
     controllers:
       main:
-        initContainers:
-          init-perms:
-            image:
-              repository: busybox
-              tag: stable
-            command:
-              - /bin/sh
-              - -lc
-            args:
-              - |
-                set -e
-                echo "Preparing writable paths for Dispatcharr entrypoint..."
-
-                # /data must exist and be writable for jwt + embedded postgres dir
-                mkdir -p /data
-                chown -R 1000:1000 /data
-                chmod -R 0775 /data
-
-                # /etc/profile.d is mounted as emptyDir => writable
-                mkdir -p /etc/profile.d
-                chown -R 1000:1000 /etc/profile.d
-                chmod -R 0775 /etc/profile.d
-
-                # /root is mounted as emptyDir => writable for /root/.bashrc
-                mkdir -p /root
-                touch /root/.bashrc
-                chown -R 1000:1000 /root
-                chmod 0775 /root
-                chmod 0664 /root/.bashrc
-
-                echo "Done. Debug:"
-                ls -ld /data /etc/profile.d /root || true
-                ls -l /root/.bashrc || true
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-
         containers:
           main:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
               tag: 0.14.0
               pullPolicy: IfNotPresent
+
             env:
               - name: TZ
                 value: America/Los_Angeles
@@ -69,17 +39,18 @@ spec:
                 value: aio
               - name: DISPATCHARR_LOG_LEVEL
                 value: info
+
             ports:
               - name: http
-                containerPort: 9191
+                containerPort: 80
                 protocol: TCP
 
+    # Run as root (this image expects to write to /etc/* and /root/.bashrc during startup)
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsUser: 0
+        runAsGroup: 0
+        runAsNonRoot: false
 
     service:
       main:
@@ -87,7 +58,7 @@ spec:
         type: ClusterIP
         ports:
           http:
-            port: 9191
+            port: 80
 
     persistence:
       data:
@@ -97,25 +68,19 @@ spec:
           main:
             main:
               - path: /data
-            init-perms:
-              - path: /data
 
-      # writable /etc/profile.d without changing image layer
+      # allow entrypoint to write /etc/profile.d/dispatcharr.sh without touching image layer
       profile-d:
         type: emptyDir
         advancedMounts:
           main:
             main:
               - path: /etc/profile.d
-            init-perms:
-              - path: /etc/profile.d
 
-      # writable /root for /root/.bashrc writes
+      # allow entrypoint to write /root/.bashrc without touching image layer
       root-home:
         type: emptyDir
         advancedMounts:
           main:
             main:
-              - path: /root
-            init-perms:
               - path: /root
