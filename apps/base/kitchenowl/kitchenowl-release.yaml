@@ -1,0 +1,69 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kitchenowl
+  namespace: kitchenowl
+spec:
+  interval: 5m
+  releaseName: kitchenowl
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+
+  install:
+    createNamespace: false
+
+  values:
+    controllers:
+      main:
+        containers:
+          main:
+            image:
+              repository: tombursch/kitchenowl
+              tag: v0.7.4
+              pullPolicy: IfNotPresent
+            env:
+              - name: TZ
+                value: "America/Los_Angeles"
+              - name: STORAGE_PATH
+                value: "/data"
+              - name: OPEN_REGISTRATION
+                value: "false"
+              - name: DISABLE_USERNAME_PASSWORD_LOGIN
+                value: "false"
+              - name: FRONT_URL
+                value: "https://kitchenowl.lab.mainertoo.com"
+            envFrom:
+              - secretRef:
+                  name: kitchenowl-sso-secret
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 8080
+
+    ingress:
+      main:
+        enabled: false
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: kitchenowl-data
+        globalMounts:
+          - path: /data
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
