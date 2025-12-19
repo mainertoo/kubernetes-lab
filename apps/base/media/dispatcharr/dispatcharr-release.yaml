@@ -86,7 +86,7 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: dispatcharr-data
+        existingClaim: dispatcharr
         advancedMounts:
           main:
             main:
