@@ -21,6 +21,9 @@ spec:
   values:
     controllers:
       main:
+        # IMPORTANT:
+        # Do NOT mount the PVC at /opt/recipes (it hides boot.sh inside the image).
+        # Instead, mount only the persistent bits via subPath.
         initContainers:
           create-db:
             image:
@@ -28,13 +31,17 @@ spec:
               tag: stable
             command:
               - sh
-              - -c
+              - -lc
               - |
                 set -e
+                # Ensure directories exist on the mounted subpaths
+                mkdir -p /opt/recipes/mediafiles /opt/recipes/staticfiles
+                # Ensure sqlite db exists (this path is mounted as a file via subPath)
                 if [ ! -f /opt/recipes/db.sqlite3 ]; then
-                  mkdir -p /opt/recipes
                   touch /opt/recipes/db.sqlite3
                 fi
+                ls -lah /opt/recipes || true
+                ls -lah /opt/recipes/db.sqlite3 || true
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -82,7 +89,14 @@ spec:
         enabled: true
         existingClaim: tandoor-data
         globalMounts:
-          - path: /opt/recipes
+          # Persist only what needs persistence, without masking the image's /opt/recipes/*
+          - path: /opt/recipes/db.sqlite3
+            subPath: db.sqlite3
+          - path: /opt/recipes/mediafiles
+            subPath: mediafiles
+          - path: /opt/recipes/staticfiles
+            subPath: staticfiles
+
       temp:
         type: emptyDir
         globalMounts:
