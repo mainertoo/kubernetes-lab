@@ -1,38 +1,32 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app mealie
+  name: mealie
   namespace: mealie
 spec:
-  interval: 30m
-  chartRef:
-    kind: OCIRepository
-    name: app-template
-    namespace: flux-system
-  maxHistory: 2
+  interval: 5m
+  releaseName: mealie
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
 
   install:
-    createNamespace: true
-    remediation:
-      retries: 3
-
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
-
-  uninstall:
-    keepHistory: false
+    createNamespace: false
 
   values:
     controllers:
       main:
         containers:
-          app:
+          main:
             image:
               repository: ghcr.io/mealie-recipes/mealie
               tag: v3.7.0
-
+              pullPolicy: IfNotPresent
             env:
               - name: TZ
                 value: America/Los_Angeles
@@ -71,6 +65,7 @@ spec:
                 value: "authentik users"
               - name: OIDC_ADMIN_GROUP
                 value: "authentik Admins"
+
               - name: OIDC_SIGNUP_ENABLED
                 value: "true"
               - name: OIDC_AUTO_REDIRECT
@@ -90,6 +85,7 @@ spec:
                     name: mealie-sso-secret
                     key: OIDC_CLIENT_SECRET
 
+
             probes:
               liveness:
                 enabled: false
@@ -105,8 +101,13 @@ spec:
           http:
             port: 9000
 
+    ingress:
+      main:
+        enabled: false
+
     persistence:
       data:
-        existingClaim: *app
+        enabled: true
+        existingClaim: mealie-data
         globalMounts:
           - path: /app/data
