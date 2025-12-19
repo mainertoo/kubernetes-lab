@@ -1,28 +1,28 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: dispatcharr
+  name: &app dispatcharr
   namespace: media
 spec:
   interval: 30m
   releaseName: dispatcharr
-  chartRef:
-    kind: OCIRepository
-    name: app-template
-    namespace: flux-system
-
-  maxHistory: 2
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
 
   install:
     createNamespace: false
     remediation:
       retries: 3
-
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
-
   uninstall:
     keepHistory: false
 
@@ -30,21 +30,21 @@ spec:
     controllers:
       main:
         initContainers:
-          fix-data-perms:
+          init-data-perms:
             image:
               repository: busybox
               tag: stable
             command:
               - /bin/sh
-              - -c
+              - -lc
             args:
               - |
                 set -e
                 echo "Ensuring /data exists and is writable..."
                 mkdir -p /data
-                chown -R 1000:1000 /data || true
-                chmod -R 0775 /data || true
-                ls -ld /data || true
+                chown -R 1000:1000 /data
+                chmod -R 0775 /data
+                ls -ld /data
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -55,6 +55,7 @@ spec:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
               tag: latest
+              pullPolicy: IfNotPresent
             env:
               - name: TZ
                 value: America/Los_Angeles
@@ -62,6 +63,10 @@ spec:
                 value: aio
               - name: DISPATCHARR_LOG_LEVEL
                 value: info
+            ports:
+              - name: http
+                containerPort: 9191
+                protocol: TCP
 
     defaultPodOptions:
       securityContext:
@@ -69,7 +74,6 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-        fsGroupChangePolicy: "OnRootMismatch"
 
     service:
       main:
@@ -79,10 +83,6 @@ spec:
           http:
             port: 9191
 
-    ingress:
-      main:
-        enabled: false
-
     persistence:
       data:
         enabled: true
@@ -91,6 +91,5 @@ spec:
           main:
             main:
               - path: /data
-          main:
-            fix-data-perms:
+            init-data-perms:
               - path: /data
