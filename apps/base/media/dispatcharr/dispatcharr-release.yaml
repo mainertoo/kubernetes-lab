@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 30m
   releaseName: dispatcharr
+
   chart:
     spec:
       chart: app-template
@@ -25,21 +26,29 @@ spec:
   values:
     controllers:
       main:
+        # OPTIONAL: pin to your GPU nodes (same label you use for Plex/Jellyfin)
+        pod:
+          nodeSelector:
+            intel.feature.node.kubernetes.io/gpu: "true"
+
         containers:
           main:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
               tag: 0.14.0
               pullPolicy: IfNotPresent
+
             env:
               TZ: America/Los_Angeles
               DISPATCHARR_ENV: aio
               DISPATCHARR_LOG_LEVEL: info
+
             ports:
               - name: http
                 containerPort: 9191
                 protocol: TCP
 
+    # Run as root (as you had it) since the container may write into /etc and /root at startup.
     defaultPodOptions:
       securityContext:
         runAsUser: 0
@@ -63,15 +72,24 @@ spec:
           main:
             main:
               - path: /data
+
       profile-d:
         type: emptyDir
         advancedMounts:
           main:
             main:
               - path: /etc/profile.d
+
       root-home:
         type: emptyDir
         advancedMounts:
           main:
             main:
               - path: /root
+
+      # GPU device nodes passthrough (enables /dev/dri/renderD128 inside the pod)
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        globalMounts:
+          - path: /dev/dri
