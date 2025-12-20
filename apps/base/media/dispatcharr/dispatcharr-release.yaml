@@ -1,60 +1,77 @@
-values:
-  controllers:
-    main:
-      containers:
-        main:
-          image:
-            repository: ghcr.io/dispatcharr/dispatcharr
-            tag: 0.14.0
-            pullPolicy: IfNotPresent
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dispatcharr
+  namespace: media
+spec:
+  interval: 30m
+  releaseName: dispatcharr
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
 
-          env:
-            - name: TZ
-              value: America/Los_Angeles
-            - name: DISPATCHARR_ENV
-              value: aio
-            - name: DISPATCHARR_LOG_LEVEL
-              value: info
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
 
-          ports:
-            - name: http
-              containerPort: 9191
-              protocol: TCP
-
-  defaultPodOptions:
-    securityContext:
-      runAsUser: 0
-      runAsGroup: 0
-      runAsNonRoot: false
-
-  service:
-    main:
-      controller: main
-      type: ClusterIP
-      ports:
-        http:
-          port: 80
-          targetPort: 9191   # <-- IMPORTANT: forwards to container port named "http" (8001)
-
-  persistence:
-    data:
-      enabled: true
-      existingClaim: dispatcharr
-      advancedMounts:
-        main:
+  values:
+    controllers:
+      main:
+        containers:
           main:
-            - path: /data
+            image:
+              repository: ghcr.io/dispatcharr/dispatcharr
+              tag: 0.14.0
+              pullPolicy: IfNotPresent
+            env:
+              TZ: America/Los_Angeles
+              DISPATCHARR_ENV: aio
+              DISPATCHARR_LOG_LEVEL: info
+            ports:
+              - name: http
+                containerPort: 9191
+                protocol: TCP
 
-    profile-d:
-      type: emptyDir
-      advancedMounts:
-        main:
-          main:
-            - path: /etc/profile.d
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        runAsNonRoot: false
 
-    root-home:
-      type: emptyDir
-      advancedMounts:
-        main:
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 80
+            targetPort: http
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: dispatcharr
+        advancedMounts:
           main:
-            - path: /root
+            main:
+              - path: /data
+      profile-d:
+        type: emptyDir
+        advancedMounts:
+          main:
+            main:
+              - path: /etc/profile.d
+      root-home:
+        type: emptyDir
+        advancedMounts:
+          main:
+            main:
+              - path: /root
