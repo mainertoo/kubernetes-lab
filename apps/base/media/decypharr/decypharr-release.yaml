@@ -1,53 +1,70 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app decypharr
+  name: decypharr
+  namespace: media
 spec:
   interval: 30m
+  releaseName: decypharr
+
   chartRef:
     kind: OCIRepository
     name: app-template
     namespace: flux-system
+
   maxHistory: 2
+
   install:
-    createNamespace: true
+    createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
+
   values:
     controllers:
-      decypharr:
+      main:
+        containers:
+          main:
+            image:
+              repository: cy01/blackhole
+              tag: v1.1.6
+              pullPolicy: IfNotPresent
+            env:
+              TZ: America/Los_Angeles
+
         initContainers:
           init-config:
             image:
               repository: busybox
-              tag: latest
+              tag: stable
             command:
-              - sh
+              - /bin/sh
               - -c
+            args:
               - |
+                set -e
                 if [ ! -f /app/config.json ]; then
-                  cp /tmp/config/config.json /app/config.json && \
-                  chmod 644 /app/config.json; 
+                  echo "Seeding /app/config.json from secret..."
+                  cp /tmp/config/config.json /app/config.json
+                  chmod 644 /app/config.json
+                else
+                  echo "/app/config.json already exists; leaving as-is."
                 fi
-
             securityContext:
               runAsUser: 0
+              runAsGroup: 0
               runAsNonRoot: false
               allowPrivilegeEscalation: false
               capabilities:
                 drop: ["ALL"]
                 add: ["CHOWN"]
-        containers:
-          app:
-            image:
-              repository: cy01/blackhole
-              tag: v1.1.6
 
     defaultPodOptions:
       securityContext:
@@ -56,18 +73,22 @@ spec:
         runAsGroup: 0
 
     service:
-      app:
-        controller: *app
+      main:
+        controller: main
+        type: ClusterIP
         ports:
           http:
-            port: &port 8282
+            port: 8282
 
     persistence:
+      # App state (ceph-rbd PVC)
       app:
-        existingClaim: *app
+        enabled: true
+        existingClaim: decypharr
         globalMounts:
           - path: /app
 
+      # Secret -> temp mount for initContainer
       config:
         enabled: true
         type: secret
@@ -75,6 +96,7 @@ spec:
         globalMounts:
           - path: /tmp/config
 
+      # Your local/visible hostPath mount (matches your “riven/rclone” style)
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -82,7 +104,9 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
+      # Symlink workspace (local-path PVC)
       symlinks:
+        enabled: true
         existingClaim: symlinks
         globalMounts:
           - path: /mnt/symlinks/decypharr
@@ -91,5 +115,3 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /app/logs
-
-
