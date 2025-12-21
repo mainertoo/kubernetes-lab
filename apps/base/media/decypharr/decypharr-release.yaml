@@ -54,6 +54,7 @@ spec:
                   echo "Seeding /app/config.json from secret..."
                   cp /tmp/config/config.json /app/config.json
                   chmod 644 /app/config.json
+                  chown 1000:1000 /app/config.json || true
                 else
                   echo "/app/config.json already exists; leaving as-is."
                 fi
@@ -64,7 +65,7 @@ spec:
               allowPrivilegeEscalation: false
               capabilities:
                 drop: ["ALL"]
-                add: ["CHOWN"]
+                add: ["CHOWN", "DAC_OVERRIDE"]
 
     defaultPodOptions:
       securityContext:
