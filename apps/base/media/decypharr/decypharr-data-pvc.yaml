@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: symlinks
+  name: decypharr
   namespace: media
 spec:
-  storageClassName: local-path
+  storageClassName: ceph-rbd
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 10Gi
