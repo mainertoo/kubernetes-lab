@@ -28,17 +28,6 @@ spec:
   values:
     controllers:
       main:
-        containers:
-          main:
-            image:
-              repository: ghcr.io/faustvii/readarr
-              tag: 0.9.0
-              pullPolicy: IfNotPresent
-            env:
-              TZ: America/Los_Angeles
-              READARR__AUTH__METHOD: External
-              READARR__AUTH__REQUIRED: DisabledForLocalAddresses
-
         initContainers:
           fix-symlinks-perms:
             image:
@@ -50,15 +39,27 @@ spec:
             args:
               - |
                 set -e
-                echo "Creating symlink dirs on CephFS..."
+                echo "Creating symlinks dirs..."
                 mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
+                echo "Fixing perms..."
                 chown -R 1000:1000 /mnt/symlinks || true
                 chmod -R 0775 /mnt/symlinks || true
-                echo "Symlinks ready."
+                echo "Done."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
               runAsNonRoot: false
+
+        containers:
+          main:
+            image:
+              repository: ghcr.io/faustvii/readarr
+              tag: 0.9.0
+              pullPolicy: IfNotPresent
+            env:
+              TZ: America/Los_Angeles
+              READARR__AUTH__METHOD: External
+              READARR__AUTH__REQUIRED: DisabledForLocalAddresses
 
     defaultPodOptions:
       securityContext:
@@ -68,7 +69,7 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # Keep your “stick near decypharr” intent
+      # Keep your "stick near decypharr" intent
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -97,27 +98,25 @@ spec:
           main:
             main:
               - path: /config
+            fix-symlinks-perms:
+              - path: /config
 
       # QNAP RW share for library + imports
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
-        advancedMounts:
-          main:
-            main:
-              - path: /data
+        globalMounts:
+          - path: /data
 
-      # Match Swarm: /data/torrents -> /torrents
+      # /data/torrents -> /torrents
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
-        advancedMounts:
-          main:
-            main:
-              - path: /torrents
-                subPath: torrents
+        globalMounts:
+          - path: /torrents
+            subPath: torrents
 
-      # Keep for future decypharr integration
+      # keep for future decypharr integration
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -125,7 +124,7 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # CephFS symlinks shared across nodes (NO subPath mounts)
+      # CephFS symlinks workspace (mounted WITHOUT subPath)
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
