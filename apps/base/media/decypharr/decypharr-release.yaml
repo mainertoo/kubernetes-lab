@@ -67,6 +67,26 @@ spec:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE"]
 
+          fix-symlinks-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                set -e
+                echo "Ensuring /mnt/symlinks/decypharr exists and is writable..."
+                mkdir -p /mnt/symlinks/decypharr
+                chown -R 1000:1000 /mnt/symlinks/decypharr || true
+                chmod -R 0775 /mnt/symlinks/decypharr || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -97,7 +117,7 @@ spec:
         globalMounts:
           - path: /tmp/config
 
-      # Your local/visible hostPath mount (matches your “riven/rclone” style)
+      # Your local/visible hostPath mount
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -105,12 +125,18 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Symlink workspace (local-path PVC)
+      # Symlinks on CephFS (RWX) with subPath isolation + initContainer mount
       symlinks:
         enabled: true
-        existingClaim: symlinks
-        globalMounts:
-          - path: /mnt/symlinks/decypharr
+        existingClaim: symlinks-cephfs
+        advancedMounts:
+          main:
+            main:
+              - path: /mnt/symlinks/decypharr
+                subPath: decypharr
+            fix-symlinks-perms:
+              - path: /mnt/symlinks/decypharr
+                subPath: decypharr
 
       logs:
         type: emptyDir
