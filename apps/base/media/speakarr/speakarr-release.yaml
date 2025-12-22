@@ -44,15 +44,17 @@ spec:
             image:
               repository: busybox
               tag: stable
-            command: ["/bin/sh","-c"]
+            command:
+              - /bin/sh
+              - -c
             args:
               - |
                 set -e
-                echo "Ensuring /mnt/symlinks/speakarr exists and is writable..."
-                mkdir -p /mnt/symlinks/speakarr
-                chown -R 1000:1000 /mnt/symlinks/speakarr || true
-                chmod -R 0775 /mnt/symlinks/speakarr || true
-                echo "Done."
+                echo "Creating symlink dirs on CephFS..."
+                mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/speakarr
+                chown -R 1000:1000 /mnt/symlinks || true
+                chmod -R 0775 /mnt/symlinks || true
+                echo "Symlinks ready."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -89,21 +91,27 @@ spec:
       config:
         enabled: true
         existingClaim: speakarr
-        globalMounts:
-          - path: /config
+        advancedMounts:
+          main:
+            main:
+              - path: /config
 
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /data
+        advancedMounts:
+          main:
+            main:
+              - path: /data
 
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /torrents
-            subPath: torrents
+        advancedMounts:
+          main:
+            main:
+              - path: /torrents
+                subPath: torrents
 
       rclone:
         type: hostPath
@@ -118,11 +126,6 @@ spec:
         advancedMounts:
           main:
             main:
-              - path: /mnt/symlinks/decypharr
-                subPath: decypharr
-                readOnly: true
-              - path: /mnt/symlinks/speakarr
-                subPath: speakarr
+              - path: /mnt/symlinks
             fix-symlinks-perms:
-              - path: /mnt/symlinks/speakarr
-                subPath: speakarr
+              - path: /mnt/symlinks

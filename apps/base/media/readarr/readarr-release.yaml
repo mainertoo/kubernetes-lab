@@ -44,15 +44,17 @@ spec:
             image:
               repository: busybox
               tag: stable
-            command: ["/bin/sh","-c"]
+            command:
+              - /bin/sh
+              - -c
             args:
               - |
                 set -e
-                echo "Ensuring /mnt/symlinks/readarr exists and is writable..."
-                mkdir -p /mnt/symlinks/readarr
-                chown -R 1000:1000 /mnt/symlinks/readarr || true
-                chmod -R 0775 /mnt/symlinks/readarr || true
-                echo "Done."
+                echo "Creating symlink dirs on CephFS..."
+                mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
+                chown -R 1000:1000 /mnt/symlinks || true
+                chmod -R 0775 /mnt/symlinks || true
+                echo "Symlinks ready."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -66,6 +68,7 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
+      # Keep your “stick near decypharr” intent
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -90,23 +93,29 @@ spec:
       config:
         enabled: true
         existingClaim: readarr
-        globalMounts:
-          - path: /config
+        advancedMounts:
+          main:
+            main:
+              - path: /config
 
       # QNAP RW share for library + imports
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /data
+        advancedMounts:
+          main:
+            main:
+              - path: /data
 
-      # /data/torrents -> /torrents
+      # Match Swarm: /data/torrents -> /torrents
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /torrents
-            subPath: torrents
+        advancedMounts:
+          main:
+            main:
+              - path: /torrents
+                subPath: torrents
 
       # Keep for future decypharr integration
       rclone:
@@ -116,18 +125,13 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Symlinks on CephFS (RWX) w/ subPath isolation + initContainer mount
+      # CephFS symlinks shared across nodes (NO subPath mounts)
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
         advancedMounts:
           main:
             main:
-              - path: /mnt/symlinks/decypharr
-                subPath: decypharr
-                readOnly: true
-              - path: /mnt/symlinks/readarr
-                subPath: readarr
+              - path: /mnt/symlinks
             fix-symlinks-perms:
-              - path: /mnt/symlinks/readarr
-                subPath: readarr
+              - path: /mnt/symlinks
