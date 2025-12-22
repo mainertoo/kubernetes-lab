@@ -33,9 +33,7 @@ spec:
             image:
               repository: busybox
               tag: stable
-            command:
-              - /bin/sh
-              - -c
+            command: ["/bin/sh", "-c"]
             args:
               - |
                 set -e
@@ -69,18 +67,8 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # ✅ do NOT allow this workload on control-plane nodes
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: node-role.kubernetes.io/control-plane
-                  operator: DoesNotExist
-                - key: node-role.kubernetes.io/master
-                  operator: DoesNotExist
-
-      # Keep your "stick near decypharr" intent
       affinity:
+        # 1) keep "stick near decypharr"
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
@@ -91,6 +79,16 @@ spec:
                       - decypharr
               topologyKey: kubernetes.io/hostname
 
+        # 2) force off control-plane nodes (important for Ceph CSI mounts)
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+                  - key: node-role.kubernetes.io/master
+                    operator: DoesNotExist
+
     service:
       main:
         controller: main
@@ -100,7 +98,6 @@ spec:
             port: 8787
 
     persistence:
-      # /config on ceph-rbd PVC
       config:
         enabled: true
         existingClaim: readarr
@@ -111,14 +108,12 @@ spec:
             fix-symlinks-perms:
               - path: /config
 
-      # QNAP RW share for library + imports
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
 
-      # /data/torrents -> /torrents
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
@@ -126,16 +121,13 @@ spec:
           - path: /torrents
             subPath: torrents
 
-      # keep for future decypharr integration
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
-        hostPathType: Directory
         globalMounts:
           - path: /mnt/decypharr
             readOnly: true
 
-      # CephFS symlinks workspace (mounted WITHOUT subPath)
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs

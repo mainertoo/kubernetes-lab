@@ -30,23 +30,12 @@ spec:
   values:
     controllers:
       main:
-        containers:
-          main:
-            image:
-              repository: cy01/blackhole
-              tag: v1.1.6
-              pullPolicy: IfNotPresent
-            env:
-              TZ: America/Los_Angeles
-
         initContainers:
           init-config:
             image:
               repository: busybox
               tag: stable
-            command:
-              - /bin/sh
-              - -c
+            command: ["/bin/sh", "-c"]
             args:
               - |
                 set -e
@@ -71,9 +60,7 @@ spec:
             image:
               repository: busybox
               tag: stable
-            command:
-              - /bin/sh
-              - -c
+            command: ["/bin/sh", "-c"]
             args:
               - |
                 set -e
@@ -87,21 +74,20 @@ spec:
               runAsGroup: 0
               runAsNonRoot: false
 
+        containers:
+          main:
+            image:
+              repository: cy01/blackhole
+              tag: v1.1.6
+              pullPolicy: IfNotPresent
+            env:
+              TZ: America/Los_Angeles
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
         runAsUser: 0
         runAsGroup: 0
-
-      # ✅ do NOT allow this workload on control-plane nodes
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: node-role.kubernetes.io/control-plane
-                  operator: DoesNotExist
-                - key: node-role.kubernetes.io/master
-                  operator: DoesNotExist
 
     service:
       main:
@@ -112,14 +98,12 @@ spec:
             port: 8282
 
     persistence:
-      # App state (ceph-rbd PVC)
       app:
         enabled: true
         existingClaim: decypharr
         globalMounts:
           - path: /app
 
-      # Secret -> temp mount for initContainer
       config:
         enabled: true
         type: secret
@@ -127,16 +111,13 @@ spec:
         globalMounts:
           - path: /tmp/config
 
-      # Your local/visible hostPath mount
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
-        hostPathType: Directory
         globalMounts:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Symlinks on CephFS (RWX) with subPath isolation + initContainer mount
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
