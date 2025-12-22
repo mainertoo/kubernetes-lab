@@ -39,6 +39,25 @@ spec:
               READARR__AUTH__METHOD: External
               READARR__AUTH__REQUIRED: DisabledForLocalAddresses
 
+        initContainers:
+          fix-symlinks-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh","-c"]
+            args:
+              - |
+                set -e
+                echo "Ensuring /mnt/symlinks/readarr exists and is writable..."
+                mkdir -p /mnt/symlinks/readarr
+                chown -R 1000:1000 /mnt/symlinks/readarr || true
+                chmod -R 0775 /mnt/symlinks/readarr || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -47,7 +66,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # Keep your “stick near decypharr” intent
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -82,7 +100,7 @@ spec:
         globalMounts:
           - path: /data
 
-      # Match Swarm: /data/torrents -> /torrents
+      # /data/torrents -> /torrents
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
@@ -90,7 +108,7 @@ spec:
           - path: /torrents
             subPath: torrents
 
-      # Keep these for future decypharr integration
+      # Keep for future decypharr integration
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -98,10 +116,18 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
+      # Symlinks on CephFS (RWX) w/ subPath isolation + initContainer mount
       symlinks:
         enabled: true
-        existingClaim: symlinks
-        globalMounts:
-          - path: /mnt/symlinks/decypharr
-            readOnly: true
-          - path: /mnt/symlinks/readarr
+        existingClaim: symlinks-cephfs
+        advancedMounts:
+          main:
+            main:
+              - path: /mnt/symlinks/decypharr
+                subPath: decypharr
+                readOnly: true
+              - path: /mnt/symlinks/readarr
+                subPath: readarr
+            fix-symlinks-perms:
+              - path: /mnt/symlinks/readarr
+                subPath: readarr
