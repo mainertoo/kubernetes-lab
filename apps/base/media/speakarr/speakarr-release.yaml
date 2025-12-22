@@ -33,9 +33,7 @@ spec:
             image:
               repository: busybox
               tag: stable
-            command:
-              - /bin/sh
-              - -c
+            command: ["/bin/sh", "-c"]
             args:
               - |
                 set -e
@@ -69,16 +67,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # ✅ do NOT allow this workload on control-plane nodes
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: node-role.kubernetes.io/control-plane
-                  operator: DoesNotExist
-                - key: node-role.kubernetes.io/master
-                  operator: DoesNotExist
-
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -89,6 +77,15 @@ spec:
                     values:
                       - decypharr
               topologyKey: kubernetes.io/hostname
+
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+                  - key: node-role.kubernetes.io/master
+                    operator: DoesNotExist
 
     service:
       main:
@@ -125,7 +122,6 @@ spec:
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
-        hostPathType: Directory
         globalMounts:
           - path: /mnt/decypharr
             readOnly: true
