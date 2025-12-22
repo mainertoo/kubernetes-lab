@@ -69,6 +69,16 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
+      # ✅ do NOT allow this workload on control-plane nodes
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+                - key: node-role.kubernetes.io/master
+                  operator: DoesNotExist
+
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -115,6 +125,7 @@ spec:
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
+        hostPathType: Directory
         globalMounts:
           - path: /mnt/decypharr
             readOnly: true

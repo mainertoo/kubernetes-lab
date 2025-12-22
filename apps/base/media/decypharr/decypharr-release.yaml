@@ -93,6 +93,16 @@ spec:
         runAsUser: 0
         runAsGroup: 0
 
+      # ✅ do NOT allow this workload on control-plane nodes
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+                - key: node-role.kubernetes.io/master
+                  operator: DoesNotExist
+
     service:
       main:
         controller: main
@@ -121,6 +131,7 @@ spec:
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
+        hostPathType: Directory
         globalMounts:
           - path: /mnt/decypharr
             readOnly: true
