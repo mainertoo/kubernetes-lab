@@ -48,6 +48,8 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        supplementalGroups:
+          - 991
 
     service:
       main:
@@ -64,6 +66,20 @@ spec:
         existingClaim: radarr
         globalMounts:
           - path: /config
+
+      # OPTIONAL: match Plex/Jellyfin shared library PVC
+      library:
+        enabled: true
+        existingClaim: shared-media-pvc
+        globalMounts:
+          - path: /mnt/library
+
+      # QNAP NFS share (RW)
+      qnap-media:
+        enabled: true
+        existingClaim: qnap-media-pvc
+        globalMounts:
+          - path: /data/qnas
 
       # Your local/visible hostPath (matches your decypharr style)
       rclone:
