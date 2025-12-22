@@ -68,18 +68,20 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
 
       affinity:
-        # 1) keep "stick near decypharr"
+        # Prefer to land with decypharr, but don't deadlock scheduling
         podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/instance
-                    operator: In
-                    values:
-                      - decypharr
-              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - decypharr
+                topologyKey: kubernetes.io/hostname
 
-        # 2) force off control-plane nodes (important for Ceph CSI mounts)
+        # Keep off control-plane nodes
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
