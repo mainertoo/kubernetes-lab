@@ -48,8 +48,6 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        supplementalGroups:
-          - 991
 
     service:
       main:
@@ -60,28 +58,28 @@ spec:
             port: 7878
 
     persistence:
-      # /config on separate ceph-rbd PVC
+      # Radarr4k config (ceph-rbd PVC named "radarr4k")
       config:
         enabled: true
         existingClaim: radarr4k
         globalMounts:
           - path: /config
 
-      # OPTIONAL: match Plex/Jellyfin shared library PVC
-      library:
-        enabled: true
-        existingClaim: shared-media-pvc
-        globalMounts:
-          - path: /mnt/library
-
-      # QNAP NFS share (RW)
+      # QNAP media share (RW) — gives Radarr4k /data and /data/torrents
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
-          - path: /data/qnas
+          - path: /data
 
-      # your local/visible hostPath (same as radarr)
+      # OPTIONAL: exact /torrents path if you want:
+      # qnap-torrents:
+      #   enabled: true
+      #   existingClaim: qnap-media-pvc
+      #   globalMounts:
+      #     - path: /torrents
+      #       subPath: torrents
+
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr

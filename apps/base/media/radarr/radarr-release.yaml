@@ -48,8 +48,6 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        supplementalGroups:
-          - 991
 
     service:
       main:
@@ -60,28 +58,29 @@ spec:
             port: 7878
 
     persistence:
-      # /config on ceph-rbd PVC
+      # Radarr config (ceph-rbd PVC named "radarr")
       config:
         enabled: true
         existingClaim: radarr
         globalMounts:
           - path: /config
 
-      # OPTIONAL: match Plex/Jellyfin shared library PVC
-      library:
-        enabled: true
-        existingClaim: shared-media-pvc
-        globalMounts:
-          - path: /mnt/library
-
-      # QNAP NFS share (RW)
+      # QNAP media share (RW) — gives Radarr /data and /data/torrents
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
-          - path: /data/qnas
+          - path: /data
 
-      # Your local/visible hostPath (matches your decypharr style)
+      # OPTIONAL: if you prefer the exact /torrents path like Swarm, uncomment:
+      # qnap-torrents:
+      #   enabled: true
+      #   existingClaim: qnap-media-pvc
+      #   globalMounts:
+      #     - path: /torrents
+      #       subPath: torrents
+
+      # Your decypharr visible hostPath (kept as-is)
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -89,7 +88,7 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # shared local-path PVC used across apps
+      # Shared symlinks PVC (local-path)
       symlinks:
         enabled: true
         existingClaim: symlinks
