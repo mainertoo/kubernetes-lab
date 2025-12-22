@@ -33,4 +33,5 @@ resources:
   - prowlarr/
   - radarr/
   - radarr4k/
-  
+  - readarr/
+  - speakarr/

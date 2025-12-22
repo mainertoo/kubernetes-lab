@@ -1,11 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: readarr
+  name: speakarr
   namespace: media
 spec:
   interval: 30m
-  releaseName: readarr
+  releaseName: speakarr
 
   chartRef:
     kind: OCIRepository
@@ -47,7 +47,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # Keep your “stick near decypharr” intent
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -68,21 +67,18 @@ spec:
             port: 8787
 
     persistence:
-      # /config on ceph-rbd PVC
       config:
         enabled: true
-        existingClaim: readarr
+        existingClaim: speakarr
         globalMounts:
           - path: /config
 
-      # QNAP RW share for library + imports
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
 
-      # Match Swarm: /data/torrents -> /torrents
       torrents:
         enabled: true
         existingClaim: qnap-media-pvc
@@ -90,7 +86,6 @@ spec:
           - path: /torrents
             subPath: torrents
 
-      # Keep these for future decypharr integration
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -104,4 +99,4 @@ spec:
         globalMounts:
           - path: /mnt/symlinks/decypharr
             readOnly: true
-          - path: /mnt/symlinks/readarr
+          - path: /mnt/symlinks/speakarr
