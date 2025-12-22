@@ -2,8 +2,9 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: prowlarr-ingressroute
+  namespace: media
   annotations:
-    gethomepage.dev/href: "https://prowlarr.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://prowlarr.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Prowlarr"
     gethomepage.dev/description: "Indexer manager"
@@ -15,11 +16,12 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`${SUBDOMAIN:=prowlarr}.hephaestus.markmk.com`)
+    - match: Host(`prowlarr.lab.mainertoo.com`)
       kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: prowlarr
           port: 9696
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+  tls: {}
