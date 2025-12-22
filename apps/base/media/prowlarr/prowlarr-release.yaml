@@ -33,7 +33,7 @@ spec:
         containers:
           main:
             image:
-              repository: ghcr.io/home-operations/prowlarr
+              repository: ghcr.io/linuxserver/prowlarr
               tag: 2.3.1.5238
               pullPolicy: IfNotPresent
             env:
