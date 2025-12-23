@@ -30,24 +30,24 @@ spec:
       main:
         strategy: Recreate
 
-        initContainers:
-          fix-symlinks-perms:
-            image:
-              repository: busybox
-              tag: stable
-            command: ["/bin/sh", "-c"]
-            args:
-              - |
-                set -e
-                echo "Ensuring /mnt/symlinks/speakarr exists and is writable..."
-                mkdir -p /mnt/symlinks/speakarr
-                chown -R 1000:1000 /mnt/symlinks/speakarr || true
-                chmod -R 0775 /mnt/symlinks/speakarr || true
-                echo "Done."
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
+        # initContainers:
+        #   fix-symlinks-perms:
+        #     image:
+        #       repository: busybox
+        #       tag: stable
+        #     command: ["/bin/sh", "-c"]
+        #     args:
+        #       - |
+        #         set -e
+        #         echo "Ensuring /mnt/symlinks/speakarr exists and is writable..."
+        #         mkdir -p /mnt/symlinks/speakarr
+        #         chown -R 1000:1000 /mnt/symlinks/speakarr || true
+        #         chmod -R 0775 /mnt/symlinks/speakarr || true
+        #         echo "Done."
+        #     securityContext:
+        #       runAsUser: 0
+        #       runAsGroup: 0
+        #       runAsNonRoot: false
 
         containers:
           main:
@@ -115,17 +115,17 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      symlinks:
-        enabled: true
-        existingClaim: symlinks-cephfs
-        advancedMounts:
-          main:
-            main:
-              - path: /mnt/symlinks/decypharr
-                subPath: decypharr
-                readOnly: true
-              - path: /mnt/symlinks/speakarr
-                subPath: speakarr
-            fix-symlinks-perms:
-              - path: /mnt/symlinks/speakarr
-                subPath: speakarr
+      # symlinks:
+      #   enabled: true
+      #   existingClaim: symlinks-cephfs
+      #   advancedMounts:
+      #     main:
+      #       main:
+      #         - path: /mnt/symlinks/decypharr
+      #           subPath: decypharr
+      #           readOnly: true
+      #         - path: /mnt/symlinks/speakarr
+      #           subPath: speakarr
+      #       fix-symlinks-perms:
+      #         - path: /mnt/symlinks/speakarr
+      #           subPath: speakarr
