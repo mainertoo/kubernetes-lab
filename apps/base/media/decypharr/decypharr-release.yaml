@@ -18,18 +18,27 @@ spec:
     createNamespace: false
     remediation:
       retries: 3
-
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
-
   uninstall:
     keepHistory: false
 
   values:
     controllers:
       main:
+        pod:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: DoesNotExist
+                      - key: node-role.kubernetes.io/master
+                        operator: DoesNotExist
+
         initContainers:
           init-config:
             image:
@@ -64,7 +73,7 @@ spec:
             args:
               - |
                 set -e
-                echo "Ensuring /mnt/symlinks/decypharr exists and is writable..."
+                echo "Init symlinks dirs (decypharr)..."
                 mkdir -p /mnt/symlinks/decypharr
                 chown -R 1000:1000 /mnt/symlinks/decypharr || true
                 chmod -R 0775 /mnt/symlinks/decypharr || true
@@ -88,16 +97,6 @@ spec:
         runAsNonRoot: false
         runAsUser: 0
         runAsGroup: 0
-
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: DoesNotExist
-                  - key: node-role.kubernetes.io/master
-                    operator: DoesNotExist
 
     service:
       main:
@@ -134,11 +133,9 @@ spec:
         advancedMounts:
           main:
             main:
-              - path: /mnt/symlinks/decypharr
-                subPath: decypharr
+              - path: /mnt/symlinks
             fix-symlinks-perms:
-              - path: /mnt/symlinks/decypharr
-                subPath: decypharr
+              - path: /mnt/symlinks
 
       logs:
         type: emptyDir
