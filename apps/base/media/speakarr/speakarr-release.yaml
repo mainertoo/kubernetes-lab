@@ -1,11 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: speakarr
+  name: readarr
   namespace: media
 spec:
   interval: 30m
-  releaseName: speakarr
+  releaseName: readarr
 
   chartRef:
     kind: OCIRepository
@@ -28,6 +28,9 @@ spec:
   values:
     controllers:
       main:
+        strategy: Recreate
+        replicas: 1
+
         pod:
           affinity:
             nodeAffinity:
@@ -59,10 +62,11 @@ spec:
             args:
               - |
                 set -e
-                echo "Init symlinks dirs (speakarr)..."
-                mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/speakarr
-                chown -R 1000:1000 /mnt/symlinks/speakarr || true
-                chmod -R 0775 /mnt/symlinks/speakarr || true
+                echo "Creating symlinks dirs..."
+                mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
+                echo "Fixing perms..."
+                chown -R 1000:1000 /mnt/symlinks || true
+                chmod -R 0775 /mnt/symlinks || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -99,7 +103,7 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: speakarr
+        existingClaim: readarr
         advancedMounts:
           main:
             main:
