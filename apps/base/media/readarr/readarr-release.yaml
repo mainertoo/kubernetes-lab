@@ -18,10 +18,12 @@ spec:
     createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
 
@@ -29,36 +31,6 @@ spec:
     controllers:
       main:
         strategy: Recreate
-
-        # initContainers:
-        #   fix-symlinks-perms:
-        #     image:
-        #       repository: busybox
-        #       tag: stable
-        #     command: ["/bin/sh", "-c"]
-        #     args:
-        #       - |
-        #         set -e
-        #         echo "Init symlinks dirs (readarr)..."
-        #         echo "Listing /mnt/symlinks before:"
-        #         ls -la /mnt/symlinks || true
-        #
-        #         # Create the directories inside the CephFS PVC
-        #         mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
-        #
-        #         # Ensure Readarr can write to its folder
-        #         chown -R 1000:1000 /mnt/symlinks/readarr || true
-        #         chmod -R 0775 /mnt/symlinks/readarr || true
-        #
-        #         echo "Listing /mnt/symlinks after:"
-        #         ls -la /mnt/symlinks || true
-        #         ls -la /mnt/symlinks/readarr || true
-        #         echo "Done."
-        #     securityContext:
-        #       runAsUser: 0
-        #       runAsGroup: 0
-        #       runAsNonRoot: false
-
         containers:
           main:
             image:
@@ -97,6 +69,7 @@ spec:
             port: 8787
 
     persistence:
+      # Readarr config (ceph-rbd PVC named "readarr")
       config:
         enabled: true
         existingClaim: readarr
@@ -105,19 +78,14 @@ spec:
             main:
               - path: /config
 
+      # QNAP media share (RW) — exposes /data AND /data/torrents (no separate /torrents mount)
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
 
-      torrents:
-        enabled: true
-        existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /torrents
-            subPath: torrents
-
+      # Your decypharr visible hostPath (kept as-is)
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -125,12 +93,11 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
+      # Uncomment if/when you re-enable symlinks PVC
       # symlinks:
       #   enabled: true
       #   existingClaim: symlinks-cephfs
       #   advancedMounts:
       #     main:
-      #       fix-symlinks-perms:
-      #         - path: /mnt/symlinks
       #       main:
       #         - path: /mnt/symlinks
