@@ -40,7 +40,7 @@ spec:
               # NOTE: your comment says "no trailing slash" but your value HAS one.
               # I'd remove it to match the comment and avoid odd redirect/callback issues:
               - name: SSO_AUTHORITY
-                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden"
+                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden/"
 
               - name: SSO_SCOPES
                 value: "openid email profile offline_access"
