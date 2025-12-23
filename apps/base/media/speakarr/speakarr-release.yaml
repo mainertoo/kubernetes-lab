@@ -1,11 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: readarr
+  name: speakarr
   namespace: media
 spec:
   interval: 30m
-  releaseName: readarr
+  releaseName: speakarr
 
   chartRef:
     kind: OCIRepository
@@ -29,29 +29,6 @@ spec:
     controllers:
       main:
         strategy: Recreate
-        replicas: 1
-
-        pod:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: node-role.kubernetes.io/control-plane
-                        operator: DoesNotExist
-                      - key: node-role.kubernetes.io/master
-                        operator: DoesNotExist
-
-            podAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-                - weight: 100
-                  podAffinityTerm:
-                    labelSelector:
-                      matchExpressions:
-                        - key: app.kubernetes.io/instance
-                          operator: In
-                          values: ["decypharr"]
-                    topologyKey: kubernetes.io/hostname
 
         initContainers:
           fix-symlinks-perms:
@@ -62,11 +39,10 @@ spec:
             args:
               - |
                 set -e
-                echo "Creating symlinks dirs..."
-                mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
-                echo "Fixing perms..."
-                chown -R 1000:1000 /mnt/symlinks || true
-                chmod -R 0775 /mnt/symlinks || true
+                echo "Ensuring /mnt/symlinks/speakarr exists and is writable..."
+                mkdir -p /mnt/symlinks/speakarr
+                chown -R 1000:1000 /mnt/symlinks/speakarr || true
+                chmod -R 0775 /mnt/symlinks/speakarr || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -91,6 +67,16 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                      - decypharr
+              topologyKey: kubernetes.io/hostname
 
     service:
       main:
@@ -103,7 +89,7 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: readarr
+        existingClaim: speakarr
         advancedMounts:
           main:
             main:
@@ -135,6 +121,11 @@ spec:
         advancedMounts:
           main:
             main:
-              - path: /mnt/symlinks
+              - path: /mnt/symlinks/decypharr
+                subPath: decypharr
+                readOnly: true
+              - path: /mnt/symlinks/speakarr
+                subPath: speakarr
             fix-symlinks-perms:
-              - path: /mnt/symlinks
+              - path: /mnt/symlinks/speakarr
+                subPath: speakarr
