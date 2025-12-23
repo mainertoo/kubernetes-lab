@@ -28,6 +28,30 @@ spec:
   values:
     controllers:
       main:
+        pod:
+          affinity:
+            # HARD: keep this app off masters/control-plane nodes
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: DoesNotExist
+                      - key: node-role.kubernetes.io/master
+                        operator: DoesNotExist
+
+            # SOFT: prefer to land with decypharr
+            podAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchExpressions:
+                        - key: app.kubernetes.io/instance
+                          operator: In
+                          values: ["decypharr"]
+                    topologyKey: kubernetes.io/hostname
+
         initContainers:
           fix-symlinks-perms:
             image:
@@ -37,11 +61,10 @@ spec:
             args:
               - |
                 set -e
-                echo "Creating symlinks dirs..."
+                echo "Init symlinks dirs (readarr)..."
                 mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
-                echo "Fixing perms..."
-                chown -R 1000:1000 /mnt/symlinks || true
-                chmod -R 0775 /mnt/symlinks || true
+                chown -R 1000:1000 /mnt/symlinks/readarr || true
+                chmod -R 0775 /mnt/symlinks/readarr || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -67,30 +90,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      affinity:
-        # Prefer to land with decypharr, but don't deadlock scheduling
-        podAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/instance
-                      operator: In
-                      values:
-                        - decypharr
-                topologyKey: kubernetes.io/hostname
-
-        # Keep off control-plane nodes
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: DoesNotExist
-                  - key: node-role.kubernetes.io/master
-                    operator: DoesNotExist
-
     service:
       main:
         controller: main
@@ -106,8 +105,6 @@ spec:
         advancedMounts:
           main:
             main:
-              - path: /config
-            fix-symlinks-perms:
               - path: /config
 
       qnap-media:
