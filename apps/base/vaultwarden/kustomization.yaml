@@ -5,6 +5,7 @@ resources:
   - vaultwarden-namespace.yaml
   - vaultwarden-pvc.yaml
   - vaultwarden-sso-secret.sops.yaml
+  - vaultwarden-admin-secret.sops.yaml
   - vaultwarden-release.yaml
   - vaultwarden-ingressroute.yaml
-  - vaultwarden-tailscale-ingress.yaml
+  - vaultwarden-tailscale-ingressroute.yaml

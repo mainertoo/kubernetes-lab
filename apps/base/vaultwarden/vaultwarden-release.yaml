@@ -6,7 +6,6 @@ metadata:
 spec:
   interval: 5m
   releaseName: vaultwarden
-
   chart:
     spec:
       chart: app-template
@@ -26,26 +25,22 @@ spec:
           main:
             image:
               repository: vaultwarden/server
-              # tag: 1.34.3
               tag: testing
               pullPolicy: IfNotPresent
 
-            # Non-secret env vars
             env:
               - name: DOMAIN
                 value: "https://vaultwarden.lab.mainertoo.com"
               - name: SIGNUPS_ALLOWED
                 value: "false"
 
-              # SSO / OIDC
               - name: SSO_ENABLED
                 value: "true"
 
-              # IMPORTANT (per vaultwarden): should be base URL, no trailing slash
-              # Authentik often looks like:
-              #   https://authentik.company/application/o/<application_slug>
+              # NOTE: your comment says "no trailing slash" but your value HAS one.
+              # I'd remove it to match the comment and avoid odd redirect/callback issues:
               - name: SSO_AUTHORITY
-                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden/"
+                value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden"
 
               - name: SSO_SCOPES
                 value: "openid email profile offline_access"
@@ -58,23 +53,8 @@ spec:
               - name: SSO_SIGNUPS_MATCH_EMAIL
                 value: "true"
 
-            # Secret env vars (SSO_CLIENT_ID / SSO_CLIENT_SECRET)
             envFrom:
               - secretRef:
                   name: vaultwarden-sso-secret
-
-    service:
-      main:
-        controller: main
-        ports:
-          http:
-            port: 80
-
-    ingress:
-      main:
-        enabled: false
-
-    persistence:
-      data:
-        enabled: true
-        existingClaim: vaultwarden-data
+              - secretRef:
+                  name: vaultwarden-admin-secret
