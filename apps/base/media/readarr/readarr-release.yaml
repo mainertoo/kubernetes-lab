@@ -1,3 +1,4 @@
+# /apps/base/media/readarr/readarr-release.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -31,6 +32,35 @@ spec:
     controllers:
       main:
         strategy: Recreate
+
+        # Ensure the per-app folder exists on the shared CephFS symlinks PVC
+        # (matches the pattern we used for decypharr)
+        initContainers:
+          fix-symlinks-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init symlinks dirs (readarr)..."
+                mkdir -p /mnt/symlinks/readarr
+                chown -R 1000:1000 /mnt/symlinks/readarr || true
+                chmod -R 0775 /mnt/symlinks/readarr || true
+                echo "Listing /mnt/symlinks:"
+                ls -la /mnt/symlinks || true
+                ls -la /mnt/symlinks/readarr || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
         containers:
           main:
             image:
@@ -93,11 +123,11 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Uncomment if/when you re-enable symlinks PVC
-      # symlinks:
-      #   enabled: true
-      #   existingClaim: symlinks-cephfs
-      #   advancedMounts:
-      #     main:
-      #       main:
-      #         - path: /mnt/symlinks
+      # Shared symlinks (CephFS RWX PVC)
+      # We mount the whole share at /mnt/symlinks (no subPath),
+      # and Readarr uses /mnt/symlinks/readarr inside it.
+      symlinks:
+        enabled: true
+        existingClaim: symlinks-cephfs
+        globalMounts:
+          - path: /mnt/symlinks
