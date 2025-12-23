@@ -59,7 +59,7 @@ spec:
         containers:
           main:
             image:
-              repository: ghcr.io/home-operations/sonar
+              repository: ghcr.io/home-operations/sonarr
               tag: 4.0.16.2943
               pullPolicy: IfNotPresent
             env:
