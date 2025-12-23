@@ -36,3 +36,5 @@ resources:
   - readarr/
   - speakarr/
   - symlinks/
+  - sonarr/
+  - sonarr4k/

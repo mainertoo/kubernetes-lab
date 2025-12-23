@@ -1,0 +1,110 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sonarr4k
+  namespace: media
+spec:
+  interval: 30m
+  releaseName: sonarr4k
+
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      main:
+        initContainers:
+          fix-symlinks-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init symlinks dirs (sonarr4k)..."
+                mkdir -p /mnt/symlinks/sonarr4k
+                chown -R 1000:1000 /mnt/symlinks/sonarr4k || true
+                chmod -R 0775 /mnt/symlinks/sonarr4k || true
+                echo "Listing /mnt/symlinks:"
+                ls -la /mnt/symlinks || true
+                ls -la /mnt/symlinks/sonarr4k || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+        containers:
+          main:
+            image:
+              repository: ghcr.io/home-operations/sonar
+              tag: 4.0.16.2943
+              pullPolicy: IfNotPresent
+            env:
+              TZ: America/Los_Angeles
+              SONARR__AUTH__METHOD: External
+              SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 8989
+
+    persistence:
+      config:
+        enabled: true
+        existingClaim: sonarr4k
+        globalMounts:
+          - path: /config
+
+      qnap-media:
+        enabled: true
+        existingClaim: qnap-media-pvc
+        globalMounts:
+          - path: /data
+
+      rclone:
+        type: hostPath
+        hostPath: /mnt/decypharr
+        globalMounts:
+          - path: /mnt/decypharr
+            readOnly: true
+
+      symlinks:
+        enabled: true
+        existingClaim: symlinks-cephfs
+        globalMounts:
+          - path: /mnt/symlinks

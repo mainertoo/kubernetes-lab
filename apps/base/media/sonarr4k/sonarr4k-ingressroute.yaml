@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sonarr4k-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://sonarr4k.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Sonarr4k"
+    gethomepage.dev/description: "TV series organizer/manager (4K)"
+    gethomepage.dev/app: sonarr4k
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`sonarr4k.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: sonarr4k
+          port: 8989
+  tls: {}
