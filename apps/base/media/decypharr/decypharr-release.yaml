@@ -1,3 +1,4 @@
+# /apps/base/media/decypharr/decypharr-release.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -18,16 +19,21 @@ spec:
     createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
 
   values:
     controllers:
       main:
+        strategy: Recreate
+
+        # Keep decypharr off control-plane nodes
         pod:
           affinity:
             nodeAffinity:
@@ -65,23 +71,30 @@ spec:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE"]
 
-          # fix-symlinks-perms:
-          #   image:
-          #     repository: busybox
-          #     tag: stable
-          #   command: ["/bin/sh", "-c"]
-          #   args:
-          #     - |
-          #       set -e
-          #       echo "Init symlinks dirs (decypharr)..."
-          #       mkdir -p /mnt/symlinks/decypharr
-          #       chown -R 1000:1000 /mnt/symlinks/decypharr || true
-          #       chmod -R 0775 /mnt/symlinks/decypharr || true
-          #       echo "Done."
-          #   securityContext:
-          #     runAsUser: 0
-          #     runAsGroup: 0
-          #     runAsNonRoot: false
+          fix-symlinks-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init symlinks dirs (decypharr)..."
+                mkdir -p /mnt/symlinks/decypharr
+                chown -R 1000:1000 /mnt/symlinks/decypharr || true
+                chmod -R 0775 /mnt/symlinks/decypharr || true
+                echo "Listing /mnt/symlinks:"
+                ls -la /mnt/symlinks || true
+                ls -la /mnt/symlinks/decypharr || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
 
         containers:
           main:
@@ -92,6 +105,7 @@ spec:
             env:
               TZ: America/Los_Angeles
 
+    # Run as root (matches upstream blackhole expectations + your prior working config)
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -107,12 +121,14 @@ spec:
             port: 8282
 
     persistence:
+      # /app PVC (ceph-rbd claim "decypharr")
       app:
         enabled: true
         existingClaim: decypharr
         globalMounts:
           - path: /app
 
+      # config secret -> /tmp/config
       config:
         enabled: true
         type: secret
@@ -120,6 +136,7 @@ spec:
         globalMounts:
           - path: /tmp/config
 
+      # rclone/zurg FUSE mount exposed from the node
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -127,16 +144,14 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # symlinks:
-      #   enabled: true
-      #   existingClaim: symlinks-cephfs
-      #   advancedMounts:
-      #     main:
-      #       main:
-      #         - path: /mnt/symlinks
-      #       fix-symlinks-perms:
-      #         - path: /mnt/symlinks
+      # Shared symlinks (CephFS RWX PVC)
+      symlinks:
+        enabled: true
+        existingClaim: symlinks-cephfs
+        globalMounts:
+          - path: /mnt/symlinks
 
+      # logs
       logs:
         type: emptyDir
         globalMounts:
