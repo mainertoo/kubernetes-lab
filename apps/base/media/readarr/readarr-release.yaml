@@ -28,9 +28,11 @@ spec:
   values:
     controllers:
       main:
+        strategy: Recreate
+        replicas: 1
+
         pod:
           affinity:
-            # HARD: keep this app off masters/control-plane nodes
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
                 nodeSelectorTerms:
@@ -40,7 +42,6 @@ spec:
                       - key: node-role.kubernetes.io/master
                         operator: DoesNotExist
 
-            # SOFT: prefer to land with decypharr
             podAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
                 - weight: 100
@@ -61,10 +62,11 @@ spec:
             args:
               - |
                 set -e
-                echo "Init symlinks dirs (readarr)..."
+                echo "Creating symlinks dirs..."
                 mkdir -p /mnt/symlinks/decypharr /mnt/symlinks/readarr
-                chown -R 1000:1000 /mnt/symlinks/readarr || true
-                chmod -R 0775 /mnt/symlinks/readarr || true
+                echo "Fixing perms..."
+                chown -R 1000:1000 /mnt/symlinks || true
+                chmod -R 0775 /mnt/symlinks || true
                 echo "Done."
             securityContext:
               runAsUser: 0
