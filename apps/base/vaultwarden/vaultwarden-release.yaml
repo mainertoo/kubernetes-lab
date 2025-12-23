@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 5m
   releaseName: vaultwarden
+
   chart:
     spec:
       chart: app-template
@@ -34,14 +35,11 @@ spec:
               - name: SIGNUPS_ALLOWED
                 value: "false"
 
+              # SSO / OIDC
               - name: SSO_ENABLED
                 value: "true"
-
-              # NOTE: your comment says "no trailing slash" but your value HAS one.
-              # I'd remove it to match the comment and avoid odd redirect/callback issues:
               - name: SSO_AUTHORITY
                 value: "https://authentik.lab.mainertoo.com/application/o/vaultwarden/"
-
               - name: SSO_SCOPES
                 value: "openid email profile offline_access"
               - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
@@ -58,3 +56,20 @@ spec:
                   name: vaultwarden-sso-secret
               - secretRef:
                   name: vaultwarden-admin-secret
+
+    service:
+      main:
+        enabled: true
+        controller: main
+        ports:
+          http:
+            port: 80
+
+    ingress:
+      main:
+        enabled: false
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: vaultwarden-data
