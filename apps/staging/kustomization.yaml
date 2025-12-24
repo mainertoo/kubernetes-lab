@@ -39,3 +39,4 @@ resources:
   - sonarr/
   - sonarr4k/
   - lidarr/
+  - bazarr/
