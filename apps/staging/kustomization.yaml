@@ -38,3 +38,4 @@ resources:
   - symlinks/
   - sonarr/
   - sonarr4k/
+  - lidarr/

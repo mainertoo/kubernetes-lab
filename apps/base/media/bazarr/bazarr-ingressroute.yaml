@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bazarr-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://bazarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Bazarr"
+    gethomepage.dev/description: "Subtitle manager"
+    gethomepage.dev/app: bazarr
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/bazarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`bazarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: bazarr
+          port: 6767
+  tls: {}
