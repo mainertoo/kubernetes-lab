@@ -7,3 +7,4 @@ resources:
   - calibre-secret.sops.yaml
   - calibre-release.yaml
   - calibre-ingressroute.yaml
+  - calibre-lb-service.yaml

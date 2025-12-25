@@ -23,5 +23,5 @@ spec:
           namespace: traefik-system
       services:
         - name: calibre
-          port: 8080
+          port: 8092
   tls: {}
