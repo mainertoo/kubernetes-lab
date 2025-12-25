@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: calibre-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://calibre.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Calibre"
+    gethomepage.dev/description: "E-book library manager"
+    gethomepage.dev/app: calibre
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/calibre.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`calibre.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: calibre
+          port: 8080
+  tls: {}
