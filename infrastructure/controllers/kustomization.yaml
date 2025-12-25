@@ -21,3 +21,6 @@ resources:
 
   # Cloudflared
   - cloudflared
+
+  # Newt
+  - newt
