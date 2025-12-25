@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: newt
+  namespace: newt
+  labels:
+    app.kubernetes.io/name: newt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: newt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: newt
+    spec:
+      containers:
+        - name: newt
+          image: fosrl/newt:1.8.1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: newt-secret
+          # Newt runs as an agent; no Service needed unless you explicitly want to expose it.
+          # Docker socket note:
+          # Your Swarm config used DOCKER_SOCKET=/var/run/docker.sock.
+          # k3s uses containerd (no docker.sock by default), so we intentionally omit socket mounts here.
+          # If you later confirm Newt needs container introspection on k3s, we can adapt this.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      restartPolicy: Always
