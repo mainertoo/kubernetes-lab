@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "PDF tools & OCR"
     gethomepage.dev/app: stirling-pdf
     gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/stirlingpdf.svg"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/stirling-pdf.svg"
 spec:
   entryPoints:
     - websecure

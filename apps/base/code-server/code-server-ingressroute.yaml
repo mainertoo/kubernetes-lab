@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "VS Code in a browser"
     gethomepage.dev/app: code-server
     gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/visualstudiocode.svg"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/coder.png"
 spec:
   entryPoints:
     - websecure

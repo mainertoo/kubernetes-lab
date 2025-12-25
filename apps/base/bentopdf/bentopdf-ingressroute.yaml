@@ -11,7 +11,7 @@ metadata:
     gethomepage.dev/app: bentopdf
     gethomepage.dev/group: "Tools"
     # pick any icon you like; leaving a safe placeholder:
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/pdf.svg"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/bentopdf.png"
 spec:
   entryPoints:
     - websecure
