@@ -18,3 +18,6 @@ resources:
 
   # Tailscale operator
   - tailscale-operator
+
+  # Cloudflared
+  - cloudflared
