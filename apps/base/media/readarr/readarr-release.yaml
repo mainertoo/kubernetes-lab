@@ -1,4 +1,3 @@
-# /apps/base/media/readarr/readarr-release.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -33,8 +32,6 @@ spec:
       main:
         strategy: Recreate
 
-        # Ensure the per-app folder exists on the shared CephFS symlinks PVC
-        # (matches the pattern we used for decypharr)
         initContainers:
           fix-symlinks-perms:
             image:
@@ -51,6 +48,30 @@ spec:
                 echo "Listing /mnt/symlinks:"
                 ls -la /mnt/symlinks || true
                 ls -la /mnt/symlinks/readarr || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+          fix-calibre-library-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Ensuring Calibre library mount is writable/visible for Readarr..."
+                # Readarr mostly just needs read/write access; keep perms consistent
+                mkdir -p /calibre-library
+                chown -R 1000:1000 /calibre-library || true
+                chmod -R 0775 /calibre-library || true
+                ls -la /calibre-library || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -99,7 +120,6 @@ spec:
             port: 8787
 
     persistence:
-      # Readarr config (ceph-rbd PVC named "readarr")
       config:
         enabled: true
         existingClaim: readarr
@@ -108,14 +128,12 @@ spec:
             main:
               - path: /config
 
-      # QNAP media share (RW) — exposes /data AND /data/torrents (no separate /torrents mount)
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
 
-      # Your decypharr visible hostPath (kept as-is)
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -123,11 +141,15 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Shared symlinks (CephFS RWX PVC)
-      # We mount the whole share at /mnt/symlinks (no subPath),
-      # and Readarr uses /mnt/symlinks/readarr inside it.
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
         globalMounts:
           - path: /mnt/symlinks
+
+      # NEW: shared Calibre library (CephFS RWX) for Readarr <-> Calibre integration
+      calibre-library:
+        enabled: true
+        existingClaim: calibre-library-cephfs
+        globalMounts:
+          - path: /calibre-library
