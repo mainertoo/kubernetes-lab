@@ -68,9 +68,13 @@ spec:
               TZ: America/Los_Angeles
               PUID: "1000"
               PGID: "1000"
-              CALIBRE_CUSTOM_PORT: "8092"
-              CALIBRE_CUSTOM_HTTPS_PORT: "8194"
-              CALIBRE_WEB_API_PORT: "8098"
+              # Selkies baseimage port overrides (OPTIONAL).
+              # If you don't need custom ports, you can delete these.
+              CUSTOM_PORT: "8092"        # default 8080
+              CUSTOM_HTTPS_PORT: "8194"  # default 8181
+
+              # Optional basic auth user (abc is default if CUSTOM_USER is unset)
+              CUSTOM_USER: "readarr"
 
             envFrom:
               - secretRef:
@@ -89,22 +93,29 @@ spec:
         controller: main
         type: ClusterIP
         ports:
+          # Selkies GUI HTTP (CUSTOM_PORT if set)
           http:
-            port: 8080
-            targetPort: 8080
+            port: 8092
+            targetPort: 8092
+
+          # Selkies GUI HTTPS (CUSTOM_HTTPS_PORT if set)
+          https:
+            port: 8194
+            targetPort: 8194
+
+          # Calibre built-in webserver / content server (fixed inside container: 8081)
+          # This is what Readarr should talk to.
           content:
-            port: 8098
-            targetPort: 8098
+            port: 8081
+            targetPort: 8081
 
     persistence:
-      # Calibre config (ceph-rbd; NOT NFS-safe)
       config:
         enabled: true
         existingClaim: calibre
         globalMounts:
           - path: /config
 
-      # Shared Calibre library (CephFS RWX)
       calibre-library:
         enabled: true
         existingClaim: calibre-library-cephfs
