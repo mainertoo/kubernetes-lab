@@ -4,12 +4,14 @@ metadata:
   name: traefik-file-provider-pve
   namespace: traefik-system
 data:
+  # ----------------------------
+  # Existing: PVE/PBS/Kopia
+  # ----------------------------
   app-pve.yaml: |
     http:
       middlewares:
         authentik-sso:
           forwardAuth:
-            # Embedded Authentik outpost exposed by authentik-server
             address: "http://authentik-server.authentik.svc.cluster.local/outpost.goauthentik.io/auth/traefik"
             trustForwardHeader: true
             authResponseHeaders:
@@ -26,6 +28,8 @@ data:
               - X-authentik-meta-app
               - X-authentik-meta-version
               - Authorization
+            # safer than ".*"
+            # authResponseHeadersRegex: "^(X-authentik-|Set-Cookie|Authorization)$"
             authResponseHeadersRegex: ".*"
 
       routers:
@@ -33,66 +37,49 @@ data:
           rule: "Host(`pve-whistler.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-whistler
-          # tls:
-          #   certResolver: cloudflare
 
         pve-s13:
           rule: "Host(`pve-s13.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-s13
-          # tls:
-          #   certResolver: cloudflare
 
         pve-s12:
           rule: "Host(`pve-s12.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-s12
-          # tls:
-          #   certResolver: cloudflare
 
         pve-ugreen:
           rule: "Host(`pve-ugreen.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-ugreen
-          # tls:
-          #   certResolver: cloudflare
 
         pve-mac:
           rule: "Host(`pve-mac.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-mac
-          # tls:
-          #   certResolver: cloudflare
 
         pve-zermatt:
           rule: "Host(`pve-zermatt.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-zermatt
-          # tls:
-          #   certResolver: cloudflare
 
         pve-mammoth:
           rule: "Host(`pve-mammoth.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pve-mammoth
-          # tls:
-          #   certResolver: cloudflare
 
         pbs:
           rule: "Host(`pbs.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pbs
-          # tls:
-          #   certResolver: cloudflare
 
+        # You had this protected with Authentik. Keeping that behavior:
         kopia:
           rule: "Host(`kopia.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: kopia
           middlewares:
             - authentik-sso@file
-          # tls:
-          #   certResolver: cloudflare
 
       services:
         pve-whistler:
@@ -153,9 +140,173 @@ data:
 
         kopia:
           loadBalancer:
+            passHostHeader: true
             servers:
               - url: "http://192.168.1.117:51515"
 
       serversTransports:
         pve:
+          insecureSkipVerify: true
+
+  # ----------------------------
+  # NEW: QNAP + other LAN apps
+  # ----------------------------
+  app-lan.yaml: |
+    http:
+      routers:
+        # --- No SSO ---
+        qnas:
+          rule: "Host(`qnas.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: qnap_https
+
+        portainer-qnas:
+          rule: "Host(`portainer-qnas.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: portainer_http
+
+        immich:
+          rule: "Host(`immich.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: immich_http
+
+        # --- SSO via Authentik forwardAuth ---
+        sabnzbd:
+          rule: "Host(`sabnzbd.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: sabnzbd_http
+          middlewares:
+            - authentik-sso@file
+
+        qbittorrent:
+          rule: "Host(`qbittorrent.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: qbittorrent_http
+          middlewares:
+            - authentik-sso@file
+
+        scrypted:
+          rule: "Host(`scrypted.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: scrypted_https
+          middlewares:
+            - authentik-sso@file
+
+        homebridge:
+          rule: "Host(`homebridge.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: homebridge_http
+          middlewares:
+            - authentik-sso@file
+
+        resilio:
+          rule: "Host(`resilio.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: resilio_http
+          middlewares:
+            - authentik-sso@file
+
+        syncthing:
+          rule: "Host(`syncthing.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: syncthing_http
+          middlewares:
+            - authentik-sso@file
+
+        pinchflat:
+          rule: "Host(`pinchflat.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: pinchflat_http
+          middlewares:
+            - authentik-sso@file
+
+        searxng:
+          rule: "Host(`searxng.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: searxng_http
+          middlewares:
+            - authentik-sso@file
+
+      services:
+        # QNAP UI (self-signed HTTPS typically)
+        qnap_https:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: qnap-insecure
+            servers:
+              - url: "https://192.168.1.252"
+
+        # Portainer on QNAP
+        portainer_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:9000"
+
+        sabnzbd_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8090"
+
+        qbittorrent_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8383"
+
+        # Scrypted (self-signed HTTPS)
+        scrypted_https:
+          loadBalancer:
+            passHostHeader: true
+            serversTransport: scrypted-insecure
+            servers:
+              - url: "https://192.168.1.11:10443"
+
+        # Homebridge UI
+        homebridge_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8581"
+
+        # Resilio Sync UI
+        resilio_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8888"
+
+        # Syncthing UI
+        syncthing_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8384"
+
+        # Pinchflat UI
+        pinchflat_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8945"
+
+        # SearXNG (you currently expose it via TS sidecar + ports mapping; this assumes LAN port works)
+        searxng_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:8080"
+
+        # Immich
+        immich_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:2283"
+
+      serversTransports:
+        qnap-insecure:
+          insecureSkipVerify: true
+        scrypted-insecure:
           insecureSkipVerify: true
