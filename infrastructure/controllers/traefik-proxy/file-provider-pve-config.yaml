@@ -189,43 +189,43 @@ data:
           rule: "Host(`scrypted.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: scrypted_https
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
         homebridge:
           rule: "Host(`homebridge.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: homebridge_http
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
         resilio:
           rule: "Host(`resilio.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: resilio_http
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
         syncthing:
           rule: "Host(`syncthing.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: syncthing_http
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
         pinchflat:
           rule: "Host(`pinchflat.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: pinchflat_http
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
         searxng:
           rule: "Host(`searxng.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: searxng_http
-          middlewares:
-            - authentik-sso@file
+          # middlewares:
+          #   - authentik-sso@file
 
       services:
         # QNAP UI (self-signed HTTPS typically)
