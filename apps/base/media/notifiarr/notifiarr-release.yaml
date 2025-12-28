@@ -1,34 +1,68 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app notifiarr
+  name: notifiarr
+  namespace: media
 spec:
   interval: 30m
+  releaseName: notifiarr
+
   chartRef:
     kind: OCIRepository
     name: app-template
     namespace: flux-system
+
   maxHistory: 2
+
   install:
-    createNamespace: true
+    createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
+
   values:
     controllers:
-      notifiarr:
+      main:
+        initContainers:
+          fix-notifiarr-cephfs-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init Notifiarr shared dir on CephFS..."
+                mkdir -p /mnt/shared
+                chown -R 1000:1000 /mnt/shared || true
+                chmod -R 0775 /mnt/shared || true
+                echo "Listing /mnt/shared:"
+                ls -la /mnt/shared || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
         containers:
-          app:
+          main:
             image:
               repository: ghcr.io/notifiarr/notifiarr
-              tag: v0.9.0
+              tag: 0.9.1
+              pullPolicy: IfNotPresent
             env:
-              TZ: Europe/Copenhagen
+              TZ: America/Los_Angeles
               TMPDIR: /tmp
             envFrom:
               - secretRef:
@@ -43,17 +77,28 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
 
     service:
-      app:
-        controller: *app
+      main:
+        controller: main
+        type: ClusterIP
         ports:
           http:
-            port: &port 5454
+            port: 5454
 
     persistence:
+      # /config on ceph-rbd PVC (RWO)
       config:
-        existingClaim: *app
+        enabled: true
+        existingClaim: notifiarr
+        globalMounts:
+          - path: /config
+
+      # Shared RWX area on cephfs (RWX)
+      shared:
+        enabled: true
+        existingClaim: notifiarr-shared
+        globalMounts:
+          - path: /mnt/shared
 
       tmp:
+        enabled: true
         type: emptyDir
-
-
