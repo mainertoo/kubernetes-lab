@@ -15,7 +15,12 @@ spec:
       labels:
         app: rclone-zurg
     spec:
-      # This runs on every node and mounts Zurg/Decypharr via FUSE
+      # Run only on nodes explicitly labeled as having the rclone/FUSE mount capability.
+      # This prevents the DaemonSet from running on tainted control-plane nodes.
+      nodeSelector:
+        rclone-mount: "true"
+
+      # This runs on each selected node and mounts Zurg/Decypharr via FUSE
       containers:
       - name: rclone-zurg
         image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc

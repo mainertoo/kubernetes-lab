@@ -24,10 +24,18 @@ spec:
   values:
     controllers:
       riven:
-        # keep Riven pinned to the node that has /mnt/zurg mounted
-        # pod:
-        #   nodeSelector:
-        #     kubernetes.io/hostname: mainertoo-k3s-worker-2
+        # Ensure Riven can run on ANY worker, but only on nodes that have the
+        # rclone/FUSE mount capability for /mnt/zurg.
+        pod:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: rclone-mount
+                        operator: In
+                        values:
+                          - "true"
 
         containers:
           postgres:
@@ -40,7 +48,6 @@ spec:
               - configMapRef:
                   name: riven-postgres-configmap
             env:
-              # use a subdir in the mounted volume as PGDATA
               - name: PGDATA
                 value: /var/lib/postgresql/data/pgdata
             probes:
@@ -105,7 +112,6 @@ spec:
             targetPort: 5432
 
     persistence:
-      # 🔹 Riven backend app data (settings, logs, etc.) – persistent
       data:
         existingClaim: riven-data-pvc
         advancedMounts:
@@ -113,7 +119,6 @@ spec:
             backend:
               - path: /riven/data
 
-      # 🔹 HostPath rclone mount for Zurg – backend only
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -123,7 +128,6 @@ spec:
               - path: /mnt/zurg
                 readOnly: true
 
-      # 🔹 Media library (Ceph-backed shared-media-pvc)
       media:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -131,12 +135,9 @@ spec:
             backend:
               - path: /mnt/library
 
-      # 🔹 Postgres data – persistent, on riven-backend-pvc
       database:
         existingClaim: riven-backend-pvc
         advancedMounts:
           riven:
             postgres:
-              # PVC will be mounted at /var/lib/postgresql/data
-              # with PGDATA=/var/lib/postgresql/data/pgdata
               - path: /var/lib/postgresql/data
