@@ -2,12 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: media
 resources:
-  # - plex-namespace.yaml   # NAMESPACE change to media
   - plex-ingressroute.yaml
-  - plex-config-pvc.yaml      # NEW – Plex metadata/config on CephFS
-  # - plex-media-pvc.yaml       # NEW – QNAP media via NFS- plex-release.yaml
+  - plex-config-pvc.yaml
   - plex-release.yaml
-  - plex-config-perms-job.yaml
-  - qnap-media-pv.yaml         # logical volume to read qnap 
-  - qnap-media-pvc.yaml        # pvc to bind qnap pv
-  - plex-lb-service.yaml      # LoadBalancer service for Plex for port forward
+  - qnap-media-pv.yaml
+  - qnap-media-pvc.yaml
+  - plex-lb-service.yaml
+  - plex-config-pvc-restore.yaml

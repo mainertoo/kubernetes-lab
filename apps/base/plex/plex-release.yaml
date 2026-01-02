@@ -1,49 +1,84 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app plex
+  name: plex
   namespace: media
 spec:
   interval: 30m
-
-  targetNamespace: media
+  releaseName: plex
 
   chartRef:
     kind: OCIRepository
     name: app-template
     namespace: flux-system
+
   maxHistory: 2
+
   install:
-    createNamespace: true
+    createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
 
   values:
     controllers:
       plex:
+        strategy: Recreate
+
         # Make sure Plex always lands on GPU nodes
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
+
+        # initContainer: perms fix on CephFS /config (matches your Jellyfin pattern)
+        initContainers:
+          fix-config-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                echo "Fixing perms on /config..."
+                echo "Before:"
+                ls -ld /config || true
+                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+
+                echo "Applying chown/chmod..."
+                chown -R 1000:1000 /config || true
+                chmod -R 0775 /config || true
+
+                echo "After:"
+                ls -ld /config || true
+                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
 
         containers:
           app:
             image:
               repository: ghcr.io/linuxserver/plex
               tag: latest
+              pullPolicy: IfNotPresent
             env:
               - name: TZ
                 value: America/Los_Angeles
               - name: PLEX_ADVERTISE_URL
                 value: "https://plex.lab.mainertoo.com"
               # - name: PLEX_CLAIM
-              #   value: "claim-xxxx"   # optional; you can add this when re-claiming
+              #   value: "claim-xxxx"
             securityContext:
               privileged: true
             probes:
@@ -65,7 +100,6 @@ spec:
                   failureThreshold: 30
                   periodSeconds: 10
 
-    # Default pod options
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -81,15 +115,17 @@ spec:
         type: ClusterIP
         ports:
           http:
-            port: &port 32400
+            port: 32400
 
     persistence:
-      # Plex config PVC (named "plex" to match &app) on CephFS
+      # Plex config PVC on CephFS
       config:
-        existingClaim: *app
+        existingClaim: plex
         advancedMounts:
           plex:
             app:
+              - path: /config
+            fix-config-perms:
               - path: /config
 
       plex-cache:
@@ -106,7 +142,7 @@ spec:
             app:
               - path: /config/Library/Application Support/Plex Media Server/Logs
 
-      # rclone / zurg mount (same as Riven: /mnt/zurg)
+      # rclone / zurg mount
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -114,9 +150,7 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      # NEW: shared library volume used by Riven + Plex
-      # This references the EXISTING CephFS PVC in the "media" namespace:
-      #   media / shared-media-pvc
+      # Shared library volume used by Riven + Plex
       library:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -124,12 +158,13 @@ spec:
             app:
               - path: /mnt/library
 
-      qnap-media:                   # 👈 NEW: your big NAS library
+      # QNAP media share
+      qnap-media:
         existingClaim: qnap-media-pvc
         advancedMounts:
           plex:
             app:
-              - path: /data/qnas    # this is what you’ll use in Plex UI
+              - path: /data/qnas
 
       transcode:
         type: emptyDir
@@ -138,7 +173,7 @@ spec:
             app:
               - path: /transcode
 
-      # GPU device nodes passthrough
+      # GPU passthrough
       dri:
         type: hostPath
         hostPath: /dev/dri
