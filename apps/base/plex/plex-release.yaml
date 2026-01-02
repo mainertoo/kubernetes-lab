@@ -103,7 +103,7 @@ spec:
 
     persistence:
       config:
-        existingClaim: plex-restore
+        existingClaim: plex
         advancedMounts:
           plex:
             app:
