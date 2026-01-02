@@ -32,12 +32,10 @@ spec:
       plex:
         strategy: Recreate
 
-        # Make sure Plex always lands on GPU nodes
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
 
-        # initContainer: perms fix on CephFS /config (matches your Jellyfin pattern)
         initContainers:
           fix-config-perms:
             image:
@@ -49,17 +47,8 @@ spec:
             args:
               - |
                 echo "Fixing perms on /config..."
-                echo "Before:"
-                ls -ld /config || true
-                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
-
-                echo "Applying chown/chmod..."
                 chown -R 1000:1000 /config || true
                 chmod -R 0775 /config || true
-
-                echo "After:"
-                ls -ld /config || true
-                find /config -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -77,8 +66,6 @@ spec:
                 value: America/Los_Angeles
               - name: PLEX_ADVERTISE_URL
                 value: "https://plex.lab.mainertoo.com"
-              # - name: PLEX_CLAIM
-              #   value: "claim-xxxx"
             securityContext:
               privileged: true
             probes:
@@ -89,10 +76,7 @@ spec:
                   httpGet:
                     path: /identity
                     port: 32400
-                  initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
-                  failureThreshold: 3
               readiness: *probes
               startup:
                 enabled: true
@@ -118,9 +102,8 @@ spec:
             port: 32400
 
     persistence:
-      # Plex config PVC on CephFS
       config:
-        existingClaim: plex
+        existingClaim: plex-restore
         advancedMounts:
           plex:
             app:
@@ -142,7 +125,6 @@ spec:
             app:
               - path: /config/Library/Application Support/Plex Media Server/Logs
 
-      # rclone / zurg mount
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -150,7 +132,6 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      # Shared library volume used by Riven + Plex
       library:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -158,7 +139,6 @@ spec:
             app:
               - path: /mnt/library
 
-      # QNAP media share
       qnap-media:
         existingClaim: qnap-media-pvc
         advancedMounts:
@@ -173,7 +153,6 @@ spec:
             app:
               - path: /transcode
 
-      # GPU passthrough
       dri:
         type: hostPath
         hostPath: /dev/dri
