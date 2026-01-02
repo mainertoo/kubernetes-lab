@@ -18,6 +18,6 @@ spec:
     - match: Host(`plex.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: media-plex
+        - name: plex
           port: 32400
   tls: {}
