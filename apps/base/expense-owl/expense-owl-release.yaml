@@ -1,8 +1,8 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app actual-budget
-  namespace: actual-budget
+  name: &app expense-owl
+  namespace: expense-owl
 spec:
   interval: 30m
   chartRef:
@@ -26,37 +26,26 @@ spec:
 
   values:
     controllers:
-      actual-budget:
+      expense-owl:
         containers:
           app:
             image:
-              repository: ghcr.io/actualbudget/actual-server
-              # You can pin later; "latest" is fine during migration.
-              tag: latest
+              repository: tanq16/expenseowl
+              tag: main
             env:
               - name: TZ
                 value: America/Los_Angeles
-              - name: ACTUAL_PORT
-                value: &port 5006
-
-    defaultPodOptions:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
-        controller: actual-budget
+        controller: expense-owl
         ports:
           http:
-            port: *port
+            port: 8080
 
     persistence:
       data:
         enabled: true
         existingClaim: *app
         globalMounts:
-          - path: /data
+          - path: /app/data

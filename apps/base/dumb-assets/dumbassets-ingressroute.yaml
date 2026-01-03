@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumbassets-ingressroute
+  namespace: dumbassets
+  annotations:
+    gethomepage.dev/href: "https://dumbassets.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "DumbAssets"
+    gethomepage.dev/description: "Simple asset tracking"
+    gethomepage.dev/app: dumbassets
+    gethomepage.dev/group: "Tools"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/cash-multiple.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumbassets.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: dumbassets
+          port: 3000
+          scheme: http
+  tls: {}
