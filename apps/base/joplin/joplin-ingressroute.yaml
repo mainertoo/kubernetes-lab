@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: joplin-ingressroute
+  namespace: joplin
+  annotations:
+    gethomepage.dev/href: "https://joplin.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Joplin"
+    gethomepage.dev/description: "Notes sync server"
+    gethomepage.dev/group: "Tools"
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    - match: Host(`joplin.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: joplin
+          port: 22300
+          scheme: http
+  tls: {}

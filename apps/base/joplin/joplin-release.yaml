@@ -1,0 +1,84 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app joplin
+  namespace: joplin
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation: { retries: 3 }
+  upgrade:
+    cleanupOnFail: true
+    remediation: { retries: 3 }
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      joplin-db:
+        containers:
+          app:
+            image:
+              repository: postgres
+              tag: "16"
+            env:
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_PASSWORD }
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_USER }
+              POSTGRES_DB:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_DB }
+
+      joplin:
+        containers:
+          app:
+            image:
+              repository: joplin/server
+              tag: latest
+            env:
+              TZ: America/Los_Angeles
+              APP_PORT: "22300"
+              APP_BASE_URL: "https://joplin.lab.mainertoo.com"
+              DB_CLIENT: "pg"
+              POSTGRES_HOST: "joplin-db"
+              POSTGRES_PORT: "5432"
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_PASSWORD }
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_USER }
+              POSTGRES_DATABASE:
+                valueFrom:
+                  secretKeyRef: { name: joplin-secret, key: POSTGRES_DB }
+
+    service:
+      joplin-db:
+        controller: joplin-db
+        ports:
+          postgres:
+            port: 5432
+      joplin:
+        controller: joplin
+        ports:
+          http:
+            port: 22300
+
+    persistence:
+      db:
+        enabled: true
+        existingClaim: joplin-db
+        advancedMounts:
+          joplin-db:
+            app:
+              - path: /var/lib/postgresql/data

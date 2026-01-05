@@ -1,0 +1,56 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app donetick
+  namespace: donetick
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation: { retries: 3 }
+  upgrade:
+    cleanupOnFail: true
+    remediation: { retries: 3 }
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      donetick:
+        containers:
+          app:
+            image:
+              repository: donetick/donetick
+              tag: latest
+            env:
+              TZ: America/Los_Angeles
+              DT_ENV: "selfhosted"
+              DT_SQLITE_PATH: "/donetick-data/donetick.sqlite"
+              # If your Donetick build supports/uses it:
+              # DT_JWT_SECRET:
+              #   valueFrom:
+              #     secretKeyRef: { name: donetick-secret, key: DT_JWT_SECRET }
+
+    service:
+      app:
+        controller: donetick
+        ports:
+          http:
+            port: 2021
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: *app
+        # single PVC, two mounts using subPath
+        globalMounts:
+          - path: /donetick-data
+            subPath: data
+          - path: /config
+            subPath: config
