@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumbdo-ingressroute
+  namespace: dumbdo
+  annotations:
+    gethomepage.dev/href: "https://dumbdo.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "DumbDo"
+    gethomepage.dev/description: "Simple TODO list"
+    gethomepage.dev/group: "Tools"
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    - match: Host(`dumbdo.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: dumbdo
+          port: 3000
+          scheme: http
+  tls: {}

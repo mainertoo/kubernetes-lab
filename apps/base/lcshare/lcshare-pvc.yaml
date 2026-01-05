@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lcshare
+  namespace: lcshare
+spec:
+  storageClassName: ceph-rbd
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi

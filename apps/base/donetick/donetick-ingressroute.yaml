@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: donetick-ingressroute
+  namespace: donetick
+  annotations:
+    gethomepage.dev/href: "https://donetick.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "DoneTick"
+    gethomepage.dev/description: "Task tracking"
+    gethomepage.dev/group: "Tools"
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    - match: Host(`donetick.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: donetick
+          port: 2021
+          scheme: http
+  tls: {}
