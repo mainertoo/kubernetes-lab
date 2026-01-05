@@ -23,6 +23,23 @@ spec:
   values:
     controllers:
       donetick:
+        initContainers:
+          init-config:
+            image:
+              repository: alpine
+              tag: "3.20"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                mkdir -p /config
+                if [ ! -f /config/selfhosted.yaml ]; then
+                  echo "Seeding /config/selfhosted.yaml from secret"
+                  cp /config-src/selfhosted.yaml /config/selfhosted.yaml
+                else
+                  echo "/config/selfhosted.yaml already exists; leaving as-is"
+                fi
+
         containers:
           app:
             image:
@@ -32,10 +49,12 @@ spec:
               TZ: America/Los_Angeles
               DT_ENV: "selfhosted"
               DT_SQLITE_PATH: "/donetick-data/donetick.sqlite"
-              # If your Donetick build supports/uses it:
-              # DT_JWT_SECRET:
-              #   valueFrom:
-              #     secretKeyRef: { name: donetick-secret, key: DT_JWT_SECRET }
+              # If your image supports DT_JWT_SECRET, keep this. If not, remove it.
+              DT_JWT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: donetick-secret
+                    key: DT_JWT_SECRET
 
     service:
       app:
@@ -45,12 +64,21 @@ spec:
             port: 2021
 
     persistence:
+      # Your existing single PVC with subPaths (data + config)
       data:
         enabled: true
         existingClaim: *app
-        # single PVC, two mounts using subPath
         globalMounts:
           - path: /donetick-data
             subPath: data
           - path: /config
             subPath: config
+
+      # Secret-mounted template config
+      config-template:
+        enabled: true
+        type: secret
+        name: donetick-secret
+        globalMounts:
+          - path: /config-src
+            readOnly: true
