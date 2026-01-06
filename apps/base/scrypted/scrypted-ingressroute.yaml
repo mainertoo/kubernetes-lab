@@ -12,12 +12,11 @@ metadata:
 spec:
   entryPoints:
     - websecure
-    - web
   routes:
     - match: Host(`scrypted.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: scrypted-scrypted
+        - name: scrypted
           port: 10443
           scheme: https
           serversTransport: scrypted-transport
