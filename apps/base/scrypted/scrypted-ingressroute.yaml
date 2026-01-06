@@ -17,7 +17,7 @@ spec:
     - match: Host(`scrypted.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: scrypted
+        - name: scrypted-scrypted
           port: 10443
           scheme: https
           serversTransport: scrypted-transport
