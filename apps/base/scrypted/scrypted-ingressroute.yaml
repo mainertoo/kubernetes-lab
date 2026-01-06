@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: scrypted-ingressroute
+  namespace: scrypted
+  annotations:
+    gethomepage.dev/href: "https://scrypted.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Scrypted"
+    gethomepage.dev/description: "Home automation camera + HomeKit bridge"
+    gethomepage.dev/group: "Home"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`scrypted.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: scrypted
+          port: 10443
+          scheme: https
+          serversTransport: scrypted-transport
+  tls: {}

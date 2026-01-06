@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: scrypted
+resources:
+  - scrypted-namespace.yaml
+  - scrypted-pvc.yaml
+  - scrypted-secret.sops.yaml
+  - scrypted-release.yaml
+  - scrypted-serversTransport.yaml
+  - scrypted-ingressroute.yaml
+  - scrypted-lb-service.yaml
