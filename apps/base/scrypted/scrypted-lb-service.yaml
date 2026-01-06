@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrypted-external
+  namespace: scrypted
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/instance: scrypted
+    app.kubernetes.io/name: scrypted
+  ports:
+    - name: https
+      port: 10443
+      targetPort: 10443
+      protocol: TCP
+    - name: http
+      port: 10444
+      targetPort: 10444
+      protocol: TCP
