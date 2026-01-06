@@ -60,7 +60,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
 
     service:
-      app:
+      scrypted:
         controller: scrypted
         ports:
           https:
