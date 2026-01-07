@@ -38,10 +38,6 @@ spec:
               tag: "17"
             env:
               TZ: America/Los_Angeles
-
-              # IMPORTANT: use a subdir so lost+found doesn't break initdb
-              PGDATA: /var/lib/postgresql/data/pgdata
-
               POSTGRES_USER:
                 valueFrom:
                   secretKeyRef:
@@ -57,13 +53,8 @@ spec:
                   secretKeyRef:
                     name: opencut-secret
                     key: POSTGRES_DB
-
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
-              capabilities:
-                drop:
-                  - NET_RAW
+              # Important for Ceph-RBD + lost+found
+              PGDATA: /var/lib/postgresql/data/pgdata
 
       redis:
         strategy: Recreate
@@ -74,12 +65,6 @@ spec:
               tag: "7-alpine"
             env:
               TZ: America/Los_Angeles
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
-              capabilities:
-                drop:
-                  - NET_RAW
 
       serverless-redis-http:
         strategy: Recreate
@@ -96,13 +81,8 @@ spec:
                   secretKeyRef:
                     name: opencut-secret
                     key: SRH_TOKEN
-              SRH_CONNECTION_STRING: "redis://redis:6379"
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
-              capabilities:
-                drop:
-                  - NET_RAW
+              # IMPORTANT: use the prefixed redis service name
+              SRH_CONNECTION_STRING: "redis://opencut-redis:6379"
 
       web:
         strategy: Recreate
@@ -121,7 +101,9 @@ spec:
                     name: opencut-secret
                     key: DATABASE_URL
 
-              UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
+              # IMPORTANT: use the prefixed service name
+              UPSTASH_REDIS_REST_URL: "http://opencut-serverless-redis-http:80"
+
               BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
 
               UPSTASH_REDIS_REST_TOKEN:
@@ -185,13 +167,6 @@ spec:
                 path: /api/health
                 port: 3000
 
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
-              capabilities:
-                drop:
-                  - NET_RAW
-
     service:
       db:
         controller: db
@@ -232,5 +207,4 @@ spec:
         advancedMounts:
           db:
             main:
-              # Mount the PVC at the parent path (not the PGDATA subdir)
               - path: /var/lib/postgresql/data
