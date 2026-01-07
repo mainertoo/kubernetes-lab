@@ -38,6 +38,10 @@ spec:
               tag: "17"
             env:
               TZ: America/Los_Angeles
+
+              # IMPORTANT: use a subdir so lost+found doesn't break initdb
+              PGDATA: /var/lib/postgresql/data/pgdata
+
               POSTGRES_USER:
                 valueFrom:
                   secretKeyRef:
@@ -54,8 +58,6 @@ spec:
                     name: opencut-secret
                     key: POSTGRES_DB
 
-            # IMPORTANT:
-            # Do NOT drop ALL capabilities. Postgres entrypoint needs chown/chmod on the data dir.
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -72,9 +74,6 @@ spec:
               tag: "7-alpine"
             env:
               TZ: America/Los_Angeles
-
-            # IMPORTANT:
-            # Do NOT drop ALL capabilities. Redis image needs to switch user (setuid/setgid).
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -123,7 +122,6 @@ spec:
                     key: DATABASE_URL
 
               UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
-
               BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
 
               UPSTASH_REDIS_REST_TOKEN:
@@ -234,4 +232,5 @@ spec:
         advancedMounts:
           db:
             main:
+              # Mount the PVC at the parent path (not the PGDATA subdir)
               - path: /var/lib/postgresql/data
