@@ -22,6 +22,6 @@ spec:
       #   - name: authentik-sso
       #     namespace: traefik-system
       services:
-        - name: web
+        - name: opencut-web
           port: 3000
   tls: {}
