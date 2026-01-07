@@ -38,12 +38,6 @@ spec:
               tag: "17"
             env:
               TZ: America/Los_Angeles
-            envFrom:
-              - secretRef:
-                  name: opencut-secret
-            # Only pass what postgres needs
-            env:
-              TZ: America/Los_Angeles
               POSTGRES_USER:
                 valueFrom:
                   secretKeyRef:
@@ -59,7 +53,6 @@ spec:
                   secretKeyRef:
                     name: opencut-secret
                     key: POSTGRES_DB
-
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
@@ -104,7 +97,6 @@ spec:
         strategy: Recreate
         containers:
           main:
-            # NOTE: If you build/push your own, replace this image.
             image:
               repository: ghcr.io/reesmorris/opencut
               tag: latest
@@ -112,8 +104,13 @@ spec:
               TZ: America/Los_Angeles
               NODE_ENV: production
 
-              # Point to in-cluster services (same as compose but with svc DNS)
-              DATABASE_URL: "postgresql://opencut:REPLACE_ME@db:5432/opencut"
+              # Pull DB URL from secret (Option 2)
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: DATABASE_URL
+
               UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
 
               # External URL users hit
@@ -132,6 +129,7 @@ spec:
                   secretKeyRef:
                     name: opencut-secret
                     key: BETTER_AUTH_SECRET
+
               FREESOUND_CLIENT_ID:
                 valueFrom:
                   secretKeyRef:
@@ -169,12 +167,6 @@ spec:
                     name: opencut-secret
                     key: MODAL_TRANSCRIPTION_URL
 
-            # IMPORTANT: you MUST replace the password in DATABASE_URL above,
-            # or swap DATABASE_URL to pull from secret in a different way (app-template
-            # doesn't template env strings).
-            #
-            # After you set POSTGRES_PASSWORD in the secret, update DATABASE_URL to match it.
-
             probes:
               liveness:
                 enabled: true
@@ -195,6 +187,7 @@ spec:
           postgres:
             port: 5432
             targetPort: 5432
+
       redis:
         controller: redis
         type: ClusterIP
@@ -202,6 +195,7 @@ spec:
           redis:
             port: 6379
             targetPort: 6379
+
       serverless-redis-http:
         controller: serverless-redis-http
         type: ClusterIP
@@ -209,6 +203,7 @@ spec:
           http:
             port: 80
             targetPort: 80
+
       web:
         controller: web
         type: ClusterIP
