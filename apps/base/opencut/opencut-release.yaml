@@ -53,12 +53,15 @@ spec:
                   secretKeyRef:
                     name: opencut-secret
                     key: POSTGRES_DB
+
+            # IMPORTANT:
+            # Do NOT drop ALL capabilities. Postgres entrypoint needs chown/chmod on the data dir.
             securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              allowPrivilegeEscalation: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
               capabilities:
-                drop: ["ALL"]
+                drop:
+                  - NET_RAW
 
       redis:
         strategy: Recreate
@@ -69,12 +72,15 @@ spec:
               tag: "7-alpine"
             env:
               TZ: America/Los_Angeles
+
+            # IMPORTANT:
+            # Do NOT drop ALL capabilities. Redis image needs to switch user (setuid/setgid).
             securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              allowPrivilegeEscalation: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
               capabilities:
-                drop: ["ALL"]
+                drop:
+                  - NET_RAW
 
       serverless-redis-http:
         strategy: Recreate
@@ -94,8 +100,10 @@ spec:
               SRH_CONNECTION_STRING: "redis://redis:6379"
             securityContext:
               allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
               capabilities:
-                drop: ["ALL"]
+                drop:
+                  - NET_RAW
 
       web:
         strategy: Recreate
@@ -115,6 +123,7 @@ spec:
                     key: DATABASE_URL
 
               UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
+
               BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
 
               UPSTASH_REDIS_REST_TOKEN:
@@ -177,6 +186,13 @@ spec:
                 type: HTTP
                 path: /api/health
                 port: 3000
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - NET_RAW
 
     service:
       db:
