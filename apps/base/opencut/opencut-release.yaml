@@ -1,0 +1,227 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opencut
+  namespace: opencut
+spec:
+  interval: 30m
+  releaseName: opencut
+
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      db:
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: postgres
+              tag: "17"
+            env:
+              TZ: America/Los_Angeles
+            envFrom:
+              - secretRef:
+                  name: opencut-secret
+            # Only pass what postgres needs
+            env:
+              TZ: America/Los_Angeles
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: POSTGRES_USER
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: POSTGRES_PASSWORD
+              POSTGRES_DB:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: POSTGRES_DB
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+      redis:
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: redis
+              tag: "7-alpine"
+            env:
+              TZ: America/Los_Angeles
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+      serverless-redis-http:
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: hiett/serverless-redis-http
+              tag: latest
+            env:
+              TZ: America/Los_Angeles
+              SRH_MODE: env
+              SRH_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: SRH_TOKEN
+              SRH_CONNECTION_STRING: "redis://redis:6379"
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+      web:
+        strategy: Recreate
+        containers:
+          main:
+            # NOTE: If you build/push your own, replace this image.
+            image:
+              repository: ghcr.io/reesmorris/opencut
+              tag: latest
+            env:
+              TZ: America/Los_Angeles
+              NODE_ENV: production
+
+              # Point to in-cluster services (same as compose but with svc DNS)
+              DATABASE_URL: "postgresql://opencut:REPLACE_ME@db:5432/opencut"
+              UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
+
+              # External URL users hit
+              BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
+
+              # Token must match SRH_TOKEN used by serverless-redis-http
+              UPSTASH_REDIS_REST_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: SRH_TOKEN
+
+              # Secrets / optional integrations
+              BETTER_AUTH_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: BETTER_AUTH_SECRET
+              FREESOUND_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: FREESOUND_CLIENT_ID
+              FREESOUND_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: FREESOUND_API_KEY
+
+              CLOUDFLARE_ACCOUNT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: CLOUDFLARE_ACCOUNT_ID
+              R2_ACCESS_KEY_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: R2_ACCESS_KEY_ID
+              R2_SECRET_ACCESS_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: R2_SECRET_ACCESS_KEY
+              R2_BUCKET_NAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: R2_BUCKET_NAME
+              MODAL_TRANSCRIPTION_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-secret
+                    key: MODAL_TRANSCRIPTION_URL
+
+            # IMPORTANT: you MUST replace the password in DATABASE_URL above,
+            # or swap DATABASE_URL to pull from secret in a different way (app-template
+            # doesn't template env strings).
+            #
+            # After you set POSTGRES_PASSWORD in the secret, update DATABASE_URL to match it.
+
+            probes:
+              liveness:
+                enabled: true
+                type: HTTP
+                path: /api/health
+                port: 3000
+              readiness:
+                enabled: true
+                type: HTTP
+                path: /api/health
+                port: 3000
+
+    service:
+      db:
+        controller: db
+        type: ClusterIP
+        ports:
+          postgres:
+            port: 5432
+            targetPort: 5432
+      redis:
+        controller: redis
+        type: ClusterIP
+        ports:
+          redis:
+            port: 6379
+            targetPort: 6379
+      serverless-redis-http:
+        controller: serverless-redis-http
+        type: ClusterIP
+        ports:
+          http:
+            port: 80
+            targetPort: 80
+      web:
+        controller: web
+        type: ClusterIP
+        ports:
+          http:
+            port: 3000
+            targetPort: 3000
+
+    persistence:
+      postgres-data:
+        enabled: true
+        existingClaim: opencut-postgres
+        advancedMounts:
+          db:
+            main:
+              - path: /var/lib/postgresql/data

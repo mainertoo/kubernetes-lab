@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: opencut-ingressroute
+  namespace: opencut
+  annotations:
+    gethomepage.dev/href: "https://opencut.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "OpenCut"
+    gethomepage.dev/description: "Video editor (self-hosted)"
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/opencut.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`opencut.lab.mainertoo.com`)
+      kind: Rule
+      # Optional: protect behind Authentik
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: web
+          port: 3000
+  tls: {}
