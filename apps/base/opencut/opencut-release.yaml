@@ -54,7 +54,9 @@ spec:
                     name: opencut-secret
                     key: POSTGRES_DB
             securityContext:
-              allowPrivilegeEscalation: false
+              runAsUser: 0
+              runAsGroup: 0
+              allowPrivilegeEscalation: true
               capabilities:
                 drop: ["ALL"]
 
@@ -68,7 +70,9 @@ spec:
             env:
               TZ: America/Los_Angeles
             securityContext:
-              allowPrivilegeEscalation: false
+              runAsUser: 0
+              runAsGroup: 0
+              allowPrivilegeEscalation: true
               capabilities:
                 drop: ["ALL"]
 
@@ -104,7 +108,6 @@ spec:
               TZ: America/Los_Angeles
               NODE_ENV: production
 
-              # Pull DB URL from secret (Option 2)
               DATABASE_URL:
                 valueFrom:
                   secretKeyRef:
@@ -112,18 +115,14 @@ spec:
                     key: DATABASE_URL
 
               UPSTASH_REDIS_REST_URL: "http://serverless-redis-http:80"
-
-              # External URL users hit
               BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
 
-              # Token must match SRH_TOKEN used by serverless-redis-http
               UPSTASH_REDIS_REST_TOKEN:
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: SRH_TOKEN
 
-              # Secrets / optional integrations
               BETTER_AUTH_SECRET:
                 valueFrom:
                   secretKeyRef:
