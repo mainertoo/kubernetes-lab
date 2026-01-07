@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/description: "Extractor for Arr downloads"
     gethomepage.dev/app: unpackerr
     gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/unpackerr.png"
 spec:
   entryPoints:
     - websecure
