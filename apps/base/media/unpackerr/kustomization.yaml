@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: media
 resources:
   - unpackerr-config-pvc.yaml
-  - unpackerr-downloads-cephfs-pvc.yaml
   - unpackerr-secret.sops.yaml
   - unpackerr-release.yaml
   - unpackerr-ingressroute.yaml
