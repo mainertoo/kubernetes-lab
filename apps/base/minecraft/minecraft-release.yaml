@@ -66,11 +66,14 @@ spec:
               allowPrivilegeEscalation: false
               capabilities:
                 drop: ["ALL"]
-              # Run as root so nginx can create /var/cache/nginx/*
-              runAsUser: 0
-              runAsGroup: 0
-              # Optional hardening (works fine with nginx):
-              readOnlyRootFilesystem: false
+              runAsNonRoot: true
+              runAsUser: 101
+              runAsGroup: 101
+              readOnlyRootFilesystem: true
+        pod:
+          securityContext:
+            fsGroup: 101
+            fsGroupChangePolicy: "OnRootMismatch"
 
     service:
       bedrock:
@@ -113,3 +116,20 @@ spec:
               - path: /usr/share/nginx/html/index.html
                 subPath: index.html
                 readOnly: true
+
+      # NEW: nginx needs writable cache + run dirs; otherwise it fails creating/chowning temp paths
+      landing-cache:
+        enabled: true
+        type: emptyDir
+        advancedMounts:
+          landing:
+            main:
+              - path: /var/cache/nginx
+
+      landing-run:
+        enabled: true
+        type: emptyDir
+        advancedMounts:
+          landing:
+            main:
+              - path: /var/run
