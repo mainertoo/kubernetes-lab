@@ -12,11 +12,12 @@ metadata:
 spec:
   entryPoints:
     - websecure
-    - web
   routes:
     - match: Host(`crafty.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: crafty
           port: 8443
+          scheme: https
+          serversTransport: crafty-insecure-transport
   tls: {}

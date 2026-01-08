@@ -7,3 +7,4 @@ resources:
   # - crafty-secret.sops.yaml # no secret files or need for implementation yet
   - crafty-release.yaml
   - crafty-ingressroute.yaml
+  - crafty-serverstransport.yaml
