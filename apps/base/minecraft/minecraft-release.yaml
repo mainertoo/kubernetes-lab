@@ -42,30 +42,14 @@ spec:
               TZ: "America/Los_Angeles"
               PACKAGE_BACKUP_KEEP: "2"
               ENABLE_SSH: "true"
-
-              # Recommended for consistent permissions on PVC
               UID: "1000"
               GID: "1000"
-
-              # Optional: only set these if you actually want SSH auth enabled
-              # SSH_PASSWORD:
-              #   valueFrom:
-              #     secretKeyRef:
-              #       name: minecraft-secret
-              #       key: SSH_PASSWORD
-              # SSH_PUBLIC_KEY:
-              #   valueFrom:
-              #     secretKeyRef:
-              #       name: minecraft-secret
-              #       key: SSH_PUBLIC_KEY
-
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
                 drop: ["ALL"]
               runAsUser: 1000
               runAsGroup: 1000
-
         pod:
           securityContext:
             fsGroup: 1000
@@ -82,9 +66,11 @@ spec:
               allowPrivilegeEscalation: false
               capabilities:
                 drop: ["ALL"]
-              runAsNonRoot: true
-              runAsUser: 101
-              runAsGroup: 101
+              # Run as root so nginx can create /var/cache/nginx/*
+              runAsUser: 0
+              runAsGroup: 0
+              # Optional hardening (works fine with nginx):
+              readOnlyRootFilesystem: false
 
     service:
       bedrock:
