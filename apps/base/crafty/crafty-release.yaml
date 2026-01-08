@@ -1,0 +1,107 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crafty
+  namespace: crafty
+spec:
+  interval: 30m
+  releaseName: crafty
+
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      crafty:
+        strategy: Recreate
+
+        # No host networking (pod can move nodes freely)
+        pod: {}
+
+        initContainers:
+          fix-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                echo "Fixing perms on /crafty (CephFS)..."
+                mkdir -p /crafty
+                chown -R 1000:1000 /crafty || true
+                chmod -R 0775 /crafty || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
+        containers:
+          app:
+            image:
+              repository: registry.gitlab.com/crafty-controller/crafty-4
+              tag: latest
+
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+
+            # Optional: if you later add real keys to crafty-secret, you can envFrom it.
+            # envFrom:
+            #   - secretRef:
+            #       name: crafty-secret
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+
+    service:
+      app:
+        controller: crafty
+        type: ClusterIP
+        ports:
+          https:
+            port: 8443
+            targetPort: 8443
+            protocol: TCP
+          dynmap:
+            port: 8123
+            targetPort: 8123
+            protocol: TCP
+          bedrock:
+            port: 19132
+            targetPort: 19132
+            protocol: UDP
+
+    persistence:
+      crafty-data:
+        enabled: true
+        existingClaim: crafty-data
+        globalMounts:
+          - path: /crafty

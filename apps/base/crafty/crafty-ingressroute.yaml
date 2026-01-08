@@ -1,0 +1,22 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: crafty-https
+  namespace: crafty
+  annotations:
+    gethomepage.dev/href: "https://crafty.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Crafty"
+    gethomepage.dev/description: "Minecraft server manager"
+    gethomepage.dev/group: "Games"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`crafty.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: crafty
+          port: 8443
+  tls: {}
