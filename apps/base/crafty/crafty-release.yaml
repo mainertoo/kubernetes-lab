@@ -32,9 +32,6 @@ spec:
       crafty:
         strategy: Recreate
 
-        # No host networking (pod can move nodes freely)
-        pod: {}
-
         initContainers:
           fix-perms:
             image:
@@ -43,10 +40,11 @@ spec:
             command: ["/bin/sh", "-c"]
             args:
               - |
-                echo "Fixing perms on /crafty (CephFS)..."
-                mkdir -p /crafty
-                chown -R 1000:1000 /crafty || true
-                chmod -R 0775 /crafty || true
+                set -e
+                echo "Creating Crafty dirs + fixing perms on CephFS mounts..."
+                mkdir -p /data/backups /data/logs /data/servers /data/config /data/import
+                chown -R 1000:1000 /data || true
+                chmod -R 0775 /data || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -58,16 +56,9 @@ spec:
             image:
               repository: registry.gitlab.com/crafty-controller/crafty-4
               tag: latest
-
             env:
               - name: TZ
                 value: America/Los_Angeles
-
-            # Optional: if you later add real keys to crafty-secret, you can envFrom it.
-            # envFrom:
-            #   - secretRef:
-            #       name: crafty-secret
-
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
@@ -103,5 +94,23 @@ spec:
       crafty-data:
         enabled: true
         existingClaim: crafty-data
-        globalMounts:
-          - path: /crafty
+
+        # Mount the same CephFS PVC to the same places as your docker-compose,
+        # using subPath so we DON'T shadow /crafty/docker_launcher.sh
+        advancedMounts:
+          crafty:
+            app:
+              - path: /crafty/backups
+                subPath: backups
+              - path: /crafty/logs
+                subPath: logs
+              - path: /crafty/servers
+                subPath: servers
+              - path: /crafty/app/config
+                subPath: config
+              - path: /crafty/import
+                subPath: import
+
+            # initContainer mount point
+            fix-perms:
+              - path: /data
