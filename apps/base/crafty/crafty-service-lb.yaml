@@ -11,4 +11,6 @@ spec:
       targetPort: 19132
       protocol: UDP
   selector:
+    app.kubernetes.io/component: crafty
+    app.kubernetes.io/instance: crafty
     app.kubernetes.io/name: crafty
