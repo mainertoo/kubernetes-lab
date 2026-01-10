@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-dashboard
+  namespace: ceph-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: ceph-dashboard
+  namespace: ceph-dashboard
+subsets:
+  - addresses:
+      - ip: 192.168.99.13
+    ports:
+      - name: https
+        port: 8443
+        protocol: TCP

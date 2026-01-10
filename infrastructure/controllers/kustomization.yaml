@@ -4,6 +4,7 @@ resources:
   # Ceph CSI drivers
   - ceph-csi-cephfs
   - ceph-csi-rbd
+  - ceph-dashboard
 
   # cert-manager + Traefik
   - cert-manager
