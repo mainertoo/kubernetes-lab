@@ -17,7 +17,7 @@ metadata:
   namespace: ceph-dashboard
 subsets:
   - addresses:
-      - ip: 192.168.99.12
+      # - ip: 192.168.99.12
       - ip: 192.168.99.13
     ports:
       - name: https
