@@ -4,6 +4,6 @@ namespace: dumbdo
 resources:
   - dumbdo-namespace.yaml
   - dumbdo-pvc.yaml
-  - dumbdo.secret.sops.yaml
+  - dumbdo-secret.sops.yaml
   - dumbdo-release.yaml
   - dumbdo-ingressroute.yaml
