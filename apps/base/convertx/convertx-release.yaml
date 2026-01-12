@@ -26,8 +26,10 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/c4illin/convertx
-              tag: main
+              # repository: ghcr.io/c4illin/convertx
+              # tag: main
+              repository: docker pull ghcr.io/nidplays/convertx-cc
+              tag: main-e8ecd03
             env:
               TZ: America/Los_Angeles
               HTTP_ALLOWED: "true"
