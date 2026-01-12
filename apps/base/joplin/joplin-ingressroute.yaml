@@ -9,6 +9,7 @@ metadata:
     gethomepage.dev/name: "Joplin"
     gethomepage.dev/description: "Notes sync server"
     gethomepage.dev/group: "Tools"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/joplin.svg"
 spec:
   entryPoints: [websecure, web]
   routes:
