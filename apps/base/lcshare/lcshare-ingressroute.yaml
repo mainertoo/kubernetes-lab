@@ -15,9 +15,9 @@ spec:
   routes:
     - match: Host(`lcshare.lab.mainertoo.com`)
       kind: Rule
-      # middlewares:
-      #   - name: authentik-sso
-      #     namespace: traefik-system
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: lcshare
           port: 8080
