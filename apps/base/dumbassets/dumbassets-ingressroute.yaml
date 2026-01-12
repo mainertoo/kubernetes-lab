@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Simple asset tracking"
     gethomepage.dev/app: dumbassets
     gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/cash-multiple.svg"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/dumbassets.svg"
 spec:
   entryPoints:
     - websecure
