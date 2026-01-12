@@ -9,6 +9,7 @@ metadata:
     gethomepage.dev/group: "Productivity"
     gethomepage.dev/description: "Lightweight notes & memos"
     gethomepage.dev/href: "https://memos.lab.mainertoo.com"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/memos.png"
 spec:
   entryPoints:
     - websecure
