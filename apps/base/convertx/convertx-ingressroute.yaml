@@ -9,6 +9,7 @@ metadata:
     gethomepage.dev/name: "ConvertX"
     gethomepage.dev/description: "File converter"
     gethomepage.dev/group: "Tools"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/convertx.png"
 spec:
   entryPoints: [websecure, web]
   routes:
