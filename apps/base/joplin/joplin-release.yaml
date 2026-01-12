@@ -29,6 +29,9 @@ spec:
               repository: postgres
               tag: "16"
             env:
+              # ✅ Put DB files in a subdir under the mount
+              PGDATA: /var/lib/postgresql/data/pgdata
+
               POSTGRES_PASSWORD:
                 valueFrom:
                   secretKeyRef: { name: joplin-secret, key: POSTGRES_PASSWORD }
@@ -81,4 +84,5 @@ spec:
         advancedMounts:
           joplin-db:
             app:
+              # ✅ Mount one level up; PGDATA handles the subdir
               - path: /var/lib/postgresql/data
