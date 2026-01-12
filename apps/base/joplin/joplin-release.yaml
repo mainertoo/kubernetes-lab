@@ -53,7 +53,7 @@ spec:
               APP_PORT: "22300"
               APP_BASE_URL: "https://joplin.lab.mainertoo.com"
               DB_CLIENT: "pg"
-              POSTGRES_HOST: "joplin-db"
+              POSTGRES_HOST: "joplin-joplin-db"
               POSTGRES_PORT: "5432"
               POSTGRES_PASSWORD:
                 valueFrom:
