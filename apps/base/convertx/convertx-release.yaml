@@ -32,9 +32,29 @@ spec:
               TZ: America/Los_Angeles
               HTTP_ALLOWED: "true"
               ACCOUNT_REGISTRATION: "true"
-            envFrom:
-              - secretRef:
-                  name: convertx-secret
+
+              JWT_SECRET:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: JWT_SECRET }
+
+              OIDC_ISSUER_URL:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_ISSUER_URL }
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_CLIENT_ID }
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_CLIENT_SECRET }
+              OIDC_REDIRECT_URI:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_REDIRECT_URI }
+              OIDC_ONLY:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_ONLY }
+              OIDC_BUTTON_TEXT:
+                valueFrom:
+                  secretKeyRef: { name: convertx-secret, key: OIDC_BUTTON_TEXT }
 
     service:
       app:
