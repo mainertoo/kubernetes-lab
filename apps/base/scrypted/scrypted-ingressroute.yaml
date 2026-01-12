@@ -9,6 +9,7 @@ metadata:
     gethomepage.dev/name: "Scrypted"
     gethomepage.dev/description: "Home automation camera + HomeKit bridge"
     gethomepage.dev/group: "Home"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/scrypted.png"
 spec:
   entryPoints:
     - websecure
