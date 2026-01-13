@@ -60,4 +60,4 @@ resources:
   # Monitoring (staging)
   - kube-prometheus-stack/
   - grafana/
-  # - gatus/
+  - gatus/
