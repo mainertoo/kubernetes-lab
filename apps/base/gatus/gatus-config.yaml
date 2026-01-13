@@ -1,27 +1,50 @@
 web:
   port: 80
+
 storage:
   type: sqlite
   path: /config/sqlite.db
   caching: true
+
 metrics: true
 debug: false
+
 ui:
   title: Status | Gatus
   header: Status
+
 connectivity:
   checker:
     target: 1.1.1.1:53
     interval: 1m
+
 endpoints:
-  - name: status
+  # External reachability of your main ingress / homepage
+  - name: lab-main
     group: external
-    url: https://hephaestus.markmk.com
+    url: https://homepage.lab.mainertoo.com
     interval: 1m
     client:
       dns-resolver: tcp://1.1.1.1:53
     conditions:
-      - "[STATUS] == 401"
+      - "[STATUS] == 200"
+
+  # Gatus itself (internal service check)
+  - name: gatus-internal
+    group: internal
+    url: http://gatus.gatus.svc.cluster.local/health
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  # Traefik health endpoint (if enabled/exposed internally)
+  # Uncomment if you have a stable internal endpoint for Traefik metrics/health.
+  # - name: traefik
+  #   group: internal
+  #   url: http://traefik.traefik-system.svc.cluster.local:9000/ping
+  #   interval: 30s
+  #   conditions:
+  #     - "[STATUS] == 200"
 
 alerting:
   discord:
@@ -31,4 +54,4 @@ alerting:
       description: health-check failed
       send-on-resolved: true
       failure-threshold: 5
-      success-threshold: 2    
+      success-threshold: 2

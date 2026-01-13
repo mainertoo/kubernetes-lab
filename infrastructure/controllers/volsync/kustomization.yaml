@@ -1,23 +1,30 @@
 ---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app volsync
+  name: volsync
   namespace: flux-system
 spec:
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-gpg
   commonMetadata:
     labels:
-      app.kubernetes.io/name: *app
+      app.kubernetes.io/name: volsync
+
   interval: 1h
+
+  # No decryption needed unless you add *.sops.yaml files under this path.
+  # If you later add SOPS secrets here, uncomment and ensure the secret exists in flux-system.
+  # decryption:
+  #   provider: sops
+  #   secretRef:
+  #     name: sops-age
+
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
-      name: *app
-      namespace: &namespace volsync-system
+      name: volsync
+      namespace: volsync-system
+
   path: ./infrastructure/controllers/volsync/app
   prune: true
   retryInterval: 2m
@@ -25,6 +32,6 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: *namespace
+  targetNamespace: volsync-system
   timeout: 5m
   wait: false

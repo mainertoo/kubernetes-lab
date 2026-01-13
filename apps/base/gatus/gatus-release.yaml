@@ -2,6 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &app gatus
+  namespace: gatus
 spec:
   interval: 30m
   chartRef:
@@ -9,6 +10,7 @@ spec:
     name: app-template
     namespace: flux-system
   maxHistory: 2
+
   install:
     createNamespace: true
     remediation:
@@ -19,6 +21,7 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       gatus:
@@ -40,13 +43,14 @@ spec:
                 cpu: 10m
               limits:
                 memory: 128Mi
+
         containers:
           app:
             image:
               repository: ghcr.io/twin/gatus
               tag: v5.29.0
             env:
-              TZ: Europe/Copenhagen
+              TZ: America/Los_Angeles
               GATUS_CONFIG_PATH: /config
               GATUS_DELAY_START_SECONDS: 5
               WEB_PORT: &port 80
@@ -66,12 +70,14 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+              capabilities:
+                drop: ["ALL"]
             resources:
               requests:
                 cpu: 100m
               limits:
                 memory: 256Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -94,6 +100,7 @@ spec:
     persistence:
       config:
         existingClaim: gatus
+
       config-file:
         type: configMap
         name: gatus-configmap
