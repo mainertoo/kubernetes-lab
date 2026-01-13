@@ -22,6 +22,6 @@ spec:
   values:
     controller:
       replicaCount: 1
-      args: 
+      args:
         enableDistributedSnapshotting: true
   targetNamespace: snapshot-controller-system

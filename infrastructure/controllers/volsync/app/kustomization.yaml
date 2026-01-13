@@ -5,4 +5,8 @@ resources:
   - volsync-release.yaml
   - volsync-namespace.yaml
   - volsync-servicemonitor.yaml
-  - ./mutations
+
+# NOTE:
+# MutatingAdmissionPolicy (v1alpha1) + NFS injection is environment-specific.
+# Once you decide your VolSync repository strategy, we can re-enable:
+#  - ./mutations

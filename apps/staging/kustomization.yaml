@@ -56,3 +56,8 @@ resources:
   - lcshare/
   - convertx/
   - drawio/
+
+  # Monitoring (staging)
+  - kube-prometheus-stack/
+  # - grafana/
+  # - gatus/

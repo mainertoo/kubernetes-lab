@@ -12,7 +12,7 @@ resources:
 
   # CSI drivers & storageclasses
   - nfs-csi
-  - storage          # cephfs / rbd / nfs-qnap storageclasses
+  - storage  # cephfs / rbd / nfs-qnap storageclasses
 
   # Add hardware iGPU passthrough
   - intel-gpu
@@ -25,3 +25,9 @@ resources:
 
   # Newt
   - newt
+
+  # Snapshot Controller
+  - snapshot-controller
+
+  # # Volsync
+  # - volsync

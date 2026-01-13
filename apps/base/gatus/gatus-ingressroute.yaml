@@ -4,9 +4,9 @@ metadata:
   name: gatus
   namespace: gatus
   annotations:
-    gethomepage.dev/href: "https://gatus.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://gatus.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "gatus"
+    gethomepage.dev/name: "Gatus"
     gethomepage.dev/description: "Automated developer-oriented status page"
     gethomepage.dev/app: gatus
     gethomepage.dev/group: "Monitoring"
@@ -16,11 +16,12 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`gatus.hephaestus.markmk.com`)
+    - match: Host(`gatus.lab.mainertoo.com`)
       kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
       services:
         - name: gatus
           port: 80
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+  tls: {}
