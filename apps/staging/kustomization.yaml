@@ -61,3 +61,4 @@ resources:
   - kube-prometheus-stack/
   - grafana/
   - gatus/
+  - loki/
