@@ -30,4 +30,4 @@ resources:
   - snapshot-controller
 
   # # Volsync
-  - volsync
+  # - volsync
