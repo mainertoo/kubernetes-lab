@@ -52,7 +52,7 @@ spec:
     persistence:
       enabled: true
       type: pvc
-      storageClassName: ceph-rbd   # change to cephfs if desired
+      storageClassName: ceph-rbd
       accessModes:
         - ReadWriteOnce
       size: 10Gi
@@ -81,7 +81,6 @@ spec:
         allow_assign_grafana_admin: true
 
         client_id: "PGFpYVkcDaeM6OVsgGE9dCKjpIWU3mZYga3A7iYM"
-        # Pull secret from env var set in grafana-secret (SOPS)
         client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
 
         scopes: "openid profile email"
@@ -89,25 +88,24 @@ spec:
         token_url: "https://authentik.lab.mainertoo.com/application/o/token/"
         api_url: "https://authentik.lab.mainertoo.com/application/o/userinfo/"
 
-        # Tell Grafana where to find identity fields in the userinfo response
         login_attribute_path: preferred_username || username || email
         name_attribute_path: name
         email_attribute_path: email
 
-        # Helps Grafana locate groups in userinfo (if present)
         groups_attribute_path: groups
 
-        # IMPORTANT:
-        # - GrafanaAdmin => server admin ("super admin")
-        # - Admin/Editor/Viewer => org role
+        # Org role mapping (you already validated this works)
         role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
-        
+
+    # ---- DATASOURCES ----
     datasources:
       datasources.yaml:
         apiVersion: 1
         deleteDatasources:
           - { name: Alertmanager, orgId: 1 }
           - { name: Prometheus, orgId: 1 }
+          - { name: Loki, orgId: 1 }
+
         datasources:
           - name: Prometheus
             type: prometheus
@@ -115,6 +113,7 @@ spec:
             access: proxy
             url: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
             isDefault: true
+
           - name: Alertmanager
             type: alertmanager
             uid: alertmanager
@@ -122,6 +121,14 @@ spec:
             url: http://kube-prometheus-stack-alertmanager.kube-prometheus-stack.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+
+          - name: Loki
+            type: loki
+            uid: loki
+            access: proxy
+            url: http://loki.loki.svc.cluster.local:3100
+            jsonData:
+              maxLines: 2000
 
     dashboards:
       default:
