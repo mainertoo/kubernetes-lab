@@ -100,8 +100,8 @@ spec:
         # IMPORTANT:
         # - GrafanaAdmin => server admin ("super admin")
         # - Admin/Editor/Viewer => org role
-        role_attribute_path: contains(roles[*], 'admin') && 'GrafanaAdmin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
-
+        role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+        
     datasources:
       datasources.yaml:
         apiVersion: 1
