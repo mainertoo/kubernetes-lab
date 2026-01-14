@@ -19,17 +19,38 @@ connectivity:
     interval: 1m
 
 endpoints:
-  # External reachability of your main ingress / homepage
-  - name: lab-main
-    group: external
-    url: https://homepage.lab.mainertoo.com
-    interval: 1m
-    client:
-      dns-resolver: tcp://1.1.1.1:53
+  #
+  # INTERNAL SERVICE CHECKS (recommended)
+  # These avoid wildcard TLS / split DNS issues entirely.
+  #
+  - name: homepage-internal
+    group: internal
+    url: http://homepage.homepage.svc.cluster.local:3000
+    interval: 30s
     conditions:
       - "[STATUS] == 200"
 
-  # Gatus itself (internal service check)
+  - name: grafana-internal
+    group: internal
+    url: http://grafana.grafana.svc.cluster.local/api/health
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: prometheus-internal
+    group: internal
+    url: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090/-/ready
+    interval: 30s
+    conditions:
+      - "[BODY] == Prometheus Server is Ready."
+
+  - name: alertmanager-internal
+    group: internal
+    url: http://kube-prometheus-stack-alertmanager.kube-prometheus-stack.svc.cluster.local:9093/-/ready
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
   - name: gatus-internal
     group: internal
     url: http://gatus.gatus.svc.cluster.local/health
@@ -37,14 +58,21 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
-  # Traefik health endpoint (if enabled/exposed internally)
-  # Uncomment if you have a stable internal endpoint for Traefik metrics/health.
-  # - name: traefik
-  #   group: internal
-  #   url: http://traefik.traefik-system.svc.cluster.local:9000/ping
-  #   interval: 30s
-  #   conditions:
-  #     - "[STATUS] == 200"
+  #
+  # EXTERNAL INGRESS CHECKS (optional)
+  # NOTE: if Homepage is behind Authentik, you will get redirects (302).
+  # That's still "healthy" from an ingress standpoint.
+  #
+  - name: homepage-external
+    group: external
+    url: https://homepage.lab.mainertoo.com
+    interval: 1m
+    client:
+      # Keep this ONLY if you explicitly want to validate public DNS.
+      # If you’d rather follow in-cluster DNS behavior, remove the whole "client:" block.
+      dns-resolver: tcp://1.1.1.1:53
+    conditions:
+      - "[STATUS] < 400"
 
 alerting:
   discord:
