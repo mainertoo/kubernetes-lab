@@ -78,6 +78,9 @@ spec:
         enabled: true
         allow_sign_up: true
 
+        # THIS is required to allow Grafana to grant server-admin via OAuth:
+        allow_assign_grafana_admin: true
+
         client_id: "PGFpYVkcDaeM6OVsgGE9dCKjpIWU3mZYga3A7iYM"
         # Pull secret from env var set in grafana-secret (SOPS)
         client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
@@ -94,6 +97,9 @@ spec:
 
         # Map Authentik groups -> Grafana role
         role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+
+        # Server admin (super admin):
+        grafana_admin: contains(groups, 'Grafana Admins')
 
     datasources:
       datasources.yaml:
