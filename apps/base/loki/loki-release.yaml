@@ -1,0 +1,101 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: loki
+  namespace: loki
+spec:
+  interval: 1h
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    # Pick a pinned chart version you want; this is an example.
+    # If Flux complains, we’ll bump to what GHCR currently has available.
+    tag: 6.10.0
+  url: oci://ghcr.io/grafana/helm-charts/loki
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: loki
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: loki
+    namespace: loki
+
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  values:
+    deploymentMode: SingleBinary
+
+    loki:
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100
+
+      commonConfig:
+        replication_factor: 1
+
+      limits_config:
+        # 14 days
+        retention_period: 336h
+
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+        working_directory: /var/loki/compactor
+
+      schemaConfig:
+        configs:
+          - from: "2024-01-01"
+            store: boltdb-shipper
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: loki_index_
+              period: 24h
+
+      storage_config:
+        boltdb_shipper:
+          active_index_directory: /var/loki/index
+          cache_location: /var/loki/cache
+          shared_store: filesystem
+        filesystem:
+          directory: /var/loki/chunks
+
+    singleBinary:
+      replicas: 1
+
+      persistence:
+        enabled: true
+        storageClass: ceph-rbd
+        accessModes:
+          - ReadWriteOnce
+        size: 20Gi
+
+      # Good defaults for a homelab
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 2Gi
+
+    # Disable scalable pieces we are not using in SingleBinary mode
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
