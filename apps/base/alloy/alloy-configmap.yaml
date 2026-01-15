@@ -17,25 +17,36 @@ data:
     // Read pod logs from Kubernetes API
     loki.source.kubernetes "pod_logs" {
       targets    = discovery.kubernetes.pods.targets
-      forward_to = [loki.process.k8s.receiver]
+      forward_to = [loki.relabel.k8s.receiver]
     }
 
-    // Extract labels from the existing "instance" label:
+    // Create namespace/pod/container labels by parsing the existing "instance" label:
     // instance="namespace/pod:container"
-    loki.process "k8s" {
+    loki.relabel "k8s" {
       forward_to = [loki.write.default.receiver]
 
-      stage.regex {
-        source     = "instance"
-        expression = "^(?P<namespace>[^/]+)/(?P<pod>[^:]+):(?P<container>.+)$"
+      // namespace
+      rule {
+        source_labels = ["instance"]
+        regex         = "^([^/]+)/.+$"
+        target_label  = "namespace"
+        replacement   = "$1"
       }
 
-      stage.labels {
-        values = {
-          namespace = "namespace",
-          pod       = "pod",
-          container = "container",
-        }
+      // pod
+      rule {
+        source_labels = ["instance"]
+        regex         = "^[^/]+/([^:]+):.+$"
+        target_label  = "pod"
+        replacement   = "$1"
+      }
+
+      // container
+      rule {
+        source_labels = ["instance"]
+        regex         = "^[^/]+/[^:]+:(.+)$"
+        target_label  = "container"
+        replacement   = "$1"
       }
     }
 
