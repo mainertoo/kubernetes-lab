@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: alloy
-      version: "*"            # optionally pin later
+      version: "*"
       sourceRef:
         kind: HelmRepository
         name: grafana-charts
@@ -32,7 +32,6 @@ spec:
       create: true
       name: alloy
 
-    # Expose Alloy's UI/service inside cluster (and optionally via ingress)
     service:
       enabled: true
       port: 12345
@@ -58,37 +57,42 @@ spec:
         mountPath: /var/log/containers
         readOnly: true
 
-    configMap:
-      create: true
-      content: |
-        // Discover Kubernetes pods
-        discovery.kubernetes "pods" {
-          role = "pod"
-        }
+    # IMPORTANT: chart expects config under alloy.configMap (not top-level configMap)
+    alloy:
+      configMap:
+        create: true
+        content: |
+          discovery.kubernetes "pods" {
+            role = "pod"
+          }
 
-        // Read pod logs from this node and send into a processing pipeline
-        loki.source.kubernetes "pod_logs" {
-          targets    = discovery.kubernetes.pods.targets
-          forward_to = [loki.process.k8s.receiver]
-        }
+          loki.source.kubernetes "pod_logs" {
+            targets    = discovery.kubernetes.pods.targets
+            forward_to = [loki.process.k8s.receiver]
+          }
 
-        // Enrich labels + forward to Loki
-        loki.process "k8s" {
-          forward_to = [loki.write.default.receiver]
+          loki.process "k8s" {
+            forward_to = [loki.write.default.receiver]
 
-          stage.labels {
-            values = {
-              namespace = "namespace",
-              pod       = "pod",
-              container = "container",
-              node      = "node",
+            # Promote useful labels for querying
+            stage.labels {
+              values = {
+                namespace = "namespace",
+                pod       = "pod",
+                container = "container",
+                node      = "node",
+                job       = "job",
+              }
+            }
+
+            # Optional: drop Alloy’s own spam if you want later
+            # stage.drop {
+            #   expression = "namespace == \"alloy\""
+            # }
+          }
+
+          loki.write "default" {
+            endpoint {
+              url = "http://loki.loki.svc.cluster.local:3100/loki/api/v1/push"
             }
           }
-        }
-
-        // Push to Loki (cluster-internal)
-        loki.write "default" {
-          endpoint {
-            url = "http://loki.loki.svc.cluster.local:3100/loki/api/v1/push"
-          }
-        }
