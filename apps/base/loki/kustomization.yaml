@@ -4,3 +4,4 @@ resources:
   - loki-namespace.yaml
   - loki-helmrepository.yaml
   - loki-release.yaml
+  - loki-ingressroute.yaml
