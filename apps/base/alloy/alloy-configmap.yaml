@@ -56,12 +56,13 @@ data:
         target_label  = "app"
       }
 
-      // Optional: stable job label (namespace/container)
+      // Stable job label: namespace/container
       rule {
         source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
-        action        = "replace"
         target_label  = "job"
         separator     = "/"
+        action        = "replace"
+        regex         = "(.*)"
         replacement   = "$1"
       }
     }
