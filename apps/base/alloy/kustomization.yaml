@@ -4,4 +4,5 @@ resources:
   - alloy-namespace.yaml
   - alloy-configmap.yaml
   - alloy-release.yaml
+  - alloy-helmrepository.yaml
   # - alloy-ingressroute.yaml
