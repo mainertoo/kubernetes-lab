@@ -20,33 +20,28 @@ data:
       forward_to = [loki.relabel.k8s.receiver]
     }
 
-    // Create namespace/pod/container labels by parsing the existing "instance" label:
-    // instance="namespace/pod:container"
+    // Add Kubernetes labels from discovery meta labels (reliable)
     loki.relabel "k8s" {
       forward_to = [loki.write.default.receiver]
 
-      // namespace
       rule {
-        source_labels = ["instance"]
-        regex         = "^([^/]+)/.+$"
+        source_labels = ["__meta_kubernetes_namespace"]
         target_label  = "namespace"
-        replacement   = "$1"
       }
 
-      // pod
       rule {
-        source_labels = ["instance"]
-        regex         = "^[^/]+/([^:]+):.+$"
+        source_labels = ["__meta_kubernetes_pod_name"]
         target_label  = "pod"
-        replacement   = "$1"
       }
 
-      // container
       rule {
-        source_labels = ["instance"]
-        regex         = "^[^/]+/[^:]+:(.+)$"
+        source_labels = ["__meta_kubernetes_pod_container_name"]
         target_label  = "container"
-        replacement   = "$1"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_node_name"]
+        target_label  = "node"
       }
     }
 
