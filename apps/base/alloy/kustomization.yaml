@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - alloy-namespace.yaml
   - alloy-release.yaml
+  - alloy-ingressroute.yaml
   
