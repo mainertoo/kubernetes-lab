@@ -31,7 +31,6 @@ data:
           pod       = "pod",
           container = "container",
           node      = "node",
-          job       = "job",
         }
       }
     }
