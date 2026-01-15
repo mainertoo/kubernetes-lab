@@ -21,7 +21,7 @@ spec:
         - name: authentik-sso
           namespace: traefik-system
       services:
-        - name: loki
-          port: 3100
+        - name: loki-gateway
+          port: 80
           scheme: http
   tls: {}
