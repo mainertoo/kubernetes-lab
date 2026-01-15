@@ -4,24 +4,23 @@ metadata:
   name: alloy-config
   namespace: alloy
 data:
-  config.alloy: |
+  config.alloy: |-
     logging {
       level  = "info"
       format = "logfmt"
     }
 
-    // Discover Kubernetes pods
     discovery.kubernetes "pods" {
       role = "pod"
     }
 
-    // Read pod logs and send to processing pipeline
+    // Read pod logs from Kubernetes API
     loki.source.kubernetes "pod_logs" {
       targets    = discovery.kubernetes.pods.targets
       forward_to = [loki.process.k8s.receiver]
     }
 
-    // Enrich labels and forward to Loki
+    // Add useful labels + forward to Loki
     loki.process "k8s" {
       forward_to = [loki.write.default.receiver]
 

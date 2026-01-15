@@ -2,5 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - alloy-namespace.yaml
-  - alloy-helmrepository.yaml
-  - alloy-release.yaml
+  - alloy-rbac.yaml
+  - alloy-configmap.yaml
+  - alloy-daemonset.yaml
+  - alloy-service.yaml
