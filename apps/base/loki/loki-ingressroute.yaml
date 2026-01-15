@@ -11,9 +11,7 @@ metadata:
     gethomepage.dev/group: "Monitoring"
     gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/loki.svg"
 spec:
-  entryPoints:
-    - websecure
-    - web
+  entryPoints: [websecure, web]
   routes:
     - match: Host(`loki.lab.mainertoo.com`)
       kind: Rule
@@ -21,7 +19,7 @@ spec:
         - name: authentik-sso
           namespace: traefik-system
       services:
-        - name: loki-gateway
-          port: 80
+        - name: loki
+          port: 3100
           scheme: http
   tls: {}
