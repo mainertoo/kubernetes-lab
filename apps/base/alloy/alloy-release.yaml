@@ -36,6 +36,7 @@ spec:
       enabled: true
       port: 12345
 
+    # Keep your host log mounts
     mounts:
       varlog:
         enabled: true
@@ -49,6 +50,14 @@ spec:
         hostPath:
           path: /var/log/containers
 
+      # NEW: mount our configmap
+      - name: alloy-config
+        configMap:
+          name: alloy-config
+          items:
+            - key: config.alloy
+              path: config.alloy
+
     extraVolumeMounts:
       - name: varlogpods
         mountPath: /var/log/pods
@@ -57,42 +66,8 @@ spec:
         mountPath: /var/log/containers
         readOnly: true
 
-    # IMPORTANT: chart expects config under alloy.configMap (not top-level configMap)
-    alloy:
-      configMap:
-        create: true
-        content: |
-          discovery.kubernetes "pods" {
-            role = "pod"
-          }
-
-          loki.source.kubernetes "pod_logs" {
-            targets    = discovery.kubernetes.pods.targets
-            forward_to = [loki.process.k8s.receiver]
-          }
-
-          loki.process "k8s" {
-            forward_to = [loki.write.default.receiver]
-
-            # Promote useful labels for querying
-            stage.labels {
-              values = {
-                namespace = "namespace",
-                pod       = "pod",
-                container = "container",
-                node      = "node",
-                job       = "job",
-              }
-            }
-
-            # Optional: drop Alloy’s own spam if you want later
-            # stage.drop {
-            #   expression = "namespace == \"alloy\""
-            # }
-          }
-
-          loki.write "default" {
-            endpoint {
-              url = "http://loki.loki.svc.cluster.local:3100/loki/api/v1/push"
-            }
-          }
+      # NEW: overwrite the config Alloy is actually using
+      - name: alloy-config
+        mountPath: /etc/alloy/config.alloy
+        subPath: config.alloy
+        readOnly: true
