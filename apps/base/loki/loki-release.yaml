@@ -26,9 +26,14 @@ spec:
       retries: 3
 
   values:
-    # -----------------------------
-    # DEPLOYMENT MODE: SINGLE BINARY
-    # -----------------------------
+    # Force chart into SingleBinary mode (avoids microservices services like distributor/querier/etc)
+    deploymentMode: SingleBinary
+
+    # Turn off gateway while we’re single-binary (gateway templates often assume microservices wiring)
+    gateway:
+      enabled: false
+
+    # Explicitly disable scalable targets
     backend:
       replicas: 0
     read:
@@ -36,8 +41,8 @@ spec:
     write:
       replicas: 0
 
+    # SingleBinary Loki
     singleBinary:
-      enabled: true
       replicas: 1
       persistence:
         enabled: true
@@ -52,9 +57,6 @@ spec:
         limits:
           memory: 2Gi
 
-    # -----------------------------
-    # LOKI CONFIG (PVC filesystem backend)
-    # -----------------------------
     loki:
       auth_enabled: false
 
@@ -83,25 +85,6 @@ spec:
         ingestion_rate_mb: 16
         retention_period: 336h # 14 days
 
-    # -----------------------------
-    # GATEWAY (OPTIONAL)
-    # If enabled, make it point to single-binary, NOT microservices.
-    # -----------------------------
-    gateway:
-      enabled: true
-      # The chart supports different "mode" / backend wiring depending on version.
-      # The safest approach is to explicitly tell the gateway where to send traffic.
-      # These extraEnvVars are used by the nginx template in many chart versions.
-      extraEnvVars:
-        - name: LOKI_BACKEND
-          value: http://loki.loki.svc.cluster.local:3100
-      service:
-        type: ClusterIP
-        port: 80
-
-    # -----------------------------
-    # Monitoring
-    # -----------------------------
     monitoring:
       serviceMonitor:
         enabled: true
