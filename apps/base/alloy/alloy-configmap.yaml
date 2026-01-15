@@ -14,35 +14,40 @@ data:
       role = "pod"
     }
 
-    // Apply labels at the *target* stage (this is the key)
-    discovery.relabel "pod_logs" {
-      targets = discovery.kubernetes.pods.targets
-
-      rule {
-        source_labels = ["__meta_kubernetes_namespace"]
-        target_label  = "namespace"
-      }
-
-      rule {
-        source_labels = ["__meta_kubernetes_pod_name"]
-        target_label  = "pod"
-      }
-
-      rule {
-        source_labels = ["__meta_kubernetes_pod_container_name"]
-        target_label  = "container"
-      }
-
-      rule {
-        source_labels = ["__meta_kubernetes_pod_node_name"]
-        target_label  = "node"
-      }
+    // Read pod logs via Kubernetes API
+    loki.source.kubernetes "pod_logs" {
+      targets    = discovery.kubernetes.pods.targets
+      forward_to = [loki.relabel.k8s.receiver]
     }
 
-    // Read pod logs from Kubernetes API
-    loki.source.kubernetes "pod_logs" {
-      targets    = discovery.relabel.pod_logs.output
+    // Create namespace/pod/container labels by parsing:
+    // instance="namespace/pod:container"
+    loki.relabel "k8s" {
       forward_to = [loki.write.default.receiver]
+
+      // namespace
+      rule {
+        source_labels = ["instance"]
+        regex         = "^([^/]+)/.+$"
+        target_label  = "namespace"
+        replacement   = "$1"
+      }
+
+      // pod
+      rule {
+        source_labels = ["instance"]
+        regex         = "^[^/]+/([^:]+):.+$"
+        target_label  = "pod"
+        replacement   = "$1"
+      }
+
+      // container
+      rule {
+        source_labels = ["instance"]
+        regex         = "^[^/]+/[^:]+:(.+)$"
+        target_label  = "container"
+        replacement   = "$1"
+      }
     }
 
     // Push to Loki
