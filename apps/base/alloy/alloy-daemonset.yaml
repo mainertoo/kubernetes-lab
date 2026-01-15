@@ -15,44 +15,37 @@ spec:
         app.kubernetes.io/name: alloy
     spec:
       serviceAccountName: alloy
-      terminationGracePeriodSeconds: 30
+
       containers:
         - name: alloy
           image: grafana/alloy:latest
+          imagePullPolicy: IfNotPresent
+
           args:
             - run
-            - --server.http.listen-addr=0.0.0.0:12345
-            - --storage.path=/var/lib/alloy/data
             - /etc/alloy/config.alloy
+            - --server.http.listen-addr=0.0.0.0:12345
+
+          env:
+            # This is critical for the node selector in config.alloy
+            - name: ALLOY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
           ports:
             - name: http
               containerPort: 12345
+
           volumeMounts:
-            - name: config
+            - name: alloy-config
               mountPath: /etc/alloy
               readOnly: true
-            - name: data
-              mountPath: /var/lib/alloy
-            - name: varlogpods
-              mountPath: /var/log/pods
-              readOnly: true
-            - name: varlogcontainers
-              mountPath: /var/log/containers
-              readOnly: true
+
       volumes:
-        - name: config
+        - name: alloy-config
           configMap:
             name: alloy-config
             items:
               - key: config.alloy
                 path: config.alloy
-        - name: data
-          hostPath:
-            path: /var/lib/alloy
-            type: DirectoryOrCreate
-        - name: varlogpods
-          hostPath:
-            path: /var/log/pods
-        - name: varlogcontainers
-          hostPath:
-            path: /var/log/containers
