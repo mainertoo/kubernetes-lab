@@ -5,41 +5,61 @@ metadata:
   namespace: loki
 spec:
   interval: 1h
-
   chart:
     spec:
       chart: loki
-      # You can optionally pin a chart version here later:
-      # version: 6.10.0
+      interval: 1h
+      reconcileStrategy: ChartVersion
       sourceRef:
         kind: HelmRepository
         name: grafana-charts
         namespace: loki
-      interval: 1h
+      version: "*"
 
   install:
     remediation:
       retries: -1
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
 
   values:
+    # -----------------------------
+    # DEPLOYMENT MODE: SINGLE BINARY
+    # -----------------------------
+    backend:
+      replicas: 0
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+
+    singleBinary:
+      enabled: true
+      replicas: 1
+      persistence:
+        enabled: true
+        storageClass: ceph-rbd
+        accessModes:
+          - ReadWriteOnce
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+
+    # -----------------------------
+    # LOKI CONFIG (PVC filesystem backend)
+    # -----------------------------
     loki:
       auth_enabled: false
 
       commonConfig:
         replication_factor: 1
-
-      limits_config:
-        retention_period: 336h  # 14d
-        ingestion_rate_mb: 16
-        ingestion_burst_size_mb: 32
-
-      compactor:
-        retention_enabled: true
-        delete_request_store: filesystem
 
       schemaConfig:
         configs:
@@ -54,34 +74,34 @@ spec:
       storage:
         type: filesystem
 
-    singleBinary:
-      replicas: 1
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
 
-      persistence:
-        enabled: true
-        storageClass: ceph-rbd
-        accessModes:
-          - ReadWriteOnce
-        size: 20Gi
+      limits_config:
+        ingestion_burst_size_mb: 32
+        ingestion_rate_mb: 16
+        retention_period: 336h # 14 days
 
-      resources:
-        requests:
-          cpu: 200m
-          memory: 512Mi
-        limits:
-          memory: 2Gi
-
-    # Disable distributed mode components
-    read:
-      replicas: 0
-    write:
-      replicas: 0
-    backend:
-      replicas: 0
-
+    # -----------------------------
+    # GATEWAY (OPTIONAL)
+    # If enabled, make it point to single-binary, NOT microservices.
+    # -----------------------------
     gateway:
       enabled: true
+      # The chart supports different "mode" / backend wiring depending on version.
+      # The safest approach is to explicitly tell the gateway where to send traffic.
+      # These extraEnvVars are used by the nginx template in many chart versions.
+      extraEnvVars:
+        - name: LOKI_BACKEND
+          value: http://loki.loki.svc.cluster.local:3100
+      service:
+        type: ClusterIP
+        port: 80
 
+    # -----------------------------
+    # Monitoring
+    # -----------------------------
     monitoring:
       serviceMonitor:
         enabled: true
