@@ -50,7 +50,7 @@ spec:
         hostPath:
           path: /var/log/containers
 
-      # NEW: mount our configmap
+      # NEW: our config dir (this will replace /etc/alloy)
       - name: alloy-config
         configMap:
           name: alloy-config
@@ -66,8 +66,7 @@ spec:
         mountPath: /var/log/containers
         readOnly: true
 
-      # NEW: overwrite the config Alloy is actually using
+      # NEW: override the whole config directory
       - name: alloy-config
-        mountPath: /etc/alloy/config.alloy
-        subPath: config.alloy
+        mountPath: /etc/alloy
         readOnly: true
