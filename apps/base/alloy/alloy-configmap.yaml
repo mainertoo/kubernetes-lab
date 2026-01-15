@@ -14,15 +14,9 @@ data:
       role = "pod"
     }
 
-    // Read pod logs from Kubernetes API
-    loki.source.kubernetes "pod_logs" {
-      targets    = discovery.kubernetes.pods.targets
-      forward_to = [loki.relabel.k8s.receiver]
-    }
-
-    // Add Kubernetes labels from discovery meta labels (reliable)
-    loki.relabel "k8s" {
-      forward_to = [loki.write.default.receiver]
+    // Apply labels at the *target* stage (this is the key)
+    discovery.relabel "pod_logs" {
+      targets = discovery.kubernetes.pods.targets
 
       rule {
         source_labels = ["__meta_kubernetes_namespace"]
@@ -43,6 +37,12 @@ data:
         source_labels = ["__meta_kubernetes_pod_node_name"]
         target_label  = "node"
       }
+    }
+
+    // Read pod logs from Kubernetes API
+    loki.source.kubernetes "pod_logs" {
+      targets    = discovery.relabel.pod_logs.output
+      forward_to = [loki.write.default.receiver]
     }
 
     // Push to Loki
