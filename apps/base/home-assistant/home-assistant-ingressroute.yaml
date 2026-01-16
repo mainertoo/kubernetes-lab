@@ -4,48 +4,26 @@ metadata:
   name: home-assistant
   namespace: home-assistant
   annotations:
-    gethomepage.dev/href: "https://home-assistant.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://home-assistant.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "Home assistant"
+    gethomepage.dev/name: "Home Assistant"
     gethomepage.dev/description: "Self-hosted home automation"
-    gethomepage.dev/app: home-assistant
     gethomepage.dev/group: "Automation"
     gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/home-assistant.svg"
 spec:
-  entryPoints:
-    - web
-    - websecure    
+  entryPoints: [websecure, web]
   routes:
-    - match: Host(`home-assistant.hephaestus.markmk.com`) || Host(`ha.hephaestus.markmk.com`)
+    - match: Host(`home-assistant.lab.mainertoo.com`) || Host(`ha.lab.mainertoo.com`)
       kind: Rule
+
+      # If you want Authentik in front of HA, uncomment this.
+      # Note: HA already has its own auth; SSO via forward-auth is optional.
+      # middlewares:
+      #   - name: authentik-middleware
+      #     namespace: traefik
+
       services:
         - name: home-assistant
-          port: http
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: home-assistant-code
-  namespace: home-assistant
-  annotations:
-    gethomepage.dev/href: "https://home-assistant-code.hephaestus.markmk.com"
-    gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "VSCode - Home assistant"
-    gethomepage.dev/description: "Code server for Home assistant"
-    gethomepage.dev/app: home-assistant
-    gethomepage.dev/group: "Automation"
-    gethomepage.dev/icon: "https://code.visualstudio.com/assets/images/code-stable.png"
-spec:
-  entryPoints:
-    - web
-    - websecure    
-  routes:
-    - match: Host(`home-assistant-code.hephaestus.markmk.com`) || Host(`hacode.hephaestus.markmk.com`)
-      kind: Rule
-      services:
-        - name: home-assistant-code
-          port: http
-      middlewares:
-        - name: tinyauth
-          namespace: tinyauth
-
+          port: 8123
+          scheme: http
+  tls: {}

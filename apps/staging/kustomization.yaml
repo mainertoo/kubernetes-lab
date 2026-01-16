@@ -63,3 +63,6 @@ resources:
   - gatus/
   - loki/
   - alloy/
+
+  # home-automation
+  - home-assistant/

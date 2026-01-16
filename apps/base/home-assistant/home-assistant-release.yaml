@@ -1,88 +1,115 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: home-assistant
+  name: &app home-assistant
   namespace: home-assistant
 spec:
   releaseName: home-assistant
-  interval: 50m
+  interval: 30m
   chartRef:
     kind: OCIRepository
     name: app-template
     namespace: flux-system
+
   install:
+    createNamespace: true
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
-      strategy: rollback
       retries: 3
+
+  uninstall:
+    keepHistory: false
+
   values:
     controllers:
       home-assistant:
         containers:
-          home-assistant:
+          app:
             image:
-              repository: ghcr.io/home-operations/home-assistant
-              tag: 2025.10.4
-          code:
-            dependsOn: home-assistant
-            image:
-              repository: ghcr.io/coder/code-server
-              tag: 4.105.1
-            args:
-              - --auth
-              - "none"
-              - --user-data-dir
-              - "/config/.vscode"
-              - --extensions-dir
-              - "/config/.vscode"
-              - --port
-              - "8081"
-              - "/config"
+              # Official image/tag (Docker Hub)
+              repository: homeassistant/home-assistant
+              tag: 2025.12.1
+            env:
+              TZ: America/Los_Angeles
+
         initContainers:
-          ensure-config:
+          # Ensures HA trusts Traefik reverse-proxy headers (x-forwarded-for).
+          # Also creates configuration.yaml if it doesn't exist yet.
+          ensure-http-proxy:
             image:
               repository: busybox
-              tag: latest
+              tag: 1.36
             command:
               - /bin/sh
               - -c
               - |
+                set -eu
                 CONFIG_FILE="/config/configuration.yaml"
-                if ! grep -q "trusted_proxies" "$CONFIG_FILE"; then
-                  echo "Adding missing http settings..."
+
+                # Create file if missing
+                if [ ! -f "$CONFIG_FILE" ]; then
+                  echo "# created by gitops initContainer" > "$CONFIG_FILE"
+                fi
+
+                # Add http: block if missing
+                if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
                   echo "" >> "$CONFIG_FILE"
                   echo "http:" >> "$CONFIG_FILE"
                   echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
                   echo "  trusted_proxies:" >> "$CONFIG_FILE"
-                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"
+                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"  # k3s pod CIDR (common)
+                  echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"  # k3s service CIDR (common)
+                else
+                  # Ensure use_x_forwarded_for exists
+                  if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
+                    echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
+                  fi
+                  # Ensure trusted_proxies exists
+                  if ! grep -qE '^[[:space:]]*trusted_proxies:' "$CONFIG_FILE"; then
+                    echo "  trusted_proxies:" >> "$CONFIG_FILE"
+                    echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"
+                    echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"
+                  fi
                 fi
+
+          # Optional: Bootstrap HACS by downloading hacs.zip into /config/custom_components/hacs
+          # (You still complete setup in the HA UI after restart.)
+          # hacs-bootstrap:
+          #   image:
+          #     repository: alpine
+          #     tag: 3.20
+          #   command:
+          #     - /bin/sh
+          #     - -c
+          #     - |
+          #       set -eu
+          #       apk add --no-cache curl unzip
+          #       mkdir -p /config/custom_components
+          #       cd /config/custom_components
+          #       rm -rf hacs
+          #       mkdir -p hacs
+          #       curl -fsSL -o /tmp/hacs.zip https://github.com/hacs/integration/releases/latest/download/hacs.zip
+          #       unzip -o /tmp/hacs.zip -d hacs
+          #       echo "HACS extracted to /config/custom_components/hacs"
+
     service:
-      home-assistant:
+      app:
         controller: home-assistant
         type: ClusterIP
         ports:
           http:
             port: 8123
-      code:
-        type: ClusterIP
-        controller: home-assistant
-        ports:
-          http:
-            port: 8081
 
     persistence:
       config:
-        existingClaim: home-assistant
+        enabled: true
+        existingClaim: home-assistant-config
         globalMounts:
           - path: /config
 
     defaultPodOptions:
       automountServiceAccountToken: false
-      securityContext:
-        runAsUser: 568
-        runAsGroup: 568
-        fsGroup: 568
-        fsGroupChangePolicy: "OnRootMismatch"
