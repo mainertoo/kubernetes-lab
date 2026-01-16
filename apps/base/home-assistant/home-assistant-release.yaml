@@ -30,7 +30,6 @@ spec:
         containers:
           app:
             image:
-              # Official image/tag (Docker Hub)
               repository: homeassistant/home-assistant
               tag: 2025.12.1
             env:
@@ -39,6 +38,7 @@ spec:
         initContainers:
           # Ensures HA trusts Traefik reverse-proxy headers (x-forwarded-for).
           # Also creates configuration.yaml if it doesn't exist yet.
+          # Adds OIDC (hass-openid) config if missing.
           ensure-http-proxy:
             image:
               repository: busybox
@@ -61,8 +61,8 @@ spec:
                   echo "http:" >> "$CONFIG_FILE"
                   echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
                   echo "  trusted_proxies:" >> "$CONFIG_FILE"
-                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"  # k3s pod CIDR (common)
-                  echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"  # k3s service CIDR (common)
+                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"  # k3s pod CIDR
+                  echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"  # k3s service CIDR
                 else
                   # Ensure use_x_forwarded_for exists
                   if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
@@ -76,25 +76,19 @@ spec:
                   fi
                 fi
 
-          # Optional: Bootstrap HACS by downloading hacs.zip into /config/custom_components/hacs
-          # (You still complete setup in the HA UI after restart.)
-          # hacs-bootstrap:
-          #   image:
-          #     repository: alpine
-          #     tag: 3.20
-          #   command:
-          #     - /bin/sh
-          #     - -c
-          #     - |
-          #       set -eu
-          #       apk add --no-cache curl unzip
-          #       mkdir -p /config/custom_components
-          #       cd /config/custom_components
-          #       rm -rf hacs
-          #       mkdir -p hacs
-          #       curl -fsSL -o /tmp/hacs.zip https://github.com/hacs/integration/releases/latest/download/hacs.zip
-          #       unzip -o /tmp/hacs.zip -d hacs
-          #       echo "HACS extracted to /config/custom_components/hacs"
+                # Add openid: block (hass-openid) if missing
+                if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
+                  echo "" >> "$CONFIG_FILE"
+                  echo "openid:" >> "$CONFIG_FILE"
+                  echo "  client_id: !secret authentik_client_id" >> "$CONFIG_FILE"
+                  echo "  client_secret: !secret authentik_client_secret" >> "$CONFIG_FILE"
+                  echo "  configure_url: \"https://authentik.lab.mainertoo.com/application/o/home-assistant/.well-known/openid-configuration\"" >> "$CONFIG_FILE"
+                  echo "  scope: \"openid profile email\"" >> "$CONFIG_FILE"
+                  echo "  username_field: \"preferred_username\"" >> "$CONFIG_FILE"
+                  echo "  block_login: false" >> "$CONFIG_FILE"
+                  echo "  openid_text: \"Login with Authentik\"" >> "$CONFIG_FILE"
+                  echo "  create_user: true" >> "$CONFIG_FILE"
+                fi
 
     service:
       app:
@@ -110,6 +104,15 @@ spec:
         existingClaim: home-assistant-config
         globalMounts:
           - path: /config
+
+      # Mount secrets.yaml into /config/secrets.yaml
+      secrets:
+        type: secret
+        name: home-assistant-secret
+        globalMounts:
+          - path: /config/secrets.yaml
+            subPath: secrets.yaml
+            readOnly: true
 
     defaultPodOptions:
       automountServiceAccountToken: false
