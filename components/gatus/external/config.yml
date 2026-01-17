@@ -1,11 +1,10 @@
 endpoints:
   - name: "${APP}"
     group: external
-    url: "https://${APP}.hephaestus.markmk.com${GATUS_PATH:=/}"
+    url: "https://${SUBDOMAIN:=${APP}}.${EXTERNAL_DOMAIN:=lab.mainertoo.com}${GATUS_PATH:=/}"
     interval: 1m
-    client:
-      dns-resolver: tcp://1.1.1.1:53
     conditions:
-      - "[STATUS] == ${GATUS_STATUS_EXTERNAL:=200}"
+      # If Authentik protects the endpoint, you may see 302. This allows both.
+      - "[STATUS] < 400"
     alerts:
       - type: discord

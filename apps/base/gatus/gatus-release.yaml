@@ -54,6 +54,12 @@ spec:
               GATUS_CONFIG_PATH: /config
               GATUS_DELAY_START_SECONDS: 5
               WEB_PORT: &port 80
+
+            # ✅ this is the missing piece
+            envFrom:
+              - secretRef:
+                  name: gatus-secrets
+
             probes:
               liveness: &probes
                 enabled: true
