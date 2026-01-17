@@ -1,57 +1,73 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app mosquitto
+  name: mosquitto
+  namespace: mosquitto
 spec:
   interval: 30m
   chartRef:
     kind: OCIRepository
     name: app-template
     namespace: flux-system
-  maxHistory: 2
+
   install:
     createNamespace: true
     remediation:
       retries: 3
+
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
+
   values:
     controllers:
       mosquitto:
         initContainers:
-          init-config:
+          init-auth:
             image:
-              repository: public.ecr.aws/docker/library/eclipse-mosquitto
+              repository: eclipse-mosquitto
               tag: 2.0.22
+            envFrom:
+              - secretRef:
+                  name: mosquitto
             command: ["/bin/sh", "-c"]
-            args: ["cp /tmp/secret/* /mosquitto/external_config/ && chmod 0700 /mosquitto/external_config/mosquitto_pwd && mosquitto_passwd -U /mosquitto/external_config/mosquitto_pwd"]      
+            args:
+              - |
+                set -eu
+                umask 077
+                mkdir -p /mosquitto/external_config
+                # Create/overwrite password file from secret env vars
+                mosquitto_passwd -c -b /mosquitto/external_config/mosquitto_pwd "${MQTT_USERNAME}" "${MQTT_PASSWORD}"
+                chmod 0600 /mosquitto/external_config/mosquitto_pwd
+
         containers:
           app:
             image:
-              repository: public.ecr.aws/docker/library/eclipse-mosquitto
+              repository: eclipse-mosquitto
               tag: 2.0.22
+            env:
+              TZ: America/Los_Angeles
+
     service:
       app:
         controller: mosquitto
         ports:
-          http:
-            port: &port 1883
+          mqtt:
+            port: 1883
 
-    defaultPodOptions:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
-        
     persistence:
       data:
-        existingClaim: *app
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-rbd
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        globalMounts:
+          - path: /mosquitto/data
 
       config-file:
         type: configMap
@@ -62,15 +78,19 @@ spec:
               - path: /mosquitto/config/mosquitto.conf
                 subPath: mosquitto.conf
 
-      secret-file:
-        type: secret
-        name: mosquitto
-        advancedMounts:
-          mosquitto:
-            init-config:
-              - path: /tmp/secret
-
       external-config:
         type: emptyDir
-        globalMounts:
-          - path: /mosquitto/external_config
+        advancedMounts:
+          mosquitto:
+            app:
+              - path: /mosquitto/external_config
+            init-auth:
+              - path: /mosquitto/external_config
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1883
+        runAsGroup: 1883
+        fsGroup: 1883
+        fsGroupChangePolicy: OnRootMismatch
