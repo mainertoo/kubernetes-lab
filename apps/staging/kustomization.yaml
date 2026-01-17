@@ -21,7 +21,7 @@ resources:
   - grocy/
   - stirling-pdf/
   - bentopdf/
-  - audiobookshelf/
+  # - audiobookshelf/
   - code-server/
   - it-tools/
   - omni-tools/
