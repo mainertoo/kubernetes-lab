@@ -45,18 +45,15 @@ spec:
 
     cleanPrometheusOperatorObjectNames: true
 
-    # ✅ KEY FIX: create default Grafana dashboards as ConfigMaps,
-    # even though we're NOT deploying the grafana subchart.
+    # Create default Grafana dashboards as ConfigMaps, even though we are NOT deploying grafana subchart.
     grafana:
       enabled: false
       forceDeployDashboards: true
       defaultDashboardsEnabled: true
-      # These labels are what your Grafana sidecar will watch for:
       sidecar:
         dashboards:
           label: grafana_dashboard
           labelValue: "1"
-          # Optional: allow dashboards to specify folder via annotation
           folderAnnotation: grafana_folder
 
     alertmanager:
