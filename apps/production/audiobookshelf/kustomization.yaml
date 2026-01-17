@@ -20,7 +20,7 @@ spec:
   postBuild:
     substitute:
       APP: *app
-      APP_NAMESPACE: audiobookshelf
+      APP_NAMESPACE: media
 
       # External hostname: https://audiobookshelf.lab.mainertoo.com
       SUBDOMAIN: *app
@@ -37,6 +37,6 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: audiobookshelf
+  targetNamespace: media
   timeout: 5m
   wait: false
