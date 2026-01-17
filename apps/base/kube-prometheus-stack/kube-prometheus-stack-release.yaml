@@ -33,13 +33,19 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
+
   values:
     crds:
       enabled: true
       upgradeJob:
         enabled: true
         forceConflicts: true
+
     cleanPrometheusOperatorObjectNames: true
+
+    # ✅ Enable the built-in Prometheus rules (and their associated dashboards)
+    defaultRules:
+      create: true
 
     alertmanager:
       alertmanagerSpec:
@@ -96,14 +102,27 @@ spec:
     kubeProxy:
       enabled: false
 
+    kubeControllerManager:
+      enabled: false
+
     nodeExporter:
       enabled: true
 
     kubeStateMetrics:
       enabled: true
 
+    # Keep bundled Grafana off (you have your own)
     grafana:
       enabled: false
+
+    # ✅ The missing piece: create Grafana dashboard ConfigMaps with the label your Grafana sidecar watches
+    # This makes dashboards appear in your Grafana *without* enabling the chart's Grafana.
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      annotations:
+        grafana_folder: "Kubernetes"
 
     prometheus:
       prometheusSpec:

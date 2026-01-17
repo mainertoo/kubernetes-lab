@@ -4,22 +4,22 @@ metadata:
   name: zigbee2mqtt-ingressroute
   namespace: zigbee2mqtt
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=zigbee2mqtt}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://zigbee2mqtt.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "zigbee2mqtt"
-    gethomepage.dev/description: "Zigbee to MQTT bridge."
-    gethomepage.dev/app: zigbee2mqtt
+    gethomepage.dev/name: "Zigbee2MQTT"
+    gethomepage.dev/description: "Zigbee to MQTT bridge"
     gethomepage.dev/group: "Automation"
     gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/zigbee2mqtt.svg"
 spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`${SUBDOMAIN:=zigbee2mqtt}.hephaestus.markmk.com`)
+    - match: Host(`zigbee2mqtt.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: zigbee2mqtt
           port: 80
       middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+        - name: authentik-sso
+          namespace: traefik-system
+  tls: {}
