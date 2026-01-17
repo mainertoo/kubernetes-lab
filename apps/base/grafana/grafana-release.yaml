@@ -90,27 +90,6 @@ spec:
         groups_attribute_path: groups
         role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
 
-    # 🔥 Key change: enable sidecar import of dashboards/datasources from labeled ConfigMaps/Secrets
-    sidecar:
-      dashboards:
-        enabled: true
-        # kube-prometheus-stack typically uses this label when enabled
-        label: grafana_dashboard
-        labelValue: "1"
-        # import from ALL namespaces so dashboards from kube-prometheus-stack namespace are discovered
-        searchNamespace: ALL
-        # if a dashboard CM has annotation grafana_folder, it will be placed into that folder
-        folderAnnotation: grafana_folder
-        # if folder annotation missing, this is the default folder name
-        defaultFolderName: "Kubernetes"
-        # allow UI edits without being overwritten constantly
-        allowUiUpdates: true
-      datasources:
-        enabled: true
-        label: grafana_datasource
-        labelValue: "1"
-        searchNamespace: ALL
-
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -143,7 +122,28 @@ spec:
             jsonData:
               maxLines: 2000
 
-    # Keep your existing "download dashboards" mechanism too (optional, but harmless)
+    # ✅ KEY FIX: make grafana sidecar watch for kube-prometheus dashboards
+    rbac:
+      create: true
+      # needs cluster-wide list/watch when searchNamespace=ALL
+      namespaced: false
+
+    serviceAccount:
+      create: true
+      name: grafana
+
+    sidecar:
+      dashboards:
+        enabled: true
+        # watch ALL namespaces for configmaps labeled grafana_dashboard=1
+        searchNamespace: ALL
+        label: grafana_dashboard
+        labelValue: "1"
+        folderAnnotation: grafana_folder
+      datasources:
+        enabled: false
+
+    # Keep your existing "download dashboards from Grafana.com" if you want
     dashboards:
       default:
         volsync:
