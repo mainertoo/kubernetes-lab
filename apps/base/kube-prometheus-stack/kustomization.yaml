@@ -3,5 +3,7 @@ kind: Kustomization
 resources:
   - kube-prometheus-stack-namespace.yaml
   - alertmanager-secret.sops.yaml
+  - discord-webhook-secret.sops.yaml
+  - alertmanager-discord-bridge.yaml
   - kube-prometheus-stack-ingressroute.yaml
   - kube-prometheus-stack-release.yaml
