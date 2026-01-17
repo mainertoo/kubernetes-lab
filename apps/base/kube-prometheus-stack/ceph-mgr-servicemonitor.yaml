@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-mgr-metrics
+  namespace: kube-prometheus-stack
+  labels:
+    app: ceph-mgr-metrics
+spec:
+  ports:
+    - name: http-metrics
+      port: 9283
+      targetPort: 9283
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: ceph-mgr-metrics
+  namespace: kube-prometheus-stack
+  labels:
+    app: ceph-mgr-metrics
+subsets:
+  - addresses:
+      # NOTE: These MUST be Ceph MGR nodes exposing Prometheus metrics on :9283.
+      - ip: 192.168.99.12
+      - ip: 192.168.99.13
+    ports:
+      - name: http-metrics
+        port: 9283
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ceph-mgr-metrics
+  namespace: kube-prometheus-stack
+  labels:
+    app: ceph-mgr-metrics
+spec:
+  selector:
+    matchLabels:
+      app: ceph-mgr-metrics
+  namespaceSelector:
+    matchNames:
+      - kube-prometheus-stack
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

@@ -1,0 +1,77 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ceph-health
+  namespace: kube-prometheus-stack
+  labels:
+    app: ceph-health
+spec:
+  groups:
+    - name: ceph.health
+      rules:
+        # Ceph overall health: 0=OK, 1=WARN, 2=ERR
+        - alert: CephHealthError
+          expr: ceph_health_status == 2
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph HEALTH_ERR"
+            description: "Ceph cluster health is HEALTH_ERR for 5m."
+
+        - alert: CephHealthWarn
+          expr: ceph_health_status == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph HEALTH_WARN"
+            description: "Ceph cluster health is HEALTH_WARN for 15m."
+
+        # OSD availability (cluster-wide)
+        - alert: CephOSDsDown
+          expr: (sum(ceph_osd_up) < sum(ceph_osd_in))
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "One or more Ceph OSDs are down"
+            description: "ceph_osd_up is lower than ceph_osd_in for 10m."
+
+        # Placement groups degraded / inactive
+        - alert: CephPGsDegraded
+          expr: ceph_pg_degraded > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph PGs degraded"
+            description: "There are degraded placement groups for 10m."
+
+        - alert: CephPGsInactive
+          expr: ceph_pg_inactive > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph PGs inactive"
+            description: "There are inactive placement groups for 5m."
+
+        # Capacity
+        - alert: CephClusterNearFull
+          expr: (ceph_cluster_total_bytes - ceph_cluster_total_used_bytes) / ceph_cluster_total_bytes < 0.15
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph cluster <15% free"
+            description: "Ceph cluster remaining capacity is under 15% for 30m."
+
+        - alert: CephClusterVeryLowFree
+          expr: (ceph_cluster_total_bytes - ceph_cluster_total_used_bytes) / ceph_cluster_total_bytes < 0.05
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph cluster <5% free"
+            description: "Ceph cluster remaining capacity is under 5% for 15m."

@@ -7,3 +7,7 @@ resources:
   - alertmanager-discord-bridge.yaml
   - kube-prometheus-stack-ingressroute.yaml
   - kube-prometheus-stack-release.yaml
+
+  # Ceph metrics + alerts
+  - ceph-mgr-servicemonitor.yaml
+  - ceph-health-prometheusrule.yaml
