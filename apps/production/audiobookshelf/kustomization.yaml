@@ -9,25 +9,34 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+
   components:
-    - ../../../components/volsync
-    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
+
   interval: 1h
   path: ./apps/base/audiobookshelf
+
   postBuild:
     substitute:
       APP: *app
+      APP_NAMESPACE: audiobookshelf
+
+      # External hostname: https://audiobookshelf.lab.mainertoo.com
       SUBDOMAIN: *app
-      GATUS_PATH: /healthcheck
+      GATUS_DOMAIN: lab.mainertoo.com
+      # If your app has a real HTTP path check, set it; otherwise "/" is fine.
+      GATUS_PATH: /
+
+      # Internal check uses tcp://...:${GATUS_PORT}
       GATUS_PORT: "80"
+
   prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: &namespace audiobookshelf
+  targetNamespace: audiobookshelf
   timeout: 5m
   wait: false

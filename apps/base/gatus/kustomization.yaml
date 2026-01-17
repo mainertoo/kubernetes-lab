@@ -13,6 +13,9 @@ configMapGenerator:
   - name: gatus-configmap
     files:
       - config.yaml=./gatus-config.yaml
+    options:
+      labels:
+        app.kubernetes.io/name: gatus
 
 generatorOptions:
   disableNameSuffixHash: true

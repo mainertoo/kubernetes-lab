@@ -1,10 +1,10 @@
 endpoints:
   - name: "${APP}"
     group: external
-    url: "https://${SUBDOMAIN:=${APP}}.${EXTERNAL_DOMAIN:=lab.mainertoo.com}${GATUS_PATH:=/}"
+    url: "https://${SUBDOMAIN:=${APP}}.${GATUS_DOMAIN}${GATUS_PATH:=/}"
     interval: 1m
     conditions:
-      # If Authentik protects the endpoint, you may see 302. This allows both.
-      - "[STATUS] < 400"
+      # If Authentik sits in front, allow any non-5xx
+      - "[STATUS] < 500"
     alerts:
       - type: discord

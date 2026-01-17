@@ -5,3 +5,7 @@ resources:
   - infrastructure.yaml
   - apps.yaml
   - infra-repositories.yaml
+
+  # ✅ add production overlays (same cluster)
+  - infra-secrets-prod.yaml
+  - apps-production.yaml
