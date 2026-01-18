@@ -1,0 +1,7 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: cephfs-snapclass
+driver: cephfs.csi.ceph.com
+deletionPolicy: Delete
+parameters: {}
