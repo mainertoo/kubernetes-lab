@@ -8,6 +8,7 @@ resources:
   - gatus-pvc.yaml
   - gatus-release.yaml
   - gatus-secret.sops.yaml
+  - gatus-servicemonitor.yaml
 
 configMapGenerator:
   - name: gatus-configmap
