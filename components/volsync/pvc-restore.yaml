@@ -5,12 +5,16 @@ metadata:
   name: "${APP}"
 spec:
   accessModes:
-    - ReadWriteOnce
+    - "${VOLSYNC_ACCESSMODE:=ReadWriteOnce}"
+
   dataSourceRef:
     apiGroup: volsync.backube
     kind: ReplicationDestination
     name: "${APP}-bootstrap"
+
   resources:
     requests:
-      storage: ${CAPACITY:=1Gi}
-  storageClassName: local-hostpath
+      storage: "${CAPACITY:=1Gi}"
+
+  # Your default for most app PVCs on Ceph should be RBD unless you explicitly need RWX.
+  storageClassName: "${APP_STORAGECLASS:=ceph-rbd}"
