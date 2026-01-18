@@ -4,4 +4,6 @@ metadata:
   name: cephfs-snapclass
 driver: cephfs.csi.ceph.com
 deletionPolicy: Delete
-parameters: {}
+parameters:
+  csi.storage.k8s.io/snapshotter-secret-name: cephfs-secret
+  csi.storage.k8s.io/snapshotter-secret-namespace: ceph-csi
