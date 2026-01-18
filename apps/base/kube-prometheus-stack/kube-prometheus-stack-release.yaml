@@ -126,6 +126,13 @@ spec:
         scrapeConfigSelectorNilUsesHelmValues: false
         serviceMonitorSelectorNilUsesHelmValues: false
 
+        # IMPORTANT: Let Prometheus discover ServiceMonitors we label for this stack.
+        serviceMonitorSelector:
+          matchLabels:
+            release: kube-prometheus-stack
+        # Allow discovering ServiceMonitors outside kube-prometheus-stack namespace too.
+        serviceMonitorNamespaceSelector: {}
+
         enableAdminAPI: true
         walCompression: true
         enableFeatures:

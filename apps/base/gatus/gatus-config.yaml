@@ -25,8 +25,6 @@ endpoints:
     group: external
     url: https://homepage.lab.mainertoo.com
     interval: 1m
-    # IMPORTANT: do NOT set a custom dns-resolver here.
-    # Let the pod use cluster DNS (CoreDNS), which should resolve to your Traefik LB IP.
     conditions:
       - "[STATUS] < 400"
 
@@ -62,6 +60,22 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
+  # ---------- Audiobookshelf ----------
+  # (If you already have these entries elsewhere, keep whichever you prefer)
+  - name: audiobookshelf
+    group: external
+    url: https://audiobookshelf.lab.mainertoo.com
+    interval: 1m
+    conditions:
+      - "[STATUS] < 400"
+
+  - name: audiobookshelf
+    group: internal
+    url: http://audiobookshelf.media.svc.cluster.local
+    interval: 30s
+    conditions:
+      - "[STATUS] < 400"
+
 alerting:
   discord:
     title: Gatus
@@ -71,3 +85,13 @@ alerting:
       send-on-resolved: true
       failure-threshold: 5
       success-threshold: 2
+
+  alertmanager:
+    url: http://kube-prometheus-stack-alertmanager.kube-prometheus-stack.svc.cluster.local:9093
+    default-alert:
+      send-on-resolved: true
+      failure-threshold: 5
+      success-threshold: 2
+      labels:
+        severity: warning
+        source: gatus
