@@ -5,5 +5,9 @@ metadata:
 driver: cephfs.csi.ceph.com
 deletionPolicy: Delete
 parameters:
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+  fsName: k3s-fs
+
+  # Snapshotter auth (must be set on SnapshotClass)
   csi.storage.k8s.io/snapshotter-secret-name: cephfs-secret
   csi.storage.k8s.io/snapshotter-secret-namespace: ceph-csi
