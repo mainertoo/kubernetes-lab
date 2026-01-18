@@ -7,5 +7,9 @@ metadata:
 driver: rbd.csi.ceph.com
 deletionPolicy: Delete
 parameters:
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+  pool: k3s-rbd
+
+  # Snapshotter auth (must be set on SnapshotClass)
   csi.storage.k8s.io/snapshotter-secret-name: ceph-rbd-secret
   csi.storage.k8s.io/snapshotter-secret-namespace: kube-system
