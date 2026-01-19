@@ -11,6 +11,8 @@ spec:
       app.kubernetes.io/name: *app
 
   components:
+    - ../../../components/volsync
+    - ../../../components/volsync/local
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
@@ -18,18 +20,25 @@ spec:
   path: ./apps/base/audiobookshelf
 
   postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage
+
     substitute:
       APP: *app
       APP_NAMESPACE: media
 
-      # External hostname: https://audiobookshelf.lab.mainertoo.com
       SUBDOMAIN: *app
       GATUS_DOMAIN: lab.mainertoo.com
-      # If your app has a real HTTP path check, set it; otherwise "/" is fine.
       GATUS_PATH: /
-
-      # Internal check uses tcp://...:${GATUS_PORT}
       GATUS_PORT: "80"
+
+      # VolSync defaults for Ceph RBD
+      APP_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_SCHEDULE: "05 00/12 * * *"
+      CAPACITY: "10Gi"
 
   prune: true
   retryInterval: 2m

@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: volsync-garage
+    namespace: flux-system
+type: Opaque
+stringData:
+    #ENC[AES256_GCM,data:fvmDVf4ghJzhenGRSpb69SHtyppUF9vriTX17HOmQ4K39qdz6VUpMf2pYLTYFcVsuOtdUDgU0KlHR4ZdHsJtlBzY4Q==,iv:ZN3sb2UD5CuObe+FBBzl9ys8udldyj1ewTBHz09Go/k=,tag:xDzOGaRkZlFYQZMOBVwatQ==,type:comment]
+    VOLSYNC_GARAGE_ENDPOINT: ENC[AES256_GCM,data:oF6zOOXIqnqwDFFLNJSX1NGYVqLehOLSdTQEsjebjLs=,iv:Fpxbfbz+MUSOi94/p8gw9VdHwYjuTD0MvJTpc9c0lvc=,tag:krCelXYUcRma+H6v9367sw==,type:str]
+    #ENC[AES256_GCM,data:I5t8YeaxPRekmULL3sGN+gXdvnnAxNHJuFRNrDMapB2JpixHfO1n/OznPlI8sQ==,iv:5YpPWA4Q+KGhL2YwKz+y3LbEE1j6TRvTIZRP7a3g+ts=,tag:AMCbnc9wE3x34aW2WfVumA==,type:comment]
+    #ENC[AES256_GCM,data:zaoODp7E82NN+2K9aB5sNkvsIRCMqse7hk5BoLQFq2jcDwvu/TduP+A=,iv:MPxdouo1ohJbWJIOip7D6/hfgSe8HynNugLuZ7uEtIU=,tag:fDW7wsvPRs+zSx3FBa8vxw==,type:comment]
+    VOLSYNC_GARAGE_BUCKET: ENC[AES256_GCM,data:fyYv8+gtWA==,iv:pNiFil68A+bBYZBKFN0J9e6PHH95tUDh9HqufWtVArE=,tag:PPWaGRwiCrNaYdSFwdOB+Q==,type:str]
+    #ENC[AES256_GCM,data:MPxp2iasnFkjnfEs71BpzoUfDJL45c5J,iv:G7iUP6rPLvmIoDWxVIq16QNCdsfBP8qcFFC0Rbox7Gk=,tag:SfPXrRN6V08kWnIZGMyKZA==,type:comment]
+    VOLSYNC_GARAGE_ACCESS_KEY_ID: ENC[AES256_GCM,data:sT13/6OFKArM3DQ66LFhpWOIaAtBwr2IY8E=,iv:GvIzjCJJDOLeKPRpCi+jgMHJss1t9iSkvgJkDDFwg8o=,tag:Y8rC4xVJKs0DI2gBnQKeLQ==,type:str]
+    VOLSYNC_GARAGE_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:UAmFXg7wZtRLGZJz8BZA3M5xaAKheQGtZEWw72iVcyrVnRlrZmDpBI5C/OCiitTFkwn/6y3maIJiRGKXCFzBig==,iv:Bgo0sGcLWnVM7rCPl8Fv6dQvC94oIJCGSQ+ifGWDt9I=,tag:TFfKLZH96X7IgPiUGLsHjA==,type:str]
+    #ENC[AES256_GCM,data:rESz6LFI6b3RdCQKPZxrbJebj9g8+TZGhJUvfuarvsFgmvVfQ/VH6YcnCQ6a43pEA5I4qVyPKvrFBN8a53l4WrMmJaVfCMWRKBPluRTNz2RSsQVz,iv:8AB6Mhp7zK6bPUtse/ixz9/SS808R4d8zfbbOQo31rM=,tag:vSxKzTxu4T59GnWVDEHrMw==,type:comment]
+    VOLSYNC_RESTIC_PASSWORD: ENC[AES256_GCM,data:exi0qORtyCw=,iv:9Skwf4arT+8Kw7DiWcORuuaEYrelsup2l6BfnSfPldE=,tag:BKq3OO7qyqykXOmrySFRUg==,type:str]
+    #ENC[AES256_GCM,data:NFuwR4I/6xMA,iv:5RD7zM2PaOK8L1mwLzkRTrDJZWNxFJ+HrZJDhSLeE0k=,tag:5fo0sq3znUzsm3b9/OMP0Q==,type:comment]
+    VOLSYNC_S3_REGION: ENC[AES256_GCM,data:lZwlIGaEhwXX,iv:YM1qJrXdHxMm7c/HC3A1cgVq7CYvm/TAr0g/2fUZqpk=,tag:r9rMIvy8+V0AxEmLJh/VuA==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBjRlVrOFZWeERJaEFiRHh5
+            TmZja0IvaGEzTkJFSys0ZUREWWtrNFc0Z0VBCmZTUi9DUUkxZVVRbEl3azJCWURI
+            dlZYaGhhYzJaRHlVUUdET3dMZ1gvamcKLS0tIGJIcTBjY0dNdGV1U3dSRjJNRnpm
+            UW1NMlJWZ0JVelNla3d5ajhYcFpqcnMKwKQ6r6tlEOPb6M7qiYWa5Tb8aGmx8S6O
+            3McvhmRkupEpEKix5gVyn+s1uH4Jaumj9H/TekNW/fRGGWkf9dnLZQ==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-01-19T05:48:53Z"
+    mac: ENC[AES256_GCM,data:lEXaUikyiJc/C/sjl0gThHhhZ/jTo0bnOupPdvav5HV9sU31FlsLUXSNs25KzwSNbwv13aprgLWo0DFJSGVamBM7+v6AAEUAyNHmAoIkB0Nhh+mDaX9WYW5+pPgsmO34pGDEQBNfMWeiKBAt/LLK9kF3aq4OsKF/lca7OOfky7M=,iv:Lu2XAlrUw8HMlX5l/ArV9yNdd6tU3x/ixCDxdQ/frMc=,tag:Msh02E9omL8MsUjGTPsvkw==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

@@ -1,4 +1,3 @@
----
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
@@ -6,23 +5,19 @@ metadata:
 spec:
   sourcePVC: "${APP}"
   trigger:
-    schedule: "05 00/12 * * *"
+    schedule: "${VOLSYNC_SCHEDULE:=05 00/12 * * *}"
   restic:
-    copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
-    pruneIntervalDays: 14
     repository: "${APP}-volsync"
+    copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
+    pruneIntervalDays: ${VOLSYNC_PRUNE_DAYS:=14}
 
-    # ✅ Your cluster snapshot class
+    # Use the right snapshotclass for the app’s storage (default RBD)
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
 
-    # mover working storage (tmp/cache)
+    # working/cache PVC for mover jobs
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
     cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
-
-    # mover destination PVC storage class (only used for some methods; safe to set)
-    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
 
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:=1000}
