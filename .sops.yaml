@@ -13,8 +13,14 @@ creation_rules:
     age:
       - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
 
-  # 🔹 NEW: encrypt any *.sops.yaml / *.sops.yml under apps/{base,staging,production}/
+  # Encrypt any *.sops.yaml / *.sops.yml under apps/{base,staging,production}/
   - path_regex: ^apps/(base|staging|production)/.*/.+\.sops\.ya?ml$
+    encrypted_regex: '^(data|stringData)$'
+    age:
+      - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
+
+# 🔹 NEW: encrypt any *.sops.yaml / *.sops.yml under components/
+  - path_regex: ^components/.+\.sops\.ya?ml$
     encrypted_regex: '^(data|stringData)$'
     age:
       - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
