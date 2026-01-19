@@ -10,6 +10,7 @@ spec:
     repository: "${APP}-volsync-remote"
     copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
     pruneIntervalDays: ${VOLSYNC_PRUNE_DAYS:=14}
+
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
 
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
@@ -22,4 +23,4 @@ spec:
       fsGroup: ${VOLSYNC_PGID:=1000}
 
     retain:
-      daily: ${VOLSYNC_REMOTE_RETAIN_DAILY:=7}
+      daily: 7

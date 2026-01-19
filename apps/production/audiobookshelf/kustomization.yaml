@@ -6,6 +6,10 @@ metadata:
   name: &app audiobookshelf
   namespace: flux-system
 spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+
   components:
     - ../../../components/volsync
     - ../../../components/volsync/remote
