@@ -1,53 +1,50 @@
 ---
-# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app audiobookshelf
+  name: audiobookshelf
   namespace: flux-system
 spec:
   interval: 1h
   path: ./apps/base/audiobookshelf
   targetNamespace: media
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
   components:
-    # IMPORTANT: use the "local" component so we DON'T try to create the app PVC yet
-    - ../../../components/volsync/local
-    # - ../../../components/volsync/remote
+    - ../../../components/volsync        # backup only (restore is NOT included)
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
   postBuild:
     substitute:
-      APP: *app
+      APP: audiobookshelf
       APP_NAMESPACE: media
 
-      # ---- CephFS (current PVC) ----
+      # CephFS app PVC
       APP_STORAGECLASS: cephfs
       CAPACITY: 100Gi
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-
-      # CephFS is RWX
       VOLSYNC_ACCESSMODE: ReadWriteMany
       VOLSYNC_ACCESSMODES: ReadWriteMany
 
-      # Cache PVCs can remain on RBD (recommended)
+      # Cache PVC stays RBD
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
 
-      # ---- Gatus ----
-      SUBDOMAIN: *app
+      # Gatus
+      SUBDOMAIN: audiobookshelf
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "80"
 
-  prune: true
-  retryInterval: 2m
-  timeout: 5m
-  wait: false
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage

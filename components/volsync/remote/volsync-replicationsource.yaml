@@ -1,7 +1,7 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: "${APP}-remote"
+  name: "${APP}-backup"
 spec:
   sourcePVC: "${APP}"
   trigger:
@@ -23,4 +23,7 @@ spec:
       fsGroup: ${VOLSYNC_PGID:=1000}
 
     retain:
+      hourly: 24
       daily: 7
+      weekly: 5
+      monthly: 3
