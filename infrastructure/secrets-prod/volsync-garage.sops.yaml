@@ -5,7 +5,8 @@ metadata:
     namespace: flux-system
 type: Opaque
 stringData:
-    VOLSYNC_GARAGE_ENDPOINT: ENC[AES256_GCM,data:mlIEEcSyHh6ITf0ijW/UProXH9WO61YHZg==,iv:Ijfg6Hhwb0+g4uNt2dJJJUfVxiGbZcnCyIg5Yd6zU30=,tag:gDW+Cn4Xg4qa71kYcL4w+g==,type:str]
+    #ENC[AES256_GCM,data:ctyoH8oQoBjjvqGpAgzKhrFxy3o4sXhPF2U=,iv:nhzPu6lFbpIT+F8QxOhbP64UXztPxc1dSCq517OazeU=,tag:ZB83vj7DAU6t3ooqBYggXQ==,type:comment]
+    VOLSYNC_GARAGE_ENDPOINT: ENC[AES256_GCM,data:u1rcQAcfxRoFrNhNCSv+DMC7nifbfyXun18XS+F+kfU=,iv:uAPbtp0SLt3blwMEYo7BVwFQFm0PMyXZw0olN8gFR1o=,tag:9XFuD1yeeShaj5xJpTvhpw==,type:str]
     VOLSYNC_GARAGE_BUCKET: ENC[AES256_GCM,data:fyYv8+gtWA==,iv:pNiFil68A+bBYZBKFN0J9e6PHH95tUDh9HqufWtVArE=,tag:PPWaGRwiCrNaYdSFwdOB+Q==,type:str]
     VOLSYNC_GARAGE_ACCESS_KEY_ID: ENC[AES256_GCM,data:sT13/6OFKArM3DQ66LFhpWOIaAtBwr2IY8E=,iv:GvIzjCJJDOLeKPRpCi+jgMHJss1t9iSkvgJkDDFwg8o=,tag:Y8rC4xVJKs0DI2gBnQKeLQ==,type:str]
     VOLSYNC_GARAGE_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:UAmFXg7wZtRLGZJz8BZA3M5xaAKheQGtZEWw72iVcyrVnRlrZmDpBI5C/OCiitTFkwn/6y3maIJiRGKXCFzBig==,iv:Bgo0sGcLWnVM7rCPl8Fv6dQvC94oIJCGSQ+ifGWDt9I=,tag:TFfKLZH96X7IgPiUGLsHjA==,type:str]
@@ -28,7 +29,7 @@ sops:
             UW1NMlJWZ0JVelNla3d5ajhYcFpqcnMKwKQ6r6tlEOPb6M7qiYWa5Tb8aGmx8S6O
             3McvhmRkupEpEKix5gVyn+s1uH4Jaumj9H/TekNW/fRGGWkf9dnLZQ==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-01-19T14:20:34Z"
-    mac: ENC[AES256_GCM,data:j4/w4UZngPN5TxjOc27F8EPFemJIpFBMC7+mf2H/Yo1Plnh5jQeXntYRokMzCIp265AW6mVbZL0y1k1cLOwg6UW1AtdbUZuulTBbYzRA+7mSTUrqXkeb/B6iDqCq3TNG0BR0IhqBclPuhsqzDXFXk3bYzllQ+aDDr/OFht+HMYw=,iv:E3xmtqK7TC7CO3i5Vk/9k9/M97JVn444FT+Jxl5is4I=,tag:YqeVbc+GJQZvUpzpMQps8g==,type:str]
+    lastmodified: "2026-01-19T14:32:37Z"
+    mac: ENC[AES256_GCM,data:DZihn3FEkqJwin4n3Tvsnnprn5weR0bD6TCEpILeX8aNW3ZYdt5r8L/1r0P/BsV6Knp9TsDDpsr7PkziuN6XWP0j0T+YNC8mmb3zhNRQ4OBUu78NwJ1KTAIA9zyKojbj+o3FlSH5UrPvumhOcx7obrUMfnvU495cp+pwD1H9hAo=,iv:3cxqNsmrmKabtTOazUSeH1sPbDwGzQs8kXT6W5ljLNQ=,tag:Qv6jrhlOx4Ij2UO15qiivg==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0

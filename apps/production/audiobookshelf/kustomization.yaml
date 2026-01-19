@@ -13,6 +13,12 @@ spec:
   timeout: 10m
   wait: false
 
+  # ✅ REQUIRED so Flux decrypts *.sops.yaml rendered by this Kustomization
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
   sourceRef:
     kind: GitRepository
     name: flux-system
