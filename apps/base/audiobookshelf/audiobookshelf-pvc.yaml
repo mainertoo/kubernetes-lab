@@ -3,6 +3,10 @@ kind: PersistentVolumeClaim
 metadata:
   name: audiobookshelf
   namespace: media
+  annotations:
+    # IMPORTANT: prevents Flux garbage-collection from deleting this PVC
+    # if/when you remove it from the app manifests during migration.
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   accessModes:
     - ReadWriteMany
