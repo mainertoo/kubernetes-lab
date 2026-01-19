@@ -6,26 +6,38 @@ metadata:
   name: &app audiobookshelf
   namespace: flux-system
 spec:
+  interval: 1h
+  path: ./apps/base/audiobookshelf
+  targetNamespace: media
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
   components:
-    - ../../../components/volsync
+    # IMPORTANT: use the "local" component so we DON'T try to create the app PVC yet
+    - ../../../components/volsync/local
     # - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
-
-  interval: 1h
-  path: ./apps/base/audiobookshelf
 
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: media
 
-      # Ceph RBD app PVC (RWO)
-      APP_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      CAPACITY: 3Gi
+      # ---- CephFS (current PVC) ----
+      APP_STORAGECLASS: cephfs
+      CAPACITY: 100Gi
+      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
 
-      # Gatus
+      # CephFS is RWX
+      VOLSYNC_ACCESSMODE: ReadWriteMany
+      VOLSYNC_ACCESSMODES: ReadWriteMany
+
+      # Cache PVCs can remain on RBD (recommended)
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+
+      # ---- Gatus ----
       SUBDOMAIN: *app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
@@ -33,10 +45,9 @@ spec:
 
   prune: true
   retryInterval: 2m
+  timeout: 5m
+  wait: false
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: media
-  timeout: 5m
-  wait: false
