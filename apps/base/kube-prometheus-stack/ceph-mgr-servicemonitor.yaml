@@ -35,6 +35,7 @@ metadata:
   namespace: kube-prometheus-stack
   labels:
     app: ceph-mgr-metrics
+    release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
