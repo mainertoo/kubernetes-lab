@@ -5,7 +5,7 @@ metadata:
     namespace: flux-system
 type: Opaque
 stringData:
-    VOLSYNC_GARAGE_ENDPOINT: ENC[AES256_GCM,data:LlmgMBm4ruQ+mhP0PT7dWc8LIwUyTygaeA==,iv:w7ZrJGpB2PhQG/IumAoOjSp5VYJ6WrQv5bzhXkjTpUQ=,tag:keeGGliIgESfPwDrjXYpgw==,type:str]
+    VOLSYNC_GARAGE_ENDPOINT: ENC[AES256_GCM,data:mlIEEcSyHh6ITf0ijW/UProXH9WO61YHZg==,iv:Ijfg6Hhwb0+g4uNt2dJJJUfVxiGbZcnCyIg5Yd6zU30=,tag:gDW+Cn4Xg4qa71kYcL4w+g==,type:str]
     VOLSYNC_GARAGE_BUCKET: ENC[AES256_GCM,data:fyYv8+gtWA==,iv:pNiFil68A+bBYZBKFN0J9e6PHH95tUDh9HqufWtVArE=,tag:PPWaGRwiCrNaYdSFwdOB+Q==,type:str]
     VOLSYNC_GARAGE_ACCESS_KEY_ID: ENC[AES256_GCM,data:sT13/6OFKArM3DQ66LFhpWOIaAtBwr2IY8E=,iv:GvIzjCJJDOLeKPRpCi+jgMHJss1t9iSkvgJkDDFwg8o=,tag:Y8rC4xVJKs0DI2gBnQKeLQ==,type:str]
     VOLSYNC_GARAGE_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:UAmFXg7wZtRLGZJz8BZA3M5xaAKheQGtZEWw72iVcyrVnRlrZmDpBI5C/OCiitTFkwn/6y3maIJiRGKXCFzBig==,iv:Bgo0sGcLWnVM7rCPl8Fv6dQvC94oIJCGSQ+ifGWDt9I=,tag:TFfKLZH96X7IgPiUGLsHjA==,type:str]
@@ -28,7 +28,7 @@ sops:
             UW1NMlJWZ0JVelNla3d5ajhYcFpqcnMKwKQ6r6tlEOPb6M7qiYWa5Tb8aGmx8S6O
             3McvhmRkupEpEKix5gVyn+s1uH4Jaumj9H/TekNW/fRGGWkf9dnLZQ==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-01-19T14:12:14Z"
-    mac: ENC[AES256_GCM,data:PIyOcMhU+wZFZq5r8FRen3sdazKZ668EA39vkIUvgsMi9worLGaE2x8QAy4n2OkSFAuggYKTxjUrBFb0aX42Oxe0X4f5s5DZg5d1uxrwd4oQzq0z0nAiB8Fi+nx4j8NO/evl8jT0gI2Whwvj8twTm2Ghickcj/PrEVKTb6j2u4Q=,iv:ru48bqZQruUbabnrq7bkTEncZlgaiNEWJlwlRDkqonc=,tag:25jG8FieRNCM3MhsMBdqxA==,type:str]
+    lastmodified: "2026-01-19T14:20:34Z"
+    mac: ENC[AES256_GCM,data:j4/w4UZngPN5TxjOc27F8EPFemJIpFBMC7+mf2H/Yo1Plnh5jQeXntYRokMzCIp265AW6mVbZL0y1k1cLOwg6UW1AtdbUZuulTBbYzRA+7mSTUrqXkeb/B6iDqCq3TNG0BR0IhqBclPuhsqzDXFXk3bYzllQ+aDDr/OFht+HMYw=,iv:E3xmtqK7TC7CO3i5Vk/9k9/M97JVn444FT+Jxl5is4I=,tag:YqeVbc+GJQZvUpzpMQps8g==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
