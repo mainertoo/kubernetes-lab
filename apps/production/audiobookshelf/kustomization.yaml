@@ -19,7 +19,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync        # backup only (restore is NOT included)
+    - ../../../components/volsync/backup        # backup only (restore is NOT included)
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
