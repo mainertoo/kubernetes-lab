@@ -6,6 +6,9 @@ resources:
   - apps.yaml
   - infra-repositories.yaml
 
-  # ✅ add production overlays (same cluster)
+  # ✅ production overlays (same cluster)
   - infra-secrets-prod.yaml
   - apps-production.yaml
+
+  # ✅ volsync controller install (Flux Kustomization object)
+  - ../production/volsync.yaml

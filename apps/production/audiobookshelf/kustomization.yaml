@@ -12,7 +12,7 @@ spec:
 
   components:
     - ../../../components/volsync
-    - ../../../components/volsync/local
+    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
@@ -20,25 +20,20 @@ spec:
   path: ./apps/base/audiobookshelf
 
   postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage
-
     substitute:
       APP: *app
       APP_NAMESPACE: media
 
+      # Ceph RBD app PVC (RWO)
+      APP_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      CAPACITY: 3Gi
+
+      # Gatus
       SUBDOMAIN: *app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "80"
-
-      # VolSync defaults for Ceph RBD
-      APP_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_SCHEDULE: "05 00/12 * * *"
-      CAPACITY: "10Gi"
 
   prune: true
   retryInterval: 2m
