@@ -1,15 +1,16 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: "${APP}"
+  name: "${APP}-remote"
 spec:
   sourcePVC: "${APP}"
   trigger:
-    schedule: "${VOLSYNC_SCHEDULE:=05 00/12 * * *}"
+    schedule: "${VOLSYNC_REMOTE_SCHEDULE:=45 0 * * *}"
   restic:
-    repository: "${APP}-volsync-local"
+    repository: "${APP}-volsync-remote"
     copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
     pruneIntervalDays: ${VOLSYNC_PRUNE_DAYS:=14}
+
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
 
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
