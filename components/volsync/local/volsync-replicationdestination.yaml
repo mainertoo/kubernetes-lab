@@ -16,8 +16,10 @@ spec:
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
 
-    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
+    # IMPORTANT:
+    # Destination PVC must match the APP storage for RWX apps like CephFS.
+    storageClassName: "${APP_STORAGECLASS:=ceph-rbd}"
+    accessModes: ["${VOLSYNC_ACCESSMODES:=${VOLSYNC_ACCESSMODE:=ReadWriteOnce}}"]
     capacity: "${CAPACITY:=1Gi}"
 
     moverSecurityContext:
