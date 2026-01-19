@@ -7,14 +7,11 @@ spec:
   trigger:
     schedule: "${VOLSYNC_SCHEDULE:=05 00/12 * * *}"
   restic:
-    repository: "${APP}-volsync"
+    repository: "${APP}-volsync-local"
     copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
     pruneIntervalDays: ${VOLSYNC_PRUNE_DAYS:=14}
-
-    # Use the right snapshotclass for the app’s storage (default RBD)
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
 
-    # working/cache PVC for mover jobs
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
     cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
