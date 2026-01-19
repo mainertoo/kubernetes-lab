@@ -13,3 +13,4 @@ resources:
   - cephfs-leader-election-rbac.yaml
   - cephfs-secret-rbac.yaml
   - cephfs-rbac-fix.yaml
+  - cephfs-snapshotter-rbac.yaml
