@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: actual-budget
 resources:
   - actual-budget-namespace.yaml
-  - actual-budget-pvc.yaml
+  # - actual-budget-pvc.yaml  # Managed by VolSync bootstrap in production
   - actual-budget-release.yaml
   - actual-budget-ingressroute.yaml
