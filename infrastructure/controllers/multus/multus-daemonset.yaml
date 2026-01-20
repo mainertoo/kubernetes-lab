@@ -52,15 +52,12 @@ spec:
         - operator: Exists
 
       initContainers:
-        # Install the multus binary into the host CNI bin directory.
         - name: install-multus-binary
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
           securityContext:
             privileged: true
-          command: ["/usr/src/multus-cni/bin/install_multus"]
-          args:
-            - --type
-            - thin
+          command: ["/install_multus"]
+          args: ["--type", "thin"]
           resources:
             requests:
               cpu: 10m
@@ -74,14 +71,12 @@ spec:
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
           securityContext:
             privileged: true
-          # Run the multus daemon directly (NOT /entrypoint.sh, which doesn't exist in this image)
-          command: ["/usr/src/multus-cni/bin/multus"]
+          command: ["/thin_entrypoint"]
           args:
             - --multus-conf-file=auto
-            - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
+            # IMPORTANT: for k3s, point to the k3s cni conf dir where 10-flannel.conflist lives
             - --multus-autoconfig-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
-            # Optional but helpful for some setups:
-            - --multus-master-cni-file-name=10-flannel.conflist
+            - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
           resources:
             requests:
               cpu: 10m
@@ -89,12 +84,8 @@ spec:
             limits:
               memory: 256Mi
           volumeMounts:
-            # k3s CNI config dir (where 10-flannel.conflist lives)
             - name: k3s-cniconf
               mountPath: /host/var/lib/rancher/k3s/agent/etc/cni/net.d
-            # host /etc/cni/net.d (multus.d and generated confs may be written here)
-            - name: etc-cniconf
-              mountPath: /host/etc/cni/net.d
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
@@ -106,8 +97,4 @@ spec:
         - name: k3s-cniconf
           hostPath:
             path: /var/lib/rancher/k3s/agent/etc/cni/net.d
-            type: DirectoryOrCreate
-        - name: etc-cniconf
-          hostPath:
-            path: /etc/cni/net.d
             type: DirectoryOrCreate
