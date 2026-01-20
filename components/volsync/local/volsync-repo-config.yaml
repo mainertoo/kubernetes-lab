@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: "${APP}-volsync-repo"
-data:
-  # You will set REPO_PREFIX per app, e.g. "audiobookshelf/config"
-  RESTIC_REPOSITORY: "s3:https://garage.lab.mainertoo.com/volsync/${REPO_PREFIX:=CHANGE-ME}"
