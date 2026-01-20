@@ -52,9 +52,6 @@ spec:
         - operator: Exists
 
       initContainers:
-        # Install multus binary into BOTH:
-        #  - /opt/cni/bin (common)
-        #  - /var/lib/rancher/k3s/data/cni (required for k3s; fixes "failed to find plugin multus" error)
         - name: install-multus-binary
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
           securityContext:
@@ -71,21 +68,21 @@ spec:
                 exit 1
               fi
 
-              # Targets
+              # Targets (cover k3s + common)
               OPT_DIR="/host/opt/cni/bin"
-              K3S_DIR="/host/var/lib/rancher/k3s/data/cni"
+              K3S_CURRENT_BIN="/host/var/lib/rancher/k3s/data/current/bin"
+              K3S_CNI_DIR="/host/var/lib/rancher/k3s/data/cni"
 
-              mkdir -p "${OPT_DIR}" "${K3S_DIR}"
+              mkdir -p "${OPT_DIR}" "${K3S_CURRENT_BIN}" "${K3S_CNI_DIR}"
 
-              cp -f "${SRC}" "${OPT_DIR}/multus"
-              chmod 0755 "${OPT_DIR}/multus"
-
-              cp -f "${SRC}" "${K3S_DIR}/multus"
-              chmod 0755 "${K3S_DIR}/multus"
+              install -m 0755 "${SRC}" "${OPT_DIR}/multus"
+              install -m 0755 "${SRC}" "${K3S_CURRENT_BIN}/multus"
+              install -m 0755 "${SRC}" "${K3S_CNI_DIR}/multus"
 
               echo "Installed multus to:"
               ls -la "${OPT_DIR}/multus" || true
-              ls -la "${K3S_DIR}/multus" || true
+              ls -la "${K3S_CURRENT_BIN}/multus" || true
+              ls -la "${K3S_CNI_DIR}/multus" || true
           resources:
             requests:
               cpu: 10m
@@ -93,6 +90,8 @@ spec:
           volumeMounts:
             - name: cnibin
               mountPath: /host/opt/cni/bin
+            - name: k3s-current-bin
+              mountPath: /host/var/lib/rancher/k3s/data/current/bin
             - name: k3s-cnibin
               mountPath: /host/var/lib/rancher/k3s/data/cni
 
@@ -104,7 +103,6 @@ spec:
           command: ["/thin_entrypoint"]
           args:
             - --multus-conf-file=auto
-            # k3s: point at the k3s CNI conf dir where 10-flannel.conflist lives
             - --multus-autoconfig-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
             - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
           resources:
@@ -125,13 +123,18 @@ spec:
             path: /opt/cni/bin
             type: DirectoryOrCreate
 
-        # k3s "CNI config" dir (conflist lives here)
         - name: k3s-cniconf
           hostPath:
             path: /var/lib/rancher/k3s/agent/etc/cni/net.d
             type: DirectoryOrCreate
 
-        # k3s "CNI bin" dir (kubelet searches here in your error)
+        # k3s bin dir (common/real path)
+        - name: k3s-current-bin
+          hostPath:
+            path: /var/lib/rancher/k3s/data/current/bin
+            type: DirectoryOrCreate
+
+        # k3s "data/cni" path seen in your kubelet error
         - name: k3s-cnibin
           hostPath:
             path: /var/lib/rancher/k3s/data/cni
