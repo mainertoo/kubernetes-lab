@@ -32,7 +32,7 @@ spec:
   postBuild:
     substitute:
       APP: audiobookshelf
-
+      APP_NAMESPACE: media
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
