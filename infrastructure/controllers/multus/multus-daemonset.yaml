@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: multus
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multus
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/status", "nodes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["k8s.cni.cncf.io"]
+    resources: ["network-attachment-definitions"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multus
+subjects:
+  - kind: ServiceAccount
+    name: multus
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-multus-ds
+  namespace: kube-system
+  labels:
+    app: multus
+spec:
+  selector:
+    matchLabels:
+      app: multus
+  template:
+    metadata:
+      labels:
+        app: multus
+    spec:
+      hostNetwork: true
+      serviceAccountName: multus
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: kube-multus
+          # Use a stable release, not snapshot
+          image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
+          command:
+            - /entrypoint.sh
+          args:
+            # Let multus generate /host/.../00-multus.conf based on the "master" CNI config it finds
+            - --multus-conf-file=auto
+            # IMPORTANT: k3s stores CNI confs here
+            - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
+            - --multus-autoconfig-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            # CNI binaries (where multus binary will live)
+            - name: cnibin
+              mountPath: /host/opt/cni/bin
+            # k3s CNI config directory (master CNI lives here)
+            - name: k3s-cniconf
+              mountPath: /host/var/lib/rancher/k3s/agent/etc/cni/net.d
+      volumes:
+        - name: cnibin
+          hostPath:
+            path: /opt/cni/bin
+            type: DirectoryOrCreate
+        - name: k3s-cniconf
+          hostPath:
+            path: /var/lib/rancher/k3s/agent/etc/cni/net.d
+            type: DirectoryOrCreate
