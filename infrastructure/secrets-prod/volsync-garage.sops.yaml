@@ -9,7 +9,8 @@ stringData:
     S3_ENDPOINT: ENC[AES256_GCM,data:8o86w0Ns1ZGysV14dPN48HOA6E0C729xPnrby831tOw=,iv:0iwIl6I6JfgivecrU7EYocFM4lM9LDXaa9lA2aUsrQ8=,tag:NS0TjVXP7AmsQgnlh63iEg==,type:str]
     #ENC[AES256_GCM,data:ctyoH8oQoBjjvqGpAgzKhrFxy3o4sXhPF2U=,iv:nhzPu6lFbpIT+F8QxOhbP64UXztPxc1dSCq517OazeU=,tag:ZB83vj7DAU6t3ooqBYggXQ==,type:comment]
     S3_BUCKET: ENC[AES256_GCM,data:j2iAFCE2jw==,iv:clOtkoQ1SEHxFj0wC0UUVqHIWT7gW6J+lIvVXsIvkGY=,tag:QdGDId5r3wr1xQEylbg/Cw==,type:str]
-    AWS_DEFAULT_REGION: ENC[AES256_GCM,data:0bbsDK7J0S88,iv:qQIvqDgmv5ySehV6ZfanVxbNnSNx0NAbB5bWyOHfgsk=,tag:tK4Sd8Qvf+euBiBJ56EjjA==,type:str]
+    AWS_DEFAULT_REGION: ENC[AES256_GCM,data:+epWDDYEC/dc,iv:EnO7jX3J1m0dMm9fFIACIPuWTZT627R4eaohR3Bb9+U=,tag:IJ7yngZzVeJjcW07m9oTOQ==,type:str]
+    AWS_REGION: ENC[AES256_GCM,data:apBo1Ase7KSj,iv:N++pkdIvGTVrSqYFb2iDzT7LehE7U/rAzKbLaShwGro=,tag:m38z3Sy6l2BJmngsUvec6g==,type:str]
     #ENC[AES256_GCM,data:/WBKFXu9T6iyZ8E1,iv:z6zBf1z5LYZ0/qLhmliFxK5nEMkNDob6cwxmURNcVY4=,tag:ldol4DiFt/Z/rm23XlHGCg==,type:comment]
     AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:Zp+GRV29jK+fj07lRwDbrxszaNnleQb16S4=,iv:q84RJM029VWBX5KjjiHDP5UuxIY0q5cY8RWhlHz3WDo=,tag:52kU91ZI9s3dh0A6GTwcqw==,type:str]
     AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:GEm/ewkg6SMVchf1z0YPiGYJsiXwLTQSfqmNBWcBUhJFHkoTO2F81YbQEd0Rs04rEnGWC8xsrq2O5pE1ERwpQQ==,iv:7qY9BR3/OCrIOKteNAwFx9eFOYN+ugDHsCKX90We6l4=,tag:nIg8Bo7m7+kAuemNJJ7DlQ==,type:str]
@@ -28,7 +29,7 @@ sops:
             UW1NMlJWZ0JVelNla3d5ajhYcFpqcnMKwKQ6r6tlEOPb6M7qiYWa5Tb8aGmx8S6O
             3McvhmRkupEpEKix5gVyn+s1uH4Jaumj9H/TekNW/fRGGWkf9dnLZQ==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-01-20T03:34:23Z"
-    mac: ENC[AES256_GCM,data:otFIlrlMqvbgbzSnR6XupSoZsHH54MIJXp2zrQP1AIcUQDERfgaxhJ2pAIcMUlq77G8BQDBpFbPDZ+NUF1LNnHEkEPe2JJ0RySnEtYD3l83pA8no8aiSeNQrOtz6admyYwaFglMxPe+qpi2BdvNDq7VCvFyDup40uJSRa0uPJY8=,iv:agob/FGl88/4hDnNB0O7nxoXyEXknkn2TIsdJqTiSAk=,tag:NWX4H891qvbiTprMvfUFIA==,type:str]
+    lastmodified: "2026-01-20T03:55:27Z"
+    mac: ENC[AES256_GCM,data:WYF59tc0DsPbjqwOwbZRt/iI7m09vq8rHZlzTpG9L0GNLOHwWlTcdLD3+IZN4tws/ZLCoCaOhbvRGxDKDFqhJ5dabCPGs7d67hLeuPx3Uxq8FMJ2Kb0Y3hjKydy75eZfdP2cWzGzWknnyEv/7w4VJ9vNCdtoiDg8/XS0ijET71E=,iv:SceOCe24Ow116YfpACT8b3fVeCeJ+mgDwFUDa9fASms=,tag:8pVWY/3mFnRKnkWOFSgiNA==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
