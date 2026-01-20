@@ -59,29 +59,25 @@ spec:
           command: ["/bin/sh", "-lc"]
           args:
             - |
-              set -eu
+              set -eux
 
               SRC="/usr/src/multus-cni/bin/multus"
-              if [ ! -f "${SRC}" ]; then
-                echo "ERROR: multus binary not found at ${SRC}"
-                ls -la /usr/src/multus-cni/bin || true
-                exit 1
-              fi
+              ls -la "$(dirname "${SRC}")" || true
 
-              # Targets (cover k3s + common)
+              # Generic CNI bin dir (many distros)
               OPT_DIR="/host/opt/cni/bin"
-              K3S_CURRENT_BIN="/host/var/lib/rancher/k3s/data/current/bin"
-              K3S_CNI_DIR="/host/var/lib/rancher/k3s/data/cni"
 
-              mkdir -p "${OPT_DIR}" "${K3S_CURRENT_BIN}" "${K3S_CNI_DIR}"
+              # k3s real CNI plugin dir (this is the important one)
+              # k3s keeps CNI plugins under: /var/lib/rancher/k3s/data/current/bin/cni
+              K3S_CNI_DIR="/host/var/lib/rancher/k3s/data/current/bin/cni"
+
+              mkdir -p "${OPT_DIR}" "${K3S_CNI_DIR}"
 
               install -m 0755 "${SRC}" "${OPT_DIR}/multus"
-              install -m 0755 "${SRC}" "${K3S_CURRENT_BIN}/multus"
               install -m 0755 "${SRC}" "${K3S_CNI_DIR}/multus"
 
               echo "Installed multus to:"
               ls -la "${OPT_DIR}/multus" || true
-              ls -la "${K3S_CURRENT_BIN}/multus" || true
               ls -la "${K3S_CNI_DIR}/multus" || true
           resources:
             requests:
@@ -90,10 +86,8 @@ spec:
           volumeMounts:
             - name: cnibin
               mountPath: /host/opt/cni/bin
-            - name: k3s-current-bin
-              mountPath: /host/var/lib/rancher/k3s/data/current/bin
-            - name: k3s-cnibin
-              mountPath: /host/var/lib/rancher/k3s/data/cni
+            - name: k3s-current-cni
+              mountPath: /host/var/lib/rancher/k3s/data/current/bin/cni
 
       containers:
         - name: kube-multus
@@ -128,14 +122,8 @@ spec:
             path: /var/lib/rancher/k3s/agent/etc/cni/net.d
             type: DirectoryOrCreate
 
-        # k3s bin dir (common/real path)
-        - name: k3s-current-bin
+        # k3s real CNI plugin directory
+        - name: k3s-current-cni
           hostPath:
-            path: /var/lib/rancher/k3s/data/current/bin
-            type: DirectoryOrCreate
-
-        # k3s "data/cni" path seen in your kubelet error
-        - name: k3s-cnibin
-          hostPath:
-            path: /var/lib/rancher/k3s/data/cni
+            path: /var/lib/rancher/k3s/data/current/bin/cni
             type: DirectoryOrCreate
