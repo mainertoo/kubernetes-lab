@@ -1,21 +1,28 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: "${APP}-local"
+  name: "${APP}"
 spec:
   sourcePVC: "${APP}"
   trigger:
-    schedule: "${VOLSYNC_REMOTE_SCHEDULE:=45 0 * * *}"
+    # twice daily default (keep your original cadence)
+    schedule: "05 00/12 * * *"
   restic:
-    repository: "${APP}-volsync-remote"
-    copyMethod: "${VOLSYNC_COPYMETHOD:=Snapshot}"
-    pruneIntervalDays: ${VOLSYNC_PRUNE_DAYS:=14}
+    repository: "${APP}-volsync"
+    pruneIntervalDays: 14
 
-    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
+    copyMethod: Snapshot
+    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=cephfs-snapclass}"
 
-    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
+    # PiT volume settings (defaults are source PVC values; keep explicit for clarity)
+    storageClassName: "${VOLSYNC_STORAGECLASS:=cephfs}"
+    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=${VOLSYNC_ACCESSMODES:=ReadWriteMany}}"]
+    capacity: "${CAPACITY:=10Gi}"
+
+    # cache can be RBD even if the app PVC is CephFS
     cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
+    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=1Gi}"
 
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:=1000}
