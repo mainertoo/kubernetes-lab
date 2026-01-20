@@ -13,6 +13,8 @@ stringData:
     #ENC[AES256_GCM,data:/WBKFXu9T6iyZ8E1,iv:z6zBf1z5LYZ0/qLhmliFxK5nEMkNDob6cwxmURNcVY4=,tag:ldol4DiFt/Z/rm23XlHGCg==,type:comment]
     AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:Zp+GRV29jK+fj07lRwDbrxszaNnleQb16S4=,iv:q84RJM029VWBX5KjjiHDP5UuxIY0q5cY8RWhlHz3WDo=,tag:52kU91ZI9s3dh0A6GTwcqw==,type:str]
     AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:GEm/ewkg6SMVchf1z0YPiGYJsiXwLTQSfqmNBWcBUhJFHkoTO2F81YbQEd0Rs04rEnGWC8xsrq2O5pE1ERwpQQ==,iv:7qY9BR3/OCrIOKteNAwFx9eFOYN+ugDHsCKX90We6l4=,tag:nIg8Bo7m7+kAuemNJJ7DlQ==,type:str]
+    #ENC[AES256_GCM,data:Q7Zq3X2GZHX1m6kJaUEcCWDUvLXIlQDIIE4d4VwqK1jJgbV1SvUmuic0Z92SudwHcrpr8YjFoU7iwGb5vgI1OOwWDU0N5060jIPd+caN,iv:CLpnDRS/7u6MrOfvNGgn4ZHnibuFduXUJG8lMHyl8wM=,tag:qUzV7PQ74hAythccN1KQvw==,type:comment]
+    AWS_EC2_METADATA_DISABLED: ENC[AES256_GCM,data:BNc/lg==,iv:qG7mFXGjdRlMXy5WKrln9QJQWt+k6IcNTLKB7SMLkpc=,tag:O1E67qr5+hvgJHbH+9V9fg==,type:str]
     #ENC[AES256_GCM,data:Z4MNE4P0igs5pRjoPJw7Yr7pX7gEQH9BMiRZIZsQghbyj9xyxUAF0irPcpxhUZ+L2TmtCExCTDVsRr1Jm3eJ,iv:n5olze2bhtS1YJDNG7VrM+75EEe5HPXQy7VxExyjun4=,tag:Tyd7PbW4ILQXAl9tjHT3Pw==,type:comment]
     RESTIC_PASSWORD: ENC[AES256_GCM,data:Ejp23H5c2bTgxsYgezF9l7GVLNMIHUHy,iv:h7RO4s1C/Pa+l0Id/3A/H9SZaJwJXnk/b4k4ie9V1N8=,tag:AYOipx8cmmapd2/lVmB4bQ==,type:str]
 sops:
@@ -26,7 +28,7 @@ sops:
             UW1NMlJWZ0JVelNla3d5ajhYcFpqcnMKwKQ6r6tlEOPb6M7qiYWa5Tb8aGmx8S6O
             3McvhmRkupEpEKix5gVyn+s1uH4Jaumj9H/TekNW/fRGGWkf9dnLZQ==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-01-20T03:16:30Z"
-    mac: ENC[AES256_GCM,data:mynnCp2Mnb+382v04G4MHR3190gJRXF2jLS7xj/Kt9RUdKkutgn68YOrn/jFz/LRQu8+oTKLblXy0XYQSQa3WgP4CL2bc6NHqxefdA4KGm7+1oO6HT66vDb6dJueGSq074dnVBkyu9HtyucoBydijs6f2qiAS682pYCcHI4R5JU=,iv:dDSIuC1mMSoSYg/A40BMJ2e48vFCI5+UrLp4WLuLFYQ=,tag:YBRq07PO8QfQ9pbZasdFzw==,type:str]
+    lastmodified: "2026-01-20T03:34:23Z"
+    mac: ENC[AES256_GCM,data:otFIlrlMqvbgbzSnR6XupSoZsHH54MIJXp2zrQP1AIcUQDERfgaxhJ2pAIcMUlq77G8BQDBpFbPDZ+NUF1LNnHEkEPe2JJ0RySnEtYD3l83pA8no8aiSeNQrOtz6admyYwaFglMxPe+qpi2BdvNDq7VCvFyDup40uJSRa0uPJY8=,iv:agob/FGl88/4hDnNB0O7nxoXyEXknkn2TIsdJqTiSAk=,tag:NWX4H891qvbiTprMvfUFIA==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
