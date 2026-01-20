@@ -77,7 +77,7 @@ spec:
               echo "${AWS_DEFAULT_REGION}"
 
               # Force path-style bucket lookup (important behind reverse proxies)
-              RESTIC_OPTS="-o s3.bucket-lookup=path -o s3.region=${AWS_DEFAULT_REGION}"
+              RESTIC_OPTS="-o s3.bucket-lookup=path -o s3.region=${AWS_DEFAULT_REGION} -o s3.list-objects-v1=true"
 
               echo "== init (idempotent) =="
               restic ${RESTIC_OPTS} init || true
