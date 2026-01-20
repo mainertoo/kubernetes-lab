@@ -62,23 +62,40 @@ spec:
               set -eux
 
               SRC="/usr/src/multus-cni/bin/multus"
-              ls -la "$(dirname "${SRC}")" || true
 
-              # Generic CNI bin dir (many distros)
+              # Standard CNI bin dir
               OPT_DIR="/host/opt/cni/bin"
-
-              # k3s real CNI plugin dir (this is the important one)
-              # k3s keeps CNI plugins under: /var/lib/rancher/k3s/data/current/bin/cni
-              K3S_CNI_DIR="/host/var/lib/rancher/k3s/data/current/bin/cni"
-
-              mkdir -p "${OPT_DIR}" "${K3S_CNI_DIR}"
-
+              mkdir -p "${OPT_DIR}"
               install -m 0755 "${SRC}" "${OPT_DIR}/multus"
-              install -m 0755 "${SRC}" "${K3S_CNI_DIR}/multus"
-
-              echo "Installed multus to:"
               ls -la "${OPT_DIR}/multus" || true
-              ls -la "${K3S_CNI_DIR}/multus" || true
+
+              # --- k3s specific ---
+              # On k3s, /var/lib/rancher/k3s/data/cni is a REAL directory and contains symlinks
+              # like "bridge -> /var/lib/rancher/k3s/data/<hash>/bin/cni".
+              # We resolve the symlink target of "cni" and install multus into that real directory.
+              K3S_CNI_LINK_DIR="/host/var/lib/rancher/k3s/data/cni"
+
+              if [ ! -d "${K3S_CNI_LINK_DIR}" ]; then
+                echo "ERROR: ${K3S_CNI_LINK_DIR} does not exist or is not a directory"
+                ls -la /host/var/lib/rancher/k3s/data || true
+                exit 1
+              fi
+
+              # Resolve the real target behind /var/lib/rancher/k3s/data/cni/cni
+              # (this points to .../data/<hash>/bin/cni)
+              REAL_K3S_CNI_DIR="$(readlink -f "${K3S_CNI_LINK_DIR}/cni")"
+
+              if [ -z "${REAL_K3S_CNI_DIR}" ] || [ ! -d "${REAL_K3S_CNI_DIR}" ]; then
+                echo "ERROR: could not resolve real k3s CNI dir from ${K3S_CNI_LINK_DIR}/cni"
+                ls -la "${K3S_CNI_LINK_DIR}" || true
+                exit 1
+              fi
+
+              install -m 0755 "${SRC}" "${REAL_K3S_CNI_DIR}/multus"
+
+              echo "Installed multus to REAL k3s CNI dir:"
+              echo "  ${REAL_K3S_CNI_DIR}/multus"
+              ls -la "${REAL_K3S_CNI_DIR}/multus" || true
           resources:
             requests:
               cpu: 10m
@@ -86,8 +103,8 @@ spec:
           volumeMounts:
             - name: cnibin
               mountPath: /host/opt/cni/bin
-            - name: k3s-current-cni
-              mountPath: /host/var/lib/rancher/k3s/data/current/bin/cni
+            - name: k3s-data-cni
+              mountPath: /host/var/lib/rancher/k3s/data/cni
 
       containers:
         - name: kube-multus
@@ -122,8 +139,8 @@ spec:
             path: /var/lib/rancher/k3s/agent/etc/cni/net.d
             type: DirectoryOrCreate
 
-        # k3s real CNI plugin directory
-        - name: k3s-current-cni
+        # IMPORTANT: mount the k3s CNI symlink directory (always a real directory)
+        - name: k3s-data-cni
           hostPath:
-            path: /var/lib/rancher/k3s/data/current/bin/cni
-            type: DirectoryOrCreate
+            path: /var/lib/rancher/k3s/data/cni
+            type: Directory
