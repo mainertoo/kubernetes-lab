@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - audiobookshelf/kustomization.yaml
+  - actual-budget/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
@@ -15,12 +16,10 @@ resources:
   # - spoolman/kustomization.yaml
   # - home-assistant/kustomization.yaml
   # - n8n/
-  # - audiobookshelf/kustomization.yaml
   # - mealie/kustomization.yaml
   # - zigbee2mqtt/kustomization.yaml
   # - mosquitto/kustomization.yaml
   # - paperless-ngx/kustomization.yaml
-  # - actual-budget/kustomization.yaml
   # - jellyfin/kustomization.yaml
   # - omni-tools/kustomization.yaml
   # - jellyseerr/kustomization.yaml
