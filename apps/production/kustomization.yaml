@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - audiobookshelf/kustomization.yaml
   - actual-budget/kustomization.yaml
+  - home-assistant/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
@@ -14,7 +15,7 @@ resources:
   # - babybuddy/kustomization.yaml
   # - huginn/
   # - spoolman/kustomization.yaml
-  # - home-assistant/kustomization.yaml
+  
   # - n8n/
   # - mealie/kustomization.yaml
   # - zigbee2mqtt/kustomization.yaml
