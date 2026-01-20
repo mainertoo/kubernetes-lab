@@ -36,9 +36,6 @@ spec:
               TZ: America/Los_Angeles
 
         initContainers:
-          # Ensures HA trusts Traefik reverse-proxy headers (x-forwarded-for).
-          # Also creates configuration.yaml if it doesn't exist yet.
-          # Adds OIDC (hass-openid) config if missing.
           ensure-http-proxy:
             image:
               repository: busybox
@@ -101,7 +98,8 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: home-assistant-config
+        # VolSync-created PVC name (matches your `kubectl -n home-assistant get pvc`)
+        existingClaim: home-assistant
         globalMounts:
           - path: /config
 
