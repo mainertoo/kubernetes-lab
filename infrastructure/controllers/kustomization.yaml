@@ -31,3 +31,6 @@ resources:
 
   # # Volsync
   - volsync
+
+  # Multus CNI
+  - multus
