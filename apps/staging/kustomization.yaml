@@ -42,7 +42,7 @@ resources:
   - bazarr/
   - calibre/
   - notifiarr/
-  - actual-budget/
+  # - actual-budget/
   - expense-owl/
   - dumbassets/
   - memos/
@@ -65,4 +65,4 @@ resources:
   - alloy/
 
   # home-automation
-  - home-assistant/
+  # - home-assistant/
