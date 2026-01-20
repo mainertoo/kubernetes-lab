@@ -13,7 +13,6 @@ spec:
   timeout: 10m
   wait: false
 
-  # Ensure Flux can decrypt any *.sops.yaml rendered by this Kustomization
   decryption:
     provider: sops
     secretRef:
@@ -25,44 +24,31 @@ spec:
     namespace: flux-system
 
   components:
-    # VolSync: includes local (ReplicationSource+Destination) + PVC populator PVC
     - ../../../components/volsync
-    # Per-app restic repo Secret (${APP}-volsync) built from base secret + per-app repo path
     - ../../../components/volsync/remote
-
-    # Keep gatus checks
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
   postBuild:
     substitute:
-      # App identity
       APP: audiobookshelf
 
-      # App PVC: CephFS + local snapshots must match CephFS driver
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
       CAPACITY: 100Gi
 
-      # Restic repo prefix inside the shared bucket (unique per app)
-      # This becomes:
-      #   s3:${S3_ENDPOINT}/${S3_BUCKET}/audiobookshelf/abs
       VOLSYNC_REPO_PATH: audiobookshelf/abs
 
-      # VolSync mover cache/temp PVCs: RBD is fine even when source PVC is CephFS
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 10Gi
 
-      # Gatus
       SUBDOMAIN: audiobookshelf
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "80"
 
     substituteFrom:
-      # Pull S3_ENDPOINT, S3_BUCKET, AWS_* and RESTIC_PASSWORD from the base secret
       - kind: Secret
         name: volsync-garage-base
-        namespace: flux-system
