@@ -53,6 +53,7 @@ spec:
                   echo "# created by gitops initContainer" > "$CONFIG_FILE"
                 fi
 
+                # Ensure 'http:' block exists
                 if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
                   cat >> "$CONFIG_FILE" <<'EOF'
 
@@ -65,9 +66,12 @@ spec:
                     - 192.168.1.0/24
                 EOF
                 else
+                  # Ensure use_x_forwarded_for exists (doesn't matter where, HA parses YAML)
                   if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
                     echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
                   fi
+
+                  # Ensure trusted_proxies key exists
                   if ! grep -qE '^[[:space:]]*trusted_proxies:' "$CONFIG_FILE"; then
                     cat >> "$CONFIG_FILE" <<'EOF'
                   trusted_proxies:
@@ -76,9 +80,18 @@ spec:
                     - 192.168.90.0/24
                     - 192.168.1.0/24
                 EOF
+                  else
+                    # trusted_proxies exists; ensure required entries are present.
+                    # We do not try to "reformat YAML"; we just ensure the lines exist somewhere.
+                    for cidr in "10.42.0.0/16" "10.43.0.0/16" "192.168.90.0/24" "192.168.1.0/24"; do
+                      if ! grep -qF " - ${cidr}" "$CONFIG_FILE" && ! grep -qF "    - ${cidr}" "$CONFIG_FILE"; then
+                        echo "    - ${cidr}" >> "$CONFIG_FILE"
+                      fi
+                    done
                   fi
                 fi
 
+                # Ensure openid exists
                 if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
                   cat >> "$CONFIG_FILE" <<'EOF'
 
