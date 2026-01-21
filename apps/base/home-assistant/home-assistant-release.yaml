@@ -6,6 +6,7 @@ metadata:
 spec:
   releaseName: home-assistant
   interval: 30m
+
   chartRef:
     kind: OCIRepository
     name: app-template
@@ -27,9 +28,6 @@ spec:
   values:
     controllers:
       home-assistant:
-        pod:
-          annotations: {}
-
         containers:
           app:
             image:
@@ -42,18 +40,23 @@ spec:
           ensure-http-proxy:
             image:
               repository: busybox
-              tag: 1.36
-            command: ["/bin/sh","-c"]
+              tag: "1.36"
+            command:
+              - /bin/sh
+              - -c
             args:
               - |
                 set -eu
+
                 CONFIG_FILE="/config/configuration.yaml"
 
                 if [ ! -f "$CONFIG_FILE" ]; then
                   echo "# created by gitops initContainer" > "$CONFIG_FILE"
                 fi
 
-                # Ensure 'http:' block exists
+                # -------------------------------
+                # Ensure http: block exists
+                # -------------------------------
                 if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
                   cat >> "$CONFIG_FILE" <<'EOF'
 
@@ -66,32 +69,27 @@ spec:
                     - 192.168.1.0/24
                 EOF
                 else
-                  # Ensure use_x_forwarded_for exists (doesn't matter where, HA parses YAML)
+                  # Ensure use_x_forwarded_for
                   if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
-                    echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
+                    sed -i '/^[[:space:]]*http:/a\  use_x_forwarded_for: true' "$CONFIG_FILE"
                   fi
 
                   # Ensure trusted_proxies key exists
                   if ! grep -qE '^[[:space:]]*trusted_proxies:' "$CONFIG_FILE"; then
-                    cat >> "$CONFIG_FILE" <<'EOF'
-                  trusted_proxies:
-                    - 10.42.0.0/16
-                    - 10.43.0.0/16
-                    - 192.168.90.0/24
-                    - 192.168.1.0/24
-                EOF
-                  else
-                    # trusted_proxies exists; ensure required entries are present.
-                    # We do not try to "reformat YAML"; we just ensure the lines exist somewhere.
-                    for cidr in "10.42.0.0/16" "10.43.0.0/16" "192.168.90.0/24" "192.168.1.0/24"; do
-                      if ! grep -qF " - ${cidr}" "$CONFIG_FILE" && ! grep -qF "    - ${cidr}" "$CONFIG_FILE"; then
-                        echo "    - ${cidr}" >> "$CONFIG_FILE"
-                      fi
-                    done
+                    sed -i '/^[[:space:]]*http:/a\  trusted_proxies:' "$CONFIG_FILE"
                   fi
+
+                  # Ensure required CIDRs are present under trusted_proxies
+                  for cidr in 10.42.0.0/16 10.43.0.0/16 192.168.90.0/24 192.168.1.0/24; do
+                    if ! grep -qF "$cidr" "$CONFIG_FILE"; then
+                      sed -i "/^[[:space:]]*trusted_proxies:/a\    - ${cidr}" "$CONFIG_FILE"
+                    fi
+                  done
                 fi
 
-                # Ensure openid exists
+                # -------------------------------
+                # Ensure openid block exists
+                # -------------------------------
                 if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
                   cat >> "$CONFIG_FILE" <<'EOF'
 
@@ -121,7 +119,6 @@ spec:
         existingClaim: home-assistant
         advancedMounts:
           home-assistant:
-            # Mount the /config PVC into BOTH the main container and the initContainer
             app:
               - path: /config
             ensure-http-proxy:
