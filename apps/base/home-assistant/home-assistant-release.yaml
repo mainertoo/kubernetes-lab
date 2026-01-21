@@ -27,14 +27,14 @@ spec:
   values:
     controllers:
       home-assistant:
+        # Force a stable, non-default interface name to avoid net1 collisions
         podAnnotations:
-          # IMPORTANT: do NOT specify "interface".
-          # Multus will choose net1/net2/... automatically and avoid collisions.
           k8s.v1.cni.cncf.io/networks: |
             [
               {
                 "name": "lan-macvlan",
-                "namespace": "home-assistant"
+                "namespace": "home-assistant",
+                "interface": "lan0"
               }
             ]
 
