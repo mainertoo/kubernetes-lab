@@ -20,7 +20,7 @@ spec:
         - operator: Exists
       initContainers:
         - name: install-plugins
-          image: ghcr.io/containernetworking/plugins:v1.5.1
+          image: docker.io/rancher/mirrored-cni-plugins:v1.5.1
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -32,7 +32,6 @@ spec:
               K3S_DATA="/host/var/lib/rancher/k3s/data"
               test -d "${K3S_DATA}"
 
-              # Resolve k3s current dir to the real hash dir (current is usually a symlink)
               CUR="$(readlink -f "${K3S_DATA}/current" 2>/dev/null || true)"
               if [ -n "${CUR}" ] && [ -d "${CUR}/bin" ]; then
                 BIN="${CUR}/bin"
@@ -42,14 +41,11 @@ spec:
               test -n "${BIN}"
               mkdir -p "${BIN}"
 
-              # Also populate /opt/cni/bin
               OPT="/host/opt/cni/bin"
               mkdir -p "${OPT}"
 
-              # Plugins shipped in this image live in /opt/cni/bin inside the container
               SRC="/opt/cni/bin"
 
-              # Install what we need (macvlan is the big one)
               for p in macvlan host-local loopback ptp bridge tuning; do
                 if [ -x "${SRC}/${p}" ]; then
                   install -m 0755 "${SRC}/${p}" "${BIN}/${p}"
@@ -57,10 +53,9 @@ spec:
                 fi
               done
 
-              echo "Installed plugins into k3s bin:"
+              echo "k3s bin:"
               ls -la "${BIN}" | egrep " macvlan$| host-local$| loopback$| ptp$| bridge$| tuning$" || true
-
-              echo "Installed plugins into /opt/cni/bin:"
+              echo "/opt/cni/bin:"
               ls -la "${OPT}" | egrep " macvlan$| host-local$| loopback$| ptp$| bridge$| tuning$" || true
           volumeMounts:
             - name: k3s-data
