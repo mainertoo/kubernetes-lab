@@ -72,8 +72,7 @@ spec:
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
-        # 2) Ensure k3s finds multus in /var/lib/rancher/k3s/data/current/bin
-        #    (We avoid node-level /etc/rancher edits by doing this declaratively.)
+        # 2) Copy/link multus into the REAL k3s bin dir (resolve the 'current' symlink safely)
         - name: link-multus-into-k3s-bin
           image: alpine:3.20
           imagePullPolicy: IfNotPresent
@@ -87,16 +86,36 @@ spec:
               SRC="/host/opt/cni/bin/multus"
               test -x "${SRC}"
 
-              K3S_BIN="/host/var/lib/rancher/k3s/data/current/bin"
-              mkdir -p "${K3S_BIN}"
+              K3S_DATA="/host/var/lib/rancher/k3s/data"
+              test -d "${K3S_DATA}"
+
+              echo "Host k3s data dir listing:"
+              ls -la "${K3S_DATA}" || true
+              ls -la "${K3S_DATA}/current" || true
+
+              # Resolve the *real* k3s current dir target (current is usually a symlink)
+              CUR="$(readlink -f "${K3S_DATA}/current" 2>/dev/null || true)"
+              if [ -n "${CUR}" ] && [ -d "${CUR}/bin" ]; then
+                BIN="${CUR}/bin"
+              else
+                # Fallback: pick newest */bin under k3s data
+                BIN="$(ls -d1 ${K3S_DATA}/*/bin 2>/dev/null | sort | tail -n1 || true)"
+              fi
+
+              test -n "${BIN}"
+              mkdir -p "${BIN}"
 
               # Prefer symlink; fall back to copy
-              ln -sf "${SRC}" "${K3S_BIN}/multus" || cp -f "${SRC}" "${K3S_BIN}/multus"
-              chmod 0755 "${K3S_BIN}/multus"
+              ln -sf "${SRC}" "${BIN}/multus" || cp -f "${SRC}" "${BIN}/multus"
+              chmod 0755 "${BIN}/multus"
 
               echo "Installed/linked multus:"
-              ls -la "${SRC}"
-              ls -la "${K3S_BIN}/multus"
+              ls -la "${SRC}" || true
+              ls -la "${BIN}/multus" || true
+
+              echo "Host current/bin view (may be symlinked):"
+              ls -la "/host/var/lib/rancher/k3s/data/current/bin" || true
+              ls -la "/host/var/lib/rancher/k3s/data/current/bin/multus" || true
           resources:
             requests:
               cpu: 10m
