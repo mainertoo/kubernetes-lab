@@ -9,8 +9,6 @@ kind: ClusterRole
 metadata:
   name: multus
 rules:
-  # Multus must be able to read pods/nodes/namespaces to resolve
-  # annotations and attach networks.
   - apiGroups: [""]
     resources:
       - pods
@@ -19,8 +17,6 @@ rules:
       - namespaces
       - events
     verbs: ["get", "list", "watch"]
-
-  # NetworkAttachmentDefinitions CRD
   - apiGroups: ["k8s.cni.cncf.io"]
     resources:
       - network-attachment-definitions
@@ -66,7 +62,7 @@ spec:
         - operator: Exists
 
       initContainers:
-        # This installs the multus binary into /opt/cni/bin on the host
+        # Install multus binary into /opt/cni/bin on the host
         - name: install-multus-binary
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
           imagePullPolicy: IfNotPresent
@@ -82,7 +78,7 @@ spec:
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
-        # This links/copies multus into the *actual* k3s hash bin dir (not /current/bin)
+        # Ensure multus is also present in the k3s "current" bin dir (some k3s setups call plugins from there)
         - name: link-multus-into-k3s-bin
           image: alpine:3.20
           imagePullPolicy: IfNotPresent
@@ -110,7 +106,6 @@ spec:
 
               ln -sf "${SRC}" "${BIN}/multus" || cp -f "${SRC}" "${BIN}/multus"
               chmod 0755 "${BIN}/multus"
-
               ls -la "${BIN}/multus" || true
           resources:
             requests:
@@ -122,6 +117,56 @@ spec:
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
+        # Write a deterministic multus CNI config into the k3s CNI conf dir.
+        # This prevents weird recursion/auto-generated naming issues during debugging.
+        - name: write-multus-cni-conf
+          image: alpine:3.20
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -eux
+
+              CNIDIR="/host/var/lib/rancher/k3s/agent/etc/cni/net.d"
+              mkdir -p "${CNIDIR}"
+
+              # k3s/flannel master config is normally 10-flannel.conflist
+              test -f "${CNIDIR}/10-flannel.conflist"
+
+              # Remove any stale/duplicate multus configs that can cause confusion
+              rm -f "${CNIDIR}/00-multus.conf" "${CNIDIR}/00-multus.conflist" "${CNIDIR}/99-multus.conf" || true
+
+              # Write 00-multus.conf (multus becomes the primary CNI; it delegates to flannel)
+              cat > "${CNIDIR}/00-multus.conf" <<'EOF'
+              {
+                "cniVersion": "0.3.1",
+                "name": "multus-cni-network",
+                "type": "multus",
+                "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig",
+                "delegates": [
+                  {
+                    "cniVersion": "0.3.1",
+                    "name": "cbr0",
+                    "confPath": "/etc/cni/net.d/10-flannel.conflist"
+                  }
+                ]
+              }
+              EOF
+
+              # Show what we ended up with
+              ls -la "${CNIDIR}" | sed -n '1,120p'
+              echo "---- 00-multus.conf ----"
+              cat "${CNIDIR}/00-multus.conf"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          volumeMounts:
+            - name: k3s-cniconf
+              mountPath: /host/var/lib/rancher/k3s/agent/etc/cni/net.d
+
       containers:
         - name: kube-multus
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
@@ -130,14 +175,9 @@ spec:
             privileged: true
           command: ["/thin_entrypoint"]
           args:
-            - --multus-conf-file=auto
-            - --multus-autoconfig-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
             - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
-            # IMPORTANT: do not rely on /current/bin existing as a directory;
-            # multus will still work if additional-bin-dir points at /opt/cni/bin.
+            - --multus-conf-file=/host/var/lib/rancher/k3s/agent/etc/cni/net.d/00-multus.conf
             - --cni-bin-dir=/host/opt/cni/bin
-            - --additional-bin-dir=/host/var/lib/rancher/k3s/data/current/bin
-            - --multus-master-cni-file-name=10-flannel.conflist
           resources:
             requests:
               cpu: 10m
@@ -147,8 +187,6 @@ spec:
           volumeMounts:
             - name: k3s-cniconf
               mountPath: /host/var/lib/rancher/k3s/agent/etc/cni/net.d
-            - name: k3s-data
-              mountPath: /host/var/lib/rancher/k3s/data
             - name: cnibin
               mountPath: /host/opt/cni/bin
 

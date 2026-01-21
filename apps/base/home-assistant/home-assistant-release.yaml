@@ -27,9 +27,9 @@ spec:
   values:
     controllers:
       home-assistant:
-        # --- Option B: Multus macvlan secondary LAN IP for discovery ---
-        # Requires NetworkAttachmentDefinition named "lan-macvlan" in namespace home-assistant
         podAnnotations:
+          # IMPORTANT: do NOT specify "interface".
+          # Multus will choose net1/net2/... automatically and avoid collisions.
           k8s.v1.cni.cncf.io/networks: |
             [
               {
@@ -47,8 +47,6 @@ spec:
               TZ: America/Los_Angeles
 
         initContainers:
-          # Ensures HA trusts Traefik reverse-proxy headers (x-forwarded-for).
-          # Also creates configuration.yaml if it doesn't exist yet.
           ensure-http-proxy:
             image:
               repository: busybox
@@ -111,12 +109,10 @@ spec:
     persistence:
       config:
         enabled: true
-        # VolSync-created PVC name (your current PVC)
         existingClaim: home-assistant
         globalMounts:
           - path: /config
 
-      # Mount secrets.yaml into /config/secrets.yaml
       secrets:
         type: secret
         name: home-assistant-secret
