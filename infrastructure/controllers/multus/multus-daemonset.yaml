@@ -69,26 +69,45 @@ spec:
               SRC="/usr/src/multus-cni/bin/multus"
               test -f "${SRC}"
 
-              # k3s CNI bin dir (THIS is what kubelet uses in k3s)
-              K3S_BIN_DIR="/host/var/lib/rancher/k3s/data/current/bin"
-              mkdir -p "${K3S_BIN_DIR}"
-              install -m 0755 "${SRC}" "${K3S_BIN_DIR}/multus"
+              K3S_DATA="/host/var/lib/rancher/k3s/data"
 
-              # Optional: also place in /opt/cni/bin for compatibility/debug
+              echo "Host k3s data dir listing:"
+              ls -la "${K3S_DATA}" || true
+              ls -la "${K3S_DATA}/current" || true
+
+              # Resolve the *real* k3s current dir target
+              CUR="$(readlink -f "${K3S_DATA}/current" 2>/dev/null || true)"
+              if [ -n "${CUR}" ] && [ -d "${CUR}/bin" ]; then
+                BIN="${CUR}/bin"
+              else
+                # Fallback: pick newest */bin under k3s data
+                BIN="$(ls -d1 ${K3S_DATA}/*/bin 2>/dev/null | sort | tail -n1 || true)"
+              fi
+
+              test -n "${BIN}"
+              mkdir -p "${BIN}"
+              install -m 0755 "${SRC}" "${BIN}/multus"
+
+              # Optional compatibility/debug bin dir
               OPT_DIR="/host/opt/cni/bin"
               mkdir -p "${OPT_DIR}"
               install -m 0755 "${SRC}" "${OPT_DIR}/multus"
 
               echo "Installed multus to:"
-              ls -la "${K3S_BIN_DIR}/multus" || true
+              ls -la "${BIN}/multus" || true
               ls -la "${OPT_DIR}/multus" || true
+
+              # Also show what /var/lib/rancher/k3s/data/current/bin points to on host
+              echo "Host current/bin view:"
+              ls -la "/host/var/lib/rancher/k3s/data/current/bin" || true
+              ls -la "/host/var/lib/rancher/k3s/data/current/bin/multus" || true
           resources:
             requests:
               cpu: 10m
               memory: 32Mi
           volumeMounts:
-            - name: k3s-bin
-              mountPath: /host/var/lib/rancher/k3s/data/current/bin
+            - name: k3s-data
+              mountPath: /host/var/lib/rancher/k3s/data
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
@@ -101,21 +120,15 @@ spec:
           command: ["/thin_entrypoint"]
           args:
             - --multus-conf-file=auto
-
-            # k3s CNI config dir (where 10-flannel.conflist lives)
             - --multus-autoconfig-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
             - --cni-conf-dir=/host/var/lib/rancher/k3s/agent/etc/cni/net.d
 
-            # Tell multus where plugins live on k3s
+            # Tell multus where to look for plugins on k3s.
+            # This path is written into generated config (binDir).
             - --cni-bin-dir=/host/var/lib/rancher/k3s/data/current/bin
-            # Write binDir into generated multus config so it matches k3s
             - --additional-bin-dir=/var/lib/rancher/k3s/data/current/bin
 
-            # Be explicit: delegate from flannel
             - --multus-master-cni-file-name=10-flannel.conflist
-
-            # Optional: keep flannel file as-is (safer on k3s)
-            - --rename-conf-file=false
           resources:
             requests:
               cpu: 10m
@@ -125,8 +138,8 @@ spec:
           volumeMounts:
             - name: k3s-cniconf
               mountPath: /host/var/lib/rancher/k3s/agent/etc/cni/net.d
-            - name: k3s-bin
-              mountPath: /host/var/lib/rancher/k3s/data/current/bin
+            - name: k3s-data
+              mountPath: /host/var/lib/rancher/k3s/data
             - name: cnibin
               mountPath: /host/opt/cni/bin
 
@@ -135,9 +148,9 @@ spec:
           hostPath:
             path: /var/lib/rancher/k3s/agent/etc/cni/net.d
             type: DirectoryOrCreate
-        - name: k3s-bin
+        - name: k3s-data
           hostPath:
-            path: /var/lib/rancher/k3s/data/current/bin
+            path: /var/lib/rancher/k3s/data
             type: DirectoryOrCreate
         - name: cnibin
           hostPath:
