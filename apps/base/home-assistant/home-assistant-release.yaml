@@ -30,10 +30,6 @@ spec:
         pod:
           annotations: {}
 
-        # --- hostNetwork mode for LAN discovery ---
-        hostNetwork: true
-        dnsPolicy: ClusterFirstWithHostNet
-
         containers:
           app:
             image:
@@ -41,11 +37,6 @@ spec:
               tag: 2025.12.1
             env:
               TZ: America/Los_Angeles
-            # Explicitly listen on all interfaces in the host netns
-            # (HA usually does this already, but this avoids surprises)
-            args:
-              - "--config"
-              - "/config"
 
         initContainers:
           ensure-http-proxy:
@@ -102,9 +93,6 @@ spec:
                   create_user: true
                 EOF
                 fi
-            volumeMounts:
-              - name: config
-                mountPath: /config
 
     service:
       app:
@@ -118,8 +106,13 @@ spec:
       config:
         enabled: true
         existingClaim: home-assistant
-        globalMounts:
-          - path: /config
+        advancedMounts:
+          home-assistant:
+            # Mount the /config PVC into BOTH the main container and the initContainer
+            app:
+              - path: /config
+            ensure-http-proxy:
+              - path: /config
 
       secrets:
         type: secret
@@ -131,3 +124,5 @@ spec:
 
     defaultPodOptions:
       automountServiceAccountToken: false
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
