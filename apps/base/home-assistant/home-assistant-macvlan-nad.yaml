@@ -7,6 +7,7 @@ spec:
   config: |
     {
       "cniVersion": "0.3.1",
+      "name": "lan-macvlan",
       "type": "macvlan",
       "master": "eth0",
       "mode": "bridge",
@@ -15,6 +16,9 @@ spec:
         "subnet": "192.168.1.0/24",
         "rangeStart": "192.168.1.240",
         "rangeEnd": "192.168.1.250",
-        "gateway": "192.168.1.1"
+        "gateway": "192.168.1.1",
+        "routes": [
+          { "dst": "0.0.0.0/0" }
+        ]
       }
     }
