@@ -7,3 +7,4 @@ resources:
 
   # Multus DaemonSet (cluster-wide), tailored for k3s paths
   - multus-daemonset.yaml
+  - cni-plugins-installer.yaml
