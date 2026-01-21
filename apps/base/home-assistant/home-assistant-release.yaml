@@ -27,14 +27,12 @@ spec:
   values:
     controllers:
       home-assistant:
-        # ✅ app-template v3 schema uses controllers.<name>.pod.annotations
         pod:
           annotations: {}
-          # Re-enable Multus later by adding:
-          # k8s.v1.cni.cncf.io/networks: |
-          #   [
-          #     {"name":"lan-macvlan","namespace":"home-assistant","interface":"lan0"}
-          #   ]
+
+        # --- hostNetwork mode for LAN discovery ---
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
 
         containers:
           app:
@@ -43,8 +41,12 @@ spec:
               tag: 2025.12.1
             env:
               TZ: America/Los_Angeles
+            # Explicitly listen on all interfaces in the host netns
+            # (HA usually does this already, but this avoids surprises)
+            args:
+              - "--config"
+              - "/config"
 
-        # ✅ initContainers usually belong under controllers.<name>.initContainers
         initContainers:
           ensure-http-proxy:
             image:
@@ -68,6 +70,8 @@ spec:
                   trusted_proxies:
                     - 10.42.0.0/16
                     - 10.43.0.0/16
+                    - 192.168.90.0/24
+                    - 192.168.1.0/24
                 EOF
                 else
                   if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
@@ -78,6 +82,8 @@ spec:
                   trusted_proxies:
                     - 10.42.0.0/16
                     - 10.43.0.0/16
+                    - 192.168.90.0/24
+                    - 192.168.1.0/24
                 EOF
                   fi
                 fi
