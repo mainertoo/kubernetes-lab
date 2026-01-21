@@ -60,22 +60,6 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
-  # ---------- Audiobookshelf ----------
-  # (If you already have these entries elsewhere, keep whichever you prefer)
-  - name: audiobookshelf
-    group: external
-    url: https://audiobookshelf.lab.mainertoo.com
-    interval: 1m
-    conditions:
-      - "[STATUS] < 400"
-
-  - name: audiobookshelf
-    group: internal
-    url: http://audiobookshelf.media.svc.cluster.local
-    interval: 30s
-    conditions:
-      - "[STATUS] < 400"
-
 alerting:
   discord:
     title: Gatus
