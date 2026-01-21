@@ -56,8 +56,26 @@ spec:
         - operator: Exists
 
       initContainers:
+        # 1) Install multus into /opt/cni/bin using the image's supported installer (NO /bin/sh in this image)
         - name: install-multus-binary
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command: ["/install_multus"]
+          args: ["--type", "thin"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          volumeMounts:
+            - name: cnibin
+              mountPath: /host/opt/cni/bin
+
+        # 2) Ensure k3s finds multus in /var/lib/rancher/k3s/data/current/bin
+        #    (We avoid node-level /etc/rancher edits by doing this declaratively.)
+        - name: link-multus-into-k3s-bin
+          image: alpine:3.20
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -66,50 +84,28 @@ spec:
             - |
               set -eux
 
-              SRC="/usr/src/multus-cni/bin/multus"
-              test -f "${SRC}"
+              SRC="/host/opt/cni/bin/multus"
+              test -x "${SRC}"
 
-              K3S_DATA="/host/var/lib/rancher/k3s/data"
+              K3S_BIN="/host/var/lib/rancher/k3s/data/current/bin"
+              mkdir -p "${K3S_BIN}"
 
-              echo "Host k3s data dir listing:"
-              ls -la "${K3S_DATA}" || true
-              ls -la "${K3S_DATA}/current" || true
+              # Prefer symlink; fall back to copy
+              ln -sf "${SRC}" "${K3S_BIN}/multus" || cp -f "${SRC}" "${K3S_BIN}/multus"
+              chmod 0755 "${K3S_BIN}/multus"
 
-              # Resolve the *real* k3s current dir target
-              CUR="$(readlink -f "${K3S_DATA}/current" 2>/dev/null || true)"
-              if [ -n "${CUR}" ] && [ -d "${CUR}/bin" ]; then
-                BIN="${CUR}/bin"
-              else
-                # Fallback: pick newest */bin under k3s data
-                BIN="$(ls -d1 ${K3S_DATA}/*/bin 2>/dev/null | sort | tail -n1 || true)"
-              fi
-
-              test -n "${BIN}"
-              mkdir -p "${BIN}"
-              install -m 0755 "${SRC}" "${BIN}/multus"
-
-              # Optional compatibility/debug bin dir
-              OPT_DIR="/host/opt/cni/bin"
-              mkdir -p "${OPT_DIR}"
-              install -m 0755 "${SRC}" "${OPT_DIR}/multus"
-
-              echo "Installed multus to:"
-              ls -la "${BIN}/multus" || true
-              ls -la "${OPT_DIR}/multus" || true
-
-              # Also show what /var/lib/rancher/k3s/data/current/bin points to on host
-              echo "Host current/bin view:"
-              ls -la "/host/var/lib/rancher/k3s/data/current/bin" || true
-              ls -la "/host/var/lib/rancher/k3s/data/current/bin/multus" || true
+              echo "Installed/linked multus:"
+              ls -la "${SRC}"
+              ls -la "${K3S_BIN}/multus"
           resources:
             requests:
               cpu: 10m
               memory: 32Mi
           volumeMounts:
-            - name: k3s-data
-              mountPath: /host/var/lib/rancher/k3s/data
             - name: cnibin
               mountPath: /host/opt/cni/bin
+            - name: k3s-data
+              mountPath: /host/var/lib/rancher/k3s/data
 
       containers:
         - name: kube-multus
