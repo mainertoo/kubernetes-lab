@@ -49,16 +49,29 @@ spec:
                 set -eu
 
                 CONFIG_FILE="/config/configuration.yaml"
+                TMP_FILE="/config/.configuration.yaml.tmp"
 
+                # Ensure file exists
                 if [ ! -f "$CONFIG_FILE" ]; then
-                  echo "# created by gitops initContainer" > "$CONFIG_FILE"
+                  printf "%s\n" "# created by gitops initContainer" > "$CONFIG_FILE"
                 fi
 
-                # -------------------------------
-                # Ensure http: block exists
-                # -------------------------------
-                if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
-                  cat >> "$CONFIG_FILE" <<'EOF'
+                # 1) Copy everything EXCEPT top-level http: and openid: blocks into a temp file.
+                #    (We rebuild those blocks deterministically below.)
+                awk '
+                  function is_toplevel(line) { return line ~ /^[^[:space:]][^:]*:/ }
+                  BEGIN { skip=0 }
+                  {
+                    if (is_toplevel($0)) {
+                      if ($0 ~ /^(http|openid):/) { skip=1; next }
+                      if (skip==1) { skip=0 }
+                    }
+                    if (skip==0) print
+                  }
+                ' "$CONFIG_FILE" > "$TMP_FILE"
+
+                # 2) Append clean, known-good http: block (Traefik trust)
+                cat >> "$TMP_FILE" <<'EOF'
 
                 http:
                   use_x_forwarded_for: true
@@ -68,30 +81,9 @@ spec:
                     - 192.168.90.0/24
                     - 192.168.1.0/24
                 EOF
-                else
-                  # Ensure use_x_forwarded_for
-                  if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
-                    sed -i '/^[[:space:]]*http:/a\  use_x_forwarded_for: true' "$CONFIG_FILE"
-                  fi
 
-                  # Ensure trusted_proxies key exists
-                  if ! grep -qE '^[[:space:]]*trusted_proxies:' "$CONFIG_FILE"; then
-                    sed -i '/^[[:space:]]*http:/a\  trusted_proxies:' "$CONFIG_FILE"
-                  fi
-
-                  # Ensure required CIDRs are present under trusted_proxies
-                  for cidr in 10.42.0.0/16 10.43.0.0/16 192.168.90.0/24 192.168.1.0/24; do
-                    if ! grep -qF "$cidr" "$CONFIG_FILE"; then
-                      sed -i "/^[[:space:]]*trusted_proxies:/a\    - ${cidr}" "$CONFIG_FILE"
-                    fi
-                  done
-                fi
-
-                # -------------------------------
-                # Ensure openid block exists
-                # -------------------------------
-                if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
-                  cat >> "$CONFIG_FILE" <<'EOF'
+                # 3) Append clean openid: block (Authentik OIDC)
+                cat >> "$TMP_FILE" <<'EOF'
 
                 openid:
                   client_id: !secret authentik_client_id
@@ -103,7 +95,9 @@ spec:
                   openid_text: "Login with Authentik"
                   create_user: true
                 EOF
-                fi
+
+                # 4) Replace atomically
+                mv -f "$TMP_FILE" "$CONFIG_FILE"
 
     service:
       app:
