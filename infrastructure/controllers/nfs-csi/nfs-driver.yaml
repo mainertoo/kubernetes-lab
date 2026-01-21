@@ -48,14 +48,16 @@ spec:
                   - key: node-role.kubernetes.io/master
                     operator: DoesNotExist
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                      - csi-nfsplugin-provisioner
-              topologyKey: "kubernetes.io/hostname"
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - csi-nfsplugin-provisioner
+                topologyKey: "kubernetes.io/hostname"
       containers:
         - name: csi-nfsplugin
           image: quay.io/cephcsi/cephcsi:v3.15-canary
