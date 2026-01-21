@@ -20,7 +20,7 @@ spec:
         - operator: Exists
       initContainers:
         - name: install-plugins
-          image: docker.io/rancher/mirrored-cni-plugins:v1.5.1
+          image: docker.io/rancher/mirrored-cni-plugins:v1.9.0-build20260116
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
