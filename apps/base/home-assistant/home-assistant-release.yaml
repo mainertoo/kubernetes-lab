@@ -27,7 +27,6 @@ spec:
   values:
     controllers:
       home-assistant:
-        # Force a stable, non-default interface name to avoid net1 collisions
         podAnnotations:
           k8s.v1.cni.cncf.io/networks: |
             [
@@ -58,25 +57,21 @@ spec:
                 set -eu
                 CONFIG_FILE="/config/configuration.yaml"
 
-                # Create file if missing
                 if [ ! -f "$CONFIG_FILE" ]; then
                   echo "# created by gitops initContainer" > "$CONFIG_FILE"
                 fi
 
-                # Add http: block if missing
                 if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
                   echo "" >> "$CONFIG_FILE"
                   echo "http:" >> "$CONFIG_FILE"
                   echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
                   echo "  trusted_proxies:" >> "$CONFIG_FILE"
-                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"  # k3s pod CIDR
-                  echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"  # k3s service CIDR
+                  echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"
+                  echo "    - 10.43.0.0/16" >> "$CONFIG_FILE"
                 else
-                  # Ensure use_x_forwarded_for exists
                   if ! grep -qE '^[[:space:]]*use_x_forwarded_for:' "$CONFIG_FILE"; then
                     echo "  use_x_forwarded_for: true" >> "$CONFIG_FILE"
                   fi
-                  # Ensure trusted_proxies exists
                   if ! grep -qE '^[[:space:]]*trusted_proxies:' "$CONFIG_FILE"; then
                     echo "  trusted_proxies:" >> "$CONFIG_FILE"
                     echo "    - 10.42.0.0/16" >> "$CONFIG_FILE"
@@ -84,7 +79,6 @@ spec:
                   fi
                 fi
 
-                # Add openid: block (hass-openid) if missing
                 if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
                   echo "" >> "$CONFIG_FILE"
                   echo "openid:" >> "$CONFIG_FILE"
