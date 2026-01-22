@@ -56,14 +56,14 @@ spec:
                   printf "%s\n" "# created by gitops initContainer" > "$CONFIG_FILE"
                 fi
 
-                # 1) Copy everything EXCEPT top-level http: and openid: blocks into a temp file.
+                # 1) Copy everything EXCEPT selected top-level blocks into a temp file.
                 #    (We rebuild those blocks deterministically below.)
                 awk '
                   function is_toplevel(line) { return line ~ /^[^[:space:]][^:]*:/ }
                   BEGIN { skip=0 }
                   {
                     if (is_toplevel($0)) {
-                      if ($0 ~ /^(http|openid):/) { skip=1; next }
+                      if ($0 ~ /^(http|openid|homeassistant|logger|system_health|ios|discovery|mobile_app):/) { skip=1; next }
                       if (skip==1) { skip=0 }
                     }
                     if (skip==0) print
@@ -96,9 +96,30 @@ spec:
                   create_user: true
                 EOF
 
-                # 4) Replace atomically
-                mv -f "$TMP_FILE" "$CONFIG_FILE"
+                # 4) Append additional required blocks
+                cat >> "$TMP_FILE" <<'EOF'
 
+                homeassistant:
+                  # Customization file
+                  customize: !include customize.yaml
+
+                logger:
+                  default: notset
+
+                system_health:
+
+                # iOS alerts
+                ios:
+
+                # Discover some devices automatically
+                discovery:
+
+                # Mobile application
+                mobile_app:
+                EOF
+
+                # 5) Replace atomically
+                mv -f "$TMP_FILE" "$CONFIG_FILE"
     service:
       app:
         controller: home-assistant
