@@ -5,7 +5,7 @@ metadata:
   namespace: authentik
 spec:
   interval: 30m
-  timeout: 6m
+  timeout: 10m
   releaseName: authentik
   chart:
     spec:
@@ -17,32 +17,25 @@ spec:
         namespace: flux-system
 
   values:
-    ## --- BITNAMI POSTGRES GLOBAL AUTH (fixes password upgrade error) ---
     global:
       postgresql:
         auth:
           username: authentik
           database: authentik
           existingSecret: authentik-postgresql
-         
-    ## --- AUTHENTIK CORE CONFIG ---
+
     authentik:
       media:
-      # These default to UID/GID 1000 inside container
         owner: "1000"
         group: "1000"
         mode: "0775"
       log_level: info
 
-      # Secret key for cookies / IDs
-      # Don't change after first install
       secret_key: ""
-      
+
       web:
-        # Root path
         path: /
 
-      # Email via Gmail SMTP, # Email config: static bits here, secrets via env
       email:
         host: "smtp.gmail.com"
         port: 587
@@ -51,21 +44,18 @@ spec:
         username: ""
         password: ""
         from: ""
-        # from: "mainertoo@gmail.com"
 
-      # DB connection FROM Authentik's perspective
       postgresql:
         host: "{{ .Release.Name }}-postgresql"
         name: "authentik"
         user: "authentik"
-        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="   # PG_PASS
+        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="
         port: 5432
 
       redis:
         host: "{{ .Release.Name }}-redis-master"
         password: ""
 
-    ## --- EMBEDDED REDIS CONFIG ---
     redis:
       enabled: true
       architecture: replication
@@ -80,7 +70,6 @@ spec:
         persistence:
           enabled: false
 
-    ## --- EMBEDDED POSTGRES CONFIG ---
     postgresql:
       enabled: true
       auth:
@@ -90,11 +79,39 @@ spec:
       primary:
         persistence:
           enabled: true
-          storageClass: ceph-rbd
-          size: 5Gi
+          existingClaim: authentik-postgresql
 
-    ## --- SERVER & WORKER: MOUNT MEDIA PVC ON /media ---
     server:
+      # Ensure group ownership works even if files come in funky
+      podSecurityContext:
+        fsGroup: 1000
+
+      # --- initContainer to fix /media perms (GitOps-safe) ---
+      initContainers:
+        fix-media-perms:
+          image: busybox:stable
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -eu
+              echo "Fixing perms on /media..."
+              echo "Before:"
+              ls -ld /media || true
+              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+              chown -R 1000:1000 /media || true
+              chmod -R 0775 /media || true
+              echo "After:"
+              ls -ld /media || true
+              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
+              echo "Done."
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: media
+              mountPath: /media
+
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -102,10 +119,7 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
-      podSecurityContext:
-        fsGroup: 1000
 
-      # 👇 Pull all secrets from the SOPS-managed Secret
       env:
         - name: AUTHENTIK_SECRET_KEY
           valueFrom:
@@ -135,11 +149,32 @@ spec:
               name: authentik-postgresql
               key: password
 
-      # We use Traefik IngressRoute instead of the built-in Ingress
       ingress:
         enabled: false
 
     worker:
+      podSecurityContext:
+        fsGroup: 1000
+
+      initContainers:
+        fix-media-perms:
+          image: busybox:stable
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -eu
+              echo "Fixing perms on /media (worker)..."
+              ls -ld /media || true
+              chown -R 1000:1000 /media || true
+              chmod -R 0775 /media || true
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: media
+              mountPath: /media
+
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -147,8 +182,6 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
-      podSecurityContext:
-        fsGroup: 1000
 
       env:
         - name: AUTHENTIK_SECRET_KEY

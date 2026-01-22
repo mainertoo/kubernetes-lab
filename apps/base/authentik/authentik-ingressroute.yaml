@@ -3,6 +3,14 @@ kind: IngressRoute
 metadata:
   name: authentik-ingressroute
   namespace: authentik
+  annotations:
+    gethomepage.dev/href: "https://authentik.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Authentik"
+    gethomepage.dev/description: "SSO / Identity Provider"
+    gethomepage.dev/app: authentik
+    gethomepage.dev/group: "Infrastructure"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/authentik.svg"
 spec:
   entryPoints:
     - websecure

@@ -4,8 +4,7 @@ namespace: authentik
 
 resources:
   - authentik-namespace.yaml
-  - authentik-media-pvc.yaml
   - authentik-ingressroute.yaml
   - authentik-release.yaml
-  - authentik-media-perms-job.yaml
-  # (optionally we’ll add a perms Job below, but NO patches!)
+  # - authentik-media-pvc.yaml
+  # - authentik-media-perms-job.yaml

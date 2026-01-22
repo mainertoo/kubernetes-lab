@@ -9,7 +9,7 @@ resources:
   - plex/
   - vaultwarden/
   - paperless-ngx/
-  - authentik/
+  # - authentik/
   - rancher/
   - jellyfin/
   - jackett/
