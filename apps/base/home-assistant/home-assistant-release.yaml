@@ -99,10 +99,6 @@ spec:
                 # 4) Append additional required blocks
                 cat >> "$TMP_FILE" <<'EOF'
 
-                homeassistant:
-                  # Customization file
-                  customize: !include customize.yaml
-
                 logger:
                   default: notset
 
