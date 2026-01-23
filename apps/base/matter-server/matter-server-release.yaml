@@ -40,7 +40,7 @@ spec:
             # per upstream docker docs
             image:
               repository: ghcr.io/matter-js/python-matter-server
-              tag: latest
+              tag: stable
 
             env:
               TZ: America/Los_Angeles
