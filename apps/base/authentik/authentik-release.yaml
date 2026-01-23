@@ -7,6 +7,7 @@ spec:
   interval: 30m
   timeout: 15m
   releaseName: authentik
+
   chart:
     spec:
       chart: authentik
@@ -75,6 +76,7 @@ spec:
       ingress:
         enabled: false
 
+      # Mount your external media PVC at /media (shared with worker)
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -85,27 +87,6 @@ spec:
 
       podSecurityContext:
         fsGroup: 1000
-
-      initContainers:
-        fix-media-perms:
-          image: busybox:stable
-          command: ["/bin/sh","-c"]
-          args:
-            - |
-              echo "Fixing perms on /media..."
-              echo "Before:"
-              ls -ld /media || true
-              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null | head -n 200 || true
-              chown -R 1000:1000 /media || true
-              chmod -R 0775 /media || true
-              echo "After:"
-              ls -ld /media || true
-              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null | head -n 200 || true
-              echo "Done."
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            runAsNonRoot: false
 
       env:
         - name: AUTHENTIK_SECRET_KEY
@@ -137,6 +118,7 @@ spec:
               key: password
 
     worker:
+      # Mount the same media PVC at /media
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -148,25 +130,13 @@ spec:
       podSecurityContext:
         fsGroup: 1000
 
-      initContainers:
-        fix-media-perms:
-          image: busybox:stable
-          command: ["/bin/sh","-c"]
-          args:
-            - |
-              chown -R 1000:1000 /media || true
-              chmod -R 0775 /media || true
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            runAsNonRoot: false
-
       env:
         - name: AUTHENTIK_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: authentik-postgresql
               key: AUTHENTIK_SECRET_KEY
+
         - name: AUTHENTIK_POSTGRESQL__PASSWORD
           valueFrom:
             secretKeyRef:

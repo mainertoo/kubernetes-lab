@@ -8,4 +8,4 @@ resources:
   - authentik-release.yaml
   - authentik-postgresql-secret.sops.yaml
   # - authentik-media-pvc.yaml
-  # - authentik-media-perms-job.yaml
+  - authentik-media-perms-job.yaml
