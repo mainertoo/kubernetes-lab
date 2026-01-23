@@ -64,8 +64,6 @@ spec:
             runAsGroup: 1000
             fsGroup: 1000
             fsGroupChangePolicy: OnRootMismatch
-            supplementalGroups:
-              - 20  # dialout (often needed for serial)
 
     service:
       app:
@@ -83,16 +81,6 @@ spec:
         size: 2Gi
         globalMounts:
           - path: /config
-
-      # Mount host serial-by-id so your chosen device path can be used
-      serial-by-id:
-        enabled: true
-        type: hostPath
-        hostPath: /dev/serial/by-id
-        hostPathType: Directory
-        globalMounts:
-          - path: /dev/serial/by-id
-            readOnly: true
 
     defaultPodOptions:
       automountServiceAccountToken: false
