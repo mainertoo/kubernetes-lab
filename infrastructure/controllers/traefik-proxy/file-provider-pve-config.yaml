@@ -28,7 +28,7 @@ data:
               - X-authentik-meta-app
               - X-authentik-meta-version
               - Authorization
-            # safer than ".*"
+            # If you want to tighten this later, switch to the regex below:
             # authResponseHeadersRegex: "^(X-authentik-|Set-Cookie|Authorization)$"
             authResponseHeadersRegex: ".*"
 
@@ -91,7 +91,7 @@ data:
           entryPoints: [websecure]
           service: garage_ui
           middlewares:
-            - authentik-sso@file   # optional, see note below
+            - authentik-sso@file
 
       services:
         pve-whistler:
@@ -251,6 +251,14 @@ data:
           # middlewares:
           #   - authentik-sso@file
 
+        # --- NEW: Z-Wave JS UI (SSO protected) ---
+        zwave-js:
+          rule: "Host(`zwave-js.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: zwave_js_ui_http
+          middlewares:
+            - authentik-sso@file
+
       services:
         # QNAP UI (self-signed HTTPS typically)
         qnap_https:
@@ -328,6 +336,13 @@ data:
             passHostHeader: true
             servers:
               - url: "http://192.168.1.252:2283"
+
+        # --- NEW: Z-Wave JS UI backend ---
+        zwave_js_ui_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.236:8091"
 
       serversTransports:
         qnap-insecure:
