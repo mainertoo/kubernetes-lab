@@ -4,7 +4,7 @@ resources:
   - audiobookshelf/kustomization.yaml
   - actual-budget/kustomization.yaml
   - home-assistant/kustomization.yaml
-  - authentik/kustomization.yaml
+  - authentik/
 
   ## old resources list
   # - grocy/kustomization.yaml
