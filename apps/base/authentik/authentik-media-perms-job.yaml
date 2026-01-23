@@ -3,22 +3,40 @@ kind: Job
 metadata:
   name: authentik-media-perms-fix
   namespace: authentik
+  annotations:
+    # Bump this to force Flux to recreate the Job
+    run-id: "2026-01-22-0001"
 spec:
   backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
   template:
     spec:
       restartPolicy: Never
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
       containers:
         - name: fix
           image: busybox:stable
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
           command: ["/bin/sh", "-c"]
           args:
             - |
+              set -eux
               echo "Fixing perms on /media..."
+              echo "Before:"
+              ls -ld /media || true
+              ls -la /media || true
+
               chown -R 1000:1000 /media || true
               chmod -R 0775 /media || true
-              echo "Final state:"
-              ls -ld /media /media/* 2>/dev/null || true
+
+              echo "After:"
+              ls -ld /media || true
+              ls -la /media || true
           volumeMounts:
             - name: media
               mountPath: /media
