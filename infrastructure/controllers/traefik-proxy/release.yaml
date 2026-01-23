@@ -1,4 +1,3 @@
----
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -12,12 +11,12 @@ spec:
         kind: HelmRepository
         name: traefik-proxy
         namespace: traefik-system
-      version: ">=33.2.1"
+      version: "39.0.0"
   valuesFrom:
-  - kind: ConfigMap
-    name: traefik-values
-    valuesKey: values.yaml
-    optional: true   
+    - kind: ConfigMap
+      name: traefik-values
+      valuesKey: values.yaml
+      optional: true
   interval: 1h
   releaseName: traefik-proxy
   targetNamespace: traefik-system
