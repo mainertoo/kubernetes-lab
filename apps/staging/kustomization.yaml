@@ -68,3 +68,4 @@ resources:
   # - home-assistant/
   - zigbee2mqtt/
   - mosquitto/
+  - matter-server/
