@@ -5,7 +5,7 @@ metadata:
   namespace: authentik
 spec:
   interval: 30m
-  timeout: 10m
+  timeout: 15m
   releaseName: authentik
   chart:
     spec:
@@ -24,37 +24,17 @@ spec:
           database: authentik
           existingSecret: authentik-postgresql
 
-    authentik:
-      media:
-        owner: "1000"
-        group: "1000"
-        mode: "0775"
-      log_level: info
-
-      secret_key: ""
-
-      web:
-        path: /
-
-      email:
-        host: "smtp.gmail.com"
-        port: 587
-        use_tls: true
-        use_ssl: false
-        username: ""
-        password: ""
-        from: ""
-
-      postgresql:
-        host: "{{ .Release.Name }}-postgresql"
-        name: "authentik"
-        user: "authentik"
-        password: "6Sxl48ve8uET3DXp+F5+th416QiruJgPujWDTHMoPAU="
-        port: 5432
-
-      redis:
-        host: "{{ .Release.Name }}-redis-master"
-        password: ""
+    postgresql:
+      enabled: true
+      auth:
+        username: authentik
+        database: authentik
+        existingSecret: authentik-postgresql
+      primary:
+        persistence:
+          enabled: true
+          storageClass: ceph-rbd
+          size: 5Gi
 
     redis:
       enabled: true
@@ -70,47 +50,30 @@ spec:
         persistence:
           enabled: false
 
-    postgresql:
-      enabled: true
-      auth:
-        username: "authentik"
-        database: "authentik"
-        existingSecret: "authentik-postgresql"
-      primary:
-        persistence:
-          enabled: true
-          existingClaim: authentik-postgresql
+    authentik:
+      log_level: info
+      web:
+        path: /
+      media:
+        owner: "1000"
+        group: "1000"
+        mode: "0775"
+      email:
+        host: smtp.gmail.com
+        port: 587
+        use_tls: true
+        use_ssl: false
+      postgresql:
+        host: "{{ .Release.Name }}-postgresql"
+        name: authentik
+        user: authentik
+        port: 5432
+      redis:
+        host: "{{ .Release.Name }}-redis-master"
 
     server:
-      # Ensure group ownership works even if files come in funky
-      podSecurityContext:
-        fsGroup: 1000
-
-      # --- initContainer to fix /media perms (GitOps-safe) ---
-      initContainers:
-        fix-media-perms:
-          image: busybox:stable
-          command: ["/bin/sh","-c"]
-          args:
-            - |
-              set -eu
-              echo "Fixing perms on /media..."
-              echo "Before:"
-              ls -ld /media || true
-              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
-              chown -R 1000:1000 /media || true
-              chmod -R 0775 /media || true
-              echo "After:"
-              ls -ld /media || true
-              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null || true
-              echo "Done."
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            runAsNonRoot: false
-          volumeMounts:
-            - name: media
-              mountPath: /media
+      ingress:
+        enabled: false
 
       volumes:
         - name: media
@@ -119,6 +82,30 @@ spec:
       volumeMounts:
         - name: media
           mountPath: /media
+
+      podSecurityContext:
+        fsGroup: 1000
+
+      initContainers:
+        fix-media-perms:
+          image: busybox:stable
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              echo "Fixing perms on /media..."
+              echo "Before:"
+              ls -ld /media || true
+              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null | head -n 200 || true
+              chown -R 1000:1000 /media || true
+              chmod -R 0775 /media || true
+              echo "After:"
+              ls -ld /media || true
+              find /media -maxdepth 2 -printf '%M %u:%g %p\n' 2>/dev/null | head -n 200 || true
+              echo "Done."
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
 
       env:
         - name: AUTHENTIK_SECRET_KEY
@@ -149,10 +136,15 @@ spec:
               name: authentik-postgresql
               key: password
 
-      ingress:
-        enabled: false
-
     worker:
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: authentik-media
+      volumeMounts:
+        - name: media
+          mountPath: /media
+
       podSecurityContext:
         fsGroup: 1000
 
@@ -162,26 +154,12 @@ spec:
           command: ["/bin/sh","-c"]
           args:
             - |
-              set -eu
-              echo "Fixing perms on /media (worker)..."
-              ls -ld /media || true
               chown -R 1000:1000 /media || true
               chmod -R 0775 /media || true
           securityContext:
             runAsUser: 0
             runAsGroup: 0
             runAsNonRoot: false
-          volumeMounts:
-            - name: media
-              mountPath: /media
-
-      volumes:
-        - name: media
-          persistentVolumeClaim:
-            claimName: authentik-media
-      volumeMounts:
-        - name: media
-          mountPath: /media
 
       env:
         - name: AUTHENTIK_SECRET_KEY
