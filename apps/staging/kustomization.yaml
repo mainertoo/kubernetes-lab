@@ -66,3 +66,5 @@ resources:
 
   # home-automation
   # - home-assistant/
+  - zigbee2mqtt/
+  - mosquitto/
