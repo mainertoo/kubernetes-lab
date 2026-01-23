@@ -13,9 +13,9 @@ spec:
   timeout: 15m
   wait: false
 
-  dependsOn:
-    - name: authentik-postgresql
-    - name: authentik-media
+  # dependsOn:
+  #   - name: authentik-postgresql
+  #   - name: authentik-media
 
   decryption:
     provider: sops
