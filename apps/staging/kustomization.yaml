@@ -69,3 +69,4 @@ resources:
   - zigbee2mqtt/
   - mosquitto/
   - matter-server/
+  - esphome/
