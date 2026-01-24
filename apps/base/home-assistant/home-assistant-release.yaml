@@ -28,6 +28,11 @@ spec:
   values:
     controllers:
       home-assistant:
+        pod:
+          # 🔒 Pin Home Assistant to the same node as Matter + ESPHome
+          nodeSelector:
+            kubernetes.io/hostname: mainertoo-k3s-worker-2
+
         containers:
           app:
             image:
@@ -57,7 +62,6 @@ spec:
                 fi
 
                 # 1) Copy everything EXCEPT selected top-level blocks into a temp file.
-                #    (We rebuild those blocks deterministically below.)
                 awk '
                   function is_toplevel(line) { return line ~ /^[^[:space:]][^:]*:/ }
                   BEGIN { skip=0 }
@@ -104,18 +108,16 @@ spec:
 
                 system_health:
 
-                # iOS alerts
                 ios:
 
-                # Discover some devices automatically
                 discovery:
 
-                # Mobile application
                 mobile_app:
                 EOF
 
                 # 5) Replace atomically
                 mv -f "$TMP_FILE" "$CONFIG_FILE"
+
     service:
       app:
         controller: home-assistant
