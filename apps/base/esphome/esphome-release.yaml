@@ -26,6 +26,34 @@ spec:
   values:
     controllers:
       esphome:
+        pod:
+          # Pin to same node as Home Assistant + matter-server for stable mDNS/OTA behavior
+          nodeSelector:
+            kubernetes.io/hostname: mainertoo-k3s-worker-2
+
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+
+        initContainers:
+          init-platformio:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                set -eu
+                mkdir -p /config/.platformio
+                mkdir -p /config/.esphome
+                # Make sure writable by the non-root user we run as
+                chown -R 1000:1000 /config/.platformio /config/.esphome || true
+                chmod -R 0775 /config/.platformio /config/.esphome || true
+
         containers:
           app:
             image:
@@ -35,18 +63,19 @@ spec:
             env:
               TZ: America/Los_Angeles
 
+              # ✅ FIX: keep PlatformIO state out of "/"
+              PLATFORMIO_CORE_DIR: /config/.platformio
+
+              # ✅ Prefer the setting-based knob (more reliable than "DISABLE" in some PIO versions)
+              PLATFORMIO_SETTING_ENABLE_TELEMETRY: "no"
+              # (Optional extra belt+suspenders; harmless if ignored)
+              PLATFORMIO_DISABLE_TELEMETRY: "true"
+
             # ESPHome dashboard listens on 6052
             ports:
               - name: http
                 containerPort: 6052
                 protocol: TCP
-
-        pod:
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            fsGroup: 1000
-            fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
@@ -63,13 +92,15 @@ spec:
         type: persistentVolumeClaim
         storageClass: ceph-rbd
         accessMode: ReadWriteOnce
-        size: 2Gi
-        globalMounts:
-          - path: /config
+        size: 4Gi
+        advancedMounts:
+          esphome:
+            app:
+              - path: /config
+            init-platformio:
+              - path: /config
 
     defaultPodOptions:
       automountServiceAccountToken: false
-
-      # Strongly recommended for ESPHome discovery + smooth OTA (mDNS/zeroconf).
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
