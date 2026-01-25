@@ -1,0 +1,38 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: bentopdf
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/bentopdf
+  targetNamespace: bentopdf
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: bentopdf
+      APP_NAMESPACE: bentopdf
+
+      SUBDOMAIN: bentopdf
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "80"
