@@ -72,4 +72,5 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: vaultwarden-data
+        # VolSync (production) will create a PVC named exactly "vaultwarden"
+        existingClaim: vaultwarden

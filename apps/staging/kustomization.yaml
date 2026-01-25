@@ -7,7 +7,7 @@ resources:
   - rclone/
   - riven/
   - plex/
-  - vaultwarden/
+  # - vaultwarden/
   - paperless-ngx/
   # - authentik/
   - rancher/

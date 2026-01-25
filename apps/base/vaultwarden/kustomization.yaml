@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: vaultwarden
 resources:
   - vaultwarden-namespace.yaml
-  - vaultwarden-pvc.yaml
+  # - vaultwarden-pvc.yaml
   - vaultwarden-sso-secret.sops.yaml
   - vaultwarden-admin-secret.sops.yaml
   - vaultwarden-release.yaml
