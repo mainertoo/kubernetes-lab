@@ -45,6 +45,17 @@ spec:
 
     cleanPrometheusOperatorObjectNames: true
 
+    # k3s note:
+    # Controller-manager is embedded in the k3s server process and is not exposed like kubeadm clusters.
+    # kube-prometheus-stack will create a Service/ServiceMonitor but end up with "No targets",
+    # which triggers the KubeControllerManagerDown alert. Disable both the monitor and rule group.
+    kubeControllerManager:
+      enabled: false
+
+    defaultRules:
+      rules:
+        kubeControllerManager: false
+
     # Create default Grafana dashboards as ConfigMaps, even though we are NOT deploying grafana subchart.
     grafana:
       enabled: false
