@@ -35,4 +35,4 @@ spec:
       SUBDOMAIN: bentopdf
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
-      GATUS_PORT: "80"
+      GATUS_PORT: "8080"
