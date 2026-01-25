@@ -20,7 +20,7 @@ resources:
   - wiki-js/
   - grocy/
   - stirling-pdf/
-  - bentopdf/
+  # - bentopdf/
   # - audiobookshelf/
   - code-server/
   - it-tools/

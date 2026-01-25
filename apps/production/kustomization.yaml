@@ -6,6 +6,7 @@ resources:
   - home-assistant/kustomization.yaml
   - authentik/
   - vaultwarden/kustomization.yaml
+  - bentopdf/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
