@@ -80,6 +80,26 @@ spec:
               - secretRef:
                   name: calibre-secret
 
+          # -------------------------------------------------------------------
+          # NEW: stable internal health endpoint for Gatus (always returns 200)
+          # Exposed via Service port 80 (see service.ports.health below)
+          # -------------------------------------------------------------------
+          health:
+            image:
+              repository: nginx
+              tag: "1.27"
+              pullPolicy: IfNotPresent
+            command: ["/bin/sh", "-lc"]
+            args:
+              - |
+                cat >/usr/share/nginx/html/index.html <<'EOF'
+                ok
+                EOF
+                exec nginx -g 'daemon off;'
+            ports:
+              - name: health
+                containerPort: 8080
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -108,6 +128,14 @@ spec:
           content:
             port: 8081
             targetPort: 8081
+
+          # -------------------------------------------------------------------
+          # NEW: internal health check port (maps to the nginx sidecar on 8080)
+          # Use this for Gatus internal check: port 80, path /
+          # -------------------------------------------------------------------
+          health:
+            port: 80
+            targetPort: 8080
 
     persistence:
       config:
