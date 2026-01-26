@@ -77,16 +77,21 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+
+      # Prefer to schedule Readarr on the same node as Calibre.
+      # This reduces multi-node RWX attachments and avoids "still attached" cleanup noise later.
       affinity:
         podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/instance
-                    operator: In
-                    values:
-                      - decypharr
-              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - calibre
+                topologyKey: kubernetes.io/hostname
 
     service:
       main:
@@ -128,7 +133,7 @@ spec:
         globalMounts:
           - path: /mnt/symlinks
 
-      # Calibre library (CephFS RWX PVC)
+      # Calibre library (CephFS RWX PVC) - RW as requested
       # This MUST match what Calibre is using:
       #   /calibre-library/metadata.db
       calibre-library:
