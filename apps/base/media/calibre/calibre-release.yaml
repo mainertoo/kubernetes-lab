@@ -68,37 +68,34 @@ spec:
               TZ: America/Los_Angeles
               PUID: "1000"
               PGID: "1000"
-              # Selkies baseimage port overrides (OPTIONAL).
-              # If you don't need custom ports, you can delete these.
-              CUSTOM_PORT: "8092"        # default 8080
-              CUSTOM_HTTPS_PORT: "8194"  # default 8181
-
-              # Optional basic auth user (abc is default if CUSTOM_USER is unset)
+              CUSTOM_PORT: "8092"
+              CUSTOM_HTTPS_PORT: "8194"
               CUSTOM_USER: "readarr"
 
             envFrom:
               - secretRef:
                   name: calibre-secret
 
-          # -------------------------------------------------------------------
-          # NEW: stable internal health endpoint for Gatus (always returns 200)
-          # Exposed via Service port 80 (see service.ports.health below)
-          # -------------------------------------------------------------------
+          # ✅ Health sidecar that ACTUALLY listens on 8080
           health:
             image:
-              repository: nginx
-              tag: "1.27"
-              pullPolicy: IfNotPresent
+              repository: busybox
+              tag: stable
             command: ["/bin/sh", "-lc"]
             args:
               - |
-                cat >/usr/share/nginx/html/index.html <<'EOF'
-                ok
-                EOF
-                exec nginx -g 'daemon off;'
+                set -e
+                mkdir -p /www
+                echo "ok" >/www/index.html
+                # busybox httpd will listen on 8080
+                exec httpd -f -p 8080 -h /www
             ports:
               - name: health
                 containerPort: 8080
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
 
     defaultPodOptions:
       securityContext:
@@ -113,26 +110,18 @@ spec:
         controller: main
         type: ClusterIP
         ports:
-          # Selkies GUI HTTP (CUSTOM_PORT if set)
           http:
             port: 8092
             targetPort: 8092
-
-          # Selkies GUI HTTPS (CUSTOM_HTTPS_PORT if set)
           https:
             port: 8194
             targetPort: 8194
-
-          # Calibre built-in webserver / content server (fixed inside container: 8081)
-          # This is what Readarr should talk to.
           content:
             port: 8081
             targetPort: 8081
 
-          # -------------------------------------------------------------------
-          # NEW: internal health check port (maps to the nginx sidecar on 8080)
-          # Use this for Gatus internal check: port 80, path /
-          # -------------------------------------------------------------------
+          # ✅ What Gatus internal should hit:
+          # http://calibre.media.svc.cluster.local:80/
           health:
             port: 80
             targetPort: 8080
