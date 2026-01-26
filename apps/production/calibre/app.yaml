@@ -24,8 +24,9 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+    components:
+      - ../../../../components/gatus/internal
+      - ../../../../components/gatus/external
 
   postBuild:
     substitute:
