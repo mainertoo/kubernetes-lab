@@ -40,7 +40,7 @@ resources:
   - sonarr4k/
   - lidarr/
   - bazarr/
-  - calibre/
+  # - calibre/
   - notifiarr/
   # - actual-budget/
   - expense-owl/
