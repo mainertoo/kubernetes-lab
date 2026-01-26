@@ -8,7 +8,7 @@ metadata:
     run-id: "2026-01-22-0001"
 spec:
   backoffLimit: 0
-  ttlSecondsAfterFinished: 3600
+  # ttlSecondsAfterFinished: 3600
   template:
     spec:
       restartPolicy: Never
