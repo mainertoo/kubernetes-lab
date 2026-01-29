@@ -15,8 +15,14 @@ spec:
   routes:
     - match: Host(`home-assistant.lab.mainertoo.com`) || Host(`ha.lab.mainertoo.com`)
       kind: Rule
+
+      # If you want Authentik in front of HA, uncomment this.
+      # middlewares:
+      #   - name: authentik-middleware
+      #     namespace: traefik
+
       services:
-        - name: home-assistant
+        - name: home-assistant-app
           port: 8123
           scheme: http
   tls: {}
