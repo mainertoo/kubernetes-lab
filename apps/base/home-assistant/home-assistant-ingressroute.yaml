@@ -46,7 +46,7 @@ spec:
       kind: Rule
       middlewares:
         # Adjust these if your Authentik forwardAuth middleware has a different name/namespace
-        - name: authentik-middleware
+        - name: authentik-sso
           namespace: traefik
       services:
         - name: home-assistant-code
