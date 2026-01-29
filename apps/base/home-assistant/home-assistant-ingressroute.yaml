@@ -15,15 +15,35 @@ spec:
   routes:
     - match: Host(`home-assistant.lab.mainertoo.com`) || Host(`ha.lab.mainertoo.com`)
       kind: Rule
-
-      # If you want Authentik in front of HA, uncomment this.
-      # Note: HA already has its own auth; SSO via forward-auth is optional.
-      # middlewares:
-      #   - name: authentik-middleware
-      #     namespace: traefik
-
       services:
         - name: home-assistant
           port: 8123
+          scheme: http
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: home-assistant-code
+  namespace: home-assistant
+  annotations:
+    gethomepage.dev/href: "https://home-assistant-code.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "VSCode - Home Assistant"
+    gethomepage.dev/description: "Code server for Home Assistant config"
+    gethomepage.dev/group: "Automation"
+    gethomepage.dev/icon: "https://code.visualstudio.com/assets/images/code-stable.png"
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    - match: Host(`home-assistant-code.lab.mainertoo.com`) || Host(`hacode.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # Adjust these if your Authentik forwardAuth middleware has a different name/namespace
+        - name: authentik-middleware
+          namespace: traefik
+      services:
+        - name: home-assistant-code
+          port: 8081
           scheme: http
   tls: {}

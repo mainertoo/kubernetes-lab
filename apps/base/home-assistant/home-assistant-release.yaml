@@ -41,8 +41,25 @@ spec:
             env:
               TZ: America/Los_Angeles
 
+          # VS Code in the browser, sharing /config with HA
+          code:
+            dependsOn: app
+            image:
+              repository: ghcr.io/coder/code-server
+              tag: 4.106.3
+            args:
+              - --auth
+              - "none"
+              - --user-data-dir
+              - "/config/.vscode"
+              - --extensions-dir
+              - "/config/.vscode"
+              - --port
+              - "8081"
+              - "/config"
+
         initContainers:
-          ensure-http-proxy:
+          ensure-ha-config:
             image:
               repository: busybox
               tag: "1.36"
@@ -54,28 +71,21 @@ spec:
                 set -eu
 
                 CONFIG_FILE="/config/configuration.yaml"
-                TMP_FILE="/config/.configuration.yaml.tmp"
 
-                # Ensure file exists
+                # Create file once if missing
                 if [ ! -f "$CONFIG_FILE" ]; then
-                  printf "%s\n" "# created by gitops initContainer" > "$CONFIG_FILE"
-                fi
+                  cat > "$CONFIG_FILE" <<'EOF'
+                # created by gitops initContainer
 
-                # 1) Copy everything EXCEPT selected top-level blocks into a temp file.
-                awk '
-                  function is_toplevel(line) { return line ~ /^[^[:space:]][^:]*:/ }
-                  BEGIN { skip=0 }
-                  {
-                    if (is_toplevel($0)) {
-                      if ($0 ~ /^(http|openid|homeassistant|logger|system_health|ios|discovery|mobile_app):/) { skip=1; next }
-                      if (skip==1) { skip=0 }
-                    }
-                    if (skip==0) print
-                  }
-                ' "$CONFIG_FILE" > "$TMP_FILE"
 
-                # 2) Append clean, known-good http: block (Traefik trust)
-                cat >> "$TMP_FILE" <<'EOF'
+                zeroconf:
+
+
+                default_config:
+
+                # Mobile application
+
+
 
                 http:
                   use_x_forwarded_for: true
@@ -84,10 +94,6 @@ spec:
                     - 10.43.0.0/16
                     - 192.168.90.0/24
                     - 192.168.1.0/24
-                EOF
-
-                # 3) Append clean openid: block (Authentik OIDC)
-                cat >> "$TMP_FILE" <<'EOF'
 
                 openid:
                   client_id: !secret authentik_client_id
@@ -98,10 +104,6 @@ spec:
                   block_login: false
                   openid_text: "Login with Authentik"
                   create_user: true
-                EOF
-
-                # 4) Append additional required blocks
-                cat >> "$TMP_FILE" <<'EOF'
 
                 logger:
                   default: notset
@@ -113,10 +115,104 @@ spec:
                 discovery:
 
                 mobile_app:
-                EOF
 
-                # 5) Replace atomically
-                mv -f "$TMP_FILE" "$CONFIG_FILE"
+                # include automation, scripts and scene
+                automation: !include automations.yaml
+                script: !include scripts.yaml
+                scene: !include scenes.yaml
+                EOF
+                fi
+
+                # If the user edits config manually, do NOT overwrite it.
+                # Only ensure required top-level blocks exist.
+
+                # Ensure http block exists (and includes trusted_proxies)
+                if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                http:
+                  use_x_forwarded_for: true
+                  trusted_proxies:
+                    - 10.42.0.0/16
+                    - 10.43.0.0/16
+                    - 192.168.90.0/24
+                    - 192.168.1.0/24
+                EOF
+                fi
+
+                # Ensure openid block exists
+                if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                openid:
+                  client_id: !secret authentik_client_id
+                  client_secret: !secret authentik_client_secret
+                  configure_url: "https://authentik.lab.mainertoo.com/application/o/home-assistant/.well-known/openid-configuration"
+                  scope: "openid profile email"
+                  username_field: "preferred_username"
+                  block_login: false
+                  openid_text: "Login with Authentik"
+                  create_user: true
+                EOF
+                fi
+
+                # Ensure basic blocks exist
+                if ! grep -qE '^[[:space:]]*logger:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                logger:
+                  default: notset
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*system_health:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                system_health:
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*ios:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                ios:
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*discovery:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                discovery:
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*mobile_app:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                mobile_app:
+                EOF
+                fi
+
+                # Ensure include lines exist
+                if ! grep -qE '^[[:space:]]*automation:[[:space:]]*!include[[:space:]]+automations\.yaml' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                # include automation, scripts and scene
+                automation: !include automations.yaml
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*script:[[:space:]]*!include[[:space:]]+scripts\.yaml' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+                script: !include scripts.yaml
+                EOF
+                fi
+
+                if ! grep -qE '^[[:space:]]*scene:[[:space:]]*!include[[:space:]]+scenes\.yaml' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+                scene: !include scenes.yaml
+                EOF
+                fi
 
     service:
       app:
@@ -126,6 +222,13 @@ spec:
           http:
             port: 8123
 
+      code:
+        controller: home-assistant
+        type: ClusterIP
+        ports:
+          http:
+            port: 8081
+
     persistence:
       config:
         enabled: true
@@ -134,7 +237,9 @@ spec:
           home-assistant:
             app:
               - path: /config
-            ensure-http-proxy:
+            code:
+              - path: /config
+            ensure-ha-config:
               - path: /config
 
       secrets:
