@@ -16,11 +16,6 @@ spec:
     - match: Host(`home-assistant.lab.mainertoo.com`) || Host(`ha.lab.mainertoo.com`)
       kind: Rule
 
-      # If you want Authentik in front of HA, uncomment this.
-      # middlewares:
-      #   - name: authentik-middleware
-      #     namespace: traefik
-
       services:
         - name: home-assistant-app
           port: 8123
@@ -47,7 +42,7 @@ spec:
       middlewares:
         # Adjust these if your Authentik forwardAuth middleware has a different name/namespace
         - name: authentik-sso
-          namespace: traefik
+          namespace: traefik-system
       services:
         - name: home-assistant-code
           port: 8081
