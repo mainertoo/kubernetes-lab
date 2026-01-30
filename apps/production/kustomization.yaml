@@ -8,7 +8,7 @@ resources:
   - vaultwarden/kustomization.yaml
   - bentopdf/kustomization.yaml
   - calibre/
-    - home-assistant/zigbee2mqtt/kustomization.yaml
+  - home-assistant/zigbee2mqtt/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
