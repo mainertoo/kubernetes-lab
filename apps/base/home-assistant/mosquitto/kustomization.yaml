@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - mosquitto-secret.sops.yaml
+  - mosquitto-release.yaml
+
+configMapGenerator:
+  - name: mosquitto-configmap
+    files:
+      - mosquitto.conf=./mosquitto.conf
+
+generatorOptions:
+  disableNameSuffixHash: false
+
+configurations:
+  - ./kustomizeconfig.yaml
