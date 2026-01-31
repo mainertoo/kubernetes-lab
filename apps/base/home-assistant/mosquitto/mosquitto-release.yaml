@@ -41,7 +41,7 @@ spec:
                 umask 077
                 mkdir -p /mosquitto/external_config
                 # Create/overwrite password file from secret env vars
-                mosquitto_passwd -c -b /mosquitto/external_config/mosquitto_pwd "${MQTT_USERNAME}" "${MQTT_PASSWORD}"
+                mosquitto_passwd -c -b /mosquitto/external_config/mosquitto_pwd "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
                 chmod 0600 /mosquitto/external_config/mosquitto_pwd
 
         containers:
