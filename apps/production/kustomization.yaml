@@ -9,6 +9,7 @@ resources:
   - bentopdf/kustomization.yaml
   - calibre/
   - home-assistant/zigbee2mqtt/kustomization.yaml
+  - home-assistant/mosquitto/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
