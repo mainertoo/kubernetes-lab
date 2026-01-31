@@ -67,6 +67,6 @@ resources:
   # home-automation
   # - home-assistant/
   # - zigbee2mqtt/
-  - mosquitto/
+  # - mosquitto/
   - matter-server/
   - esphome/
