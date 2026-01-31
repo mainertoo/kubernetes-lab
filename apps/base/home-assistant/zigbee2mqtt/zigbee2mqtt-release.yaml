@@ -50,7 +50,7 @@ spec:
               ZIGBEE2MQTT_CONFIG_FRONTEND_PORT: "8080"
               ZIGBEE2MQTT_CONFIG_FRONTEND_URL: "https://zigbee2mqtt.lab.mainertoo.com"
 
-              ZIGBEE2MQTT_CONFIG_MQTT_SERVER: "mqtt://mosquitto.mosquitto.svc.cluster.local:1883"
+              ZIGBEE2MQTT_CONFIG_MQTT_SERVER: "mqtt://mosquitto.home-assistant.svc.cluster.local:1883"
               ZIGBEE2MQTT_CONFIG_MQTT_VERSION: "5"
               ZIGBEE2MQTT_CONFIG_MQTT_KEEPALIVE: "60"
               ZIGBEE2MQTT_CONFIG_MQTT_INCLUDE_DEVICE_INFORMATION: "true"
