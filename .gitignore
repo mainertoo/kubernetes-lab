@@ -66,3 +66,12 @@ esphome-migration/
 *.qcow2
 *.vmdk
 *.iso
+
+# --- local scratch / backups ---
+esphome-migration/
+**/esphome-migration/
+Downloads/
+**/Downloads/
+*.tar
+*.tar.gz
+*.tgz
