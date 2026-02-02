@@ -52,3 +52,17 @@ terraform.rc
 *.out
 terraform/terraform.tfvars
 .kube/
+
+# --- local scratch / backups ---
+Downloads/
+**/Downloads/
+esphome-migration/
+**/esphome-migration/
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.img
+*.qcow2
+*.vmdk
+*.iso
