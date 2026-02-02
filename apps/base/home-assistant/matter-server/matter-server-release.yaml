@@ -67,13 +67,11 @@ spec:
 
     persistence:
       data:
-        enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 2Gi
-        globalMounts:
-          - path: /data
+      enabled: true
+      type: persistentVolumeClaim
+      existingClaim: matter-server
+      globalMounts:
+        - path: /data
 
       # Optional: only needed if you plan to commission Matter-over-BLE via the host
       # (Safe to leave; it’s read-only)

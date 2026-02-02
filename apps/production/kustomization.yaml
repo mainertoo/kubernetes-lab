@@ -11,6 +11,7 @@ resources:
   - home-assistant/zigbee2mqtt/kustomization.yaml
   - home-assistant/mosquitto/kustomization.yaml
   - home-assistant/esphome/kustomization.yaml
+  - home-assistant/matter-server/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
