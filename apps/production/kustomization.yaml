@@ -10,6 +10,7 @@ resources:
   - calibre/
   - home-assistant/zigbee2mqtt/kustomization.yaml
   - home-assistant/mosquitto/kustomization.yaml
+  - home-assistant/esphome/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
