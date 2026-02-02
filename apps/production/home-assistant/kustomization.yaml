@@ -50,6 +50,7 @@ spec:
 
       # --- Gatus ---
       SUBDOMAIN: home-assistant
+      GATUS_APP: home-assistant-app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "8123"
