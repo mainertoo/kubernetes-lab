@@ -57,7 +57,7 @@ spec:
         controller: esphome
         type: ClusterIP
         ports:
-          httpa: null
+          # httpa: null
           http:
             port: 80
             targetPort: 6052
