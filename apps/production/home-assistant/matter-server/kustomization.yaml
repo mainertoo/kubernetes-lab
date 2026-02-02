@@ -1,0 +1,64 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: matter-server
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/home-assistant/matter-server
+  targetNamespace: home-assistant
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/volsync
+    - ../../../../components/volsync/remote
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      # App identity
+      APP: matter-server
+      APP_NAMESPACE: home-assistant
+
+      # VolSync PVC settings
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      CAPACITY: 2Gi
+
+      # Pick repo path in Garage
+      VOLSYNC_REPO_PATH: home-assistant/matter-server/data
+
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      # Matter server runs as root by default in many setups; keep ownership root unless you know otherwise
+      VOLSYNC_PUID: "0"
+      VOLSYNC_PGID: "0"
+
+      # Gatus (Matter listens on 5580)
+      SUBDOMAIN: matter-server
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "5580"
+      GATUS_STATUS_INTERNAL: "200"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
