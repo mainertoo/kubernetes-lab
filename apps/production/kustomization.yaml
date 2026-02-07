@@ -13,6 +13,7 @@ resources:
   - home-assistant/esphome/kustomization.yaml
   - home-assistant/matter-server/kustomization.yaml
   - home-assistant/node-red/kustomization.yaml
+  - media/tracearr/
 
   ## old resources list
   # - grocy/kustomization.yaml

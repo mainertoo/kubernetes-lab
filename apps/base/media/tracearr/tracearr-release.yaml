@@ -1,0 +1,152 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tracearr
+  namespace: media
+spec:
+  interval: 30m
+  releaseName: tracearr
+
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      tracearr:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/connorgallopo/tracearr
+              tag: latest
+              pullPolicy: IfNotPresent
+
+            ports:
+              - name: http
+                containerPort: 3000
+                protocol: TCP
+
+            env:
+              NODE_ENV: production
+              HOST: "0.0.0.0"
+              PORT: "3000"
+              TZ: America/Los_Angeles
+
+              # Service DNS in same namespace
+              DATABASE_URL: "postgres://tracearr:$(DB_PASSWORD)@tracearr-timescale:5432/tracearr"
+              REDIS_URL: "redis://tracearr-redis:6379"
+
+              # Optional
+              CORS_ORIGIN: "*"
+              LOG_LEVEL: "info"
+
+            envFrom:
+              - secretRef:
+                  name: tracearr-secret
+
+      timescale:
+        containers:
+          main:
+            image:
+              repository: timescale/timescaledb-ha
+              tag: pg18
+              pullPolicy: IfNotPresent
+
+            # Mirrors upstream compose guidance for big imports / many chunks
+            command:
+              - postgres
+              - -c
+              - timescaledb.max_tuples_decompressed_per_dml_transaction=0
+              - -c
+              - max_locks_per_transaction=4096
+
+            env:
+              POSTGRES_USER: tracearr
+              POSTGRES_DB: tracearr
+              POSTGRES_PASSWORD: "$(DB_PASSWORD)"
+            envFrom:
+              - secretRef:
+                  name: tracearr-secret
+
+            # Give Postgres shared memory (/dev/shm) like compose shm_size: 512mb
+            volumeMounts:
+              - name: shm
+                mountPath: /dev/shm
+
+        pod:
+          # Provide /dev/shm as tmpfs
+          volumes:
+            - name: shm
+              emptyDir:
+                medium: Memory
+                sizeLimit: 512Mi
+
+      redis:
+        containers:
+          main:
+            image:
+              repository: redis
+              tag: 8-alpine
+              pullPolicy: IfNotPresent
+
+            command:
+              - redis-server
+              - --appendonly
+              - "yes"
+
+    service:
+      tracearr:
+        controller: tracearr
+        type: ClusterIP
+        ports:
+          http:
+            port: 80
+            targetPort: 3000
+
+      tracearr-timescale:
+        controller: timescale
+        type: ClusterIP
+        ports:
+          postgres:
+            port: 5432
+            targetPort: 5432
+
+      tracearr-redis:
+        controller: redis
+        type: ClusterIP
+        ports:
+          redis:
+            port: 6379
+            targetPort: 6379
+
+    persistence:
+      timescale-data:
+        enabled: true
+        existingClaim: tracearr-timescale
+        globalMounts:
+          - path: /home/postgres/pgdata/data
+
+      redis-data:
+        enabled: true
+        existingClaim: tracearr-redis
+        globalMounts:
+          - path: /data
+
+    defaultPodOptions:
+      automountServiceAccountToken: false
