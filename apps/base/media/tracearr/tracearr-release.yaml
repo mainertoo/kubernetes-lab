@@ -38,7 +38,6 @@ spec:
               repository: ghcr.io/connorgallopo/tracearr
               tag: latest
               pullPolicy: IfNotPresent
-
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
@@ -46,11 +45,9 @@ spec:
               LOG_LEVEL: info
               REDIS_URL: redis://tracearr-redis:6379
               CORS_ORIGIN: "*"
-
             envFrom:
               - secretRef:
                   name: tracearr-secret
-
             ports:
               - name: http
                 containerPort: 3000
@@ -69,6 +66,25 @@ spec:
               - "yes"
 
       timescale:
+        # make sure the PGDATA dir exists and is owned by postgres before postgres starts
+        initContainers:
+          init-timescale-pgdata:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                set -eux
+                mkdir -p /var/lib/postgresql/data/pgdata
+                chown -R 999:999 /var/lib/postgresql/data/pgdata
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
         containers:
           main:
             image:
@@ -78,7 +94,8 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
-              PGDATA: /var/lib/postgresql/data
+              # IMPORTANT: PGDATA must NOT be the mount root (avoids lost+found issue)
+              PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: tracearr-secret
@@ -120,8 +137,11 @@ spec:
       timescale-data:
         enabled: true
         existingClaim: tracearr-timescale
+        # mount the PVC at a parent dir, NOT the PGDATA dir itself
         advancedMounts:
           timescale:
+            init-timescale-pgdata:
+              - path: /var/lib/postgresql/data
             main:
               - path: /var/lib/postgresql/data
 
