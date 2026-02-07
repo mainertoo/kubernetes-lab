@@ -48,11 +48,9 @@ spec:
               PORT: "3000"
               TZ: America/Los_Angeles
 
-              # Service DNS in same namespace
               DATABASE_URL: "postgres://tracearr:$(DB_PASSWORD)@tracearr-timescale:5432/tracearr"
               REDIS_URL: "redis://tracearr-redis:6379"
 
-              # Optional
               CORS_ORIGIN: "*"
               LOG_LEVEL: "info"
 
@@ -68,7 +66,6 @@ spec:
               tag: pg18
               pullPolicy: IfNotPresent
 
-            # Mirrors upstream compose guidance for big imports / many chunks
             command:
               - postgres
               - -c
@@ -84,19 +81,6 @@ spec:
               - secretRef:
                   name: tracearr-secret
 
-            # Give Postgres shared memory (/dev/shm) like compose shm_size: 512mb
-            volumeMounts:
-              - name: shm
-                mountPath: /dev/shm
-
-        pod:
-          # Provide /dev/shm as tmpfs
-          volumes:
-            - name: shm
-              emptyDir:
-                medium: Memory
-                sizeLimit: 512Mi
-
       redis:
         containers:
           main:
@@ -104,7 +88,6 @@ spec:
               repository: redis
               tag: 8-alpine
               pullPolicy: IfNotPresent
-
             command:
               - redis-server
               - --appendonly
@@ -136,17 +119,34 @@ spec:
             targetPort: 6379
 
     persistence:
+      # TimescaleDB data PVC
       timescale-data:
         enabled: true
         existingClaim: tracearr-timescale
-        globalMounts:
-          - path: /home/postgres/pgdata/data
+        advancedMounts:
+          timescale:
+            main:
+              - path: /home/postgres/pgdata/data
 
+      # Redis data PVC
       redis-data:
         enabled: true
         existingClaim: tracearr-redis
-        globalMounts:
-          - path: /data
+        advancedMounts:
+          redis:
+            main:
+              - path: /data
+
+      # Timescale /dev/shm (compose shm_size: 512mb)
+      timescale-shm:
+        enabled: true
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 512Mi
+        advancedMounts:
+          timescale:
+            main:
+              - path: /dev/shm
 
     defaultPodOptions:
       automountServiceAccountToken: false
