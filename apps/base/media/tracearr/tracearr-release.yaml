@@ -18,11 +18,13 @@ spec:
     createNamespace: false
     remediation:
       retries: 3
+    timeout: 15m
 
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+    timeout: 15m
 
   uninstall:
     keepHistory: false
@@ -37,49 +39,23 @@ spec:
               tag: latest
               pullPolicy: IfNotPresent
 
+            env:
+              TZ: America/Los_Angeles
+              PORT: "3000"
+              NODE_ENV: production
+              LOG_LEVEL: info
+              # Tracearr requires these (DATABASE_URL comes from secret)
+              REDIS_URL: redis://tracearr-redis:6379
+              CORS_ORIGIN: "*"
+
+            envFrom:
+              - secretRef:
+                  name: tracearr-secret
+
             ports:
               - name: http
                 containerPort: 3000
                 protocol: TCP
-
-            env:
-              NODE_ENV: production
-              HOST: "0.0.0.0"
-              PORT: "3000"
-              TZ: America/Los_Angeles
-
-              DATABASE_URL: "postgres://tracearr:$(DB_PASSWORD)@tracearr-timescale:5432/tracearr"
-              REDIS_URL: "redis://tracearr-redis:6379"
-
-              CORS_ORIGIN: "*"
-              LOG_LEVEL: "info"
-
-            envFrom:
-              - secretRef:
-                  name: tracearr-secret
-
-      timescale:
-        containers:
-          main:
-            image:
-              repository: timescale/timescaledb-ha
-              tag: pg18
-              pullPolicy: IfNotPresent
-
-            command:
-              - postgres
-              - -c
-              - timescaledb.max_tuples_decompressed_per_dml_transaction=0
-              - -c
-              - max_locks_per_transaction=4096
-
-            env:
-              POSTGRES_USER: tracearr
-              POSTGRES_DB: tracearr
-              POSTGRES_PASSWORD: "$(DB_PASSWORD)"
-            envFrom:
-              - secretRef:
-                  name: tracearr-secret
 
       redis:
         containers:
@@ -93,6 +69,27 @@ spec:
               - --appendonly
               - "yes"
 
+      timescale:
+        containers:
+          main:
+            image:
+              repository: timescale/timescaledb-ha
+              tag: pg18
+              pullPolicy: IfNotPresent
+            command:
+              - postgres
+              - -c
+              - timescaledb.max_tuples_decompressed_per_dml_transaction=0
+              - -c
+              - max_locks_per_transaction=4096
+            env:
+              POSTGRES_DB: tracearr
+              POSTGRES_USER: tracearr
+              # IMPORTANT: Timescale reads POSTGRES_PASSWORD, so we provide it via envFrom
+            envFrom:
+              - secretRef:
+                  name: tracearr-secret
+
     service:
       tracearr:
         controller: tracearr
@@ -102,14 +99,6 @@ spec:
             port: 80
             targetPort: 3000
 
-      tracearr-timescale:
-        controller: timescale
-        type: ClusterIP
-        ports:
-          postgres:
-            port: 5432
-            targetPort: 5432
-
       tracearr-redis:
         controller: redis
         type: ClusterIP
@@ -118,17 +107,15 @@ spec:
             port: 6379
             targetPort: 6379
 
-    persistence:
-      # TimescaleDB data PVC
-      timescale-data:
-        enabled: true
-        existingClaim: tracearr-timescale
-        advancedMounts:
-          timescale:
-            main:
-              - path: /home/postgres/pgdata/data
+      tracearr-timescale:
+        controller: timescale
+        type: ClusterIP
+        ports:
+          postgres:
+            port: 5432
+            targetPort: 5432
 
-      # Redis data PVC
+    persistence:
       redis-data:
         enabled: true
         existingClaim: tracearr-redis
@@ -137,7 +124,14 @@ spec:
             main:
               - path: /data
 
-      # Timescale /dev/shm (compose shm_size: 512mb)
+      timescale-data:
+        enabled: true
+        existingClaim: tracearr-timescale
+        advancedMounts:
+          timescale:
+            main:
+              - path: /home/postgres/pgdata/data
+
       timescale-shm:
         enabled: true
         type: emptyDir
