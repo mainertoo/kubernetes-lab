@@ -44,7 +44,6 @@ spec:
               PORT: "3000"
               NODE_ENV: production
               LOG_LEVEL: info
-              # Tracearr requires these (DATABASE_URL comes from secret)
               REDIS_URL: redis://tracearr-redis:6379
               CORS_ORIGIN: "*"
 
@@ -85,7 +84,6 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
-              # IMPORTANT: Timescale reads POSTGRES_PASSWORD, so we provide it via envFrom
             envFrom:
               - secretRef:
                   name: tracearr-secret
