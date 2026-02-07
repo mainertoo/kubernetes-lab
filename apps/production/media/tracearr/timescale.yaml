@@ -24,8 +24,8 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/volsync
-    - ../../../../components/volsync/remote
+    - ../../../components/volsync
+    - ../../../components/volsync/remote
 
   postBuild:
     substitute:
