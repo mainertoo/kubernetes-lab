@@ -15,22 +15,46 @@ spec:
     createNamespace: true
     remediation:
       retries: 3
+    timeout: 15m
 
   upgrade:
     cleanupOnFail: true
     remediation:
       retries: 3
+    timeout: 15m
 
   uninstall:
     keepHistory: false
 
   values:
     controllers:
-      # --- Main pod: frontend + server + health sidecar ---
       sparky-fitness:
         strategy: Recreate
 
         initContainers:
+          wait-for-db:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                DB_FQDN="sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
+
+                until nslookup "${DB_FQDN}" >/dev/null 2>&1; do
+                  echo "waiting for DNS: ${DB_FQDN}"
+                  sleep 2
+                done
+
+                until nc -z -w 2 "${DB_FQDN}" 5432; do
+                  echo "waiting for postgres: ${DB_FQDN}:5432"
+                  sleep 2
+                done
+
+                echo "db is reachable"
+
           init-media-perms:
             image:
               repository: busybox
@@ -59,66 +83,42 @@ spec:
               repository: codewithcj/sparkyfitness_server
               tag: latest
             env:
-              - name: NODE_ENV
-                value: production
-              - name: TZ
-                value: America/Los_Angeles
-              - name: SPARKY_FITNESS_LOG_LEVEL
-                value: ERROR
+              TZ: America/Los_Angeles
+              NODE_ENV: production
+              SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # ✅ Match the Service name you actually have
-              - name: SPARKY_FITNESS_DB_HOST
-                value: sparky-fitness-sparky-fitness-db
-              - name: SPARKY_FITNESS_DB_PORT
-                value: "5432"
+              # ✅ Force the exact, real service DNS name
+              SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
+              SPARKY_FITNESS_DB_PORT: "5432"
 
-              - name: SPARKY_FITNESS_FRONTEND_URL
-                value: "https://sparky-fitness.lab.mainertoo.com"
+              # Keep your real URL
+              SPARKY_FITNESS_FRONTEND_URL: "https://sparky-fitness.lab.mainertoo.com"
 
-              - name: SPARKY_FITNESS_DISABLE_SIGNUP
-                value: "false"
-              - name: SPARKY_FITNESS_FORCE_EMAIL_LOGIN
-                value: "true"
+              SPARKY_FITNESS_DISABLE_SIGNUP: "false"
+              SPARKY_FITNESS_FORCE_EMAIL_LOGIN: "true"
 
             envFrom:
               - secretRef:
                   name: sparky-fitness-secret
 
-            probes:
-              liveness:
-                enabled: true
-                custom: true
-                spec:
-                  httpGet:
-                    path: /
-                    port: 3010
-                  initialDelaySeconds: 20
-                  periodSeconds: 20
-                  timeoutSeconds: 5
-                  failureThreshold: 6
-              readiness:
-                enabled: true
-                custom: true
-                spec:
-                  httpGet:
-                    path: /
-                    port: 3010
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 6
+            ports:
+              - name: http
+                containerPort: 3010
+                protocol: TCP
 
           app:
             image:
               repository: codewithcj/sparkyfitness
               tag: latest
             env:
-              - name: SPARKY_FITNESS_SERVER_HOST
-                value: "127.0.0.1"
-              - name: SPARKY_FITNESS_SERVER_PORT
-                value: "3010"
+              SPARKY_FITNESS_SERVER_HOST: "127.0.0.1"
+              SPARKY_FITNESS_SERVER_PORT: "3010"
+            ports:
+              - name: web
+                containerPort: 3000
+                protocol: TCP
 
-          # ✅ Health sidecar for stable Gatus checks on port 80
+          # ✅ Health sidecar for Gatus -> service port 80
           health:
             image:
               repository: busybox
@@ -138,7 +138,6 @@ spec:
               capabilities:
                 drop: ["ALL"]
 
-      # --- Postgres (separate controller) ---
       sparky-fitness-db:
         strategy: Recreate
 
@@ -146,26 +145,18 @@ spec:
           init-pgdata-dir:
             image:
               repository: busybox
-              tag: stable
+              tag: "1.36"
             command: ["/bin/sh", "-c"]
             args:
               - |
-                set -e
-                echo "Ensuring PGDATA subdir exists..."
+                set -eux
                 mkdir -p /var/lib/postgresql/data/pgdata
-                # postgres user in official image is typically 999:999
                 chown -R 999:999 /var/lib/postgresql/data/pgdata || true
                 chmod 0700 /var/lib/postgresql/data/pgdata || true
-                ls -la /var/lib/postgresql/data || true
-                echo "Done."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
               runAsNonRoot: false
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
-                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
 
         containers:
           db:
@@ -173,68 +164,53 @@ spec:
               repository: postgres
               tag: 15-alpine
             env:
-              # ✅ Force postgres to init in subdir (avoids lost+found)
-              - name: PGDATA
-                value: /var/lib/postgresql/data/pgdata
-
-              - name: POSTGRES_DB
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_NAME
-              - name: POSTGRES_USER
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_USER
-              - name: POSTGRES_PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_PASSWORD
-
-    defaultPodOptions:
-      securityContext:
-        runAsNonRoot: false
-        runAsUser: 0
-        runAsGroup: 0
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+              # ✅ avoids lost+found
+              PGDATA: /var/lib/postgresql/data/pgdata
+            envFrom:
+              - secretRef:
+                  name: sparky-fitness-secret
 
     service:
-      # App service: port 80 -> health sidecar
-      app:
+      # Main service for internal health checks + ingress backend
+      sparky-fitness:
         controller: sparky-fitness
-        nameOverride: sparky-fitness
         type: ClusterIP
         ports:
           http:
             port: 80
             targetPort: 8080
 
-      # Leave this alone; it already renders as sparky-fitness-sparky-fitness-db
-      db:
+      # DB service (chart will name it sparky-fitness-sparky-fitness-db)
+      sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
         ports:
           postgres:
             port: 5432
+            targetPort: 5432
 
     persistence:
-      # Postgres data (VolSync-managed PVC named sparky-fitness)
+      # Postgres PVC (VolSync-managed)
       data:
         enabled: true
         existingClaim: sparky-fitness
         advancedMounts:
           sparky-fitness-db:
+            init-pgdata-dir:
+              - path: /var/lib/postgresql/data
             db:
               - path: /var/lib/postgresql/data
 
-      # Media (VolSync-managed PVC named sparky-fitness-media)
+      # Media PVC (VolSync-managed) — CephFS is best for uploads/backups
       media:
         enabled: true
         existingClaim: sparky-fitness-media
         advancedMounts:
           sparky-fitness:
+            init-media-perms:
+              - path: /media
             server:
               - path: /media
+
+    defaultPodOptions:
+      automountServiceAccountToken: false
