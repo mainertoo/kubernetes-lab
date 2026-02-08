@@ -45,30 +45,27 @@ spec:
               - |
                 set -eux
 
-                PG_HOST="tracearr-tracearr-timescale.media.svc.cluster.local"
-                REDIS_HOST="tracearr-tracearr-redis.media.svc.cluster.local"
+                # NOTE:
+                # Do NOT use shell variables here. app-template/Helm tpl is stripping $VAR expansions to empty.
+                # Hardcode the FQDNs directly to avoid templating issues.
 
-                # IMPORTANT:
-                # app-template runs args through Helm tpl; `$FOO` is treated as a Helm template var and becomes empty.
-                # So we must escape dollars as `$$` anywhere we reference shell vars.
-
-                until nslookup "$$PG_HOST" >/dev/null 2>&1; do
-                  echo "waiting for DNS: $$PG_HOST"
+                until nslookup tracearr-tracearr-timescale.media.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-tracearr-timescale.media.svc.cluster.local"
                   sleep 2
                 done
 
-                until nslookup "$$REDIS_HOST" >/dev/null 2>&1; do
-                  echo "waiting for DNS: $$REDIS_HOST"
+                until nslookup tracearr-tracearr-redis.media.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-tracearr-redis.media.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 "$$PG_HOST" 5432; do
-                  echo "waiting for postgres: $$PG_HOST:5432"
+                until nc -z -w 2 tracearr-tracearr-timescale.media.svc.cluster.local 5432; do
+                  echo "waiting for postgres: tracearr-tracearr-timescale.media.svc.cluster.local:5432"
                   sleep 2
                 done
 
-                until nc -z -w 2 "$$REDIS_HOST" 6379; do
-                  echo "waiting for redis: $$REDIS_HOST:6379"
+                until nc -z -w 2 tracearr-tracearr-redis.media.svc.cluster.local 6379; do
+                  echo "waiting for redis: tracearr-tracearr-redis.media.svc.cluster.local:6379"
                   sleep 2
                 done
 
