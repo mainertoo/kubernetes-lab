@@ -45,11 +45,9 @@ spec:
               - |
                 set -eux
 
-                # IMPORTANT: these MUST match the actual Service names created by this HelmRelease
-                PG_HOST="tracearr-tracearr-timescale"
-                REDIS_HOST="tracearr-tracearr-redis"
+                PG_HOST="tracearr-tracearr-timescale.media.svc.cluster.local"
+                REDIS_HOST="tracearr-tracearr-redis.media.svc.cluster.local"
 
-                # Wait for DNS
                 until nslookup "${PG_HOST}" >/dev/null 2>&1; do
                   echo "waiting for DNS: ${PG_HOST}"
                   sleep 2
@@ -59,7 +57,6 @@ spec:
                   sleep 2
                 done
 
-                # Wait for TCP ports
                 until nc -z -w 2 "${PG_HOST}" 5432; do
                   echo "waiting for postgres: ${PG_HOST}:5432"
                   sleep 2
@@ -83,12 +80,14 @@ spec:
               NODE_ENV: production
               LOG_LEVEL: info
 
-              # IMPORTANT: must match service name
-              REDIS_URL: redis://tracearr-tracearr-redis:6379
+              # Stable, unambiguous DNS
+              REDIS_URL: redis://tracearr-tracearr-redis.media.svc.cluster.local:6379
               CORS_ORIGIN: "*"
+
             envFrom:
               - secretRef:
                   name: tracearr-secret
+
             ports:
               - name: http
                 containerPort: 3000
@@ -135,7 +134,6 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
-              # IMPORTANT: not mount root
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
