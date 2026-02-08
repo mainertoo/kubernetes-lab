@@ -36,20 +36,23 @@ spec:
             image:
               repository: busybox
               tag: "1.36"
+            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
                 set -eux
 
-                DB_FQDN="sparky-fitness-db.sparky-fitness.svc.cluster.local"
+                # NOTE:
+                # Do NOT use shell variables here. app-template/Helm templating can strip $VAR expansions to empty.
+                # Hardcode the FQDN directly to avoid templating issues.
 
-                until nslookup "${DB_FQDN}" >/dev/null 2>&1; do
-                  echo "waiting for DNS: ${DB_FQDN}"
+                until nslookup sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: sparky-fitness-db.sparky-fitness.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 "${DB_FQDN}" 5432; do
-                  echo "waiting for postgres: ${DB_FQDN}:5432"
+                until nc -z -w 2 sparky-fitness-db.sparky-fitness.svc.cluster.local 5432; do
+                  echo "waiting for postgres: sparky-fitness-db.sparky-fitness.svc.cluster.local:5432"
                   sleep 2
                 done
 
@@ -59,6 +62,7 @@ spec:
             image:
               repository: busybox
               tag: stable
+            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -87,7 +91,7 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # ✅ MUST match your actual Service name
+              # MUST match your actual Service name (and use FQDN to avoid search-path weirdness)
               SPARKY_FITNESS_DB_HOST: sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
@@ -121,6 +125,7 @@ spec:
             image:
               repository: busybox
               tag: stable
+            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-lc"]
             args:
               - |
@@ -144,6 +149,7 @@ spec:
             image:
               repository: busybox
               tag: "1.36"
+            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -176,7 +182,6 @@ spec:
             port: 80
             targetPort: 8080
 
-      # ✅ Explicitly name the DB service exactly "sparky-fitness-db"
       sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
