@@ -66,7 +66,8 @@ spec:
               - "yes"
 
       timescale:
-        # make sure the PGDATA dir exists and is owned by postgres before postgres starts
+        # Ensure PGDATA subdir exists and is owned by postgres before postgres starts.
+        # IMPORTANT: We mount the PVC at /var/lib/postgresql (parent), not at PGDATA.
         initContainers:
           init-timescale-pgdata:
             image:
@@ -94,7 +95,7 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
-              # IMPORTANT: PGDATA must NOT be the mount root (avoids lost+found issue)
+              # CRITICAL: PGDATA must be a subdirectory (avoids lost+found at mount root)
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
@@ -137,13 +138,13 @@ spec:
       timescale-data:
         enabled: true
         existingClaim: tracearr-timescale
-        # mount the PVC at a parent dir, NOT the PGDATA dir itself
+        # CRITICAL: Mount PVC at parent directory, not at PGDATA dir
         advancedMounts:
           timescale:
             init-timescale-pgdata:
-              - path: /var/lib/postgresql/data
+              - path: /var/lib/postgresql
             main:
-              - path: /var/lib/postgresql/data
+              - path: /var/lib/postgresql
 
       timescale-shm:
         enabled: true
