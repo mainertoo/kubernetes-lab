@@ -45,23 +45,27 @@ spec:
               - |
                 set -eux
 
+                # IMPORTANT: these MUST match the actual Service names created by this HelmRelease
+                PG_HOST="tracearr-tracearr-timescale"
+                REDIS_HOST="tracearr-tracearr-redis"
+
                 # Wait for DNS
-                until nslookup tracearr-tracearr-timescale >/dev/null 2>&1; do
-                  echo "waiting for DNS: tracearr-tracearr-timescale"
+                until nslookup "${PG_HOST}" >/dev/null 2>&1; do
+                  echo "waiting for DNS: ${PG_HOST}"
                   sleep 2
                 done
-                until nslookup tracearr-tracearr-redis >/dev/null 2>&1; do
-                  echo "waiting for DNS: tracearr-tracearr-redis"
+                until nslookup "${REDIS_HOST}" >/dev/null 2>&1; do
+                  echo "waiting for DNS: ${REDIS_HOST}"
                   sleep 2
                 done
 
                 # Wait for TCP ports
-                until nc -z -w 2 tracearr-tracearr-timescale 5432; do
-                  echo "waiting for postgres: tracearr-tracearr-timescale:5432"
+                until nc -z -w 2 "${PG_HOST}" 5432; do
+                  echo "waiting for postgres: ${PG_HOST}:5432"
                   sleep 2
                 done
-                until nc -z -w 2 tracearr-tracearr-redis 6379; do
-                  echo "waiting for redis: tracearr-tracearr-redis:6379"
+                until nc -z -w 2 "${REDIS_HOST}" 6379; do
+                  echo "waiting for redis: ${REDIS_HOST}:6379"
                   sleep 2
                 done
 
@@ -73,21 +77,18 @@ spec:
               repository: ghcr.io/connorgallopo/tracearr
               tag: latest
               pullPolicy: IfNotPresent
-
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
               NODE_ENV: production
               LOG_LEVEL: info
 
-              # IMPORTANT: match actual service names
+              # IMPORTANT: must match service name
               REDIS_URL: redis://tracearr-tracearr-redis:6379
               CORS_ORIGIN: "*"
-
             envFrom:
               - secretRef:
                   name: tracearr-secret
-
             ports:
               - name: http
                 containerPort: 3000
