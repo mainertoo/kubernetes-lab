@@ -63,6 +63,7 @@ spec:
               - |
                 set -eux
 
+                # Hardcode FQDN (you already observed template/vars getting blanked)
                 until nslookup sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
                   echo "waiting for DNS: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
                   sleep 2
@@ -85,7 +86,7 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # match real service name in cluster
+              # Use the *actual* Service name you see in kubectl get svc
               SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
@@ -158,19 +159,6 @@ spec:
               tag: 15-alpine
             env:
               PGDATA: /var/lib/postgresql/data/pgdata
-
-              # IMPORTANT: postgres image requires POSTGRES_PASSWORD on first init.
-              # We map your existing secret key into the expected env var name.
-              POSTGRES_DB: sparkyfitness_db
-              POSTGRES_USER: sparky
-              POSTGRES_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_PASSWORD
-
-            # keep envFrom if the app image needs other vars in this container;
-            # but postgres itself only cares about the POSTGRES_* env vars above.
             envFrom:
               - secretRef:
                   name: sparky-fitness-secret
@@ -184,7 +172,6 @@ spec:
             port: 80
             targetPort: 8080
 
-      # keep this; chart is still producing sparky-fitness-sparky-fitness-db, which is fine
       sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
