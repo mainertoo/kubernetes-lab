@@ -36,15 +36,13 @@ spec:
             image:
               repository: busybox
               tag: "1.36"
-            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
                 set -eux
 
                 # NOTE:
-                # Do NOT use shell variables here. app-template/Helm templating can strip $VAR expansions to empty.
-                # Hardcode the FQDN directly to avoid templating issues.
+                # Avoid shell vars; hardcode FQDNs to prevent templating from blanking args.
 
                 until nslookup sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
                   echo "waiting for DNS: sparky-fitness-db.sparky-fitness.svc.cluster.local"
@@ -62,7 +60,6 @@ spec:
             image:
               repository: busybox
               tag: stable
-            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -91,12 +88,10 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # MUST match your actual Service name (and use FQDN to avoid search-path weirdness)
               SPARKY_FITNESS_DB_HOST: sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
               SPARKY_FITNESS_FRONTEND_URL: "https://sparky-fitness.lab.mainertoo.com"
-
               SPARKY_FITNESS_DISABLE_SIGNUP: "false"
               SPARKY_FITNESS_FORCE_EMAIL_LOGIN: "true"
 
@@ -125,7 +120,6 @@ spec:
             image:
               repository: busybox
               tag: stable
-            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-lc"]
             args:
               - |
@@ -149,7 +143,6 @@ spec:
             image:
               repository: busybox
               tag: "1.36"
-            pullPolicy: IfNotPresent
             command: ["/bin/sh", "-c"]
             args:
               - |
