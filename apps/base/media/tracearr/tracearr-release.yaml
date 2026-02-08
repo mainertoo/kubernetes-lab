@@ -32,6 +32,41 @@ spec:
   values:
     controllers:
       tracearr:
+        initContainers:
+          wait-for-deps:
+            image:
+              repository: busybox
+              tag: "1.36"
+              pullPolicy: IfNotPresent
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                set -eux
+
+                # Wait for DNS record
+                until nslookup tracearr-timescale >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-timescale"
+                  sleep 2
+                done
+                until nslookup tracearr-redis >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-redis"
+                  sleep 2
+                done
+
+                # Wait for TCP ports
+                until nc -z -w 2 tracearr-timescale 5432; do
+                  echo "waiting for postgres: tracearr-timescale:5432"
+                  sleep 2
+                done
+                until nc -z -w 2 tracearr-redis 6379; do
+                  echo "waiting for redis: tracearr-redis:6379"
+                  sleep 2
+                done
+
+                echo "deps are reachable"
+
         containers:
           app:
             image:
@@ -66,13 +101,12 @@ spec:
               - "yes"
 
       timescale:
-        # Ensure PGDATA subdir exists and is owned by postgres before postgres starts.
-        # IMPORTANT: We mount the PVC at /var/lib/postgresql (parent), not at PGDATA.
         initContainers:
           init-timescale-pgdata:
             image:
               repository: busybox
               tag: "1.36"
+              pullPolicy: IfNotPresent
             command:
               - /bin/sh
               - -c
@@ -95,7 +129,6 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
-              # CRITICAL: PGDATA must be a subdirectory (avoids lost+found at mount root)
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
@@ -138,13 +171,12 @@ spec:
       timescale-data:
         enabled: true
         existingClaim: tracearr-timescale
-        # CRITICAL: Mount PVC at parent directory, not at PGDATA dir
         advancedMounts:
           timescale:
             init-timescale-pgdata:
-              - path: /var/lib/postgresql
+              - path: /var/lib/postgresql/data
             main:
-              - path: /var/lib/postgresql
+              - path: /var/lib/postgresql/data
 
       timescale-shm:
         enabled: true
