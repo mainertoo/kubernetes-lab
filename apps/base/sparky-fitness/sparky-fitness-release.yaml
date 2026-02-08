@@ -43,9 +43,7 @@ spec:
                 mkdir -p /media/uploads /media/backup
                 chown -R 1000:1000 /media || true
                 chmod -R 0775 /media || true
-                echo "Listing /media:"
                 ls -la /media || true
-                echo "Done."
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -68,8 +66,9 @@ spec:
               - name: SPARKY_FITNESS_LOG_LEVEL
                 value: ERROR
 
+              # ✅ Match the Service name you actually have
               - name: SPARKY_FITNESS_DB_HOST
-                value: sparky-fitness-db
+                value: sparky-fitness-sparky-fitness-db
               - name: SPARKY_FITNESS_DB_PORT
                 value: "5432"
 
@@ -78,7 +77,6 @@ spec:
 
               - name: SPARKY_FITNESS_DISABLE_SIGNUP
                 value: "false"
-
               - name: SPARKY_FITNESS_FORCE_EMAIL_LOGIN
                 value: "true"
 
@@ -120,7 +118,7 @@ spec:
               - name: SPARKY_FITNESS_SERVER_PORT
                 value: "3010"
 
-          # Health sidecar for Gatus to hit port 80 reliably
+          # ✅ Health sidecar for stable Gatus checks on port 80
           health:
             image:
               repository: busybox
@@ -142,13 +140,40 @@ spec:
 
       # --- Postgres (separate controller) ---
       sparky-fitness-db:
+        strategy: Recreate
+
+        initContainers:
+          init-pgdata-dir:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Ensuring PGDATA subdir exists..."
+                mkdir -p /var/lib/postgresql/data/pgdata
+                # postgres user in official image is typically 999:999
+                chown -R 999:999 /var/lib/postgresql/data/pgdata || true
+                chmod 0700 /var/lib/postgresql/data/pgdata || true
+                ls -la /var/lib/postgresql/data || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
         containers:
           db:
             image:
               repository: postgres
               tag: 15-alpine
             env:
-              # ✅ Use a subdirectory so initdb won't choke on lost+found
+              # ✅ Force postgres to init in subdir (avoids lost+found)
               - name: PGDATA
                 value: /var/lib/postgresql/data/pgdata
 
@@ -187,8 +212,8 @@ spec:
             port: 80
             targetPort: 8080
 
-      # ✅ Force the DB Service OBJECT NAME to be sparky-fitness-db
-      sparky-fitness-db:
+      # Leave this alone; it already renders as sparky-fitness-sparky-fitness-db
+      db:
         controller: sparky-fitness-db
         type: ClusterIP
         ports:
