@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sparky-fitness
+resources:
+  - sparky-fitness-namespace.yaml
+  - sparky-fitness-secret.sops.yaml
+  - sparky-fitness-release.yaml
+  - sparky-fitness-ingressroute.yaml

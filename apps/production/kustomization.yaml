@@ -14,6 +14,7 @@ resources:
   - home-assistant/matter-server/kustomization.yaml
   - home-assistant/node-red/kustomization.yaml
   - media/tracearr/
+  - sparky-fitness/
 
   ## old resources list
   # - grocy/kustomization.yaml
