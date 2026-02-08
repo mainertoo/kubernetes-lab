@@ -52,6 +52,7 @@ spec:
                   echo "waiting for DNS: ${PG_HOST}"
                   sleep 2
                 done
+
                 until nslookup "${REDIS_HOST}" >/dev/null 2>&1; do
                   echo "waiting for DNS: ${REDIS_HOST}"
                   sleep 2
@@ -61,6 +62,7 @@ spec:
                   echo "waiting for postgres: ${PG_HOST}:5432"
                   sleep 2
                 done
+
                 until nc -z -w 2 "${REDIS_HOST}" 6379; do
                   echo "waiting for redis: ${REDIS_HOST}:6379"
                   sleep 2
@@ -74,13 +76,14 @@ spec:
               repository: ghcr.io/connorgallopo/tracearr
               tag: latest
               pullPolicy: IfNotPresent
+
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
               NODE_ENV: production
               LOG_LEVEL: info
 
-              # Stable, unambiguous DNS
+              # Use FQDN so the app never depends on short-name search behavior
               REDIS_URL: redis://tracearr-tracearr-redis.media.svc.cluster.local:6379
               CORS_ORIGIN: "*"
 
