@@ -32,30 +32,6 @@ spec:
         strategy: Recreate
 
         initContainers:
-          # NOTE:
-          # Do NOT use shell variables here. app-template templating can blank them.
-          # Hardcode the DB service FQDN directly (Tracearr pattern).
-          wait-for-db:
-            image:
-              repository: busybox
-              tag: "1.36"
-            command: ["/bin/sh", "-c"]
-            args:
-              - |
-                set -eux
-
-                until nslookup sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
-                  echo "waiting for DNS: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
-                  sleep 2
-                done
-
-                until nc -z -w 2 sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local 5432; do
-                  echo "waiting for postgres: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local:5432"
-                  sleep 2
-                done
-
-                echo "db is reachable"
-
           init-media-perms:
             image:
               repository: busybox
@@ -78,6 +54,27 @@ spec:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
 
+          wait-for-db:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                until nslookup sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
+                  sleep 2
+                done
+
+                until nc -z -w 2 sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local 5432; do
+                  echo "waiting for postgres: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local:5432"
+                  sleep 2
+                done
+
+                echo "db is reachable"
+
         containers:
           server:
             image:
@@ -88,20 +85,16 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # IMPORTANT:
-              # Use the *actual* Service name currently present in your cluster:
-              # sparky-fitness-sparky-fitness-db
+              # match real service name in cluster
               SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
               SPARKY_FITNESS_FRONTEND_URL: "https://sparky-fitness.lab.mainertoo.com"
               SPARKY_FITNESS_DISABLE_SIGNUP: "false"
               SPARKY_FITNESS_FORCE_EMAIL_LOGIN: "true"
-
             envFrom:
               - secretRef:
                   name: sparky-fitness-secret
-
             ports:
               - name: http
                 containerPort: 3010
@@ -119,7 +112,6 @@ spec:
                 containerPort: 3000
                 protocol: TCP
 
-          # Health sidecar listens on 8080, Service maps port 80 -> 8080 for Gatus.
           health:
             image:
               repository: busybox
@@ -143,8 +135,6 @@ spec:
         strategy: Recreate
 
         initContainers:
-          # Fix the "lost+found" mountpoint issue by using PGDATA under a subdir,
-          # and set ownership to Postgres uid/gid (999 in the official image).
           init-pgdata-dir:
             image:
               repository: busybox
@@ -169,24 +159,18 @@ spec:
             env:
               PGDATA: /var/lib/postgresql/data/pgdata
 
-              # REQUIRED by postgres image when initializing:
-              POSTGRES_DB:
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_NAME
-              POSTGRES_USER:
-                valueFrom:
-                  secretKeyRef:
-                    name: sparky-fitness-secret
-                    key: SPARKY_FITNESS_DB_USER
+              # IMPORTANT: postgres image requires POSTGRES_PASSWORD on first init.
+              # We map your existing secret key into the expected env var name.
+              POSTGRES_DB: sparkyfitness_db
+              POSTGRES_USER: sparky
               POSTGRES_PASSWORD:
                 valueFrom:
                   secretKeyRef:
                     name: sparky-fitness-secret
                     key: SPARKY_FITNESS_DB_PASSWORD
 
-            # optional: keep envFrom if you want other vars available in the db container
+            # keep envFrom if the app image needs other vars in this container;
+            # but postgres itself only cares about the POSTGRES_* env vars above.
             envFrom:
               - secretRef:
                   name: sparky-fitness-secret
@@ -200,10 +184,7 @@ spec:
             port: 80
             targetPort: 8080
 
-      # NOTE:
-      # Your cluster currently shows the DB Service as "sparky-fitness-sparky-fitness-db".
-      # This service block may not override the generated name the way you expect with your chart version.
-      # We keep it here, but we ALSO hardcode the observed Service name in the app initContainer + env.
+      # keep this; chart is still producing sparky-fitness-sparky-fitness-db, which is fine
       sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
@@ -213,7 +194,6 @@ spec:
             targetPort: 5432
 
     persistence:
-      # Postgres data (RBD / RWO)
       data:
         enabled: true
         existingClaim: sparky-fitness
@@ -224,7 +204,6 @@ spec:
             db:
               - path: /var/lib/postgresql/data
 
-      # App media (CephFS / RWX)
       media:
         enabled: true
         existingClaim: sparky-fitness-media
