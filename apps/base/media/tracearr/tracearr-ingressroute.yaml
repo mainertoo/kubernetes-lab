@@ -16,9 +16,6 @@ spec:
   routes:
     - match: Host(`tracearr.lab.mainertoo.com`)
       kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
       services:
         - name: tracearr
           port: 80

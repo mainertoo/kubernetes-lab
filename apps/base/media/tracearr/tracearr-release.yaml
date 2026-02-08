@@ -45,10 +45,6 @@ spec:
               - |
                 set -eux
 
-                # NOTE:
-                # Do NOT use shell variables here. app-template/Helm tpl is stripping $VAR expansions to empty.
-                # Hardcode the FQDNs directly to avoid templating issues.
-
                 until nslookup tracearr-tracearr-timescale.media.svc.cluster.local >/dev/null 2>&1; do
                   echo "waiting for DNS: tracearr-tracearr-timescale.media.svc.cluster.local"
                   sleep 2
@@ -77,16 +73,24 @@ spec:
               repository: ghcr.io/connorgallopo/tracearr
               tag: latest
               pullPolicy: IfNotPresent
+
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
+              HOST: "0.0.0.0"
               NODE_ENV: production
               LOG_LEVEL: info
+
+              # Must match the services your Helm release actually creates
               REDIS_URL: redis://tracearr-tracearr-redis.media.svc.cluster.local:6379
-              CORS_ORIGIN: "*"
+
+              # Use your real URL (helps auth + browser behavior)
+              CORS_ORIGIN: "https://tracearr.lab.mainertoo.com"
+
             envFrom:
               - secretRef:
                   name: tracearr-secret
+
             ports:
               - name: http
                 containerPort: 3000
