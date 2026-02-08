@@ -86,7 +86,6 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # Use the *actual* Service name you see in kubectl get svc
               SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
@@ -97,7 +96,7 @@ spec:
               - secretRef:
                   name: sparky-fitness-secret
             ports:
-              - name: http
+              - name: api
                 containerPort: 3010
                 protocol: TCP
 
@@ -108,9 +107,11 @@ spec:
             env:
               SPARKY_FITNESS_SERVER_HOST: "127.0.0.1"
               SPARKY_FITNESS_SERVER_PORT: "3010"
+            # IMPORTANT:
+            # This image runs nginx on port 80 (NOT 3000). Your exec proved it.
             ports:
-              - name: web
-                containerPort: 3000
+              - name: http
+                containerPort: 80
                 protocol: TCP
 
           health:
@@ -164,14 +165,17 @@ spec:
                   name: sparky-fitness-secret
 
     service:
+      # This is what Traefik points to (port 80)
       sparky-fitness:
         controller: sparky-fitness
         type: ClusterIP
         ports:
           http:
             port: 80
-            targetPort: 3000
+            # nginx in the frontend container listens on 80
+            targetPort: 80
 
+      # DB service name stays the same
       sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
