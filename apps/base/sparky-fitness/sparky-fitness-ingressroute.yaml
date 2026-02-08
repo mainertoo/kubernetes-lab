@@ -18,9 +18,9 @@ spec:
   routes:
     - match: Host(`sparky-fitness.lab.mainertoo.com`)
       kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
       services:
         - name: sparky-fitness
           port: 80
