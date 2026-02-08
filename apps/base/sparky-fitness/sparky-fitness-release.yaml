@@ -41,7 +41,7 @@ spec:
               - |
                 set -eux
 
-                DB_FQDN="sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
+                DB_FQDN="sparky-fitness-db.sparky-fitness.svc.cluster.local"
 
                 until nslookup "${DB_FQDN}" >/dev/null 2>&1; do
                   echo "waiting for DNS: ${DB_FQDN}"
@@ -87,11 +87,10 @@ spec:
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              # ✅ Force the exact, real service DNS name
-              SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
+              # ✅ MUST match your actual Service name
+              SPARKY_FITNESS_DB_HOST: sparky-fitness-db.sparky-fitness.svc.cluster.local
               SPARKY_FITNESS_DB_PORT: "5432"
 
-              # Keep your real URL
               SPARKY_FITNESS_FRONTEND_URL: "https://sparky-fitness.lab.mainertoo.com"
 
               SPARKY_FITNESS_DISABLE_SIGNUP: "false"
@@ -118,7 +117,6 @@ spec:
                 containerPort: 3000
                 protocol: TCP
 
-          # ✅ Health sidecar for Gatus -> service port 80
           health:
             image:
               repository: busybox
@@ -164,14 +162,12 @@ spec:
               repository: postgres
               tag: 15-alpine
             env:
-              # ✅ avoids lost+found
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: sparky-fitness-secret
 
     service:
-      # Main service for internal health checks + ingress backend
       sparky-fitness:
         controller: sparky-fitness
         type: ClusterIP
@@ -180,7 +176,7 @@ spec:
             port: 80
             targetPort: 8080
 
-      # DB service (chart will name it sparky-fitness-sparky-fitness-db)
+      # ✅ Explicitly name the DB service exactly "sparky-fitness-db"
       sparky-fitness-db:
         controller: sparky-fitness-db
         type: ClusterIP
@@ -190,7 +186,6 @@ spec:
             targetPort: 5432
 
     persistence:
-      # Postgres PVC (VolSync-managed)
       data:
         enabled: true
         existingClaim: sparky-fitness
@@ -201,7 +196,6 @@ spec:
             db:
               - path: /var/lib/postgresql/data
 
-      # Media PVC (VolSync-managed) — CephFS is best for uploads/backups
       media:
         enabled: true
         existingClaim: sparky-fitness-media
