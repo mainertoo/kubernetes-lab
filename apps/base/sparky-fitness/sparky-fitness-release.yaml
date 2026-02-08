@@ -79,7 +79,6 @@ spec:
               - name: SPARKY_FITNESS_DISABLE_SIGNUP
                 value: "false"
 
-              # Safe default for future OIDC work
               - name: SPARKY_FITNESS_FORCE_EMAIL_LOGIN
                 value: "true"
 
@@ -121,7 +120,7 @@ spec:
               - name: SPARKY_FITNESS_SERVER_PORT
                 value: "3010"
 
-          # ✅ Health sidecar for stable Gatus checks on port 80
+          # Health sidecar for Gatus to hit port 80 reliably
           health:
             image:
               repository: busybox
@@ -149,6 +148,10 @@ spec:
               repository: postgres
               tag: 15-alpine
             env:
+              # ✅ Use a subdirectory so initdb won't choke on lost+found
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
+
               - name: POSTGRES_DB
                 valueFrom:
                   secretKeyRef:
@@ -174,7 +177,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
 
     service:
-      # App service: port 80 -> health sidecar (stable for gatus)
+      # App service: port 80 -> health sidecar
       app:
         controller: sparky-fitness
         nameOverride: sparky-fitness
@@ -184,17 +187,16 @@ spec:
             port: 80
             targetPort: 8080
 
-      # DB service explicitly named sparky-fitness-db
-      db:
+      # ✅ Force the DB Service OBJECT NAME to be sparky-fitness-db
+      sparky-fitness-db:
         controller: sparky-fitness-db
-        nameOverride: sparky-fitness-db
         type: ClusterIP
         ports:
           postgres:
             port: 5432
 
     persistence:
-      # ✅ Postgres data (VolSync-managed RBD PVC named sparky-fitness)
+      # Postgres data (VolSync-managed PVC named sparky-fitness)
       data:
         enabled: true
         existingClaim: sparky-fitness
@@ -203,7 +205,7 @@ spec:
             db:
               - path: /var/lib/postgresql/data
 
-      # ✅ Media (uploads + backup) on CephFS (VolSync-managed PVC named sparky-fitness-media)
+      # Media (VolSync-managed PVC named sparky-fitness-media)
       media:
         enabled: true
         existingClaim: sparky-fitness-media
