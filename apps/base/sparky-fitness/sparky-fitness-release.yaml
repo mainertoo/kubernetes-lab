@@ -170,7 +170,7 @@ spec:
         ports:
           http:
             port: 80
-            targetPort: 8080
+            targetPort: 3000
 
       sparky-fitness-db:
         controller: sparky-fitness-db
