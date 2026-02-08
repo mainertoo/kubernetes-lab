@@ -45,26 +45,25 @@ spec:
               - |
                 set -eux
 
-                PG_HOST="tracearr-tracearr-timescale.media.svc.cluster.local"
-                REDIS_HOST="tracearr-tracearr-redis.media.svc.cluster.local"
-
-                until nslookup "${PG_HOST}" >/dev/null 2>&1; do
-                  echo "waiting for DNS: ${PG_HOST}"
+                # DNS: use ONLY FQDN (short names will fail with ndots:5)
+                until nslookup tracearr-tracearr-timescale.media.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-tracearr-timescale.media.svc.cluster.local"
                   sleep 2
                 done
 
-                until nslookup "${REDIS_HOST}" >/dev/null 2>&1; do
-                  echo "waiting for DNS: ${REDIS_HOST}"
+                until nslookup tracearr-tracearr-redis.media.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-tracearr-redis.media.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 "${PG_HOST}" 5432; do
-                  echo "waiting for postgres: ${PG_HOST}:5432"
+                # TCP reachability
+                until nc -z -w 2 tracearr-tracearr-timescale.media.svc.cluster.local 5432; do
+                  echo "waiting for postgres: tracearr-tracearr-timescale.media.svc.cluster.local:5432"
                   sleep 2
                 done
 
-                until nc -z -w 2 "${REDIS_HOST}" 6379; do
-                  echo "waiting for redis: ${REDIS_HOST}:6379"
+                until nc -z -w 2 tracearr-tracearr-redis.media.svc.cluster.local 6379; do
+                  echo "waiting for redis: tracearr-tracearr-redis.media.svc.cluster.local:6379"
                   sleep 2
                 done
 
@@ -83,7 +82,7 @@ spec:
               NODE_ENV: production
               LOG_LEVEL: info
 
-              # Use FQDN so the app never depends on short-name search behavior
+              # Use FQDN so app never depends on short-name DNS behavior
               REDIS_URL: redis://tracearr-tracearr-redis.media.svc.cluster.local:6379
               CORS_ORIGIN: "*"
 
@@ -137,6 +136,7 @@ spec:
             env:
               POSTGRES_DB: tracearr
               POSTGRES_USER: tracearr
+              # PGDATA must be a subdir under the mount (avoids lost+found problem)
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
