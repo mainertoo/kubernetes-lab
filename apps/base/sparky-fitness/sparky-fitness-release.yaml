@@ -1,0 +1,213 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app sparky-fitness
+  namespace: sparky-fitness
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      # --- Main pod: frontend + server + health sidecar ---
+      sparky-fitness:
+        strategy: Recreate
+
+        initContainers:
+          init-media-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init SparkyFitness media dirs..."
+                mkdir -p /media/uploads /media/backup
+                chown -R 1000:1000 /media || true
+                chmod -R 0775 /media || true
+                echo "Listing /media:"
+                ls -la /media || true
+                echo "Done."
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+        containers:
+          server:
+            image:
+              repository: codewithcj/sparkyfitness_server
+              tag: latest
+            env:
+              - name: NODE_ENV
+                value: production
+              - name: TZ
+                value: America/Los_Angeles
+              - name: SPARKY_FITNESS_LOG_LEVEL
+                value: ERROR
+
+              - name: SPARKY_FITNESS_DB_HOST
+                value: sparky-fitness-db
+              - name: SPARKY_FITNESS_DB_PORT
+                value: "5432"
+
+              - name: SPARKY_FITNESS_FRONTEND_URL
+                value: "https://sparky-fitness.lab.mainertoo.com"
+
+              - name: SPARKY_FITNESS_DISABLE_SIGNUP
+                value: "false"
+
+              # Safe default for future OIDC work
+              - name: SPARKY_FITNESS_FORCE_EMAIL_LOGIN
+                value: "true"
+
+            envFrom:
+              - secretRef:
+                  name: sparky-fitness-secret
+
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3010
+                  initialDelaySeconds: 20
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3010
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+
+          app:
+            image:
+              repository: codewithcj/sparkyfitness
+              tag: latest
+            env:
+              - name: SPARKY_FITNESS_SERVER_HOST
+                value: "127.0.0.1"
+              - name: SPARKY_FITNESS_SERVER_PORT
+                value: "3010"
+
+          # ✅ Health sidecar for stable Gatus checks on port 80
+          health:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-lc"]
+            args:
+              - |
+                set -e
+                mkdir -p /www
+                echo "ok" >/www/index.html
+                exec httpd -f -p 8080 -h /www
+            ports:
+              - name: health
+                containerPort: 8080
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+      # --- Postgres (separate controller) ---
+      sparky-fitness-db:
+        containers:
+          db:
+            image:
+              repository: postgres
+              tag: 15-alpine
+            env:
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: sparky-fitness-secret
+                    key: SPARKY_FITNESS_DB_NAME
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: sparky-fitness-secret
+                    key: SPARKY_FITNESS_DB_USER
+              - name: POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: sparky-fitness-secret
+                    key: SPARKY_FITNESS_DB_PASSWORD
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      # App service: port 80 -> health sidecar (stable for gatus)
+      app:
+        controller: sparky-fitness
+        nameOverride: sparky-fitness
+        type: ClusterIP
+        ports:
+          http:
+            port: 80
+            targetPort: 8080
+
+      # DB service explicitly named sparky-fitness-db
+      db:
+        controller: sparky-fitness-db
+        nameOverride: sparky-fitness-db
+        type: ClusterIP
+        ports:
+          postgres:
+            port: 5432
+
+    persistence:
+      # ✅ Postgres data (VolSync-managed RBD PVC named sparky-fitness)
+      data:
+        enabled: true
+        existingClaim: sparky-fitness
+        advancedMounts:
+          sparky-fitness-db:
+            db:
+              - path: /var/lib/postgresql/data
+
+      # ✅ Media (uploads + backup) on CephFS (VolSync-managed PVC named sparky-fitness-media)
+      media:
+        enabled: true
+        existingClaim: sparky-fitness-media
+        advancedMounts:
+          sparky-fitness:
+            server:
+              - path: /media
