@@ -60,7 +60,7 @@ spec:
           main:
             image:
               repository: ghcr.io/home-operations/lidarr
-              tag: rolling
+              tag: 3.1.2.4902
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
