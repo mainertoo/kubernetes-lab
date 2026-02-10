@@ -15,6 +15,7 @@ resources:
   - home-assistant/node-red/kustomization.yaml
   - media/tracearr/
   - sparky-fitness/
+  - media/riven/
 
   ## old resources list
   # - grocy/kustomization.yaml
