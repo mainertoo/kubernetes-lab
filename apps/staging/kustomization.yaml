@@ -5,7 +5,7 @@ resources:
   - homepage/
   - zurg/
   - rclone/
-  - riven/
+  # - riven/
   - plex/
   # - vaultwarden/
   - paperless-ngx/
