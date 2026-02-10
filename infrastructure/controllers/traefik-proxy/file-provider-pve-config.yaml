@@ -173,7 +173,7 @@ data:
           insecureSkipVerify: true
 
   # ----------------------------
-  # NEW: QNAP + other LAN apps
+  # QNAP + other LAN apps
   # ----------------------------
   app-lan.yaml: |
     http:
@@ -202,12 +202,22 @@ data:
           middlewares:
             - authentik-sso@file
 
-        qbittorrent:
+        # qBittorrent:
+        # - UI protected by Authentik
+        # - API NOT protected by Authentik (prevents "read-only" behavior in WebUI)
+        qbittorrent-api:
+          rule: "Host(`qbittorrent.lab.mainertoo.com`) && PathPrefix(`/api/`)"
+          entryPoints: [websecure]
+          service: qbittorrent_http
+          priority: 200
+
+        qbittorrent-ui:
           rule: "Host(`qbittorrent.lab.mainertoo.com`)"
           entryPoints: [websecure]
           service: qbittorrent_http
           middlewares:
             - authentik-sso@file
+          priority: 100
 
         scrypted:
           rule: "Host(`scrypted.lab.mainertoo.com`)"
@@ -251,7 +261,7 @@ data:
           # middlewares:
           #   - authentik-sso@file
 
-        # --- NEW: Z-Wave JS UI (SSO protected) ---
+        # --- Z-Wave JS UI (SSO protected) ---
         zwave-js:
           rule: "Host(`zwave-js.lab.mainertoo.com`)"
           entryPoints: [websecure]
@@ -323,7 +333,7 @@ data:
             servers:
               - url: "http://192.168.1.252:8945"
 
-        # SearXNG (you currently expose it via TS sidecar + ports mapping; this assumes LAN port works)
+        # SearXNG
         searxng_http:
           loadBalancer:
             passHostHeader: true
@@ -337,7 +347,7 @@ data:
             servers:
               - url: "http://192.168.1.252:2283"
 
-        # --- NEW: Z-Wave JS UI backend ---
+        # Z-Wave JS UI backend
         zwave_js_ui_http:
           loadBalancer:
             passHostHeader: true
