@@ -1,0 +1,54 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: riven-postgres-pvc
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/empty
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/volsync
+    - ../../../components/volsync/remote
+
+  postBuild:
+    substitute:
+      # IMPORTANT: keep exact PVC name referenced by HelmRelease
+      APP: riven-backend-pvc
+      APP_NAMESPACE: media
+
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      CAPACITY: 1Gi
+
+      VOLSYNC_REPO_PATH: media/riven/postgres
+
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      # Postgres image commonly uses UID/GID 999 in many distros, but you said "keep as-is"
+      # Your safest move is preserving ownership from backup restores.
+      VOLSYNC_PUID: "999"
+      VOLSYNC_PGID: "999"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
