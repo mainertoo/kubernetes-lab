@@ -39,12 +39,20 @@ spec:
             args:
               - |
                 set -e
-                echo "Init Notifiarr shared dir on CephFS..."
+                echo "Init Notifiarr shared dirs on CephFS..."
+
+                # These paths are both backed by the same RWX PVC (see persistence.shared below)
                 mkdir -p /mnt/shared
-                chown -R 1000:1000 /mnt/shared || true
-                chmod -R 0775 /mnt/shared || true
+                mkdir -p /notifiarr/logs
+
+                # Ensure app user can write
+                chown -R 1000:1000 /mnt/shared /notifiarr || true
+                chmod -R 0775 /mnt/shared /notifiarr || true
+
                 echo "Listing /mnt/shared:"
                 ls -la /mnt/shared || true
+                echo "Listing /notifiarr:"
+                ls -la /notifiarr || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -93,11 +101,13 @@ spec:
           - path: /config
 
       # Shared RWX area on cephfs (RWX)
+      # Mount it BOTH at /mnt/shared and /notifiarr so /notifiarr/logs works.
       shared:
         enabled: true
         existingClaim: notifiarr-shared
         globalMounts:
           - path: /mnt/shared
+          - path: /notifiarr
 
       tmp:
         enabled: true
