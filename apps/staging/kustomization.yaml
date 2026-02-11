@@ -41,7 +41,7 @@ resources:
   - lidarr/
   - bazarr/
   # - calibre/
-  - notifiarr/
+  # - notifiarr/
   # - actual-budget/
   - expense-owl/
   - dumbassets/
