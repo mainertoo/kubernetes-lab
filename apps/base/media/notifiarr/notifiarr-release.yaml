@@ -31,7 +31,7 @@ spec:
     controllers:
       main:
         initContainers:
-          fix-notifiarr-paths:
+          init-notifiarr-shared:
             image:
               repository: busybox
               tag: stable
@@ -39,26 +39,12 @@ spec:
             args:
               - |
                 set -e
-                echo "Init Notifiarr paths on CephFS..."
-
-                # Ensure the cephfs mount is present
-                mkdir -p /mnt/shared
-
-                # Use a subdir on the RWX volume as the app's working dir
+                echo "Init Notifiarr dirs on CephFS..."
                 mkdir -p /mnt/shared/notifiarr/logs
-
-                # Ensure app user can write
                 chown -R 1000:1000 /mnt/shared/notifiarr || true
                 chmod -R 0775 /mnt/shared/notifiarr || true
-
-                # /notifiarr in the image may be a FILE or SYMLINK; replace with symlink to RWX storage
-                rm -rf /notifiarr 2>/dev/null || true
-                ln -s /mnt/shared/notifiarr /notifiarr
-
-                echo "Symlink:"
-                ls -lah /notifiarr || true
-                echo "Logs dir:"
-                ls -lah /notifiarr/logs || true
+                echo "Listing /mnt/shared/notifiarr:"
+                ls -la /mnt/shared/notifiarr || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -78,6 +64,16 @@ spec:
             env:
               TZ: America/Los_Angeles
               TMPDIR: /tmp
+
+              # Put logs on RWX PVC (directory that actually exists)
+              NOTIFIARR_LOG_DIR: /mnt/shared/notifiarr/logs
+              LOG_DIR: /mnt/shared/notifiarr/logs
+              LOGS_DIR: /mnt/shared/notifiarr/logs
+
+              # Optional: if the app supports a single file path style
+              NOTIFIARR_LOG_FILE: /mnt/shared/notifiarr/logs/application.log
+              LOG_FILE: /mnt/shared/notifiarr/logs/application.log
+
             envFrom:
               - secretRef:
                   name: notifiarr-secret
@@ -99,15 +95,12 @@ spec:
             port: 5454
 
     persistence:
-      # /config on ceph-rbd PVC (RWO)
       config:
         enabled: true
         existingClaim: notifiarr
         globalMounts:
           - path: /config
 
-      # Shared RWX area on cephfs (RWX)
-      # Mount ONLY at /mnt/shared; /notifiarr is provided via symlink in initContainer.
       shared:
         enabled: true
         existingClaim: notifiarr-shared
