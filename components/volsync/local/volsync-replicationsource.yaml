@@ -23,13 +23,20 @@ spec:
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
 
     # Temp mover PVC settings
-    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
+    # storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
+    # accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
 
+    storageClassName: "${VOLSYNC_MOVER_STORAGECLASS:=ceph-rbd}"
+    accessModes: ["${VOLSYNC_MOVER_ACCESSMODES:=ReadWriteOnce}"]
+
+    # moverSecurityContext:
+    #   runAsUser: ${VOLSYNC_PUID:=1000}
+    #   runAsGroup: ${VOLSYNC_PGID:=1000}
+    #   fsGroup: ${VOLSYNC_PGID:=1000}
     moverSecurityContext:
-      runAsUser: ${VOLSYNC_PUID:=1000}
-      runAsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroup: ${VOLSYNC_PGID:=1000}
+      runAsUser: ${VOLSYNC_MOVER_UID:=0}
+      runAsGroup: ${VOLSYNC_MOVER_GID:=0}
+      fsGroup: ${VOLSYNC_MOVER_FSGROUP:=0}
 
     retain:
       hourly: 24

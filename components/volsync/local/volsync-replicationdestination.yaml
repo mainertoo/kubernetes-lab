@@ -22,10 +22,14 @@ spec:
     accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
     capacity: "${CAPACITY:=1Gi}"
 
+    # moverSecurityContext:
+    #   runAsUser: ${VOLSYNC_PUID:=1000}
+    #   runAsGroup: ${VOLSYNC_PGID:=1000}
+    #   fsGroup: ${VOLSYNC_PGID:=1000}
     moverSecurityContext:
-      runAsUser: ${VOLSYNC_PUID:=1000}
-      runAsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroup: ${VOLSYNC_PGID:=1000}
+      runAsUser: ${VOLSYNC_MOVER_UID:=0}
+      runAsGroup: ${VOLSYNC_MOVER_GID:=0}
+      fsGroup: ${VOLSYNC_MOVER_FSGROUP:=0}
 
     enableFileDeletion: true
     cleanupCachePVC: true
