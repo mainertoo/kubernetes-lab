@@ -31,7 +31,7 @@ spec:
     controllers:
       main:
         initContainers:
-          fix-notifiarr-cephfs-perms:
+          fix-notifiarr-paths:
             image:
               repository: busybox
               tag: stable
@@ -39,20 +39,26 @@ spec:
             args:
               - |
                 set -e
-                echo "Init Notifiarr shared dirs on CephFS..."
+                echo "Init Notifiarr paths on CephFS..."
 
-                # These paths are both backed by the same RWX PVC (see persistence.shared below)
+                # Ensure the cephfs mount is present
                 mkdir -p /mnt/shared
-                mkdir -p /notifiarr/logs
+
+                # Use a subdir on the RWX volume as the app's working dir
+                mkdir -p /mnt/shared/notifiarr/logs
 
                 # Ensure app user can write
-                chown -R 1000:1000 /mnt/shared /notifiarr || true
-                chmod -R 0775 /mnt/shared /notifiarr || true
+                chown -R 1000:1000 /mnt/shared/notifiarr || true
+                chmod -R 0775 /mnt/shared/notifiarr || true
 
-                echo "Listing /mnt/shared:"
-                ls -la /mnt/shared || true
-                echo "Listing /notifiarr:"
-                ls -la /notifiarr || true
+                # /notifiarr in the image may be a FILE or SYMLINK; replace with symlink to RWX storage
+                rm -rf /notifiarr 2>/dev/null || true
+                ln -s /mnt/shared/notifiarr /notifiarr
+
+                echo "Symlink:"
+                ls -lah /notifiarr || true
+                echo "Logs dir:"
+                ls -lah /notifiarr/logs || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -101,13 +107,12 @@ spec:
           - path: /config
 
       # Shared RWX area on cephfs (RWX)
-      # Mount it BOTH at /mnt/shared and /notifiarr so /notifiarr/logs works.
+      # Mount ONLY at /mnt/shared; /notifiarr is provided via symlink in initContainer.
       shared:
         enabled: true
         existingClaim: notifiarr-shared
         globalMounts:
           - path: /mnt/shared
-          - path: /notifiarr
 
       tmp:
         enabled: true
