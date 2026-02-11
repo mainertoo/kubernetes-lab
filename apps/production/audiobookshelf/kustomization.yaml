@@ -44,9 +44,12 @@ spec:
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 10Gi
 
-      VOLSYNC_MOVER_UID: "0"
-      VOLSYNC_MOVER_GID: "0"
-      VOLSYNC_MOVER_FSGROUP: "0"
+      # ✅ FIX: match the app user so restic can chmod restored files
+      VOLSYNC_MOVER_UID: "1000"
+      VOLSYNC_MOVER_GID: "1000"
+      VOLSYNC_MOVER_FSGROUP: "1000"
+
+      # Temp/cache PVCs can remain on RBD
       VOLSYNC_MOVER_STORAGECLASS: ceph-rbd
       VOLSYNC_MOVER_ACCESSMODES: ReadWriteOnce
 
