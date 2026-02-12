@@ -6,52 +6,30 @@ spec:
   sourcePVC: "${APP}"
   trigger:
     schedule: "05 00/12 * * *"
-  # Old way, trying update from AI
-  # restic:
-  #   # Local snapshot-based movement (still uses restic mover under the hood)
-  #   copyMethod: Snapshot
-  #   pruneIntervalDays: 14
-
-  #   # Repository secret is created by components/volsync/remote (per-app secret)
-  #   repository: "${APP}-volsync"
-
-  #   # Local snapshot class should match the PVC type (cephfs vs rbd)
-  #   volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
-
-  #   # Cache/temp PVCs (OK to be RBD even when source is CephFS)
-  #   cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
-  #   cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
-  #   cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
-
-  #   # Temp mover PVC settings
-  #   storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-  #   accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
-
-  #   moverSecurityContext:
-  #     runAsUser: ${VOLSYNC_PUID:=1000}
-  #     runAsGroup: ${VOLSYNC_PGID:=1000}
-  #     fsGroup: ${VOLSYNC_PGID:=1000}
   restic:
-    repository: ${APP}-volsync-garage
+    # Local snapshot-based movement (still uses restic mover under the hood)
     copyMethod: Snapshot
-    volumeSnapshotClassName: ${VOLSYNC_SNAPSHOTCLASS}
-    cacheCapacity: ${VOLSYNC_CACHE_CAPACITY}
+    pruneIntervalDays: 14
 
+    # Repository secret is created by components/volsync/remote (per-app secret)
+    repository: "${APP}-volsync"
+
+    # Local snapshot class should match the PVC type (cephfs vs rbd)
+    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
+
+    # Cache/temp PVCs (OK to be RBD even when source is CephFS)
+    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
     cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
 
+    # Temp mover PVC settings
     storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
     accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
-
-    moverPodSecurityContext:
-      fsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroupChangePolicy: "OnRootMismatch"
 
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:=1000}
       runAsGroup: ${VOLSYNC_PGID:=1000}
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true  
+      fsGroup: ${VOLSYNC_PGID:=1000}
 
     retain:
       hourly: 24
