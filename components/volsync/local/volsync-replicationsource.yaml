@@ -7,26 +7,29 @@ spec:
   trigger:
     schedule: "05 00/12 * * *"
   restic:
+    # Local snapshot-based movement (still uses restic mover under the hood)
     copyMethod: Snapshot
     pruneIntervalDays: 14
 
+    # Repository secret is created by components/volsync/remote (per-app secret)
     repository: "${APP}-volsync"
 
+    # Local snapshot class should match the PVC type (cephfs vs rbd)
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
 
+    # Cache/temp PVCs (OK to be RBD even when source is CephFS)
     cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
     cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
 
-    # temp mover PVC (can be RBD)
-    storageClassName: "${VOLSYNC_MOVER_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_MOVER_ACCESSMODES:=ReadWriteOnce}"]
+    # Temp mover PVC settings
+    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
+    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
 
-    # ✅ critical: mover runs as app user
     moverSecurityContext:
-      runAsUser: ${VOLSYNC_MOVER_UID:=1000}
-      runAsGroup: ${VOLSYNC_MOVER_GID:=1000}
-      fsGroup: ${VOLSYNC_MOVER_FSGROUP:=1000}
+      runAsUser: ${VOLSYNC_PUID:=1000}
+      runAsGroup: ${VOLSYNC_PGID:=1000}
+      fsGroup: ${VOLSYNC_PGID:=1000}
 
     retain:
       hourly: 24

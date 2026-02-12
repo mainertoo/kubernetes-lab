@@ -8,7 +8,6 @@ spec:
   trigger:
     # Do not auto-restore; we flip this manually when ready
     manual: restore-once
-
   restic:
     repository: "${APP}-volsync"
     copyMethod: Snapshot
@@ -23,11 +22,10 @@ spec:
     accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
     capacity: "${CAPACITY:=1Gi}"
 
-    # ✅ critical: mover runs as app user
     moverSecurityContext:
-      runAsUser: ${VOLSYNC_MOVER_UID:=1000}
-      runAsGroup: ${VOLSYNC_MOVER_GID:=1000}
-      fsGroup: ${VOLSYNC_MOVER_FSGROUP:=1000}
+      runAsUser: ${VOLSYNC_PUID:=1000}
+      runAsGroup: ${VOLSYNC_PGID:=1000}
+      fsGroup: ${VOLSYNC_PGID:=1000}
 
     enableFileDeletion: true
     cleanupCachePVC: true
