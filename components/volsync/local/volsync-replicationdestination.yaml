@@ -8,24 +8,40 @@ spec:
   trigger:
     # Do not auto-restore; we flip this manually when ready
     manual: restore-once
+  # Old way, trying update from AI
+  # restic:
+  #   repository: "${APP}-volsync"
+  #   copyMethod: Snapshot
+
+  #   volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
+
+  #   cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
+  #   cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
+  #   cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
+
+  #   storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
+  #   accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
+  #   capacity: "${CAPACITY:=1Gi}"
+
+  #   moverSecurityContext:
+  #     runAsUser: ${VOLSYNC_PUID:=1000}
+  #     runAsGroup: ${VOLSYNC_PGID:=1000}
+  #     fsGroup: ${VOLSYNC_PGID:=1000}
   restic:
-    repository: "${APP}-volsync"
+    repository: ${APP}-volsync-garage
     copyMethod: Snapshot
+    volumeSnapshotClassName: ${VOLSYNC_SNAPSHOTCLASS}
+    cacheCapacity: ${VOLSYNC_CACHE_CAPACITY}
 
-    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
-
-    cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
-    cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
-    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
-
-    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_ACCESSMODES:=ReadWriteOnce}"]
-    capacity: "${CAPACITY:=1Gi}"
+    moverPodSecurityContext:
+      fsGroup: ${VOLSYNC_PGID:=1000}
+      fsGroupChangePolicy: "OnRootMismatch"
 
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:=1000}
       runAsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroup: ${VOLSYNC_PGID:=1000}
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
 
     enableFileDeletion: true
     cleanupCachePVC: true
