@@ -37,6 +37,12 @@ spec:
     volumeSnapshotClassName: ${VOLSYNC_SNAPSHOTCLASS}
     cacheCapacity: ${VOLSYNC_CACHE_CAPACITY}
 
+    cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
+    cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
+
+    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
+    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
+
     moverPodSecurityContext:
       fsGroup: ${VOLSYNC_PGID:=1000}
       fsGroupChangePolicy: "OnRootMismatch"
