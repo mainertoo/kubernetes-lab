@@ -79,9 +79,10 @@ spec:
         containers:
           server:
             image:
-              repository: codewithcj/sparkyfitness_server
-              tag: latest
-              pullPolicy: Always
+                image:
+                  repository: codewithcj/sparkyfitness
+                  tag: v0.16.4.2
+                  pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
               NODE_ENV: production
@@ -104,8 +105,8 @@ spec:
           app:
             image:
               repository: codewithcj/sparkyfitness
-              tag: latest
-              pullPolicy: Always
+              tag: v0.16.4.2
+              pullPolicy: IfNotPresent
             env:
               SPARKY_FITNESS_SERVER_HOST: "127.0.0.1"
               SPARKY_FITNESS_SERVER_PORT: "3010"

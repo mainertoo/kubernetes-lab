@@ -59,8 +59,8 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/plex
-              tag: "1.43.0.10492"
-              pullPolicy: IfNotPresent
+              tag: latest
+              pullPolicy: always
             env:
               - name: TZ
                 value: America/Los_Angeles
