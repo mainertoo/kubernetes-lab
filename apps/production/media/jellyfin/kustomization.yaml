@@ -41,7 +41,7 @@ spec:
       CAPACITY: 150Gi
 
       # Repo path inside your S3 bucket/prefix (keep consistent with your layout)
-      VOLSYNC_REPO_PATH: jellyfin/jellyfin
+      VOLSYNC_REPO_PATH: media/jellyfin
 
       # Cache PVC for mover/restic (RBD RWO)
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
