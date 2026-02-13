@@ -1,0 +1,29 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ui-toolkit-ingressroute
+  namespace: ui-toolkit
+  annotations:
+    gethomepage.dev/href: "https://ui-toolkit.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "UI Toolkit"
+    gethomepage.dev/description: "UniFi management toolkit (Crosstalk Solutions)"
+    gethomepage.dev/app: ui-toolkit
+    gethomepage.dev/group: "Network"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/ubiquiti.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`ui-toolkit.lab.mainertoo.com`)
+      kind: Rule
+      # If you want Authentik in front, uncomment:
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: ui-toolkit
+          port: 80
+          scheme: http
+  tls: {}

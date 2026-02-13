@@ -16,6 +16,7 @@ resources:
   - media/tracearr/
   - sparky-fitness/
   - media/riven/
+  - ui-toolkit/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
