@@ -79,10 +79,9 @@ spec:
         containers:
           server:
             image:
-                image:
-                  repository: codewithcj/sparkyfitness
-                  tag: v0.16.4.2
-                  pullPolicy: IfNotPresent
+              repository: codewithcj/sparkyfitness_server
+              tag: v0.16.4.2
+              pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
               NODE_ENV: production
