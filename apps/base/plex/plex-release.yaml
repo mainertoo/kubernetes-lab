@@ -60,7 +60,7 @@ spec:
             image:
               repository: ghcr.io/linuxserver/plex
               tag: latest
-              pullPolicy: always
+              pullPolicy: Always
             env:
               - name: TZ
                 value: America/Los_Angeles
