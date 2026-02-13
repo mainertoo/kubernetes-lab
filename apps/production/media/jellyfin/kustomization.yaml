@@ -24,10 +24,10 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+    - ../../../../components/volsync
+    - ../../../../components/volsync/remote
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
 
   postBuild:
     substitute:
