@@ -17,7 +17,7 @@ resources:
   - sparky-fitness/
   - media/riven/
   - ui-toolkit/kustomization.yaml
-  #- media/jellyfin/kustomization.yaml
+  - media/jellyfin/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
