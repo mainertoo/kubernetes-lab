@@ -80,7 +80,7 @@ spec:
           server:
             image:
               repository: codewithcj/sparkyfitness_server
-              tag: 0.16.4.2
+              tag: v0.16.4.2
             env:
               TZ: America/Los_Angeles
               NODE_ENV: production
