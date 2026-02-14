@@ -18,6 +18,7 @@ resources:
   - media/riven/
   - ui-toolkit/kustomization.yaml
   - media/jellyfin/kustomization.yaml
+  - media/prowlarr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
