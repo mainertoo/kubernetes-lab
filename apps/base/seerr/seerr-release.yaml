@@ -35,7 +35,7 @@ spec:
               repository: ghcr.io/seerr-team/seerr
               # tag: "sha-15356df"
               # pullPolicy: IfNotPresent
-              tag: "develop"
+              tag: "v3.0.1"
               pullPolicy: Always
 
             env:
