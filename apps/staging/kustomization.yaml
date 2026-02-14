@@ -30,7 +30,7 @@ resources:
   - kitchenowl/
   - dispatcharr/
   - decypharr/
-  - prowlarr/
+  # - prowlarr/
   - radarr/
   - radarr4k/
   - readarr/
