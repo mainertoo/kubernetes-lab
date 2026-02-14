@@ -1,1 +1,62 @@
-#placeholder, this is coming
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prowlarr
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/prowlarr
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 15m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/volsync
+    - ../../../../components/volsync/remote
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: prowlarr
+      APP_NAMESPACE: media
+
+      # === VolSync PVC + Snapshot configuration (RBD RWO) ===
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      CAPACITY: 5Gi
+
+      # Repo path inside your S3 bucket/prefix
+      VOLSYNC_REPO_PATH: media/prowlarr
+
+      # Cache PVC for mover/restic (RBD RWO)
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      # === Gatus ===
+      SUBDOMAIN: prowlarr
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "9696"
+
+      # If internal check goes yellow because Prowlarr redirects (rare), uncomment:
+      # GATUS_STATUS_INTERNAL: "302"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
