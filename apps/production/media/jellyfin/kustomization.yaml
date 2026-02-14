@@ -52,14 +52,14 @@ spec:
       SUBDOMAIN: jellyfin
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
-      GATUS_PORT: "80"
+      GATUS_PORT: "8096"
 
       # === Gatus (internal: hit Service directly) ===
       # Jellyfin returns 302 on / when unauthenticated, so expect 302.
-      GATUS_APP: jellyfin
-      GATUS_PATH_INTERNAL: /
-      GATUS_PORT_INTERNAL: "8096"
-      GATUS_STATUS_INTERNAL: "302"
+      # GATUS_APP: jellyfin
+      # GATUS_PATH_INTERNAL: /
+      # GATUS_PORT_INTERNAL: "8096"
+      # GATUS_STATUS_INTERNAL: "302"
 
     substituteFrom:
       - kind: Secret
