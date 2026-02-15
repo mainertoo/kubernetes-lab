@@ -29,6 +29,7 @@ resources:
   - media/speakarr/kustomization.yaml
   - media/dispatcharr/kustomization.yaml
   - media/storage-qnap/kustomization.yaml
+  - media/plex/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
@@ -42,7 +43,6 @@ resources:
   # - mealie/kustomization.yaml
   # - paperless-ngx/kustomization.yaml
   # - omni-tools/kustomization.yaml
-  # - jellyseerr/kustomization.yaml
   # - gatus/kustomization.yaml
   # - kube-prometheus-stack/kustomization.yaml
   # - grafana/kustomization.yaml
