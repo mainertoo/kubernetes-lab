@@ -34,8 +34,6 @@ resources:
   # - it-tools/kustomization.yaml
   # - zurg/
   # - rclone/
-  # - riven/kustomization.yaml
-  # - babybuddy/kustomization.yaml
   # - huginn/
   # - spoolman/kustomization.yaml
   # - n8n/
@@ -48,6 +46,5 @@ resources:
   # - grafana/kustomization.yaml
   # - decypharr/kustomization.yaml
   # - notifiarr/kustomization.yaml
-  # - readarr/kustomization.yaml
   # - immich/kustomization.yaml
   
