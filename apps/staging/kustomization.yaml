@@ -38,8 +38,8 @@ resources:
   - symlinks/
   # - sonarr/
   # - sonarr4k/
-  - lidarr/
-  - bazarr/
+  # - lidarr/
+  # - bazarr/
   # - calibre/
   - notifiarr/
   # - actual-budget/
