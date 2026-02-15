@@ -23,6 +23,8 @@ resources:
   - media/sonarr4k/kustomization.yaml
   - media/radarr/kustomization.yaml
   - media/radarr4k/kustomization.yaml
+  - media/lidarr/kustomization.yaml
+  - media/bazarr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
