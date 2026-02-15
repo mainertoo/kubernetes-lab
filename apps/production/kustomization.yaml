@@ -27,6 +27,7 @@ resources:
   - media/bazarr/kustomization.yaml
   - media/readarr/kustomization.yaml
   - media/speakarr/kustomization.yaml
+  - media/dispatcharr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
