@@ -25,7 +25,7 @@ resources:
   - media/radarr4k/kustomization.yaml
   - media/lidarr/kustomization.yaml
   - media/bazarr/kustomization.yaml
-  - meida/readarr/kustomization.yaml
+  - media/readarr/kustomization.yaml
   - media/speakarr/kustomization.yaml
 
   ## old resources list
