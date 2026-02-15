@@ -42,12 +42,16 @@ spec:
               DISPATCHARR_ENV: aio
               DISPATCHARR_LOG_LEVEL: info
 
+              # Force Intel Gen12+/Raptor Lake VAAPI driver
+              # Only needed if auto-detection fails, but safe to set.
+              LIBVA_DRIVER_NAME: iHD
+
             ports:
               - name: http
                 containerPort: 9191
                 protocol: TCP
 
-            # IMPORTANT: allow access to /dev/dri character devices (matches Plex behavior)
+            # Allow access to /dev/dri character devices (matches Plex behavior)
             securityContext:
               privileged: true
 
@@ -57,7 +61,10 @@ spec:
         runAsUser: 0
         runAsGroup: 0
         runAsNonRoot: false
-        # Keep these for consistency with /dev/dri ownership (card* -> 44, renderD128 -> 991)
+
+        # Match DRI device ownership:
+        #   card* -> GID 44 (video)
+        #   renderD128 -> GID 991 (render)
         supplementalGroups:
           - 44
           - 991
