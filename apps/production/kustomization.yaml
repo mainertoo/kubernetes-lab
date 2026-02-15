@@ -29,7 +29,7 @@ resources:
   - media/speakarr/kustomization.yaml
   - media/dispatcharr/kustomization.yaml
   - media/storage-qnap/kustomization.yaml
-  # - media/plex/kustomization.yaml
+  - media/plex/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
