@@ -6,7 +6,7 @@ resources:
   - zurg/
   - rclone/
   # - riven/
-  - plex/
+  # - plex/
   # - vaultwarden/
   - paperless-ngx/
   # - authentik/
