@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media-storage-qnap
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/storage-qnap
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

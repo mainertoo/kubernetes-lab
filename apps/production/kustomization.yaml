@@ -28,6 +28,7 @@ resources:
   - media/readarr/kustomization.yaml
   - media/speakarr/kustomization.yaml
   - media/dispatcharr/kustomization.yaml
+  - media/storage-qnap/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml

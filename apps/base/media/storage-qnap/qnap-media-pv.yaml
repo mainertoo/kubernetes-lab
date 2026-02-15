@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-media-pv
+spec:
+  capacity:
+    storage: 20Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-media-static
+  nfs:
+    server: 192.168.1.252
+    path: /QNAS/data
