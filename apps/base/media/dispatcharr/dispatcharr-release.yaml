@@ -26,7 +26,6 @@ spec:
   values:
     controllers:
       main:
-        # OPTIONAL: pin to your GPU nodes (same label you use for Plex/Jellyfin)
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
@@ -35,7 +34,7 @@ spec:
           main:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
-              tag: 0.14.0
+              tag: 0.19.0
               pullPolicy: IfNotPresent
 
             env:
@@ -48,12 +47,20 @@ spec:
                 containerPort: 9191
                 protocol: TCP
 
-    # Run as root (as you had it) since the container may write into /etc and /root at startup.
+            # IMPORTANT: allow access to /dev/dri character devices (matches Plex behavior)
+            securityContext:
+              privileged: true
+
+    # Run as root (needed for this image's init behavior)
     defaultPodOptions:
       securityContext:
         runAsUser: 0
         runAsGroup: 0
         runAsNonRoot: false
+        # Keep these for consistency with /dev/dri ownership (card* -> 44, renderD128 -> 991)
+        supplementalGroups:
+          - 44
+          - 991
 
     service:
       main:
@@ -87,7 +94,7 @@ spec:
             main:
               - path: /root
 
-      # GPU device nodes passthrough (enables /dev/dri/renderD128 inside the pod)
+      # GPU device nodes passthrough
       dri:
         type: hostPath
         hostPath: /dev/dri
