@@ -33,8 +33,8 @@ resources:
   # - prowlarr/
   # - radarr/
   # - radarr4k/
-  - readarr/
-  - speakarr/
+  # - readarr/
+  # - speakarr/
   - symlinks/
   # - sonarr/
   # - sonarr4k/
