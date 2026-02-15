@@ -28,7 +28,7 @@ resources:
   - mealie/
   - tandoor/
   - kitchenowl/
-  - dispatcharr/
+  # - dispatcharr/
   - decypharr/
   # - prowlarr/
   # - radarr/
