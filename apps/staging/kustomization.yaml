@@ -36,8 +36,8 @@ resources:
   - readarr/
   - speakarr/
   - symlinks/
-  - sonarr/
-  - sonarr4k/
+  # - sonarr/
+  # - sonarr4k/
   - lidarr/
   - bazarr/
   # - calibre/
