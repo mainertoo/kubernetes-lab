@@ -10,7 +10,7 @@ spec:
 
   prune: true
   retryInterval: 2m
-  timeout: 15m
+  timeout: 30m
   wait: false
 
   decryption:
@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/volsync
+    - ../../../../components/volsync-v2
     - ../../../../components/volsync/remote
     - ../../../../components/gatus/internal
     - ../../../../components/gatus/external
@@ -38,6 +38,7 @@ spec:
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
       CAPACITY: 150Gi
 
       # Repo path inside your S3 bucket/prefix
