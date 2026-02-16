@@ -32,11 +32,11 @@ spec:
       APP: jellyfin
       APP_NAMESPACE: media
 
-      # Storage settings MUST match your app’s config PVC type
-      VOLSYNC_STORAGECLASS: cephfs
-      VOLSYNC_ACCESSMODES: ReadWriteMany
-      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
+      # RESTORE TARGET MUST BE RBD (reliable snapshot restore)
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 150Gi
 
       VOLSYNC_REPO_PATH: media/jellyfin
