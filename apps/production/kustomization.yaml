@@ -17,7 +17,7 @@ resources:
   - sparky-fitness/
   - media/riven/
   - ui-toolkit/kustomization.yaml
-  - media/jellyfin/kustomization.yaml
+  # - media/jellyfin/kustomization.yaml
   - media/prowlarr/kustomization.yaml
   - media/sonarr/kustomization.yaml
   - media/sonarr4k/kustomization.yaml
