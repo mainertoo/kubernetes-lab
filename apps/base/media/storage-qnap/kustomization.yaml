@@ -4,3 +4,4 @@ namespace: media
 resources:
   - qnap-media-pv.yaml
   - qnap-media-pvc.yaml
+  - symlinks-cephfs-pvc.yaml
