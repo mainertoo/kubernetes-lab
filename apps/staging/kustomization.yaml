@@ -35,7 +35,7 @@ resources:
   # - radarr4k/
   # - readarr/
   # - speakarr/
-  - symlinks/
+  # - symlinks/
   # - sonarr/
   # - sonarr4k/
   # - lidarr/
