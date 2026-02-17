@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
@@ -35,8 +35,10 @@ spec:
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 10Gi
 
+      # keep repo path stable
       VOLSYNC_REPO_PATH: calibre/config
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
