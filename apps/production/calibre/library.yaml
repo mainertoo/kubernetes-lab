@@ -24,20 +24,22 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
     substitute:
-      # IMPORTANT: this must match the PVC name your HelmRelease expects
+      # IMPORTANT: must match PVC name your HelmRelease expects
       APP: calibre-library-cephfs
       APP_NAMESPACE: media
 
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
       CAPACITY: 20Gi
 
+      # keep repo path stable
       VOLSYNC_REPO_PATH: calibre/library
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd

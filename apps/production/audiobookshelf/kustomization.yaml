@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -33,11 +33,14 @@ spec:
     substitute:
       APP: audiobookshelf
       APP_NAMESPACE: media
+
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
       CAPACITY: 100Gi
 
+      # keep repo path stable (even if “outside namespace folder”)
       VOLSYNC_REPO_PATH: audiobookshelf/abs
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
