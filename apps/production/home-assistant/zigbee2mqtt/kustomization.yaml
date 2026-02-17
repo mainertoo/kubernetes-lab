@@ -25,7 +25,7 @@ spec:
 
   components:
     # VolSync owns the PVC named "${APP}" (we set APP=zigbee2mqtt below)
-    - ../../../../components/volsync
+    - ../../../../components/volsync-v2
     - ../../../../components/volsync/remote
 
     # Gatus internal/external
@@ -46,6 +46,7 @@ spec:
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 2Gi
 
       # Pick the repo path you want in Garage
