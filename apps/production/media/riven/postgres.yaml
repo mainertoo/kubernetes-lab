@@ -24,12 +24,11 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
     substitute:
-      # IMPORTANT: keep exact PVC name referenced by HelmRelease
       APP: riven-backend-pvc
       APP_NAMESPACE: media
 
@@ -44,8 +43,6 @@ spec:
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 1Gi
 
-      # Postgres image commonly uses UID/GID 999 in many distros, but you said "keep as-is"
-      # Your safest move is preserving ownership from backup restores.
       VOLSYNC_PUID: "999"
       VOLSYNC_PGID: "999"
 
