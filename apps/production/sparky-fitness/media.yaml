@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
@@ -36,6 +36,7 @@ spec:
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
       CAPACITY: 10Gi
 
       VOLSYNC_REPO_PATH: sparky-fitness/media
