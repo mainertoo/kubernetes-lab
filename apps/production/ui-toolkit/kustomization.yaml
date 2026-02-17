@@ -25,7 +25,7 @@ spec:
 
   components:
     # Single PVC via volsync component (like audiobookshelf pattern)
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
     # Uptime checks
