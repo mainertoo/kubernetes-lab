@@ -32,6 +32,7 @@ resources:
   - media/storage-qnap/kustomization.yaml
   - media/plex/kustomization.yaml
   - media/notifiarr/
+  - media/tautulli/
 
   ## old resources list
   # - grocy/kustomization.yaml
