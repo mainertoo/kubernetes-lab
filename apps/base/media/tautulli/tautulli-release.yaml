@@ -69,8 +69,6 @@ spec:
       config:
         enabled: true
         type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 5Gi
+        existingClaim: tautulli-config
         globalMounts:
           - path: /config
