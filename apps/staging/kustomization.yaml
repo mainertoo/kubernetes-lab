@@ -14,7 +14,7 @@ resources:
   # - jellyfin/
   - jackett/
   - zilean/
-  - tautulli/
+  # - tautulli/
   - seerr/
   # - jellystat/
   - wiki-js/
