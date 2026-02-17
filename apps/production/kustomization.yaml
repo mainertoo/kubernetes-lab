@@ -31,7 +31,7 @@ resources:
   - media/dispatcharr/kustomization.yaml
   - media/storage-qnap/kustomization.yaml
   - media/plex/kustomization.yaml
-  - media/notifiarr/kustomization.yaml
+  - media/notifiarr/
 
   ## old resources list
   # - grocy/kustomization.yaml
