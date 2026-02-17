@@ -24,12 +24,11 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
     substitute:
-      # keep exact PVC name referenced by HelmRelease
       APP: riven-data-pvc
       APP_NAMESPACE: media
 
@@ -44,7 +43,6 @@ spec:
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 1Gi
 
-      # Riven tends to like 1000-style ownership in your stack
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
 

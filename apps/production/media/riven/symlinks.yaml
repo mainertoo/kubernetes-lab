@@ -24,12 +24,11 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
     substitute:
-      # keep exact PVC name referenced by HelmRelease
       APP: shared-media-pvc
       APP_NAMESPACE: media
 
