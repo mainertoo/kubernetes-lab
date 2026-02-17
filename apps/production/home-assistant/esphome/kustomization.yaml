@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/volsync
+    - ../../../../components/volsync-v2
     - ../../../../components/volsync/remote
     - ../../../../components/gatus/internal
     - ../../../../components/gatus/external
@@ -37,6 +37,7 @@ spec:
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 20Gi
 
       VOLSYNC_REPO_PATH: home-assistant/esphome/config
