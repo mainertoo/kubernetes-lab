@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -38,6 +38,8 @@ spec:
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      # v2: snapshot-derived PVC access mode (keeps it explicit)
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 5Gi
 
       # Repo path inside the Garage bucket/prefix
