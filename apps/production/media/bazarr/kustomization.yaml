@@ -24,7 +24,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/volsync
+    - ../../../../components/volsync-v2
     - ../../../../components/volsync/remote
     - ../../../../components/gatus/internal
     - ../../../../components/gatus/external
@@ -34,27 +34,21 @@ spec:
       APP: bazarr
       APP_NAMESPACE: media
 
-      # === VolSync PVC + Snapshot configuration (RBD RWO) ===
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       CAPACITY: 5Gi
 
-      # Repo path inside your S3 bucket/prefix
       VOLSYNC_REPO_PATH: media/bazarr
 
-      # Cache PVC for mover/restic (RBD RWO)
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 1Gi
 
-      # === Gatus (external + internal) ===
       SUBDOMAIN: bazarr
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "6767"
-
-      # Bazarr sometimes redirects on / (rare); enable if internal check stays yellow:
       # GATUS_STATUS_INTERNAL: "302"
 
     substituteFrom:
