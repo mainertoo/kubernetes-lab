@@ -34,7 +34,7 @@ spec:
 
       SUBDOMAIN: zilean
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PATH: /
+      GATUS_PATH: /healthchecks/ping
       GATUS_PORT: "8282"
       # If you want to pin expected status explicitly:
       # GATUS_STATUS_INTERNAL: "200"
