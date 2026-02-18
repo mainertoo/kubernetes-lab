@@ -12,7 +12,7 @@ resources:
   # - authentik/
   - rancher/
   # - jellyfin/
-  - jackett/
+  # - jackett/
   - zilean/
   # - tautulli/
   - seerr/

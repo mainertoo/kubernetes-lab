@@ -33,6 +33,7 @@ resources:
   - media/plex/kustomization.yaml
   - media/notifiarr/
   - media/tautulli/kustomization.yaml
+  - media/jackett/
 
   ## old resources list
   # - grocy/kustomization.yaml
