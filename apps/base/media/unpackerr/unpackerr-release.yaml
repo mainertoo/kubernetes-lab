@@ -80,7 +80,7 @@ spec:
       # VolSync-managed PVC in production; in staging you can still create it manually if you want.
       config:
         enabled: true
-        existingClaim: ${APP}-config
+        existingClaim: ${APP}
         globalMounts:
           - path: /config
 
