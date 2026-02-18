@@ -32,7 +32,7 @@ spec:
   postBuild:
     substitute:
       # MUST match HelmRelease existingClaim AND the PVC name you want VolSync to manage
-      APP: tautulli-config
+      APP: tautulli
       APP_NAMESPACE: media
 
       VOLSYNC_STORAGECLASS: ceph-rbd
