@@ -18,7 +18,7 @@ spec:
     - match: Host(`jackett.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: media-jackett
+        - name: jackett
           port: 9117
       # middlewares:
       #   - name: authentik
