@@ -36,6 +36,7 @@ resources:
   - media/jackett/
   - media/decypharr/kustomization.yaml
   - media/unpackerr/kustomization.yaml
+  - media/zilean/
 
   ## old resources list
   # - grocy/kustomization.yaml
