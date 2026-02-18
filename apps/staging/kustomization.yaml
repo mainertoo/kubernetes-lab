@@ -29,7 +29,7 @@ resources:
   - tandoor/
   - kitchenowl/
   # - dispatcharr/
-  - decypharr/
+  # - decypharr/
   # - prowlarr/
   # - radarr/
   # - radarr4k/
