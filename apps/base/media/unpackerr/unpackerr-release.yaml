@@ -41,12 +41,7 @@ spec:
 
             env:
               TZ: America/Los_Angeles
-
-              # Keep the log on the shared downloads volume (inside your QNAP mount)
-              # Adjust path if your downloads directory is different.
               UN_LOG_FILE: "/data/torrents/unpackerr.log"
-
-              # Enable a small web endpoint so IngressRoute has something to route to.
               UN_WEBSERVER_METRICS: "true"
               UN_WEBSERVER_LISTEN_ADDR: "0.0.0.0:5656"
 
@@ -82,16 +77,13 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
 
     persistence:
-      # Unpackerr doesn't need much config, but you requested persistent storage.
+      # VolSync-managed PVC in production; in staging you can still create it manually if you want.
       config:
         enabled: true
-        existingClaim: unpackerr-config
+        existingClaim: ${APP}-config
         globalMounts:
           - path: /config
 
-      # Mount the same QNAP NFS share that Radarr/Sonarr/etc use.
-      # This is what Unpackerr actually needs so it can see/download/unpack files
-      # in the same place as the Arr stack.
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc

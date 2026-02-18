@@ -48,7 +48,7 @@ resources:
   - memos/
   - donetick/
   - scrypted/
-  - unpackerr/
+  # - unpackerr/
   - opencut/
   - crafty/
   - dumbdo/
