@@ -3,8 +3,6 @@ kind: Kustomization
 namespace: media
 
 resources:
-  - decypharr-data-pvc.yaml
-  - media-symlinks-pvc.yaml
   - decypharr-secret.sops.yaml
   - decypharr-release.yaml
   - decypharr-ingressroute.yaml

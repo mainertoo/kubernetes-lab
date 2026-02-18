@@ -34,6 +34,7 @@ resources:
   - media/notifiarr/
   - media/tautulli/kustomization.yaml
   - media/jackett/
+  - media/decypahrr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
