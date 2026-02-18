@@ -61,17 +61,11 @@ spec:
     persistence:
       data:
         enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 10Gi
+        existingClaim: zilean-data
         globalMounts:
           - path: /data
       tmp:
         enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-rbd
-        accessMode: ReadWriteOnce
-        size: 5Gi
+        existingClaim: zilean-tmp
         globalMounts:
           - path: /tmp

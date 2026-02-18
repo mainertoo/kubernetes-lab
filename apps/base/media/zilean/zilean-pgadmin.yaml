@@ -92,15 +92,15 @@ spec:
           secret:
             secretName: zilean-pgadmin-config
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: zilean-pgadmin-data
-  namespace: media
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: ceph-rbd
-  resources:
-    requests:
-      storage: 5Gi
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: zilean-pgadmin-data
+#   namespace: media
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: ceph-rbd
+#   resources:
+#     requests:
+#       storage: 5Gi
