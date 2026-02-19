@@ -37,6 +37,7 @@ resources:
   - media/decypharr/kustomization.yaml
   - media/unpackerr/kustomization.yaml
   - media/zilean/
+  - media/seerr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml

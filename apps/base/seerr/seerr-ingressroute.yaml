@@ -2,7 +2,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: seerr-ingressroute
-  namespace: seerr
+  namespace: media
   annotations:
     gethomepage.dev/href: "https://seerr.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
