@@ -42,7 +42,7 @@ spec:
       CAPACITY: 10Gi
 
       # keep repo path stable
-      VOLSYNC_REPO_PATH: seerr/config
+      VOLSYNC_REPO_PATH: media/seerr
 
       # optional cache (if your volsync-v2 component expects/uses it)
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
