@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/seerr
+  path: ./apps/base/media/seerr
   targetNamespace: media
 
   prune: true
