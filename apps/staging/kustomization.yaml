@@ -8,7 +8,7 @@ resources:
   # - riven/
   # - plex/
   # - vaultwarden/
-  - paperless-ngx/
+  # - paperless-ngx/
   # - authentik/
   - rancher/
   # - jellyfin/
