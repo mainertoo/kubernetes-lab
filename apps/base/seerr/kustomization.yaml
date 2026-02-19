@@ -2,8 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: seerr
 resources:
-  - seerr-namespace.yaml
-  - seerr-pvc.yaml
+  # - seerr-namespace.yaml
+  # - seerr-pvc.yaml
   - seerr-release.yaml
   - seerr-ingressroute.yaml
   - seerr-lb-service.yaml

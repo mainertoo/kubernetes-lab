@@ -15,7 +15,7 @@ resources:
   # - jackett/
   # - zilean/
   # - tautulli/
-  - seerr/
+  # - seerr/
   # - jellystat/
   - wiki-js/
   - grocy/
