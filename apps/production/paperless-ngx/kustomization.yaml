@@ -51,6 +51,8 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "8000"
+      # Gatus internal should hit the *Service* name created by app-template
+      GATUS_APP: paperless-ngx-app
 
     substituteFrom:
       - kind: Secret
