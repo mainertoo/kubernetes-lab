@@ -6,12 +6,11 @@ metadata:
 spec:
   interval: 30m
   timeout: 10m
-  # kubeVersion: "1.31.0" ## hack to satisfy validation; our cluster is 1.26
   releaseName: rancher
   chart:
     spec:
       chart: rancher
-      version: 2.13.0      # example; we can adjust once we pick a target
+      version: 2.13.3     # example; we can adjust once we pick a target
       sourceRef:
         kind: HelmRepository
         name: rancher-latest
