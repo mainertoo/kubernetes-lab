@@ -80,7 +80,7 @@ spec:
           server:
             image:
               repository: codewithcj/sparkyfitness_server
-              tag: v0.16.4.4
+              tag: v0.16.4.9
               pullPolicy: Always
             env:
               TZ: America/Los_Angeles
@@ -104,7 +104,7 @@ spec:
           app:
             image:
               repository: codewithcj/sparkyfitness
-              tag: v0.16.4.4
+              tag: v0.16.4.9
               pullPolicy: Always
             env:
               SPARKY_FITNESS_SERVER_HOST: "127.0.0.1"
