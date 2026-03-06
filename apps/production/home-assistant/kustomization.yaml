@@ -39,7 +39,7 @@ spec:
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      CAPACITY: 20Gi
+      CAPACITY: 50Gi
 
       # Repo path inside the Garage bucket/prefix
       VOLSYNC_REPO_PATH: home-assistant/config
