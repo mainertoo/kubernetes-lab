@@ -69,6 +69,6 @@ spec:
       # Keep the symlink mount around for future workflows
       symlinks:
         enabled: true
-        existingClaim: symlinks
+        existingClaim: symlinks-cephfs
         globalMounts:
           - path: /mnt/symlinks/prowlarr
