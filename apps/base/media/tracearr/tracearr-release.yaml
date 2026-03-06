@@ -72,7 +72,7 @@ spec:
             image:
               repository: ghcr.io/connorgallopo/tracearr
               tag: latest
-              pullPolicy: IfNotPresent
+              pullPolicy: Always
 
             env:
               TZ: America/Los_Angeles
