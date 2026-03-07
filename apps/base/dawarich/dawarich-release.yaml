@@ -292,12 +292,10 @@ spec:
               tag: 17-3.5-alpine
               pullPolicy: IfNotPresent
             env:
-              - name: PGDATA
-                value: /var/lib/postgresql/data/pgdata
+              PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: dawarich-secret
-
       dawarich-redis:
         strategy: Recreate
         containers:
