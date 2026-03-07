@@ -1,0 +1,49 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dawarich
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/dawarich
+  targetNamespace: dawarich
+
+  prune: true
+  retryInterval: 2m
+  timeout: 15m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  dependsOn:
+    - name: dawarich-db
+    - name: dawarich-media
+
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: dawarich
+      APP_NAMESPACE: dawarich
+
+      SUBDOMAIN: dawarich
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /api/v1/health
+      GATUS_PORT: "3000"
+
+      GATUS_APP: dawarich
+      GATUS_STATUS_INTERNAL: "200"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
