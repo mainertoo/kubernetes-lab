@@ -23,9 +23,9 @@ spec:
     name: flux-system
     namespace: flux-system
 
-  dependsOn:
-    - name: dawarich-db
-    - name: dawarich-media
+  # dependsOn:
+  #   - name: dawarich-db
+  #   - name: dawarich-media
 
   components:
     - ../../../components/gatus/internal
