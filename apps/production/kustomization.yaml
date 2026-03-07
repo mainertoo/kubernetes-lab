@@ -39,6 +39,7 @@ resources:
   - media/zilean/
   - media/seerr/kustomization.yaml
   - paperless-ngx/kustomization.yaml
+  - dawarich/
 
   ## old resources list
   # - grocy/kustomization.yaml

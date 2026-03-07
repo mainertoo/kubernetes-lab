@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dawarich
+resources:
+  - dawarich-namespace.yaml
+  - dawarich-secret.sops.yaml
+  - dawarich-release.yaml
+  - dawarich-ingressroute.yaml

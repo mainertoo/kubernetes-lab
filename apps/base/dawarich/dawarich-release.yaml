@@ -1,0 +1,386 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich
+  namespace: dawarich
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+    timeout: 20m
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+    timeout: 20m
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      dawarich:
+        strategy: Recreate
+
+        initContainers:
+          init-app-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init Dawarich shared dirs..."
+                mkdir -p /var/app/public
+                mkdir -p /var/app/tmp/imports/watched
+                mkdir -p /var/app/storage
+                chown -R 1000:1000 /var/app || true
+                chmod -R 0775 /var/app || true
+                ls -la /var/app || true
+                ls -la /var/app/tmp/imports || true
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+          wait-for-db:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                until nslookup dawarich-dawarich-db.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-dawarich-db.dawarich.svc.cluster.local"
+                  sleep 2
+                done
+
+                until nc -z -w 2 dawarich-dawarich-db.dawarich.svc.cluster.local 5432; do
+                  echo "waiting for postgres: dawarich-dawarich-db.dawarich.svc.cluster.local:5432"
+                  sleep 2
+                done
+
+                echo "db is reachable"
+
+          wait-for-redis:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                until nslookup dawarich-dawarich-redis.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-dawarich-redis.dawarich.svc.cluster.local"
+                  sleep 2
+                done
+
+                until nc -z -w 2 dawarich-dawarich-redis.dawarich.svc.cluster.local 6379; do
+                  echo "waiting for redis: dawarich-dawarich-redis.dawarich.svc.cluster.local:6379"
+                  sleep 2
+                done
+
+                echo "redis is reachable"
+
+        containers:
+          app:
+            image:
+              repository: freikin/dawarich
+              tag: 1.3.1
+              pullPolicy: IfNotPresent
+            command:
+              - web-entrypoint.sh
+            args:
+              - bin/rails
+              - server
+              - -p
+              - "3000"
+              - -b
+              - "::"
+            env:
+              TZ: America/Los_Angeles
+              RAILS_ENV: production
+
+              REDIS_URL: redis://dawarich-dawarich-redis.dawarich.svc.cluster.local:6379
+
+              DATABASE_HOST: dawarich-dawarich-db.dawarich.svc.cluster.local
+              DATABASE_PORT: "5432"
+
+              APPLICATION_HOSTS: "dawarich.lab.mainertoo.com"
+              APPLICATION_PROTOCOL: "https"
+              TIME_ZONE: America/Los_Angeles
+
+              RAILS_LOG_TO_STDOUT: "true"
+              SELF_HOSTED: "true"
+              STORE_GEODATA: "true"
+
+              PROMETHEUS_EXPORTER_ENABLED: "false"
+              PROMETHEUS_EXPORTER_HOST: "0.0.0.0"
+              PROMETHEUS_EXPORTER_PORT: "9394"
+            envFrom:
+              - secretRef:
+                  name: dawarich-secret
+            ports:
+              - name: http
+                containerPort: 3000
+                protocol: TCP
+
+          health:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-lc"]
+            args:
+              - |
+                set -e
+                mkdir -p /www
+                echo "ok" >/www/index.html
+                exec httpd -f -p 8080 -h /www
+            ports:
+              - name: health
+                containerPort: 8080
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+
+      dawarich-sidekiq:
+        strategy: Recreate
+
+        initContainers:
+          init-app-perms:
+            image:
+              repository: busybox
+              tag: stable
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "Init Dawarich shared dirs for sidekiq..."
+                mkdir -p /var/app/public
+                mkdir -p /var/app/tmp/imports/watched
+                mkdir -p /var/app/storage
+                chown -R 1000:1000 /var/app || true
+                chmod -R 0775 /var/app || true
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+          wait-for-db:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                until nslookup dawarich-dawarich-db.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-dawarich-db.dawarich.svc.cluster.local"
+                  sleep 2
+                done
+
+                until nc -z -w 2 dawarich-dawarich-db.dawarich.svc.cluster.local 5432; do
+                  echo "waiting for postgres: dawarich-dawarich-db.dawarich.svc.cluster.local:5432"
+                  sleep 2
+                done
+
+                echo "db is reachable"
+
+          wait-for-redis:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+
+                until nslookup dawarich-dawarich-redis.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-dawarich-redis.dawarich.svc.cluster.local"
+                  sleep 2
+                done
+
+                until nc -z -w 2 dawarich-dawarich-redis.dawarich.svc.cluster.local 6379; do
+                  echo "waiting for redis: dawarich-dawarich-redis.dawarich.svc.cluster.local:6379"
+                  sleep 2
+                done
+
+                echo "redis is reachable"
+
+        containers:
+          sidekiq:
+            image:
+              repository: freikin/dawarich
+              tag: 1.3.1
+              pullPolicy: IfNotPresent
+            command:
+              - sidekiq-entrypoint.sh
+            args:
+              - sidekiq
+            env:
+              TZ: America/Los_Angeles
+              RAILS_ENV: production
+
+              REDIS_URL: redis://dawarich-dawarich-redis.dawarich.svc.cluster.local:6379
+
+              DATABASE_HOST: dawarich-dawarich-db.dawarich.svc.cluster.local
+              DATABASE_PORT: "5432"
+
+              APPLICATION_HOSTS: "dawarich.lab.mainertoo.com"
+              APPLICATION_PROTOCOL: "https"
+
+              BACKGROUND_PROCESSING_CONCURRENCY: "10"
+
+              RAILS_LOG_TO_STDOUT: "true"
+              SELF_HOSTED: "true"
+              STORE_GEODATA: "true"
+
+              PROMETHEUS_EXPORTER_ENABLED: "false"
+              PROMETHEUS_EXPORTER_HOST: "dawarich.dawarich.svc.cluster.local"
+              PROMETHEUS_EXPORTER_PORT: "9394"
+            envFrom:
+              - secretRef:
+                  name: dawarich-secret
+
+      dawarich-db:
+        strategy: Recreate
+
+        initContainers:
+          init-pgdata-dir:
+            image:
+              repository: busybox
+              tag: "1.36"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eux
+                mkdir -p /var/lib/postgresql/data
+                chown -R 999:999 /var/lib/postgresql/data || true
+                chmod 0700 /var/lib/postgresql/data || true
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
+        containers:
+          db:
+            image:
+              repository: postgis/postgis
+              tag: 17-3.5-alpine
+              pullPolicy: IfNotPresent
+            envFrom:
+              - secretRef:
+                  name: dawarich-secret
+
+      dawarich-redis:
+        strategy: Recreate
+        containers:
+          redis:
+            image:
+              repository: redis
+              tag: 7.4-alpine
+              pullPolicy: IfNotPresent
+            command:
+              - redis-server
+            ports:
+              - name: redis
+                containerPort: 6379
+                protocol: TCP
+
+    service:
+      dawarich:
+        controller: dawarich
+        type: ClusterIP
+        ports:
+          http:
+            port: 3000
+            targetPort: 3000
+
+      dawarich-db:
+        controller: dawarich-db
+        type: ClusterIP
+        ports:
+          postgres:
+            port: 5432
+            targetPort: 5432
+
+      dawarich-redis:
+        controller: dawarich-redis
+        type: ClusterIP
+        ports:
+          redis:
+            port: 6379
+            targetPort: 6379
+
+    persistence:
+      data:
+        enabled: true
+        existingClaim: dawarich-db
+        advancedMounts:
+          dawarich-db:
+            init-pgdata-dir:
+              - path: /var/lib/postgresql/data
+            db:
+              - path: /var/lib/postgresql/data
+
+      media:
+        enabled: true
+        existingClaim: dawarich-media
+        advancedMounts:
+          dawarich:
+            init-app-perms:
+              - path: /var/app/public
+                subPath: public
+              - path: /var/app/tmp/imports/watched
+                subPath: watched
+              - path: /var/app/storage
+                subPath: storage
+            app:
+              - path: /var/app/public
+                subPath: public
+              - path: /var/app/tmp/imports/watched
+                subPath: watched
+              - path: /var/app/storage
+                subPath: storage
+
+          dawarich-sidekiq:
+            init-app-perms:
+              - path: /var/app/public
+                subPath: public
+              - path: /var/app/tmp/imports/watched
+                subPath: watched
+              - path: /var/app/storage
+                subPath: storage
+            sidekiq:
+              - path: /var/app/public
+                subPath: public
+              - path: /var/app/tmp/imports/watched
+                subPath: watched
+              - path: /var/app/storage
+                subPath: storage
+
+    defaultPodOptions:
+      automountServiceAccountToken: false

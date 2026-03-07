@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dawarich-ingressroute
+  namespace: dawarich
+  annotations:
+    gethomepage.dev/href: "https://dawarich.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Dawarich"
+    gethomepage.dev/description: "Self-hosted location history and timeline"
+    gethomepage.dev/app: dawarich
+    gethomepage.dev/group: "Utilities"
+    gethomepage.dev/icon: "map"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dawarich.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: dawarich
+          port: 3000
+          scheme: http
+  tls: {}
