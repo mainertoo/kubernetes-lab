@@ -277,9 +277,9 @@ spec:
             args:
               - |
                 set -eux
-                mkdir -p /var/lib/postgresql/data
-                chown -R 999:999 /var/lib/postgresql/data || true
-                chmod 0700 /var/lib/postgresql/data || true
+                mkdir -p /var/lib/postgresql/data/pgdata
+                chown -R 999:999 /var/lib/postgresql/data/pgdata || true
+                chmod 0700 /var/lib/postgresql/data/pgdata || true
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -291,6 +291,9 @@ spec:
               repository: postgis/postgis
               tag: 17-3.5-alpine
               pullPolicy: IfNotPresent
+            env:
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
             envFrom:
               - secretRef:
                   name: dawarich-secret
