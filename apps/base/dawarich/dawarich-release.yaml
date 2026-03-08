@@ -156,6 +156,7 @@ spec:
             ports:
               - name: health
                 containerPort: 8080
+                protocol: TCP
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
@@ -296,6 +297,7 @@ spec:
             envFrom:
               - secretRef:
                   name: dawarich-secret
+
       dawarich-redis:
         strategy: Recreate
         containers:
@@ -319,6 +321,9 @@ spec:
           http:
             port: 3000
             targetPort: 3000
+          health:
+            port: 8080
+            targetPort: 8080
 
       dawarich-db:
         controller: dawarich-db
