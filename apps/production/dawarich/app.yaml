@@ -42,7 +42,7 @@ spec:
       GATUS_PORT: "3000"
 
       GATUS_APP: dawarich
-      GATUS_STATUS_INTERNAL: "200"
+      GATUS_STATUS_INTERNAL: "301"
 
     substituteFrom:
       - kind: Secret
