@@ -33,7 +33,7 @@ spec:
               - name: TZ
                 value: America/Los_Angeles
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: homepage.lab.mainertoo.com, portal.mainertoo.com
+                value: homepage.lab.mainertoo.com,portal.mainertoo.com
 
         initContainers:
           init-config:
@@ -81,7 +81,6 @@ spec:
             port: 3000
 
     persistence:
-      # CephFS PVC (editable config persists)
       config:
         existingClaim: homepage-config
         advancedMounts:
@@ -91,7 +90,6 @@ spec:
             init-config:
               - path: /app/config
 
-      # Defaults from git (seeded into PVC only once / when missing)
       defaults:
         type: configMap
         name: homepage-default-config
