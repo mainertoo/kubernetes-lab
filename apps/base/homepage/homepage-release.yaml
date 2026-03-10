@@ -33,7 +33,7 @@ spec:
               - name: TZ
                 value: America/Los_Angeles
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: homepage.lab.mainertoo.com
+                value: homepage.lab.mainertoo.com, portal.mainertoo.com
 
         initContainers:
           init-config:
