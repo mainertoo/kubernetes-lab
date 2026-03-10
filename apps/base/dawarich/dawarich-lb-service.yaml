@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dawarich-external
+  namespace: dawarich
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+    - name: health
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: dawarich
+    app.kubernetes.io/instance: dawarich
+    app.kubernetes.io/name: dawarich

@@ -6,3 +6,4 @@ resources:
   - dawarich-secret.sops.yaml
   - dawarich-release.yaml
   - dawarich-ingressroute.yaml
+  - dawarich-lb-service.yaml
