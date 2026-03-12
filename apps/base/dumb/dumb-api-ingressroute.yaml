@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-api
+  namespace: dumb
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dumb-api.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: dumb-api
+          port: 8000
+  tls: {}
