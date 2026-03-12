@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/media/dumb
+  path: ./apps/base/dumb
   targetNamespace: dumb
 
   prune: true
