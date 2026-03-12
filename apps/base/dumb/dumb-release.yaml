@@ -62,9 +62,12 @@ spec:
                 type: Unconfined
 
             probes:
-              liveness: false
-              readiness: false
-              startup: false
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
 
     defaultPodOptions:
       hostNetwork: false
