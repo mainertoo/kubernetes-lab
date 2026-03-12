@@ -1,0 +1,136 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app dumb
+  namespace: dumb
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+    timeout: 30m
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+    timeout: 30m
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      dumb:
+        type: deployment
+        strategy: Recreate
+
+        pod:
+          nodeSelector:
+            intel.feature.node.kubernetes.io/gpu: "true"
+
+        annotations:
+          container.apparmor.security.beta.kubernetes.io/app: unconfined
+
+        containers:
+          app:
+            image:
+              repository: iampuid0/dumb
+              tag: latest
+
+            envFrom:
+              - secretRef:
+                  name: dumb-secret
+
+            securityContext:
+              privileged: true
+              allowPrivilegeEscalation: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add:
+                  - SYS_ADMIN
+              seccompProfile:
+                type: Unconfined
+
+            probes:
+              liveness: false
+              readiness: false
+              startup: false
+
+    defaultPodOptions:
+      hostNetwork: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: false
+        fsGroup: 1000
+        supplementalGroups:
+          - 991
+
+    service:
+      frontend:
+        controller: dumb
+        type: ClusterIP
+        ports:
+          http:
+            port: 3005
+            targetPort: 3005
+
+      api:
+        controller: dumb
+        type: ClusterIP
+        ports:
+          http:
+            port: 8000
+            targetPort: 8000
+
+    persistence:
+      dumb-storage:
+        existingClaim: dumb
+        advancedMounts:
+          dumb:
+            app:
+              - path: /config
+                subPath: config
+              - path: /log
+                subPath: log
+              - path: /data
+                subPath: data
+              - path: /mnt/debrid
+                subPath: mnt-debrid
+
+      shm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 128Mi
+        advancedMounts:
+          dumb:
+            app:
+              - path: /dev/shm
+
+      fuse:
+        type: hostPath
+        hostPath: /dev/fuse
+        hostPathType: CharDevice
+        globalMounts:
+          - path: /dev/fuse
+
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        hostPathType: Directory
+        globalMounts:
+          - path: /dev/dri
+
+    route:
+      main:
+        enabled: false
