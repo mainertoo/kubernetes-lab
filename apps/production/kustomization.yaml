@@ -40,7 +40,7 @@ resources:
   - media/seerr/kustomization.yaml
   - paperless-ngx/kustomization.yaml
   - dawarich/
-  # - dumb/kustomization.yaml
+  - dumb/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
