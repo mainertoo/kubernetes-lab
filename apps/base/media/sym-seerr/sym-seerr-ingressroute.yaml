@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sym-seerr-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://sym-seerr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Sym Seerr"
+    gethomepage.dev/description: "Media request manager for symlink stack"
+    gethomepage.dev/app: sym-seerr
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyseerr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`sym-seerr.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: sym-seerr
+          port: 80
+  tls: {}
