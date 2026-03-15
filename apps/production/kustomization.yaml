@@ -41,6 +41,7 @@ resources:
   - paperless-ngx/kustomization.yaml
   - dawarich/
   - dumb/kustomization.yaml
+  - media/sym-prowlarr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
