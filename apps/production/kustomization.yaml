@@ -42,6 +42,8 @@ resources:
   - dawarich/
   - dumb/kustomization.yaml
   - media/sym-prowlarr/kustomization.yaml
+  - media/sym-radarr/kustomization.yaml
+  - media/sym-sonarr/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
