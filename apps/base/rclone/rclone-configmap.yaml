@@ -11,7 +11,6 @@ data:
     vendor = other
     pacer_min_sleep = 0
 
-
     [zurghttp]
     type = http
     url = http://zurg-webdav.zurg.svc.cluster.local:9999/http
@@ -20,6 +19,6 @@ data:
 
     [decypharr]
     type = webdav
-    url = http://decypharr.media.svc.cluster.local:8282/webdav/realdebrid
+    url = http://decypharr.media.svc.cluster.local:8282/webdav
     vendor = other
     pacer_min_sleep = 0
