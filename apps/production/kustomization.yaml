@@ -44,6 +44,8 @@ resources:
   - media/sym-prowlarr/kustomization.yaml
   - media/sym-radarr/kustomization.yaml
   - media/sym-sonarr/kustomization.yaml
+  - media/sym-radarr4k/kustomization.yaml
+  - media/sym-sonarr4k/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
