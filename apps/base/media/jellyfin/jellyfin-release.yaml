@@ -27,6 +27,7 @@ spec:
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
+            rclone-mount: "true"
 
         containers:
           app:
@@ -118,6 +119,13 @@ spec:
         hostPath: /mnt/zurg/
         globalMounts:
           - path: /mnt/zurg
+            readOnly: true
+
+      rclone-decypharr:
+        type: hostPath
+        hostPath: /mnt/decypharr
+        globalMounts:
+          - path: /mnt/decypharr
             readOnly: true
 
       tmp:
