@@ -24,7 +24,6 @@ spec:
   values:
     controllers:
       jellyfin:
-        # optional: land Jellyfin on GPU nodes, like Plex
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
@@ -38,7 +37,6 @@ spec:
               - name: TZ
                 value: America/Los_Angeles
 
-        # 👇 initContainer with *object* image and NO volumeMounts here
         initContainers:
           fix-config-perms:
             image:
@@ -67,7 +65,6 @@ spec:
               runAsGroup: 0
               runAsNonRoot: false
 
-    # Match Plex-style pod security defaults
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -86,17 +83,15 @@ spec:
             port: &port 8096
 
     persistence:
-      # Jellyfin config on CephFS (PVC named "jellyfin")
       config:
         existingClaim: jellyfin
         advancedMounts:
           jellyfin:
             app:
               - path: /config
-            fix-config-perms:   # mount /config into initContainer
+            fix-config-perms:
               - path: /config
 
-      # Shared Riven/Plex/Jellyfin library (CephFS PVC in media ns)
       library:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -104,7 +99,6 @@ spec:
             app:
               - path: /mnt/library
 
-      # Big QNAP media share (static NFS PV / qnap-media-pvc)
       qnap-media:
         existingClaim: qnap-media-pvc
         advancedMounts:
@@ -112,7 +106,13 @@ spec:
             app:
               - path: /data/qnas
 
-      # rclone / zurg – same pattern as Plex & Riven
+      symlinks:
+        existingClaim: symlinks-cephfs
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /mnt/symlinks
+
       rclone:
         type: hostPath
         hostPath: /mnt/zurg/
@@ -120,7 +120,6 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      # Cache / transcode scratch
       tmp:
         type: emptyDir
         advancedMounts:
@@ -131,7 +130,6 @@ spec:
               - path: /transcode
                 subPath: transcode
 
-      # GPU device nodes passthrough
       dri:
         type: hostPath
         hostPath: /dev/dri
