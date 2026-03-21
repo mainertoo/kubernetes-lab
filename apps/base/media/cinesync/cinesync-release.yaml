@@ -60,16 +60,16 @@ spec:
                 mkdir -p /mnt/symlinks/cinesync/movies
                 mkdir -p /mnt/symlinks/cinesync/shows
                 mkdir -p /mnt/symlinks/cinesync/anime
-                mkdir -p /mnt/symlinks/cinesync/4k-movies
-                mkdir -p /mnt/symlinks/cinesync/4k-shows
+                mkdir -p /mnt/symlinks/cinesync/movies-4k
+                mkdir -p /mnt/symlinks/cinesync/shows-4k
                 mkdir -p /mnt/symlinks/cinesync/kids-movies
                 mkdir -p /mnt/symlinks/cinesync/kids-shows
 
-                mkdir -p /config
+                mkdir -p /app/db
 
                 chmod -R 0775 /mnt/symlinks/cinesync || true
                 chown -R 1000:1000 /mnt/symlinks/cinesync || true
-                chown -R 1000:1000 /config || true
+                chown -R 1000:1000 /app/db || true
 
                 echo "Listing /mnt/symlinks/cinesync:"
                 ls -la /mnt/symlinks/cinesync || true
@@ -89,10 +89,11 @@ spec:
               repository: sureshfizzy/cinesync
               tag: latest
               pullPolicy: IfNotPresent
+            envFrom:
+              - secretRef:
+                  name: cinesync-secret
             env:
               TZ: America/Los_Angeles
-              PUID: "1000"
-              PGID: "1000"
             securityContext:
               runAsUser: 0
               runAsGroup: 0
