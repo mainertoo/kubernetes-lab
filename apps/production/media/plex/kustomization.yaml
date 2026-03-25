@@ -47,7 +47,7 @@ spec:
       # Cache PVC for mover/restic (RBD RWO)
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 10Gi
+      VOLSYNC_CACHE_CAPACITY: 30Gi
 
       # === Gatus (external + internal) ===
       SUBDOMAIN: plex

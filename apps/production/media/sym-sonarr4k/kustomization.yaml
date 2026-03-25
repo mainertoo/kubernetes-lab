@@ -37,7 +37,7 @@ spec:
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      CAPACITY: 5Gi
+      CAPACITY: 20Gi
 
       VOLSYNC_REPO_PATH: media/sym-sonarr4k
 
