@@ -35,6 +35,7 @@ spec:
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
+            rclone-mount: "true"
 
         initContainers:
           fix-config-perms:
@@ -132,6 +133,13 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
+      rclone-decypharr:
+        type: hostPath
+        hostPath: /mnt/decypharr
+        globalMounts:
+          - path: /mnt/decypharr
+            readOnly: true
+
       library:
         existingClaim: shared-media-pvc
         advancedMounts:
@@ -145,6 +153,13 @@ spec:
           plex:
             app:
               - path: /data/qnas
+
+      symlinks:
+        existingClaim: symlinks-cephfs
+        advancedMounts:
+          plex:
+            app:
+              - path: /mnt/symlinks
 
       transcode:
         type: emptyDir
