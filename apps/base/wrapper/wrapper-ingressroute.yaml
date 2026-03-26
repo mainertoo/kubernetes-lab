@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wrapper-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://wrapper.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Wrapper"
+    gethomepage.dev/description: "WorldObservationLog wrapper service"
+    gethomepage.dev/app: wrapper
+    gethomepage.dev/group: "Tools"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`wrapper.lab.mainertoo.com`)
+      kind: Rule
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
+      services:
+        - name: wrapper
+          port: 10020
+          scheme: http
+  tls: {}
