@@ -2,7 +2,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: wrapper-ingressroute
-  namespace: media
+  namespace: wrapper
   annotations:
     gethomepage.dev/href: "https://wrapper.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"

@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 1h
   path: ./apps/base/wrapper
-  targetNamespace: media
+  targetNamespace: wrapper
 
   prune: true
   retryInterval: 2m
@@ -32,16 +32,15 @@ spec:
   postBuild:
     substitute:
       APP: wrapper
-      APP_NAMESPACE: media
+      APP_NAMESPACE: wrapper
 
-      # --- VolSync PVC settings (RBD) ---
+      # --- VolSync PVC ---
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       CAPACITY: 5Gi
 
-      # Repo path inside the Garage bucket/prefix
       VOLSYNC_REPO_PATH: wrapper/data
 
       # Cache PVC
