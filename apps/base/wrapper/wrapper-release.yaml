@@ -76,8 +76,10 @@ spec:
     persistence:
       data:
         enabled: true
-        type: pvc
+        type: persistentVolumeClaim
         existingClaim: wrapper
+        accessMode: ReadWriteOnce
+        size: 5Gi
         globalMounts:
           - path: /app/rootfs/data
 
