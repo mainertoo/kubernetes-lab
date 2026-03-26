@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: wrapper
 
 resources:
-  - namespace.yaml
+  - wrapper-namespace.yaml
   - wrapper-secret.sops.yaml
   - wrapper-release.yaml
   - wrapper-ingressroute.yaml
