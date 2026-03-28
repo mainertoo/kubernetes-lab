@@ -48,6 +48,7 @@ resources:
   - media/sym-sonarr4k/kustomization.yaml
   - media/cinesync/kustomization.yaml
   # - wrapper/kustomization.yaml
+  - media/nzbdav/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
