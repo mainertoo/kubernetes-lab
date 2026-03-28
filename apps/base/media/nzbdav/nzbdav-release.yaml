@@ -54,8 +54,8 @@ spec:
                 set -e
                 echo "Init symlinks dirs (nzbdav)..."
                 mkdir -p /mnt/symlinks/nzbdav
-                chown -R 1000:1000 /mnt/symlinks/nzbdav || true
                 chmod -R 0775 /mnt/symlinks/nzbdav || true
+                chown -R 1000:1000 /mnt/symlinks/nzbdav || true
                 echo "Listing /mnt/symlinks:"
                 ls -la /mnt/symlinks || true
                 ls -la /mnt/symlinks/nzbdav || true
@@ -76,9 +76,19 @@ spec:
               tag: latest
               pullPolicy: IfNotPresent
             env:
-              TZ: America/Los_Angeles
-              PUID: "1000"
-              PGID: "1000"
+              - name: TZ
+                value: America/Los_Angeles
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+              - name: CONFIG_PATH
+                value: /config
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
             probes:
               liveness:
                 enabled: true
@@ -87,7 +97,7 @@ spec:
                   httpGet:
                     path: /health
                     port: 3000
-                  initialDelaySeconds: 15
+                  initialDelaySeconds: 20
                   periodSeconds: 30
                   timeoutSeconds: 5
                   failureThreshold: 3
@@ -115,11 +125,9 @@ spec:
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
 
     service:
       main:
