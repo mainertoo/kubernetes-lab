@@ -118,7 +118,7 @@ spec:
         hostPath: /mnt/nzbdav
         globalMounts:
           - path: /mnt/nzbdav
-            readOnly: true
+            # readOnly: true
 
       symlinks:
         enabled: true
