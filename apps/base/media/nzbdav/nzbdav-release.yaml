@@ -151,6 +151,13 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
+      nzbdav-mount:
+        type: hostPath
+        hostPath: /mnt/nzbdav
+        globalMounts:
+          - path: /mnt/nzbdav
+            readOnly: true
+
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs

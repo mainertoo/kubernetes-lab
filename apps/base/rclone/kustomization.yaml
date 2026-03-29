@@ -4,5 +4,5 @@ namespace: rclone
 resources:
   - rclone-namespace.yaml
   - rclone-configmap.yaml
+  - nzbdav-rclone-secret.sops.yaml
   - rclone-daemonset.yaml
-  

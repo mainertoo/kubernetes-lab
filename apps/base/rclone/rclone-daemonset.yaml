@@ -1,4 +1,3 @@
-# apps/base/rclone/rclone-daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -15,79 +14,121 @@ spec:
       labels:
         app: rclone-zurg
     spec:
-      # Run only on nodes explicitly labeled as having the rclone/FUSE mount capability.
-      # This prevents the DaemonSet from running on tainted control-plane nodes.
       nodeSelector:
         rclone-mount: "true"
 
-      # This runs on each selected node and mounts Zurg/Decypharr via FUSE
       containers:
-      - name: rclone-zurg
-        image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
-        command: ["rclone", "mount", "zurg:", "/mnt/zurg"]
-        args:
-        - "--umask=000"
-        - "--dir-cache-time=30s"
-        - "--allow-other"
-        - "--allow-non-empty"
-        - "-v"
-        - "--vfs-cache-mode=full"
-        - "--vfs-cache-max-size=2G"
-        - "--read-only"
-        securityContext:
-          privileged: true
-          capabilities:
-            add:
-            - SYS_ADMIN
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/rclone
-        - name: rclone-config
-          mountPath: /root/.rclone.conf
-          subPath: rclone.conf
-        - name: zurg-mount
-          mountPath: /mnt/zurg
-          mountPropagation: Bidirectional
+        - name: rclone-zurg
+          image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
+          command: ["rclone", "mount", "zurg:", "/mnt/zurg"]
+          args:
+            - "--umask=000"
+            - "--dir-cache-time=30s"
+            - "--allow-other"
+            - "--allow-non-empty"
+            - "-v"
+            - "--vfs-cache-mode=full"
+            - "--vfs-cache-max-size=2G"
+            - "--read-only"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rclone
+            - name: rclone-config
+              mountPath: /root/.rclone.conf
+              subPath: rclone.conf
+            - name: zurg-mount
+              mountPath: /mnt/zurg
+              mountPropagation: Bidirectional
 
-      - name: rclone-decypharr
-        image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
-        command: ["rclone", "mount", "decypharr:", "/mnt/decypharr"]
-        args:
-        - "--umask=000"
-        - "--allow-other"
-        - "--allow-non-empty"
-        - "--read-only"
-        - "-v"
-        securityContext:
-          privileged: true
-          capabilities:
-            add:
-            - SYS_ADMIN
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/rclone
-        - name: rclone-config
-          mountPath: /root/.rclone.conf
-          subPath: rclone.conf
-        - name: decypharr-mount
-          mountPath: /mnt/decypharr
-          mountPropagation: Bidirectional
+        - name: rclone-decypharr
+          image: rclone/rclone@sha256:d5971950c2b370fb04dd3292541b5bda6d9103143fd7e345aeb435a399388afc
+          command: ["rclone", "mount", "decypharr:", "/mnt/decypharr"]
+          args:
+            - "--umask=000"
+            - "--allow-other"
+            - "--allow-non-empty"
+            - "--read-only"
+            - "-v"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rclone
+            - name: rclone-config
+              mountPath: /root/.rclone.conf
+              subPath: rclone.conf
+            - name: decypharr-mount
+              mountPath: /mnt/decypharr
+              mountPropagation: Bidirectional
+
+        - name: rclone-nzbdav
+          image: rclone/rclone:1.70.3
+          command: ["rclone", "mount", "nzbdav:", "/mnt/nzbdav"]
+          args:
+            - "--config=/config/rclone/rclone.conf"
+            - "--uid=1000"
+            - "--gid=1000"
+            - "--allow-other"
+            - "--allow-non-empty"
+            - "--links"
+            - "--use-cookies"
+            - "--vfs-cache-mode=full"
+            - "--vfs-cache-max-size=20G"
+            - "--vfs-cache-max-age=24h"
+            - "--buffer-size=0M"
+            - "--vfs-read-ahead=512M"
+            - "--dir-cache-time=20s"
+            - "-v"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: nzbdav-rclone-config
+              mountPath: /config/rclone/rclone.conf
+              subPath: rclone.conf
+            - name: nzbdav-data
+              mountPath: /var/lib/rclone
+            - name: nzbdav-mount
+              mountPath: /mnt/nzbdav
+              mountPropagation: Bidirectional
 
       volumes:
-      - name: data
-        hostPath:
-          path: /var/lib/rclone
-          type: DirectoryOrCreate
-      - name: rclone-config
-        configMap:
-          name: rclone-config
-      - name: zurg-mount
-        hostPath:
-          path: /mnt/zurg
-          type: DirectoryOrCreate
-      - name: decypharr-mount
-        hostPath:
-          path: /mnt/decypharr
-          type: DirectoryOrCreate
+        - name: data
+          hostPath:
+            path: /var/lib/rclone
+            type: DirectoryOrCreate
+        - name: rclone-config
+          configMap:
+            name: rclone-config
+        - name: zurg-mount
+          hostPath:
+            path: /mnt/zurg
+            type: DirectoryOrCreate
+        - name: decypharr-mount
+          hostPath:
+            path: /mnt/decypharr
+            type: DirectoryOrCreate
+
+        - name: nzbdav-rclone-config
+          secret:
+            secretName: nzbdav-rclone-secret
+        - name: nzbdav-data
+          hostPath:
+            path: /var/lib/rclone-nzbdav
+            type: DirectoryOrCreate
+        - name: nzbdav-mount
+          hostPath:
+            path: /mnt/nzbdav
+            type: DirectoryOrCreate
 
       restartPolicy: Always
