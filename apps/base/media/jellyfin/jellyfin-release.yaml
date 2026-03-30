@@ -128,6 +128,13 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
+      nzbdav-mount:
+        type: hostPath
+        hostPath: /mnt/nzbdav
+        globalMounts:
+          - path: /mnt/nzbdav
+            readOnly: true
+
       tmp:
         type: emptyDir
         advancedMounts:
