@@ -60,7 +60,7 @@ spec:
           wait-for-db:
             image:
               repository: busybox
-              tag: "1.6.0"
+              tag: "1.60"
             command: ["/bin/sh", "-c"]
             args:
               - |
