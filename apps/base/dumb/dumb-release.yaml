@@ -36,14 +36,22 @@ spec:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
 
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: dumb
+
         annotations:
           container.apparmor.security.beta.kubernetes.io/app: unconfined
 
         containers:
           app:
             image:
-              repository: iampuid0/dumb
-              tag: latest
+              repository: ghcr.io/i-am-puid-0/dumb
+              tag: dev
 
             envFrom:
               - secretRef:
