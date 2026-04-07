@@ -24,8 +24,6 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
@@ -34,23 +32,7 @@ spec:
       APP: dumb
       APP_NAMESPACE: dumb
 
-      VOLSYNC_STORAGECLASS: cephfs
-      VOLSYNC_ACCESSMODES: ReadWriteMany
-      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
-      CAPACITY: 100Gi
-
-      VOLSYNC_REPO_PATH: dumb/dumb
-
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 10Gi
-
       SUBDOMAIN: dumb
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "3005"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
