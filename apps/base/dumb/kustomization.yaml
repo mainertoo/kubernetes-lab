@@ -8,4 +8,4 @@ resources:
   - dumb-ingressroute.yaml
   - dumb-api-ingressroute.yaml
   - dumb-lb-service.yaml
-  - dumb-service-ingressroute.yaml
+  - dumb-service-ingressroutes.yaml
