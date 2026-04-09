@@ -7,3 +7,4 @@ resources:
   - dumb-release.yaml
   - dumb-ingressroute.yaml
   - dumb-api-ingressroute.yaml
+  - dumb-lb-service.yaml
