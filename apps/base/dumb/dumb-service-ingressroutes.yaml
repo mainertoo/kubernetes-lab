@@ -1,0 +1,429 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-neutarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-neutarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Neutarr"
+    gethomepage.dev/description: "DUMB service"
+    gethomepage.dev/app: neutarr
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-neutarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 9705
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-nzbdav-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-nzbdav.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "nzbDAV"
+    gethomepage.dev/description: "WebDAV bridge"
+    gethomepage.dev/app: nzbdav
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-nzbdav.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 3000
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-profilarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-profilarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Profilarr"
+    gethomepage.dev/description: "DUMB service"
+    gethomepage.dev/app: profilarr
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-profilarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 6868
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-prowlarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-prowlarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Prowlarr"
+    gethomepage.dev/description: "Indexer manager"
+    gethomepage.dev/app: prowlarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/prowlarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-prowlarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 9696
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-radarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-radarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Radarr 1080p"
+    gethomepage.dev/description: "Movie organizer/manager"
+    gethomepage.dev/app: radarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/radarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-radarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 7878
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-radarr4k-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-radarr4k.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Radarr 4K"
+    gethomepage.dev/description: "4K movie organizer/manager"
+    gethomepage.dev/app: radarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/radarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-radarr4k.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 7879
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-seerr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-seerr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Seerr"
+    gethomepage.dev/description: "Media requests"
+    gethomepage.dev/app: overseerr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/overseerr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-seerr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 5055
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-sonarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-sonarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Sonarr 1080p"
+    gethomepage.dev/description: "TV organizer/manager"
+    gethomepage.dev/app: sonarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-sonarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 8989
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-sonarr4k-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-sonarr4k.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Sonarr 4K"
+    gethomepage.dev/description: "4K TV organizer/manager"
+    gethomepage.dev/app: sonarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-sonarr4k.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 8990
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-traefik-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-traefik.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "DUMB Traefik"
+    gethomepage.dev/description: "Internal DUMB Traefik"
+    gethomepage.dev/app: traefik
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-traefik.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 18080
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-decypharr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-decypharr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Decypharr"
+    gethomepage.dev/description: "Debrid bridge manager"
+    gethomepage.dev/app: decypharr
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-decypharr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 8282
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-plex-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-plex.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Plex"
+    gethomepage.dev/description: "Media server"
+    gethomepage.dev/app: plex
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/plex.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-plex.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 32400
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-jellyfin-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-jellyfin.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Jellyfin"
+    gethomepage.dev/description: "Media server"
+    gethomepage.dev/app: jellyfin
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-jellyfin.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 8096
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-whisparr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-whisparr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Whisparr"
+    gethomepage.dev/description: "Adult media organizer/manager"
+    gethomepage.dev/app: whisparr
+    gethomepage.dev/group: "DUMB-Media"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-whisparr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 6969
+  tls: {}
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dumb-lidarr-ingressroute
+  namespace: dumb
+  annotations:
+    gethomepage.dev/href: "https://dumb-lidarr.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Lidarr"
+    gethomepage.dev/description: "Music organizer/manager"
+    gethomepage.dev/app: lidarr
+    gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/lidarr.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dumb-lidarr.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        # - name: authentik-sso
+        #   namespace: traefik-system
+      services:
+        - name: dumb-external
+          port: 8686
+  tls: {}
+
+---
