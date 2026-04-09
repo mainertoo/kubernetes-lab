@@ -79,3 +79,30 @@ spec:
       port: 8000
       targetPort: 8000
       protocol: TCP
+    
+    - name: decypharr
+      port: 8282
+      targetPort: 8282
+      protocol: TCP
+    
+    - name: plex
+      port: 32400
+      targetPort: 32400
+      protocol: TCP
+    
+    - name: jellyfin
+      port: 8096
+      targetPort: 8096
+      protocol: TCP
+
+    - name: whisparr
+      port: 6969
+      targetPort: 6969
+      protocol: TCP
+
+    - name: lidarr
+      port: 8686
+      targetPort: 8686
+      protocol: TCP
+
+    
