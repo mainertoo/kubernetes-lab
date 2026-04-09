@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dumb-external
+  namespace: dumb
+  annotations:
+    # Optional: pin to a specific MetalLB pool if you use multiple
+    # metallb.io/address-pool: lan-pool
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+
+  selector:
+    app.kubernetes.io/instance: dumb
+    app.kubernetes.io/name: dumb
+
+  ports:
+    - name: neutarr
+      port: 9705
+      targetPort: 9705
+      protocol: TCP
+
+    - name: nzbdav-frontend
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+
+    - name: nzbdav-backend
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+    - name: profilarr
+      port: 6868
+      targetPort: 6868
+      protocol: TCP
+
+    - name: prowlarr
+      port: 9696
+      targetPort: 9696
+      protocol: TCP
+
+    - name: radarr-1080p
+      port: 7878
+      targetPort: 7878
+      protocol: TCP
+
+    - name: radarr-4k
+      port: 7879
+      targetPort: 7879
+      protocol: TCP
+
+    - name: seerr
+      port: 5055
+      targetPort: 5055
+      protocol: TCP
+
+    - name: sonarr-1080p
+      port: 8989
+      targetPort: 8989
+      protocol: TCP
+
+    - name: sonarr-4k
+      port: 8990
+      targetPort: 8990
+      protocol: TCP
+
+    - name: traefik
+      port: 18080
+      targetPort: 18080
+      protocol: TCP
+
+    - name: dumb-frontend
+      port: 3005
+      targetPort: 3005
+      protocol: TCP
+
+    - name: dumb-api
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
