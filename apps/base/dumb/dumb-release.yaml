@@ -52,6 +52,7 @@ spec:
             image:
               repository: ghcr.io/i-am-puid-0/dumb
               tag: dev
+              pullPolicy: Always
 
             envFrom:
               - secretRef:
