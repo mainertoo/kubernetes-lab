@@ -49,6 +49,7 @@ resources:
   - media/cinesync/kustomization.yaml
   # - wrapper/kustomization.yaml
   - media/nzbdav/kustomization.yaml
+  - media/audiobookrequest/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
