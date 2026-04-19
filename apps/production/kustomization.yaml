@@ -50,6 +50,8 @@ resources:
   # - wrapper/kustomization.yaml
   - media/nzbdav/kustomization.yaml
   - media/audiobookrequest/kustomization.yaml
+  - media/bookshelf/kustomization.yaml
+  - media/bookshelf-ab/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
