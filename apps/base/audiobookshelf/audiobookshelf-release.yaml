@@ -122,7 +122,7 @@ spec:
         path: /QNAS/data/media/books
         globalMounts:
           - path: /books
-            readOnly: true
+            readOnly: false
 
       rclone:
         type: hostPath
