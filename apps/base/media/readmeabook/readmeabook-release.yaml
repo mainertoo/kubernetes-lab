@@ -71,6 +71,10 @@ spec:
               PUID: "1000"
               PGID: "1000"
               PUBLIC_URL: "https://readmeabook.lab.mainertoo.com"
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
 
             probes:
               liveness:
@@ -109,9 +113,6 @@ spec:
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
