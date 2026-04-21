@@ -59,9 +59,6 @@ spec:
               capabilities:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
-            volumeMounts:
-              - name: appdata
-                mountPath: /storage
 
         containers:
           main:
@@ -74,6 +71,7 @@ spec:
               PUID: "1000"
               PGID: "1000"
               PUBLIC_URL: "https://readmeabook.lab.mainertoo.com"
+
             probes:
               liveness:
                 enabled: true
@@ -131,6 +129,8 @@ spec:
         existingClaim: readmeabook
         advancedMounts:
           main:
+            init-app-storage:
+              - path: /storage
             main:
               - path: /app/config
                 subPath: config
@@ -144,14 +144,18 @@ spec:
       qnap-downloads:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /downloads
+        advancedMounts:
+          main:
+            main:
+              - path: /downloads
 
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
-        globalMounts:
-          - path: /media
+        advancedMounts:
+          main:
+            main:
+              - path: /media
 
     resources:
       requests:
