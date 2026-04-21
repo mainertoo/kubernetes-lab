@@ -52,7 +52,7 @@ resources:
   - media/audiobookrequest/kustomization.yaml
   - media/bookshelf/kustomization.yaml
   - media/bookshelf-ab/kustomization.yaml
-  - media/readmeabook/kustomization.yaml
+  # - media/readmeabook/kustomization.yaml
 
   ## old resources list
   # - grocy/kustomization.yaml
