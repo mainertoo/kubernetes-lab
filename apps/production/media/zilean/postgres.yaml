@@ -41,7 +41,7 @@ spec:
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
 
       # If your Postgres expects different ownership, change here.
       # Leaving 1000:1000 matches your standard pattern, and your restore tar preserves perms anyway.
