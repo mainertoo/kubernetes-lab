@@ -141,22 +141,6 @@ spec:
               - path: /var/lib/redis
                 subPath: redis
 
-      qnap-downloads:
-        enabled: true
-        existingClaim: qnap-media-pvc
-        advancedMounts:
-          main:
-            main:
-              - path: /downloads
-
-      qnap-media:
-        enabled: true
-        existingClaim: qnap-media-pvc
-        advancedMounts:
-          main:
-            main:
-              - path: /media
-
     resources:
       requests:
         cpu: 50m
