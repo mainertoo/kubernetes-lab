@@ -41,15 +41,59 @@ spec:
             args:
               - |
                 set -e
-                echo "Initializing ReadMeABook storage..."
+
+                echo "Initializing ReadMeABook app storage..."
                 mkdir -p /storage/config
                 mkdir -p /storage/cache
                 mkdir -p /storage/pgdata
                 mkdir -p /storage/redis
                 chown -R 1000:1000 /storage || true
                 chmod -R 0775 /storage || true
-                echo "Storage contents:"
-                ls -la /storage || true
+
+                echo "Preparing QNAP paths for ReadMeABook..."
+                mkdir -p /data/usenet
+                mkdir -p /data/usenet/complete
+                mkdir -p /data/usenet/incomplete
+                mkdir -p /data/torrents
+                mkdir -p /data/torrents/books
+                mkdir -p /data/media
+                mkdir -p /data/media/books
+
+                echo "Adjusting only the /data mount root (non-recursive)..."
+                chown 1000:1000 /data || true
+                chmod 0775 /data || true
+
+                echo "Adjusting only RMAB-relevant subdirectories..."
+                chown 1000:1000 /data/usenet || true
+                chown 1000:1000 /data/usenet/complete || true
+                chown 1000:1000 /data/usenet/incomplete || true
+                chown 1000:1000 /data/torrents || true
+                chown 1000:1000 /data/torrents/books || true
+                chown 1000:1000 /data/media || true
+                chown 1000:1000 /data/media/books || true
+
+                chmod 0775 /data/usenet || true
+                chmod 0775 /data/usenet/complete || true
+                chmod 0775 /data/usenet/incomplete || true
+                chmod 0775 /data/torrents || true
+                chmod 0775 /data/torrents/books || true
+                chmod 0775 /data/media || true
+                chmod 0775 /data/media/books || true
+
+                echo "Testing write access to /data root..."
+                touch /data/.readmeabook-write-test
+                rm -f /data/.readmeabook-write-test
+
+                echo "Listing key paths..."
+                ls -ld /data || true
+                ls -ld /data/usenet || true
+                ls -ld /data/usenet/complete || true
+                ls -ld /data/usenet/incomplete || true
+                ls -ld /data/torrents || true
+                ls -ld /data/torrents/books || true
+                ls -ld /data/media || true
+                ls -ld /data/media/books || true
+
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -147,6 +191,8 @@ spec:
         existingClaim: qnap-media-pvc
         advancedMounts:
           main:
+            init-app-storage:
+              - path: /data
             main:
               - path: /data
 
