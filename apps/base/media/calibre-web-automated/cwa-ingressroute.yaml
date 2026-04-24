@@ -18,9 +18,9 @@ spec:
   routes:
     - match: Host(`cwa.lab.mainertoo.com`)
       kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
       services:
         - name: calibre-web-automated
           port: 8083
