@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: calibre-web-automated-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://cwa.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Calibre-Web Automated"
+    gethomepage.dev/description: "Automated Calibre-Web ebook manager"
+    gethomepage.dev/app: calibre-web-automated
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/calibre-web.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`cwa.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: calibre-web-automated
+          port: 8083
+  tls: {}
