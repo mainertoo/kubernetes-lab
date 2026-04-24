@@ -114,7 +114,7 @@ spec:
               TZ: America/Los_Angeles
               PUID: "1000"
               PGID: "1000"
-              PUBLIC_URL: "https://readmeabook.lab.mainertoo.com"
+              PUBLIC_URL: "https://readmeabook.mainertoo.com"
             securityContext:
               runAsUser: 0
               runAsGroup: 0
