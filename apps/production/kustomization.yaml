@@ -54,6 +54,7 @@ resources:
   - media/bookshelf-ab/kustomization.yaml
   - media/readmeabook/kustomization.yaml
   - media/calibre-web-automated/
+  - media/shelfmark/
 
   ## old resources list
   # - grocy/kustomization.yaml
