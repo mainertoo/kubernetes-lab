@@ -41,11 +41,38 @@ spec:
             args:
               - |
                 set -e
+
                 echo "Initializing Shelfmark storage..."
                 mkdir -p /config
                 mkdir -p /books
+
+                echo "Preparing Shelfmark audiobook destination on QNAP..."
+                mkdir -p /data/media/books/shelfmark-audiobooks
+
                 chown -R 1000:1000 /config /books || true
                 chmod -R 0775 /config /books || true
+
+                chown 1000:1000 /data || true
+                chown 1000:1000 /data/media || true
+                chown 1000:1000 /data/media/books || true
+                chown -R 1000:1000 /data/media/books/shelfmark-audiobooks || true
+
+                chmod 0775 /data || true
+                chmod 0775 /data/media || true
+                chmod 0775 /data/media/books || true
+                chmod -R 0775 /data/media/books/shelfmark-audiobooks || true
+
+                echo "Testing write access..."
+                touch /books/.shelfmark-ebook-write-test
+                rm -f /books/.shelfmark-ebook-write-test
+
+                touch /data/media/books/shelfmark-audiobooks/.shelfmark-audiobook-write-test
+                rm -f /data/media/books/shelfmark-audiobooks/.shelfmark-audiobook-write-test
+
+                echo "Listing key paths..."
+                ls -ld /books || true
+                ls -ld /data/media/books/shelfmark-audiobooks || true
+
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -67,11 +94,29 @@ spec:
               TZ: America/Los_Angeles
               PUID: "1000"
               PGID: "1000"
+
               FLASK_HOST: "0.0.0.0"
               FLASK_PORT: "8084"
               CONFIG_DIR: /config
-              INGEST_DIR: /books
+              TMP_DIR: /tmp/shelfmark
               DOCKERMODE: "true"
+
+              # Ebooks go to CWA ingest.
+              INGEST_DIR: /books
+              BOOKS_OUTPUT_MODE: folder
+              FILE_ORGANIZATION: rename
+              TEMPLATE_RENAME: "{Author} - {Title} ({Year})"
+              HARDLINK_TORRENTS: "false"
+
+              # Audiobooks go to the ReadMeABook/QNAP media path.
+              DESTINATION_AUDIOBOOK: /data/media/books/shelfmark-audiobooks
+              FILE_ORGANIZATION_AUDIOBOOK: organize
+              TEMPLATE_AUDIOBOOK_ORGANIZE: "{Author}/{Title}"
+              TEMPLATE_AUDIOBOOK_RENAME: "{Author} - {Title}"
+              HARDLINK_TORRENTS_AUDIOBOOK: "false"
+
+              CALIBRE_WEB_URL: "https://cwa.lab.mainertoo.com"
+              AUDIOBOOK_LIBRARY_URL: "https://readmeabook.lab.mainertoo.com"
 
             envFrom:
               - secretRef:
@@ -101,10 +146,16 @@ spec:
         globalMounts:
           - path: /config
 
-      # Point Shelfmark downloads directly at CWA ingest.
-      # CWA deletes processed files after import.
+      # Ebooks: CWA ingest.
       books:
         enabled: true
         existingClaim: cwa-book-ingest-cephfs
         globalMounts:
           - path: /books
+
+      # Audiobooks: same QNAP PVC used by ReadMeABook.
+      qnap-data:
+        enabled: true
+        existingClaim: qnap-media-pvc
+        globalMounts:
+          - path: /data
