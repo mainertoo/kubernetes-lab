@@ -6,7 +6,7 @@ resources:
   - cephfs-driver.yaml
   - cephfs-csidriver.yaml
   - cephfs-controller.yaml
-  - cephfs-secret.yaml
+  - cephfs-secret.sops.yaml
   - cephfs-storageclass.yaml
   - cephfs-rbac.yaml
   - cephfs-sa.yaml
