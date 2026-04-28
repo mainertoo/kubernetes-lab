@@ -60,7 +60,7 @@ spec:
           wait-for-db:
             image:
               repository: busybox
-              tag: "1.36"
+              tag: "1.37"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -81,7 +81,7 @@ spec:
           wait-for-redis:
             image:
               repository: busybox
-              tag: "1.36"
+              tag: "1.37"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -192,7 +192,7 @@ spec:
           wait-for-db:
             image:
               repository: busybox
-              tag: "1.36"
+              tag: "1.37"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -213,7 +213,7 @@ spec:
           wait-for-redis:
             image:
               repository: busybox
-              tag: "1.36"
+              tag: "1.37"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -273,7 +273,7 @@ spec:
           init-pgdata-dir:
             image:
               repository: busybox
-              tag: "1.36"
+              tag: "1.37"
             command: ["/bin/sh", "-c"]
             args:
               - |
