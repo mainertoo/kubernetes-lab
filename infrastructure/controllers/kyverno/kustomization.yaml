@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - kyverno-namespace.yaml
   - kyverno-release.yaml
-  # policies/ is applied in a follow-up commit after Kyverno CRDs are installed
+  - policies/
