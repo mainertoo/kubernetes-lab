@@ -80,7 +80,7 @@ spec:
 
         # Ensure multus is also present in the k3s "current" bin dir (some k3s setups call plugins from there)
         - name: link-multus-into-k3s-bin
-          image: alpine:3.20
+          image: alpine:3.23
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -120,7 +120,7 @@ spec:
         # Write a deterministic multus CNI config into the k3s CNI conf dir.
         # This prevents weird recursion/auto-generated naming issues during debugging.
         - name: write-multus-cni-conf
-          image: alpine:3.20
+          image: alpine:3.23
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
