@@ -103,7 +103,7 @@ spec:
           app:
             image:
               repository: freikin/dawarich
-              tag: 1.6.0
+              tag: 1.6.1
               pullPolicy: IfNotPresent
             command:
               - web-entrypoint.sh
