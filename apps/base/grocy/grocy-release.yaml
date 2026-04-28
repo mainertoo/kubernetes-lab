@@ -38,7 +38,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/grocy
-              tag: "4.5.0"
+              tag: "4.6.0"
               pullPolicy: IfNotPresent
 
             env:
