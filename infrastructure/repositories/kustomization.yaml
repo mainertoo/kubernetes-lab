@@ -10,3 +10,4 @@ resources:
   - bjw-s.yaml
   - helm-rancher.yaml
   - helm-intel.yaml
+  - helm-kyverno.yaml
