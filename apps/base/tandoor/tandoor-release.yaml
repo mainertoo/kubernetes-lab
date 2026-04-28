@@ -28,7 +28,7 @@ spec:
           create-db:
             image:
               repository: docker.io/library/busybox
-              tag: stable
+              tag: latest
             command:
               - sh
               - -lc

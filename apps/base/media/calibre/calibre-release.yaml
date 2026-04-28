@@ -36,7 +36,7 @@ spec:
           fix-calibre-library-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -80,7 +80,7 @@ spec:
           health:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-lc"]
             args:
               - |

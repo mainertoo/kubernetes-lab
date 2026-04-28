@@ -30,7 +30,7 @@ spec:
           main:
             image:
               repository: ipromknight/zilean
-              tag: latest
+              tag: v3.5.0
               pullPolicy: IfNotPresent
 
             env:

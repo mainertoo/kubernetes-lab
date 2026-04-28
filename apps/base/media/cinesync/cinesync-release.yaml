@@ -49,7 +49,7 @@ spec:
           init-cinesync-dirs:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -87,7 +87,7 @@ spec:
           main:
             image:
               repository: sureshfizzy/cinesync
-              tag: latest
+              tag: v3.2.2-alpha
               pullPolicy: IfNotPresent
             envFrom:
               - secretRef:

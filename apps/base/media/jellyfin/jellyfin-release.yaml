@@ -42,7 +42,7 @@ spec:
           fix-config-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command:
               - /bin/sh
               - -c

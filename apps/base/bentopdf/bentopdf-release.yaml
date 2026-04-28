@@ -41,7 +41,7 @@ spec:
               # default mode: bentopdf/bentopdf:latest
               # simple mode (clean internal UI): bentopdf/bentopdf-simple:latest
               repository: bentopdf/bentopdf-simple
-              tag: latest
+              tag: v1.1.2
               pullPolicy: IfNotPresent
 
             # BentoPDF is static; no PVC needed.

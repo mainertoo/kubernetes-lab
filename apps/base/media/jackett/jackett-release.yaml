@@ -30,7 +30,7 @@ spec:
           main:
             image:
               repository: ghcr.io/linuxserver/jackett
-              tag: latest
+              tag: v0.24.1789-ls387
               pullPolicy: IfNotPresent
 
             env:

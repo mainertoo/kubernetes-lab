@@ -38,7 +38,7 @@ spec:
           app:
             image:
               repository: neosmemo/memos
-              tag: stable
+              tag: 0.28.0
               pullPolicy: IfNotPresent
 
             env:

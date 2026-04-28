@@ -36,7 +36,7 @@ spec:
           main:
             image:
               repository: golift/unpackerr
-              tag: latest
+              tag: 0.15.2
               pullPolicy: IfNotPresent
 
             env:

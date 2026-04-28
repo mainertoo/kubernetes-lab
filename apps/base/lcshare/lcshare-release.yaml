@@ -27,7 +27,7 @@ spec:
           app:
             image:
               repository: tanq16/local-content-share
-              tag: main
+              tag: v37
             env:
               TZ: America/Los_Angeles
               PUID: "1000"
