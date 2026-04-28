@@ -1,71 +1,112 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
   ],
+
+  "dependencyDashboardTitle": "Renovate Dashboard",
+  "suppressNotifications": ["prIgnoreNotification"],
+  "rebaseWhen": "conflicted",
+
+  "ignorePaths": [
+    "**/archive/**"
+  ],
+
   "flux": {
     "managerFilePatterns": [
-      "/cluster/.+\\.ya?ml$/"
+      "/clusters/.+\\.ya?ml$/",
+      "/infrastructure/.+\\.ya?ml$/",
+      "/apps/.+\\.ya?ml$/"
     ]
   },
-  "ignorePaths": [
-    "apps/archive/**"
-  ],
+
   "helm-values": {
     "managerFilePatterns": [
-      "/cluster/.+\\.ya?ml$/",
       "/apps/.+\\.ya?ml$/",
       "/infrastructure/.+\\.ya?ml$/"
     ]
   },
+
   "kubernetes": {
     "managerFilePatterns": [
-      "/cluster/.+\\.ya?ml$/",
       "/apps/.+\\.ya?ml$/",
       "/infrastructure/.+\\.ya?ml$/"
     ]
   },
+
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Match Helm values for non-standard yamls",
-      "managerFilePatterns": [
-        "/infrastructure/.+\\.ya?ml$/"
-      ],
-      "matchStringsStrategy": "any",
-      "matchStrings": [
-        "repository:\\s?\"?(?<depName>[^\\s\"]*)\"?\\s*?tag:\\s?\"?(?<currentValue>[^\\s\"]*)\"?"
-      ],
-      "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "description": "Match Helm Releases for helm charts",
+      "description": "Match container image repository+tag pairs in HelmRelease values",
       "managerFilePatterns": [
         "/apps/.+\\.ya?ml$/",
         "/infrastructure/.+\\.ya?ml$/"
       ],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "chart:\\s?\"?(?<depName>[^\\s\"]*)\"?\\s*?version:\\s?\"?(?<currentValue>[^\\s\"]*)\"?"
+        "repository:\\s?\"?(?<depName>[^\\s\"]+)\"?\\s*?tag:\\s?\"?(?<currentValue>[^\\s\"]+)\"?"
       ],
-      "datasourceTemplate": "helm"
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Match OCIRepository ref tags",
+      "managerFilePatterns": [
+        "/infrastructure/.+\\.ya?ml$/",
+        "/apps/.+\\.ya?ml$/"
+      ],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "url:\\s+oci://(?<depName>[^\\s]+)\\s[\\s\\S]*?tag:\\s+(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
+
   "packageRules": [
     {
-      "matchDatasources": [
-        "helm"
-      ],
-      "matchManagers": [
-        "custom.regex"
-      ],
-      "matchPackageNames": [
-        "app-template"
-      ],
-      "registryUrls": [
-        "https://bjw-s.github.io/helm-charts/"
-      ]
+      "description": "Group Flux toolkit updates into one PR",
+      "matchPackagePatterns": ["^ghcr.io/fluxcd/"],
+      "groupName": "flux-system",
+      "groupSlug": "flux-system"
+    },
+    {
+      "description": "Group infrastructure controller updates (non-critical path)",
+      "matchPaths": ["/infrastructure/controllers/.+"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "infrastructure-controllers (patch)",
+      "groupSlug": "infra-patch"
+    },
+    {
+      "description": "Use loose versioning for Plex (non-semver tags)",
+      "matchPackagePatterns": ["plexinc/pms-docker", "plex"],
+      "versioning": "loose"
+    },
+    {
+      "description": "Use loose versioning for Linuxserver images",
+      "matchPackagePatterns": ["lscr.io/linuxserver/.+"],
+      "versioning": "loose"
+    },
+    {
+      "description": "Ignore latest and testing tags — pin to a real version to get updates",
+      "matchCurrentValue": "/^(latest|testing|stable|main|master|develop)$/",
+      "enabled": false
+    },
+    {
+      "description": "app-template updates get their own PR (affects every app)",
+      "matchPackagePatterns": ["app-template", "ghcr.io/bjw-s/helm/app-template"],
+      "groupName": "bjw-s app-template",
+      "groupSlug": "app-template"
+    },
+    {
+      "description": "Media app container image updates",
+      "matchPaths": ["/apps/base/media/.+"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "media apps",
+      "groupSlug": "media-apps"
     }
   ]
 }
