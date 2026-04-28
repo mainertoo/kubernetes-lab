@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - kyverno-namespace.yaml
   - kyverno-release.yaml
-  - policies/
