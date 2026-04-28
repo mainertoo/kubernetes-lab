@@ -18,6 +18,13 @@ spec:
   install:
     createNamespace: false
 
+
+  upgrade:
+    force: true
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
   values:
     controllers:
       main:

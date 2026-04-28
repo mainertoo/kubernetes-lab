@@ -18,6 +18,7 @@ spec:
     timeout: 15m
 
   upgrade:
+    force: true
     cleanupOnFail: true
     remediation:
       retries: 3
