@@ -98,6 +98,7 @@
     {
       "description": "app-template updates get their own PR (affects every app)",
       "matchPackagePatterns": ["app-template", "ghcr.io/bjw-s/helm/app-template"],
+      "separateMajorMinor": true,
       "groupName": "bjw-s app-template",
       "groupSlug": "app-template"
     },
