@@ -47,7 +47,6 @@ resources:
   - media/sym-radarr4k/kustomization.yaml
   - media/sym-sonarr4k/kustomization.yaml
   - media/cinesync/kustomization.yaml
-  # - wrapper/kustomization.yaml
   - media/nzbdav/kustomization.yaml
   - media/audiobookrequest/kustomization.yaml
   - media/bookshelf/kustomization.yaml
