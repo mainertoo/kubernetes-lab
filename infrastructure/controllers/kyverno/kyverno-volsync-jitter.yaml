@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: volsync-mover-jitter
+  annotations:
+    policies.kyverno.io/title: VolSync Mover Jitter
+    policies.kyverno.io/description: >-
+      Adds a random sleep initContainer to volsync source mover jobs to stagger
+      backup start times and prevent thundering-herd lock contention in restic.
+spec:
+  failurePolicy: Ignore
+  rules:
+    - name: add-jitter
+      match:
+        any:
+          - resources:
+              kinds:
+                - Job
+              selector:
+                matchLabels:
+                  app.kubernetes.io/created-by: volsync
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.name }}"
+            operator: StartsWith
+            value: "volsync-src-"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            template:
+              spec:
+                initContainers:
+                  - name: jitter
+                    image: busybox:latest
+                    imagePullPolicy: IfNotPresent
+                    command: ["sh", "-c", "sleep $((RANDOM % 180))"]

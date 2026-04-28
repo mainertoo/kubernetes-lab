@@ -32,5 +32,8 @@ resources:
   # # Volsync
   - volsync
 
+  # Kyverno policy engine (manages volsync mover jitter + future policies)
+  - kyverno
+
   # Multus CNI
   # - multus
