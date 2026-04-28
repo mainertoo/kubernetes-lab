@@ -16,14 +16,10 @@ spec:
           - resources:
               kinds:
                 - Job
+              name: "volsync-src-*"
               selector:
                 matchLabels:
                   app.kubernetes.io/created-by: volsync
-      preconditions:
-        all:
-          - key: "{{ request.object.metadata.name }}"
-            operator: StartsWith
-            value: "volsync-src-"
       mutate:
         patchStrategicMerge:
           spec:
