@@ -32,7 +32,7 @@ spec:
           init-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh","-lc"]
             args:
               - |
@@ -52,7 +52,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/code-server
-              tag: latest
+              tag: 4.117.0-ls334
 
             # app-template v3 expects env as a MAP, not a list
             env:

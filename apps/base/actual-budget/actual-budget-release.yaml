@@ -32,7 +32,7 @@ spec:
             image:
               repository: ghcr.io/actualbudget/actual-server
               # You can pin later; "latest" is fine during migration.
-              tag: latest
+              tag: v26.4.0
             env:
               - name: TZ
                 value: America/Los_Angeles

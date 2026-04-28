@@ -47,7 +47,7 @@ spec:
           fix-symlinks-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -73,7 +73,7 @@ spec:
           main:
             image:
               repository: nzbdav/nzbdav
-              tag: latest
+              tag: v0.6.4
               pullPolicy: IfNotPresent
             env:
               - name: TZ

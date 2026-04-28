@@ -47,7 +47,7 @@ spec:
           app:
             image:
               repository: joplin/server
-              tag: latest
+              tag: 3.6.1
             env:
               TZ: America/Los_Angeles
               APP_PORT: "22300"

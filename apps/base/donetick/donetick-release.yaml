@@ -44,7 +44,7 @@ spec:
           app:
             image:
               repository: donetick/donetick
-              tag: latest
+              tag: v0.1.75
             env:
               TZ: America/Los_Angeles
               DT_ENV: "selfhosted"

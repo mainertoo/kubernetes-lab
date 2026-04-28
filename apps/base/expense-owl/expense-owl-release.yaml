@@ -31,7 +31,7 @@ spec:
           app:
             image:
               repository: tanq16/expenseowl
-              tag: main
+              tag: v4.1
             env:
               - name: TZ
                 value: America/Los_Angeles

@@ -36,7 +36,7 @@ spec:
           fix-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -55,7 +55,7 @@ spec:
           app:
             image:
               repository: registry.gitlab.com/crafty-controller/crafty-4
-              tag: latest
+              tag: v4.10.2
             env:
               - name: TZ
                 value: America/Los_Angeles

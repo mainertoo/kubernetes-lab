@@ -72,7 +72,7 @@ spec:
           main:
             image:
               repository: hiett/serverless-redis-http
-              tag: latest
+              tag: 0.0.10
             env:
               TZ: America/Los_Angeles
               SRH_MODE: env

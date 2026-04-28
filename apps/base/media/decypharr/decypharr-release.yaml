@@ -47,7 +47,7 @@ spec:
           init-config:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -72,7 +72,7 @@ spec:
           fix-symlinks-perms:
             image:
               repository: busybox
-              tag: stable
+              tag: latest
             command: ["/bin/sh", "-c"]
             args:
               - |
