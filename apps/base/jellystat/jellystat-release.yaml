@@ -34,7 +34,7 @@ spec:
           app:
             image:
               repository: postgres
-              tag: "15.2"
+              tag: "15.17"
               pullPolicy: IfNotPresent
 
             # These come from your SOPS secret:
