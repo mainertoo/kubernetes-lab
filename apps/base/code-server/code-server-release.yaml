@@ -95,11 +95,7 @@ spec:
 
     persistence:
       config:
-        enabled: true
-        type: persistentVolumeClaim
-        storageClass: cephfs
-        accessMode: ReadWriteMany
-        size: 20Gi
+        existingClaim: code-server-config
         globalMounts:
           - path: /config
 
