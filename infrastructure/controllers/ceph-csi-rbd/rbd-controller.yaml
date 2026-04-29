@@ -24,6 +24,8 @@ metadata:
   namespace: default
 spec:
   replicas: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: csi-rbdplugin-provisioner
