@@ -38,7 +38,7 @@ spec:
           main:
             image:
               repository: markbeep/audiobookrequest
-              tag: "1.9.0"
+              tag: "1.10.4"
               pullPolicy: IfNotPresent
 
             env:
