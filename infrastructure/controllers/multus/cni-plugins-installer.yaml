@@ -64,7 +64,7 @@ spec:
       initContainers:
         # Install multus binary into /opt/cni/bin on the host
         - name: install-multus-binary
-          image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
+          image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.2.4
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -169,7 +169,7 @@ spec:
 
       containers:
         - name: kube-multus
-          image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.0.2
+          image: ghcr.io/k8snetworkplumbingwg/multus-cni:v4.2.4
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
