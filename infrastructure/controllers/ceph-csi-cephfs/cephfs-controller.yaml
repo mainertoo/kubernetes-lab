@@ -5,6 +5,8 @@ metadata:
   namespace: ceph-csi
 spec:
   replicas: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: csi-cephfsplugin-provisioner
