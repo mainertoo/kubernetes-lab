@@ -62,7 +62,7 @@ spec:
           main:
             image:
               repository: ghcr.io/linuxserver/calibre
-              tag: 8.16.2
+              tag: 9.7.0
               pullPolicy: IfNotPresent
 
             env:
