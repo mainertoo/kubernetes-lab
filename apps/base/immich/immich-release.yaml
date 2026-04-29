@@ -27,7 +27,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-server
-              tag: v2.2.3
+              tag: v2.7.5
             env:
               TZ: "Europe/Copenhagen"
               REDIS_HOSTNAME: immich-redis
@@ -51,7 +51,7 @@ spec:
           machine-learning:
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v2.2.3
+              tag: v2.7.5
             env:
               MPLCONFIGDIR: /cache/matplotlib
 
