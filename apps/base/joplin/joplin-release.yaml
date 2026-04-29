@@ -28,7 +28,7 @@ spec:
           app:
             image:
               repository: postgres
-              tag: "16"
+              tag: "18"
             env:
               # ✅ Put DB files in a subdir under the mount
               PGDATA: /var/lib/postgresql/data/pgdata

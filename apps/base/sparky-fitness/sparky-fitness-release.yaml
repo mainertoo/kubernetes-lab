@@ -160,7 +160,7 @@ spec:
           db:
             image:
               repository: postgres
-              tag: 15-alpine
+              tag: 18-alpine
             env:
               PGDATA: /var/lib/postgresql/data/pgdata
             envFrom:
