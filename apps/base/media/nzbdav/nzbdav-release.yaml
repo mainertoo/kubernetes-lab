@@ -74,7 +74,7 @@ spec:
           main:
             image:
               repository: nzbdav/nzbdav
-              tag: v0.6.4
+              tag: 0.6.4
               pullPolicy: IfNotPresent
             env:
               - name: TZ
