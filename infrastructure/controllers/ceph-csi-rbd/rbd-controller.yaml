@@ -190,7 +190,7 @@ spec:
 
         # Resizer
         - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.2
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.14.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--v=1"
