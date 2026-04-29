@@ -113,7 +113,6 @@ spec:
             - "--timeout=150s"
             - "--retry-interval-start=500ms"
             - "--leader-election=true"
-            - "--feature-gates=HonorPVReclaimPolicy=true"
             - "--prevent-volume-mode-conversion=true"
             - "--default-fstype=ext4"
             - "--extra-create-metadata=true"
