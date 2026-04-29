@@ -86,9 +86,10 @@
       "versioning": "loose"
     },
     {
-      "description": "Use loose versioning for Linuxserver images",
-      "matchPackagePatterns": ["lscr.io/linuxserver/.+"],
-      "versioning": "loose"
+      "description": "Use loose versioning for Linuxserver images, but only accept semver-style tags",
+      "matchPackagePatterns": ["lscr.io/linuxserver/.+", "ghcr.io/linuxserver/.+"],
+      "versioning": "loose",
+      "allowedVersions": "/^v?\\d+\\.\\d+/"
     },
     {
       "description": "Ignore latest and testing tags — pin to a real version to get updates",
