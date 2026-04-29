@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ceph-config
-  namespace: ceph-csi
-data:
-  ceph.conf: |
-    [global]
-      mon_host = 192.168.99.12,192.168.99.13,192.168.99.14
