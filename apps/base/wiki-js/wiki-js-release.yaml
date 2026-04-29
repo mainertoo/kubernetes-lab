@@ -51,7 +51,7 @@ spec:
           app:
             image:
               repository: ghcr.io/requarks/wiki
-              tag: "2.5.308"
+              tag: "2.5.313"
               pullPolicy: IfNotPresent
 
             envFrom:
