@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  path: ./apps/base/authentik-postgresql-backup
   targetNamespace: authentik
 
   prune: true
@@ -24,7 +24,6 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
@@ -33,19 +32,17 @@ spec:
       APP_NAMESPACE: authentik
 
       VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      # v2: snapshot-derived PVC access mode
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      CAPACITY: 5Gi
 
-      VOLSYNC_REPO_PATH: authentik/postgresql
+      # Fresh restic repo path so old empty snapshots don't mix with real ones
+      VOLSYNC_REPO_PATH: authentik/postgresql-data
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 2Gi
 
-      # IMPORTANT for PG: preserve uid/gid behavior
+      # bitnami postgres runs as 1001:1001
       VOLSYNC_PUID: "1001"
       VOLSYNC_PGID: "1001"
 
