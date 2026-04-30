@@ -6,5 +6,3 @@ resources:
   - cephfs-driver.yaml
   - cephfs-provisioner-rbac.yaml
   - cephfs-controller.yaml
-  - cephfs-storageclass.yaml
-  - cephfs-secret.sops.yaml
