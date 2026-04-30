@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: kube-system
+namespace: ceph-csi
 resources:
   - secret-cephfs.sops.yaml
   - storageclass-cephfs.yaml
