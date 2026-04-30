@@ -91,8 +91,10 @@ Sidecar versions (Renovate-managed):
 | csi-provisioner | v6.2.0 |
 | csi-attacher | v4.11.0 |
 | csi-resizer | v2.1.0 |
-| csi-snapshotter | v8.2.0 (rbd), v8.0.0 (cephfs) |
-| csi-node-driver-registrar | v2.13.0 |
+| csi-snapshotter | v8.5.0 |
+| csi-node-driver-registrar | v2.16.0 |
+
+Both drivers run identical sidecar versions.
 
 When upgrading sidecars, watch for removed feature gates (`HonorPVReclaimPolicy` was removed in csi-provisioner v6 — graduated to GA in Kubernetes 1.23).
 
