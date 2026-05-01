@@ -46,7 +46,7 @@ spec:
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 10Gi
 
-      SUBDOMAIN: dumb
+      SUBDOMAIN: dumb-frontend
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "3005"
