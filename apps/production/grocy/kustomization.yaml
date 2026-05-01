@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../components/volsync
+    - ../../../components/volsync-v2/backup-only
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -21,6 +21,21 @@ spec:
       APP: *app
       SUBDOMAIN: *app
       GATUS_PORT: "8080"
+
+      # Backup-only volsync: PVC is created by apps/base/grocy/grocy-pvc.yaml
+      VOLSYNC_SOURCE_PVC: *app
+      VOLSYNC_REPO_PATH: grocy/data
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+      VOLSYNC_PUID: "1000"
+      VOLSYNC_PGID: "1000"
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
   prune: true
   retryInterval: 2m
   sourceRef:
