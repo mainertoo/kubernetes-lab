@@ -54,9 +54,10 @@ resources:
   - media/readmeabook/kustomization.yaml
   - media/calibre-web-automated/
   - media/shelfmark/
+  - grocy/kustomization.yaml
+  - mealie/kustomization.yaml
 
-  ## old resources list
-  # - grocy/kustomization.yaml
+  ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
   # - it-tools/kustomization.yaml
   # - zurg/
@@ -64,7 +65,6 @@ resources:
   # - huginn/
   # - spoolman/kustomization.yaml
   # - n8n/
-  # - mealie/kustomization.yaml
   # - paperless-ngx/kustomization.yaml
   # - omni-tools/kustomization.yaml
   # - gatus/kustomization.yaml
@@ -72,5 +72,4 @@ resources:
   # - grafana/kustomization.yaml
   # - decypharr/kustomization.yaml
   # - notifiarr/kustomization.yaml
-  # - immich/kustomization.yaml
   
