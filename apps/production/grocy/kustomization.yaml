@@ -20,7 +20,7 @@ spec:
     substitute:
       APP: *app
       SUBDOMAIN: *app
-      GATUS_PORT: "8080"
+      GATUS_PORT: "80"
 
       # Backup-only volsync: PVC is created by apps/base/grocy/grocy-pvc.yaml
       VOLSYNC_SOURCE_PVC: *app
