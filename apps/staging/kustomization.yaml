@@ -52,7 +52,7 @@ resources:
   - opencut/
   - crafty/
   - dumbdo/
-  - joplin/
+  # - joplin/  # migrated to apps/production/joplin (Phase 1c, 2026-05-01)
   - lcshare/
   - convertx/
   - drawio/
