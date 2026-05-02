@@ -1,18 +1,5 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-#
-# Phase 1c rollout, app 2/17. Pre-flight backup of the staging-tier
-# code-server PVC.
-#
-# Notes for this app vs. donetick:
-# - Storage class is cephfs (RWX), so VOLSYNC_SNAP_ACCESSMODES must be
-#   ReadWriteMany (cephfs CSI does not support RWO clones).
-# - The existing PVC is named `code-server-config`, not the canonical
-#   `${APP}` = `code-server`. Stage 2 will rename to canonical and
-#   update the HelmRelease's `existingClaim`. Restic repo path is
-#   `code-server/data` regardless of source PVC name.
-# - Cache stays on ceph-rbd RWO (canonical for cephfs apps; mover cache
-#   doesn't need RWX).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -20,12 +7,12 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/_volsync-stub
+  path: ./apps/base/code-server
   targetNamespace: *app
 
   prune: true
   retryInterval: 2m
-  timeout: 5m
+  timeout: 10m
   wait: false
 
   decryption:
@@ -39,21 +26,26 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
 
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: *app
 
-      VOLSYNC_SOURCE_PVC: code-server-config
-      VOLSYNC_REPO_PATH: code-server/data
-
+      # --- volsync (cephfs/RWX) ---
       VOLSYNC_STORAGECLASS: cephfs
+      VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
+      CAPACITY: 20Gi
 
+      VOLSYNC_REPO_PATH: code-server/data
+
+      # Cache stays rbd RWO — canonical for cephfs apps (matches paperless-ngx)
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 10Gi
@@ -61,9 +53,16 @@ spec:
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
 
-      # PoC: hourly cadence so we don't wait 12h for the first cephfs
-      # backup to land in Garage. Removed in Stage 3 settle.
+      # PoC: hourly cadence; removed in Stage 3 settle
       VOLSYNC_SCHEDULE: "0 * * * *"
+
+      # --- gatus health checks ---
+      # IngressRoute hosts vscode.lab.mainertoo.com (primary, set as
+      # PROXY_DOMAIN on the app) and code-server.lab.mainertoo.com.
+      SUBDOMAIN: vscode
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "8443"
 
     substituteFrom:
       - kind: Secret
