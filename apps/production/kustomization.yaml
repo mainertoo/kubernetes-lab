@@ -60,6 +60,7 @@ resources:
   - code-server/kustomization.yaml
   - joplin/kustomization.yaml
   - expense-owl/kustomization.yaml
+  - memos/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
