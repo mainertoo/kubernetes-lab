@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: tandoor
 resources:
   - tandoor-namespace.yaml
-  - tandoor-pvc.yaml
+  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
+  # Renamed from tandoor-data → tandoor during Phase 1c migration.
+  # - tandoor-pvc.yaml
   - tandoor-sso-secret.sops.yaml
   - tandoor-release.yaml
   - tandoor-ingressroute.yaml
