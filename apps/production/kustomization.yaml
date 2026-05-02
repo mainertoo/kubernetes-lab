@@ -59,6 +59,7 @@ resources:
   - donetick/kustomization.yaml
   - code-server/kustomization.yaml
   - joplin/kustomization.yaml
+  - expense-owl/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
