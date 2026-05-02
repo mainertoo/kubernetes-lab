@@ -70,7 +70,7 @@ spec:
               mountPropagation: Bidirectional
 
         - name: rclone-nzbdav
-          image: rclone/rclone:1.73.5
+          image: rclone/rclone:1.74.0
           command: ["rclone", "mount", "nzbdav:", "/mnt/nzbdav"]
           args:
             - "--config=/config/rclone/rclone.conf"
