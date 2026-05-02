@@ -62,6 +62,7 @@ resources:
   - expense-owl/kustomization.yaml
   - memos/kustomization.yaml
   - tandoor/kustomization.yaml
+  - kitchenowl/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
