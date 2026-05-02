@@ -81,7 +81,9 @@ spec:
     persistence:
       db:
         enabled: true
-        existingClaim: joplin-db
+        # PVC is provisioned by components/volsync-v2 with name = ${APP}.
+        # Renamed from joplin-db during the Phase 1c migration.
+        existingClaim: joplin
         advancedMounts:
           joplin-db:
             app:
