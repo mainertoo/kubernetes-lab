@@ -43,7 +43,7 @@ resources:
   # - calibre/
   # - notifiarr/
   # - actual-budget/
-  - expense-owl/
+  # - expense-owl/  # migrated to apps/production/expense-owl (Phase 1c, 2026-05-02)
   - dumbassets/
   - memos/
   # - donetick/  # migrated to apps/production/donetick (Phase 1c PoC, 2026-05-01)
