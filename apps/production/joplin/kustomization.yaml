@@ -26,7 +26,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/bootstrap
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -49,12 +49,9 @@ spec:
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 1Gi
 
-      # postgres user — restored files must land with uid=999 ownership
+      # postgres user — must match the uid that owns the data files
       VOLSYNC_PUID: "999"
       VOLSYNC_PGID: "999"
-
-      # PoC: hourly cadence; removed in Stage 3 settle
-      VOLSYNC_SCHEDULE: "0 * * * *"
 
       # --- gatus health checks ---
       SUBDOMAIN: *app
