@@ -26,7 +26,7 @@ resources:
   - it-tools/
   - omni-tools/
   - mealie/
-  - tandoor/
+  # - tandoor/  # migrated to apps/production/tandoor (Phase 1c, 2026-05-02)
   - kitchenowl/
   # - dispatcharr/
   # - decypharr/
