@@ -47,7 +47,7 @@ resources:
   - dumbassets/
   # - memos/  # migrated to apps/production/memos (Phase 1c, 2026-05-02)
   # - donetick/  # migrated to apps/production/donetick (Phase 1c PoC, 2026-05-01)
-  - scrypted/
+  # - scrypted/  # migrated to apps/production/scrypted (Phase 1c, 2026-05-02)
   # - unpackerr/
   - opencut/
   - crafty/
