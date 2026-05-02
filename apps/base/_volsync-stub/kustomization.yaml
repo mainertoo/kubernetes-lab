@@ -1,0 +1,14 @@
+# Shared empty kustomization base used as a path target for per-app Flux
+# Kustomizations that only need to render volsync-v2 Components against an
+# existing app's PVC (pre-flight backup before staging→production migration).
+#
+# The Components add the ReplicationSource (+ Secret via volsync/remote) on
+# top of these zero resources, so no namespace/HelmRelease/PVC ownership
+# overlaps with the staging-tier `apps` Flux Kustomization that still owns
+# the actual app manifests.
+#
+# Once the app is fully migrated to apps/production/<app>/ with path
+# pointing at apps/base/<app>, this stub is no longer used by that app.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []

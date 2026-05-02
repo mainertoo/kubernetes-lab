@@ -1,0 +1,64 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# Pre-flight backup of the staging-tier donetick PVC.
+#
+# Phase 1c step 1: this Kustomization adds JUST a ReplicationSource +
+# volsync Secret in the donetick namespace, targeting the existing
+# `donetick` PVC (still owned by the staging-tier `apps` Flux Kust).
+#
+# Once a backup has run successfully and is verified in Garage, a
+# follow-up PR flips this Kustomization to use components/volsync-v2/bootstrap
+# and points path at ./apps/base/donetick to complete the migration.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app donetick
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/_volsync-stub
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync/remote
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: *app
+
+      # backup-only points the ReplicationSource at the existing PVC name.
+      VOLSYNC_SOURCE_PVC: *app
+      VOLSYNC_REPO_PATH: donetick/data
+
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      VOLSYNC_PUID: "1000"
+      VOLSYNC_PGID: "1000"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
