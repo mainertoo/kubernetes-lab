@@ -95,7 +95,9 @@ spec:
 
     persistence:
       config:
-        existingClaim: code-server-config
+        # PVC is provisioned by components/volsync-v2 with name = ${APP}.
+        # Renamed from code-server-config during the Phase 1c migration.
+        existingClaim: code-server
         globalMounts:
           - path: /config
 
