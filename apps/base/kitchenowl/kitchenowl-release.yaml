@@ -63,7 +63,7 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: kitchenowl-data
+        existingClaim: kitchenowl
         globalMounts:
           - path: /data
 
