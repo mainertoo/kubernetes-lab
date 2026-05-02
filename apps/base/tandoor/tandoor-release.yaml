@@ -66,6 +66,8 @@ spec:
                 value: "0"
               - name: ENABLE_SIGNUP
                 value: "0"
+              - name: ALLOWED_HOSTS
+                value: "tandoor.lab.mainertoo.com"
 
               # OIDC / django-allauth OpenID Connect provider
               - name: SOCIAL_PROVIDERS
