@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: scrypted
 resources:
   - scrypted-namespace.yaml
-  - scrypted-pvc.yaml
+  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
+  # - scrypted-pvc.yaml
   - scrypted-secret.sops.yaml
   - scrypted-release.yaml
   - scrypted-serversTransport.yaml
