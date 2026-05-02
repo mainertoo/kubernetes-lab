@@ -46,7 +46,7 @@ resources:
   - expense-owl/
   - dumbassets/
   - memos/
-  - donetick/
+  # - donetick/  # migrated to apps/production/donetick (Phase 1c PoC, 2026-05-01)
   - scrypted/
   # - unpackerr/
   - opencut/
