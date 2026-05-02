@@ -104,7 +104,7 @@ spec:
           app:
             image:
               repository: freikin/dawarich
-              tag: 1.7.2
+              tag: 1.7.3
               pullPolicy: IfNotPresent
             command:
               - web-entrypoint.sh
@@ -236,7 +236,7 @@ spec:
           sidekiq:
             image:
               repository: freikin/dawarich
-              tag: 1.7.2
+              tag: 1.7.3
               pullPolicy: IfNotPresent
             command:
               - sidekiq-entrypoint.sh
