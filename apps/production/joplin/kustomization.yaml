@@ -1,0 +1,71 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# Phase 1c rollout, app 3/17. Pre-flight backup of the staging-tier
+# joplin postgres PVC.
+#
+# Notes for this app:
+# - The PVC stores postgres data files (joplin-db PVC, postgres:16
+#   image, files owned by uid=999). Mover security context must
+#   match so the restored files have correct ownership on Stage 2.
+# - Existing PVC is named `joplin-db`, not the canonical `${APP}=joplin`.
+#   Stage 2 will rename and update the HelmRelease's `existingClaim`.
+# - Snapshot is crash-consistent — equivalent to a power loss to
+#   postgres. Joplin's postgres recovers via WAL on startup. Fine for
+#   homelab scale.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app joplin
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/_volsync-stub
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync/remote
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: *app
+
+      VOLSYNC_SOURCE_PVC: joplin-db
+      VOLSYNC_REPO_PATH: joplin/data
+
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      # Postgres data files inside the PVC are owned by uid=999.
+      # Mover must match so restored files retain correct ownership.
+      VOLSYNC_PUID: "999"
+      VOLSYNC_PGID: "999"
+
+      # PoC: hourly cadence; removed in Stage 3 settle
+      VOLSYNC_SCHEDULE: "0 * * * *"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
