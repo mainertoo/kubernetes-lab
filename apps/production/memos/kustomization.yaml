@@ -7,7 +7,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/_volsync-stub
+  path: ./apps/base/memos
   targetNamespace: *app
 
   prune: true
@@ -26,8 +26,10 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
 
   postBuild:
     substitute:
@@ -39,8 +41,8 @@ spec:
       VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      CAPACITY: 5Gi
 
-      VOLSYNC_SOURCE_PVC: memos
       VOLSYNC_REPO_PATH: memos/data
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
@@ -52,6 +54,12 @@ spec:
 
       # hourly during migration — revert on Stage 3 settle
       VOLSYNC_SCHEDULE: "0 * * * *"
+
+      # --- gatus health checks ---
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "5230"
 
     substituteFrom:
       - kind: Secret
