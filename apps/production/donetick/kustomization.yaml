@@ -48,6 +48,11 @@ spec:
       VOLSYNC_SOURCE_PVC: *app
       VOLSYNC_REPO_PATH: donetick/data
 
+      # PoC: hourly cadence so we don't wait 12h for the first backup to land
+      # in Garage. Remove this line (or change to 05 00/12 * * *) once the
+      # donetick migration is complete to revert to the canonical default.
+      VOLSYNC_SCHEDULE: "0 * * * *"
+
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
