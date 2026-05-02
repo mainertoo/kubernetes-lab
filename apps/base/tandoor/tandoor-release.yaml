@@ -94,7 +94,7 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: tandoor-data
+        existingClaim: tandoor
         globalMounts:
           # Persist only what needs persistence, without masking the image's /opt/recipes/*
           - path: /opt/recipes/db.sqlite3
