@@ -22,7 +22,7 @@ resources:
   # - stirling-pdf/
   # - bentopdf/
   # - audiobookshelf/
-  - code-server/
+  # - code-server/  # migrated to apps/production/code-server (Phase 1c, 2026-05-01)
   - it-tools/
   - omni-tools/
   - mealie/
