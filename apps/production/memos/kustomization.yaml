@@ -26,7 +26,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/bootstrap
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -51,9 +51,6 @@ spec:
 
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
-
-      # hourly during migration — revert on Stage 3 settle
-      VOLSYNC_SCHEDULE: "0 * * * *"
 
       # --- gatus health checks ---
       SUBDOMAIN: *app
