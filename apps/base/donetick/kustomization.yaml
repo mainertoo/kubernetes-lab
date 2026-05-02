@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: donetick
 resources:
   - donetick-namespace.yaml
-  - donetick-pvc.yaml
+  # PVC is owned by volsync-v2 (bootstrap on first deploy, plain after settle).
+  # See apps/production/donetick/kustomization.yaml for the volsync wiring.
+  # - donetick-pvc.yaml
   - donetick-secret.sops.yaml
   - donetick-release.yaml
   - donetick-ingressroute.yaml

@@ -1,15 +1,17 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 #
-# Pre-flight backup of the staging-tier donetick PVC.
+# Phase 1c step 2: donetick is now fully production-tier.
 #
-# Phase 1c step 1: this Kustomization adds JUST a ReplicationSource +
-# volsync Secret in the donetick namespace, targeting the existing
-# `donetick` PVC (still owned by the staging-tier `apps` Flux Kust).
-#
-# Once a backup has run successfully and is verified in Garage, a
-# follow-up PR flips this Kustomization to use components/volsync-v2/bootstrap
-# and points path at ./apps/base/donetick to complete the migration.
+# - The PVC is volsync-owned (volsync-v2/bootstrap creates the donetick
+#   PVC with dataSourceRef pointing at the donetick-bootstrap
+#   ReplicationDestination, which restores the latest snapshot from
+#   the donetick/data restic repo in Garage).
+# - The pre-flight backup laid down by the previous PR is the source
+#   of that first restore.
+# - A follow-up PR drops volsync-v2/bootstrap → plain volsync-v2 once
+#   the new PVC is verified populated with intact data, and removes
+#   the VOLSYNC_SCHEDULE override so the canonical 12h cadence resumes.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -17,12 +19,12 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/_volsync-stub
+  path: ./apps/base/donetick
   targetNamespace: *app
 
   prune: true
   retryInterval: 2m
-  timeout: 5m
+  timeout: 10m
   wait: false
 
   decryption:
@@ -36,26 +38,24 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
 
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: *app
 
-      # backup-only points the ReplicationSource at the existing PVC name.
-      VOLSYNC_SOURCE_PVC: *app
-      VOLSYNC_REPO_PATH: donetick/data
-
-      # PoC: hourly cadence so we don't wait 12h for the first backup to land
-      # in Garage. Remove this line (or change to 05 00/12 * * *) once the
-      # donetick migration is complete to revert to the canonical default.
-      VOLSYNC_SCHEDULE: "0 * * * *"
-
+      # --- volsync (bootstrap restores from S3 on first PVC creation) ---
       VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      CAPACITY: 2Gi
+
+      VOLSYNC_REPO_PATH: donetick/data
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
@@ -63,6 +63,17 @@ spec:
 
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
+
+      # PoC: hourly cadence so we can quickly confirm backups continue
+      # incrementally on the same restic repo after the bootstrap restore.
+      # Removed in the Stage 3 follow-up PR (settle to canonical 12h).
+      VOLSYNC_SCHEDULE: "0 * * * *"
+
+      # --- gatus health checks ---
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "2021"
 
     substituteFrom:
       - kind: Secret
