@@ -69,6 +69,8 @@ resources:
 
   - loki/kustomization.yaml
   - alloy/kustomization.yaml
+  - dumbassets/kustomization.yaml
+  - dumbdo/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
