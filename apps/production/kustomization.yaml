@@ -64,6 +64,7 @@ resources:
   - tandoor/kustomization.yaml
   - kitchenowl/kustomization.yaml
   - scrypted/kustomization.yaml
+  - crafty/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
