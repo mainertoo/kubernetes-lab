@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: dumbassets
 resources:
   - dumbassets-namespace.yaml
-  - dumbassets-pvc.yaml
+  # PVC owned by volsync-v2
+  # - dumbassets-pvc.yaml
   - dumbassets-release.yaml
   - dumbassets-ingressroute.yaml
