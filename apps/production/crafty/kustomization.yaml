@@ -7,7 +7,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/_volsync-stub
+  path: ./apps/base/crafty
   targetNamespace: *app
 
   prune: true
@@ -26,8 +26,10 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
 
   postBuild:
     substitute:
@@ -39,12 +41,11 @@ spec:
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
       VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
+      CAPACITY: 50Gi
 
-      # existing PVC name is crafty-data — canonical rename happens in Stage 2
-      VOLSYNC_SOURCE_PVC: crafty-data
       VOLSYNC_REPO_PATH: crafty/data
 
-      # cache stays on rbd (cephfs cache not needed)
+      # cache stays on rbd
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_CAPACITY: 5Gi
@@ -54,6 +55,12 @@ spec:
 
       # hourly during migration — revert on Stage 3 settle
       VOLSYNC_SCHEDULE: "0 * * * *"
+
+      # --- gatus health checks ---
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "8443"
 
     substituteFrom:
       - kind: Secret

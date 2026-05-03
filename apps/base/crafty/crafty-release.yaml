@@ -94,7 +94,7 @@ spec:
     persistence:
       crafty-data:
         enabled: true
-        existingClaim: crafty-data
+        existingClaim: crafty
 
         # Mount the same CephFS PVC to the same places as your docker-compose,
         # using subPath so we DON'T shadow /crafty/docker_launcher.sh

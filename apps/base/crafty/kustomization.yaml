@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: crafty
 resources:
   - crafty-namespace.yaml
-  - crafty-pvc.yaml
+  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
+  # Renamed from crafty-data → crafty during Phase 1c migration.
+  # - crafty-pvc.yaml
   # - crafty-secret.sops.yaml # no secret files or need for implementation yet
   - crafty-release.yaml
   - crafty-ingressroute.yaml
