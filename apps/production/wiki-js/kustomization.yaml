@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - data.yaml
+  - db.yaml
+  # - app.yaml  # added Stage 2 — deploy HelmRelease via production
