@@ -26,7 +26,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/bootstrap
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
 
   postBuild:
@@ -48,9 +48,6 @@ spec:
 
       VOLSYNC_PUID: "999"
       VOLSYNC_PGID: "999"
-
-      # hourly during migration — revert on Stage 3 settle
-      VOLSYNC_SCHEDULE: "0 * * * *"
 
     substituteFrom:
       - kind: Secret
