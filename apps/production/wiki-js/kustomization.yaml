@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - data.yaml
   - db.yaml
-  # - app.yaml  # added Stage 2 — deploy HelmRelease via production
+  - app.yaml
