@@ -44,14 +44,14 @@ resources:
   # - notifiarr/
   # - actual-budget/
   # - expense-owl/  # migrated to apps/production/expense-owl (Phase 1c, 2026-05-02)
-  - dumbassets/
+  # - dumbassets/  # migrated to apps/production/dumbassets (Stage 2, 2026-05-03)
   # - memos/  # migrated to apps/production/memos (Phase 1c, 2026-05-02)
   # - donetick/  # migrated to apps/production/donetick (Phase 1c PoC, 2026-05-01)
   # - scrypted/  # migrated to apps/production/scrypted (Phase 1c, 2026-05-02)
   # - unpackerr/
   - opencut/
   # - crafty/  # migrated to apps/production/crafty (Phase 1c, 2026-05-03)
-  - dumbdo/
+  # - dumbdo/  # migrated to apps/production/dumbdo (Stage 2, 2026-05-03)
   # - joplin/  # migrated to apps/production/joplin (Phase 1c, 2026-05-01)
   - lcshare/
   - convertx/
