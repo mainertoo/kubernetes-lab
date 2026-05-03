@@ -10,7 +10,7 @@ resources:
   # - vaultwarden/
   # - paperless-ngx/
   # - authentik/
-  - rancher/
+  # - rancher/  # migrated to apps/production/rancher (2026-05-03)
   # - jellyfin/
   # - jackett/
   # - zilean/
