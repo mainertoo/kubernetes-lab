@@ -3,6 +3,8 @@ endpoints:
     group: internal
     url: "${GATUS_SCHEME:=http}://${GATUS_APP:=${APP}}.${APP_NAMESPACE:=${APP}}.svc.cluster.local:${GATUS_PORT:=80}${GATUS_PATH:=/}"
     interval: 1m
+    client:
+      insecure: ${GATUS_INSECURE:=false}
     conditions:
       - "[STATUS] == ${GATUS_STATUS_INTERNAL:=200}"
     alerts:
