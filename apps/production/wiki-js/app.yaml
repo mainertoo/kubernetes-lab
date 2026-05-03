@@ -39,6 +39,7 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "3000"
+      GATUS_APP: wiki-js-main
 
     substituteFrom:
       - kind: Secret
