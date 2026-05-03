@@ -176,7 +176,14 @@ Set in the app's per-app Flux `Kustomization` (`apps/production/<app>/kustomizat
 | `VOLSYNC_CACHE_STORAGECLASS` | `ceph-rbd` | Mover cache PVC storage class |
 | `VOLSYNC_CACHE_ACCESSMODES` | `ReadWriteOnce` | Mover cache PVC access mode |
 | `VOLSYNC_CACHE_CAPACITY` | `1Gi`–`10Gi` | Cache size; rule of thumb 25–50% of source PVC |
-| `VOLSYNC_PUID` / `VOLSYNC_PGID` | `1000` | Mover security context — must match what the app runs as so file ownership survives restore |
+| `VOLSYNC_PUID` / `VOLSYNC_PGID` | `1000` | **Backup** mover uid/gid — must match what the app runs as so the mover can read its files during RS snapshot |
+| `VOLSYNC_RESTORE_PUID` / `VOLSYNC_RESTORE_PGID` | `1000` | **Restore** mover uid/gid for the bootstrap RD. Defaults to `1000` regardless of `VOLSYNC_PUID`. See note below. |
+
+> **Root-uid apps (`VOLSYNC_PUID=0`):** volsync's mover container drops `CAP_CHOWN` (hardcoded, not configurable). Even running as uid 0, restic cannot `lchown` files and exits non-zero, causing the bootstrap job to fail. The fix is to leave `VOLSYNC_RESTORE_PUID` at the default `1000`. The restored files will be owned by uid 1000, but apps running as root bypass permission checks and can read them normally.
+>
+> **Postgres / uid-999 apps:** You MUST set `VOLSYNC_RESTORE_PUID: "999"` and `VOLSYNC_RESTORE_PGID: "999"` explicitly. Postgres cannot read files owned by uid 1000.
+>
+> **All other apps (uid 1000):** The default is correct — no action needed.
 
 ### Optional (have sane defaults)
 
