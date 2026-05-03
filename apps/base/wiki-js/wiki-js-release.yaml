@@ -163,7 +163,7 @@ spec:
       # Postgres data on Ceph RBD
       db-data:
         enabled: true
-        existingClaim: wiki-js-postgres
+        existingClaim: wiki-js-db
         globalMounts:
           - path: /var/lib/postgresql/data
             subPath: pgdata

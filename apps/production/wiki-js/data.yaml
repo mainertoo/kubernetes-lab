@@ -26,7 +26,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
 
   postBuild:
@@ -35,7 +35,6 @@ spec:
       APP_NAMESPACE: wiki-js
 
       # --- volsync (cephfs, RWX) ---
-      VOLSYNC_SOURCE_PVC: wiki-js-data
       VOLSYNC_STORAGECLASS: cephfs
       VOLSYNC_ACCESSMODES: ReadWriteMany
       VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
@@ -49,6 +48,9 @@ spec:
 
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
+
+      # hourly during migration — revert on Stage 3 settle
+      VOLSYNC_SCHEDULE: "0 * * * *"
 
     substituteFrom:
       - kind: Secret

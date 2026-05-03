@@ -17,7 +17,7 @@ resources:
   # - tautulli/
   # - seerr/
   # - jellystat/
-  - wiki-js/
+  # - wiki-js/  # migrated to apps/production/wiki-js (Stage 2, 2026-05-03)
   - grocy/
   # - stirling-pdf/
   # - bentopdf/
