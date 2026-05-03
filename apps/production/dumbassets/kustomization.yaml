@@ -21,7 +21,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/bootstrap
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -38,7 +38,6 @@ spec:
       CAPACITY: 5Gi
 
       VOLSYNC_REPO_PATH: dumbassets/data
-      VOLSYNC_SCHEDULE: "0 * * * *"
 
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
