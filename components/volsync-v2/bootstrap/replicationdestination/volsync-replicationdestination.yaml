@@ -20,9 +20,9 @@ spec:
     capacity: "${CAPACITY:=1Gi}"
 
     moverSecurityContext:
-      runAsUser: ${VOLSYNC_PUID:=1000}
-      runAsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroup: ${VOLSYNC_PGID:=1000}
+      runAsUser: ${VOLSYNC_RESTORE_PUID:=1000}
+      runAsGroup: ${VOLSYNC_RESTORE_PGID:=1000}
+      fsGroup: ${VOLSYNC_RESTORE_PGID:=1000}
 
     enableFileDeletion: true
     cleanupCachePVC: true
