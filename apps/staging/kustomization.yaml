@@ -50,7 +50,7 @@ resources:
   # - scrypted/  # migrated to apps/production/scrypted (Phase 1c, 2026-05-02)
   # - unpackerr/
   - opencut/
-  - crafty/
+  # - crafty/  # migrated to apps/production/crafty (Phase 1c, 2026-05-03)
   - dumbdo/
   # - joplin/  # migrated to apps/production/joplin (Phase 1c, 2026-05-01)
   - lcshare/
