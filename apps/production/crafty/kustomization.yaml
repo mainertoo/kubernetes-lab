@@ -60,6 +60,7 @@ spec:
       GATUS_PORT: "8443"
       GATUS_SCHEME: https
       GATUS_STATUS_INTERNAL: "302"
+      GATUS_INSECURE: "true"
 
     substituteFrom:
       - kind: Secret
