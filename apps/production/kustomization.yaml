@@ -67,6 +67,9 @@ resources:
   - crafty/kustomization.yaml
   - wiki-js/
 
+  - loki/kustomization.yaml
+  - alloy/kustomization.yaml
+
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
   # - it-tools/kustomization.yaml

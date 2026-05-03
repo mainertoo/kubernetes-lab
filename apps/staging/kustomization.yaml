@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - podinfo/
+  # podinfo removed — test app, not needed
   - homepage/
   - zurg/
   - rclone/
@@ -61,8 +61,8 @@ resources:
   - kube-prometheus-stack/
   - grafana/
   - gatus/
-  - loki/
-  - alloy/
+  # - loki/   # migrated to apps/production/loki (2026-05-03)
+  # - alloy/  # migrated to apps/production/alloy (2026-05-03)
 
   # home-automation
   # - home-assistant/
