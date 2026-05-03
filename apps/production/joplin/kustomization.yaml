@@ -52,6 +52,9 @@ spec:
       # postgres user — must match the uid that owns the data files
       VOLSYNC_PUID: "999"
       VOLSYNC_PGID: "999"
+      # restore uid must also be 999 so postgres can read its own files after bootstrap
+      VOLSYNC_RESTORE_PUID: "999"
+      VOLSYNC_RESTORE_PGID: "999"
 
       # --- gatus health checks ---
       SUBDOMAIN: *app
