@@ -5,7 +5,6 @@ endpoints:
     interval: 1m
     client:
       insecure: ${GATUS_INSECURE:=false}
-      dont-follow-redirects: ${GATUS_DONT_FOLLOW_REDIRECTS:=false}
     conditions:
       - "[STATUS] == ${GATUS_STATUS_INTERNAL:=200}"
     alerts:
