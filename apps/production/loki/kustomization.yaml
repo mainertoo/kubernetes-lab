@@ -19,3 +19,17 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: loki
+
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /ready
+      GATUS_PORT: "3100"
