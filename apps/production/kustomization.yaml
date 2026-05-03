@@ -65,6 +65,7 @@ resources:
   - kitchenowl/kustomization.yaml
   - scrypted/kustomization.yaml
   - crafty/kustomization.yaml
+  - wiki-js/
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
