@@ -320,6 +320,60 @@ That's the whole settle commit. On reconcile, Flux prunes the now-orphaned `${AP
 
 ---
 
+## Multi-PVC apps (e.g. app + sidecar postgres)
+
+Apps with more than one PVC (e.g. wiki-js with `wiki-js-data` cephfs + `wiki-js-db` rbd-postgres) use the **dawarich pattern**: split into multiple Flux Kustomizations under a shared `apps/production/<app>/` directory, each owning one PVC.
+
+### Directory layout
+
+```
+apps/production/wiki-js/
+├── kustomization.yaml    # Kustomize parent — lists app.yaml, data.yaml, db.yaml
+├── app.yaml              # Flux Kustomization → apps/base/wiki-js (HelmRelease + gatus)
+├── data.yaml             # Flux Kustomization → apps/base/empty  (cephfs PVC + RS)
+└── db.yaml               # Flux Kustomization → apps/base/empty  (rbd PVC + RS, postgres)
+```
+
+The parent `kustomization.yaml` is a **plain Kustomize kustomization** (`kustomize.config.k8s.io/v1beta1`) that lists the three files as resources. In `apps/production/kustomization.yaml`, reference it as `wiki-js/` (folder shorthand) — **not** `wiki-js/kustomization.yaml`. Kustomize recurses into the folder and renders the three Flux Kustomization objects as resources; using the explicit filename treats it as a raw object and fails.
+
+### Naming convention
+
+Each sub-kustomization uses a unique `APP` that becomes the PVC name and the restic repo Secret name:
+
+| Sub-kustomization | `APP` | PVC created | `VOLSYNC_REPO_PATH` | PUID |
+|---|---|---|---|---|
+| `app.yaml` | `wiki-js` | — (no volsync component) | — | — |
+| `data.yaml` | `wiki-js-data` | `wiki-js-data` (cephfs 20Gi) | `wiki-js/data` | 1000 |
+| `db.yaml` | `wiki-js-db` | `wiki-js-db` (rbd 10Gi) | `wiki-js/postgres` | 999 |
+
+`APP_NAMESPACE` is always the shared app namespace (e.g. `wiki-js`) — **not** the `APP` value.
+
+If the staging PVC names don't match the target names (e.g. `wiki-js-postgres` → `wiki-js-db`), set `VOLSYNC_SOURCE_PVC: wiki-js-postgres` in Stage 1 `backup-only`, and update `existingClaim` in the HelmRelease during Stage 2.
+
+### Stage differences vs single-PVC
+
+**Stage 1:** Create `data.yaml` and `db.yaml` each with `backup-only` + `path: ./apps/base/empty`. `app.yaml` is NOT created yet — the staging HelmRelease continues to serve. Add `wiki-js/` to `apps/production/kustomization.yaml` (folder reference).
+
+**Stage 2:** 
+- Switch `data.yaml` + `db.yaml` from `backup-only` → `bootstrap`
+- Create `app.yaml` pointing at `apps/base/<app>` with gatus components
+- Comment out static PVC manifests in `apps/base/<app>/kustomization.yaml` for both PVCs
+- Update any `existingClaim` references in the HelmRelease that changed names
+- Comment out staging in `apps/staging/kustomization.yaml`
+
+**Stage 3:** Switch both `data.yaml` and `db.yaml` from `bootstrap` → `volsync-v2`, remove `VOLSYNC_SCHEDULE` overrides from both.
+
+### Restore considerations
+
+Each sub-kustomization restores independently. If you need to restore from a DR scenario:
+- `data.yaml` and `db.yaml` each have their own `${APP}-bootstrap` RD and PVC
+- They restore in parallel — no ordering dependency
+- **However:** if the app (e.g. postgres) must initialize from the DB backup, ensure the app pod doesn't start before both PVCs are bound. Set `wait: true` on `app.yaml` to block until its resources are ready, or use pod `initContainers` / readiness probes to handle the race
+
+The postgres PUID note still applies: `VOLSYNC_RESTORE_PUID: "999"` must be set on the db sub-kustomization (same as single-PVC postgres apps).
+
+---
+
 ## Other scenarios this enables
 
 ### Cross-cluster migration (future second cluster)

@@ -58,6 +58,8 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "10443"
+      GATUS_SCHEME: https
+      GATUS_STATUS_INTERNAL: "302"
 
     substituteFrom:
       - kind: Secret
