@@ -19,3 +19,13 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+
+  components:
+    - ../../../components/gatus/internal
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: alloy
+
+      GATUS_PORT: "12345"
