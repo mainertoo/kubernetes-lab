@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app alloy
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/alloy
+  targetNamespace: alloy
+
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
