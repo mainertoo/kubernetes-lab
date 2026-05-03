@@ -7,7 +7,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  path: ./apps/base/dumbdo
   targetNamespace: dumbdo
 
   prune: true
@@ -15,26 +15,48 @@ spec:
   timeout: 10m
   wait: false
 
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
 
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: dumbdo
 
-      VOLSYNC_SOURCE_PVC: dumbdo
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      CAPACITY: 2Gi
+
       VOLSYNC_REPO_PATH: dumbdo/data
       VOLSYNC_SCHEDULE: "0 * * * *"
 
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
+
+      # --- gatus ---
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "3000"
 
     substituteFrom:
       - kind: Secret
