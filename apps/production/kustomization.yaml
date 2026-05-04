@@ -67,6 +67,8 @@ resources:
   - crafty/kustomization.yaml
   - wiki-js/
   - it-tools/kustomization.yaml
+  - homepage/kustomization.yaml
+  - lcshare/kustomization.yaml
   - omni-tools/kustomization.yaml
   - drawio/kustomization.yaml
   - zurg/kustomization.yaml
@@ -83,7 +85,6 @@ resources:
   - grafana/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
-  # - homepage/kustomization.yaml
   # - huginn/
   # - spoolman/kustomization.yaml
   # - n8n/
