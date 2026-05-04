@@ -10,4 +10,3 @@ resources:
   - rancher-authconfig.yaml
   - rancher-backup-secret.sops.yaml
   - rancher-backup-operator.yaml
-  - rancher-backup-schedule.yaml
