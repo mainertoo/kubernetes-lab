@@ -1,7 +1,6 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 2 — full lcshare deployment with volsync bootstrap restore.
-# After first RS succeeds post-migration, settle to volsync-v2 (Stage 3).
+# Stage 3 (settled) — lcshare on production with volsync-v2 ongoing backup.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -24,7 +23,7 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2/bootstrap
+    - ../../../components/volsync-v2
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
@@ -37,7 +36,6 @@ spec:
       GATUS_PORT: "8080"
       GATUS_PATH: /
       VOLSYNC_REPO_PATH: lcshare/data
-      VOLSYNC_SCHEDULE: "0 * * * *"
       CAPACITY: 5Gi
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
