@@ -1,0 +1,32 @@
+---
+apiVersion: resources.cattle.io/v1
+kind: ResourceSet
+metadata:
+  name: rancher-resource-set
+  namespace: cattle-system
+spec:
+  resourceSelectors:
+  - apiVersion: management.cattle.io/v3
+    excludeKinds:
+      - Token
+    nameRegex: ""
+  - apiVersion: project.cattle.io/v3
+    nameRegex: ""
+---
+apiVersion: resources.cattle.io/v1
+kind: Backup
+metadata:
+  name: rancher-daily-backup
+  namespace: cattle-system
+spec:
+  resourceSetName: rancher-resource-set
+  schedule: "0 2 * * *"
+  retentionCount: 10
+  storageLocation:
+    s3:
+      bucketName: volsync
+      folder: rancher-backup
+      region: us-west-1
+      endpoint: https://garage.lab.mainertoo.com
+      credentialSecretName: rancher-s3-backup-creds
+      credentialSecretNamespace: cattle-system

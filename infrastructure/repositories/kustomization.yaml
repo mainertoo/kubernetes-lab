@@ -9,5 +9,6 @@ resources:
   - app-template.yaml
   - bjw-s.yaml
   - helm-rancher.yaml
+  - helm-rancher-backup.yaml
   - helm-intel.yaml
   - helm-kyverno.yaml
