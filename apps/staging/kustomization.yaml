@@ -59,7 +59,7 @@ resources:
 
   # Monitoring (staging)
   # - kube-prometheus-stack/  # migrated to apps/production/kube-prometheus-stack (2026-05-04)
-  - grafana/  # Stage 1 volsync pre-flight in progress — kept in staging until Stage 2
+  # - grafana/  # migrated to apps/production/grafana (Stage 2, 2026-05-04)
   # - gatus/  # migrated to apps/production/gatus (2026-05-04)
   # - loki/   # migrated to apps/production/loki (2026-05-03)
   # - alloy/  # migrated to apps/production/alloy (2026-05-03)
