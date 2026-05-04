@@ -4,7 +4,7 @@ resources:
   # Active — awaiting migration or special handling
   # - homepage/  # migrated to apps/production/homepage (Stage 2, 2026-05-04)
   # - lcshare/   # migrated to apps/production/lcshare (Stage 2, 2026-05-04)
-  - convertx/
+  # - convertx/  # migrated to apps/production/convertx (2026-05-04)
   - opencut/
 
   # Disabled — not currently deployed in staging or production
