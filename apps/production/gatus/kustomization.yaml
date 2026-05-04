@@ -25,6 +25,3 @@ spec:
     substitute:
       APP: *app
       SUBDOMAIN: *app
-    substituteFrom:
-      - kind: Secret
-        name: gatus-secrets
