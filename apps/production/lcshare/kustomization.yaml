@@ -1,8 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 1 — volsync backup-only pre-flight.
-# lcshare continues to run in staging. This Kustomization backs up the live
-# staging PVC to Garage S3. Replace with full deployment in Stage 2.
+# Stage 2 — full lcshare deployment with volsync bootstrap restore.
+# After first RS succeeds post-migration, settle to volsync-v2 (Stage 3).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -10,7 +9,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  path: ./apps/base/lcshare
   targetNamespace: lcshare
   prune: true
   retryInterval: 2m
@@ -25,15 +24,21 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: lcshare
-      VOLSYNC_SOURCE_PVC: lcshare
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PORT: "8080"
+      GATUS_PATH: /
       VOLSYNC_REPO_PATH: lcshare/data
       VOLSYNC_SCHEDULE: "0 * * * *"
+      CAPACITY: 5Gi
       VOLSYNC_STORAGECLASS: ceph-rbd
       VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
       VOLSYNC_ACCESSMODES: ReadWriteOnce
@@ -43,6 +48,8 @@ spec:
       VOLSYNC_CACHE_CAPACITY: 2Gi
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
+      VOLSYNC_RESTORE_PUID: "1000"
+      VOLSYNC_RESTORE_PGID: "1000"
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base
