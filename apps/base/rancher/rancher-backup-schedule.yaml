@@ -4,14 +4,13 @@ kind: ResourceSet
 metadata:
   name: rancher-resource-set
   namespace: cattle-system
-spec:
-  resourceSelectors:
-  - apiVersion: management.cattle.io/v3
-    excludeKinds:
-      - Token
-    nameRegex: ""
-  - apiVersion: project.cattle.io/v3
-    nameRegex: ""
+resourceSelectors:
+- apiVersion: management.cattle.io/v3
+  excludeKinds:
+    - Token
+  nameRegex: ""
+- apiVersion: project.cattle.io/v3
+  nameRegex: ""
 ---
 apiVersion: resources.cattle.io/v1
 kind: Backup
