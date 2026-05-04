@@ -3,6 +3,9 @@ kind: Kustomization
 namespace: zurg
 resources:
   - zurg-namespace.yaml
+  - zurg-config.sops.yaml
+  - zurg-secret.sops.yaml
+  - zurg-ghcr-pull.sops.yaml
   - zurg-deployment.yaml
   - zurg-service.yaml
   - zurg-ingressroute.yaml
