@@ -1,33 +1,27 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # podinfo removed — test app, not needed
+  # Active — awaiting migration or special handling
   - homepage/
-  # - zurg/  # migrated to apps/production/zurg (2026-05-04)
-  # - rclone/  # migrated to apps/production/rclone (2026-05-04)
+  - lcshare/
+  - convertx/
+  - opencut/
+
+  # Disabled — not currently deployed in staging or production
   # - riven/
   # - plex/
   # - vaultwarden/
   # - paperless-ngx/
   # - authentik/
-  # - rancher/  # migrated to apps/production/rancher (2026-05-03)
   # - jellyfin/
   # - jackett/
   # - zilean/
   # - tautulli/
   # - seerr/
   # - jellystat/
-  # - wiki-js/  # migrated to apps/production/wiki-js (Stage 2, 2026-05-03)
-  # - grocy/  # migrated to apps/production/grocy (2026-05-04)
   # - stirling-pdf/
   # - bentopdf/
   # - audiobookshelf/
-  # - code-server/  # migrated to apps/production/code-server (Phase 1c, 2026-05-01)
-  # - it-tools/  # migrated to apps/production/it-tools (2026-05-04)
-  # - omni-tools/  # migrated to apps/production/omni-tools (2026-05-04)
-  # - mealie/  # migrated to apps/production/mealie (2026-05-04)
-  # - tandoor/  # migrated to apps/production/tandoor (Phase 1c, 2026-05-02)
-  # - kitchenowl/  # migrated to apps/production/kitchenowl (Phase 1c, 2026-05-02)
   # - dispatcharr/
   # - decypharr/
   # - prowlarr/
@@ -43,28 +37,9 @@ resources:
   # - calibre/
   # - notifiarr/
   # - actual-budget/
-  # - expense-owl/  # migrated to apps/production/expense-owl (Phase 1c, 2026-05-02)
-  # - dumbassets/  # migrated to apps/production/dumbassets (Stage 2, 2026-05-03)
-  # - memos/  # migrated to apps/production/memos (Phase 1c, 2026-05-02)
-  # - donetick/  # migrated to apps/production/donetick (Phase 1c PoC, 2026-05-01)
-  # - scrypted/  # migrated to apps/production/scrypted (Phase 1c, 2026-05-02)
   # - unpackerr/
-  - opencut/
-  # - crafty/  # migrated to apps/production/crafty (Phase 1c, 2026-05-03)
-  # - dumbdo/  # migrated to apps/production/dumbdo (Stage 2, 2026-05-03)
-  # - joplin/  # migrated to apps/production/joplin (Phase 1c, 2026-05-01)
-  - lcshare/
-  - convertx/
-  # - drawio/  # migrated to apps/production/drawio (2026-05-04)
 
-  # Monitoring (staging)
-  # - kube-prometheus-stack/  # migrated to apps/production/kube-prometheus-stack (2026-05-04)
-  # - grafana/  # migrated to apps/production/grafana (Stage 2, 2026-05-04)
-  # - gatus/  # migrated to apps/production/gatus (2026-05-04)
-  # - loki/   # migrated to apps/production/loki (2026-05-03)
-  # - alloy/  # migrated to apps/production/alloy (2026-05-03)
-
-  # home-automation
+  # home-automation (disabled)
   # - home-assistant/
   # - zigbee2mqtt/
   # - mosquitto/

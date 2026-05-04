@@ -1,8 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: zurg
-resources:
-  - ../../base/zurg
-  - zurg-config.sops.yaml
-  - zurg-secret.sops.yaml
-  - zurg-ghcr-pull.sops.yaml
