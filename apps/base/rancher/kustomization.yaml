@@ -9,4 +9,5 @@ resources:
   - rancher-ingressroute.yaml
   - rancher-authconfig.yaml
   - rancher-backup-secret.sops.yaml
+  - rancher-backup-crds.yaml
   - rancher-backup-operator.yaml

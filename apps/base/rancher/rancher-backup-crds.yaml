@@ -1,25 +1,20 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: rancher-backup-operator
+  name: rancher-backup-crd
   namespace: cattle-system
 spec:
   interval: 30m
-  timeout: 10m
-  releaseName: rancher-backup
+  timeout: 5m
+  releaseName: rancher-backup-crd
   chart:
     spec:
-      chart: rancher-backup
+      chart: rancher-backup-crd
       version: 109.0.2+up10.0.2
       sourceRef:
         kind: HelmRepository
         name: rancher-charts
         namespace: flux-system
-  dependsOn:
-    - name: rancher-backup-crd
   targetNamespace: cattle-resources-system
   install:
     createNamespace: true
-  values:
-    persistence:
-      enabled: false
