@@ -1,18 +1,17 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # Stage 1 — volsync backup-only pre-flight.
-# homepage continues to run in staging. This Kustomization backs up the live
-# staging PVC (homepage-config, cephfs) to Garage S3.
-# Note: PVC is named homepage-config (not homepage); use existingClaim: homepage in Stage 2.
+# lcshare continues to run in staging. This Kustomization backs up the live
+# staging PVC to Garage S3. Replace with full deployment in Stage 2.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app homepage
+  name: &app lcshare
   namespace: flux-system
 spec:
   interval: 1h
   path: ./apps/base/empty
-  targetNamespace: homepage
+  targetNamespace: lcshare
   prune: true
   retryInterval: 2m
   timeout: 10m
@@ -31,17 +30,17 @@ spec:
   postBuild:
     substitute:
       APP: *app
-      APP_NAMESPACE: homepage
-      VOLSYNC_SOURCE_PVC: homepage-config
-      VOLSYNC_REPO_PATH: homepage/config
+      APP_NAMESPACE: lcshare
+      VOLSYNC_SOURCE_PVC: lcshare
+      VOLSYNC_REPO_PATH: lcshare/data
       VOLSYNC_SCHEDULE: "0 * * * *"
-      VOLSYNC_STORAGECLASS: cephfs
-      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-      VOLSYNC_ACCESSMODES: ReadWriteMany
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
       VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
       VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
+      VOLSYNC_CACHE_CAPACITY: 2Gi
       VOLSYNC_PUID: "1000"
       VOLSYNC_PGID: "1000"
     substituteFrom:
