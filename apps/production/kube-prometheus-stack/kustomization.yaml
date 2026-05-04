@@ -3,24 +3,21 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app kube-prometheus-stack
+  name: kube-prometheus-stack
   namespace: flux-system
 spec:
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
   interval: 1h
   path: ./apps/base/kube-prometheus-stack
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: alertmanager-secret-vars      
+  targetNamespace: kube-prometheus-stack
   prune: true
   retryInterval: 2m
+  timeout: 10m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: &namespace kube-prometheus-stack
-  timeout: 5m
-  wait: false
