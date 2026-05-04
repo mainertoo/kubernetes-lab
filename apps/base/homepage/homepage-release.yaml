@@ -83,7 +83,7 @@ spec:
 
     persistence:
       config:
-        existingClaim: homepage-config
+        existingClaim: homepage
         advancedMounts:
           homepage:
             app:

@@ -4,7 +4,8 @@ namespace: homepage
 resources:
   - homepage-namespace.yaml
   - homepage-default-configmap.yaml
-  - homepage-config-pvc.yaml
+  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle)
+  # - homepage-config-pvc.yaml
   - homepage-rbac.yaml
   - homepage-release.yaml
   - homepage-ingressroute.yaml
