@@ -66,6 +66,11 @@ resources:
   - scrypted/kustomization.yaml
   - crafty/kustomization.yaml
   - wiki-js/
+  - it-tools/kustomization.yaml
+  - omni-tools/kustomization.yaml
+  - drawio/kustomization.yaml
+  - zurg/kustomization.yaml
+  - rclone/kustomization.yaml
 
   - loki/kustomization.yaml
   - alloy/kustomization.yaml
@@ -79,14 +84,10 @@ resources:
 
   ## old resources list (apps that have been disabled)
   # - homepage/kustomization.yaml
-  # - it-tools/kustomization.yaml
-  # - zurg/
-  # - rclone/
   # - huginn/
   # - spoolman/kustomization.yaml
   # - n8n/
   # - paperless-ngx/kustomization.yaml
-  # - omni-tools/kustomization.yaml
   # - decypharr/kustomization.yaml
   # - notifiarr/kustomization.yaml
   
