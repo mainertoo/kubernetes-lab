@@ -7,3 +7,7 @@ resources:
   - rancher-bootstrap.sops.yaml
   - rancher-release.yaml
   - rancher-ingressroute.yaml
+  - rancher-authconfig.yaml
+  - rancher-backup-secret.sops.yaml
+  - rancher-backup-operator.yaml
+  - rancher-backup-schedule.yaml
