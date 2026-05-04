@@ -1,14 +1,23 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-namespace: zurg
-resources:
-  - ../../base/zurg
-configMapGenerator:
-  - name: zurg-config
-    files:
-      - config.yml=zurg-config.yaml
-secretGenerator:
-  - name: zurg-secret
-    files:
-      - secret.yml=zurg-secret.yaml
-    type: Opaque      
+metadata:
+  name: zurg
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/zurg
+  targetNamespace: zurg
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
