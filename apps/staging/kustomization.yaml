@@ -18,14 +18,14 @@ resources:
   # - seerr/
   # - jellystat/
   # - wiki-js/  # migrated to apps/production/wiki-js (Stage 2, 2026-05-03)
-  - grocy/
+  # - grocy/  # migrated to apps/production/grocy (2026-05-04)
   # - stirling-pdf/
   # - bentopdf/
   # - audiobookshelf/
   # - code-server/  # migrated to apps/production/code-server (Phase 1c, 2026-05-01)
   - it-tools/
   - omni-tools/
-  - mealie/
+  # - mealie/  # migrated to apps/production/mealie (2026-05-04)
   # - tandoor/  # migrated to apps/production/tandoor (Phase 1c, 2026-05-02)
   # - kitchenowl/  # migrated to apps/production/kitchenowl (Phase 1c, 2026-05-02)
   # - dispatcharr/
@@ -58,9 +58,9 @@ resources:
   - drawio/
 
   # Monitoring (staging)
-  - kube-prometheus-stack/
-  - grafana/
-  - gatus/
+  # - kube-prometheus-stack/  # migrated to apps/production/kube-prometheus-stack (2026-05-04)
+  - grafana/  # Stage 1 volsync pre-flight in progress — kept in staging until Stage 2
+  # - gatus/  # migrated to apps/production/gatus (2026-05-04)
   # - loki/   # migrated to apps/production/loki (2026-05-03)
   # - alloy/  # migrated to apps/production/alloy (2026-05-03)
 
