@@ -70,6 +70,7 @@ resources:
   - loki/kustomization.yaml
   - alloy/kustomization.yaml
   - rancher/kustomization.yaml
+  - rancher-backup-schedule/kustomization.yaml
   - dumbassets/kustomization.yaml
   - dumbdo/kustomization.yaml
 
