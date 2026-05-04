@@ -49,13 +49,7 @@ spec:
 
     persistence:
       enabled: true
-      type: pvc
-      storageClassName: ceph-rbd
-      accessModes:
-        - ReadWriteOnce
-      size: 10Gi
-      finalizers:
-        - kubernetes.io/pvc-protection
+      existingClaim: grafana
 
     grafana.ini:
       analytics:

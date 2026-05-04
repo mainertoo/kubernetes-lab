@@ -1,9 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 1 — volsync backup-only pre-flight.
-# Grafana continues to run in staging. This Kustomization adds a
-# ReplicationSource to back up the live staging PVC to Garage S3.
-# Replace with full grafana deployment in Stage 2.
+# Stage 2 — full grafana deployment with volsync bootstrap restore.
+# Bootstrap pulls latest snapshot from grafana/data in Garage S3, creates the
+# grafana PVC, then grafana starts with its data intact.
+# After first RS succeeds post-migration, settle to volsync-v2 (Stage 3).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -11,7 +11,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  path: ./apps/base/grafana
   targetNamespace: grafana
   prune: true
   retryInterval: 2m
@@ -26,17 +26,26 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync-v2/bootstrap
     - ../../../components/volsync/remote
   postBuild:
     substitute:
       APP: *app
       APP_NAMESPACE: grafana
-      VOLSYNC_SOURCE_PVC: grafana
       VOLSYNC_REPO_PATH: grafana/data
       VOLSYNC_SCHEDULE: "0 * * * *"
+      CAPACITY: 10Gi
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 2Gi
       VOLSYNC_PUID: "472"
       VOLSYNC_PGID: "472"
+      VOLSYNC_RESTORE_PUID: "472"
+      VOLSYNC_RESTORE_PGID: "472"
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base
