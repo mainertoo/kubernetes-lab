@@ -1,22 +1,42 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Stage 1 — volsync backup-only pre-flight.
+# Grafana continues to run in staging. This Kustomization adds a
+# ReplicationSource to back up the live staging PVC to Garage S3.
+# Replace with full grafana deployment in Stage 2.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app grafana
   namespace: flux-system
 spec:
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
   interval: 1h
-  path: ./apps/base/grafana
+  path: ./apps/base/empty
+  targetNamespace: grafana
   prune: true
   retryInterval: 2m
+  timeout: 10m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: &namespace grafana
-  timeout: 5m
-  wait: false
+  components:
+    - ../../../components/volsync-v2/backup-only
+    - ../../../components/volsync/remote
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: grafana
+      VOLSYNC_SOURCE_PVC: grafana
+      VOLSYNC_REPO_PATH: grafana/data
+      VOLSYNC_SCHEDULE: "0 * * * *"
+      VOLSYNC_PUID: "472"
+      VOLSYNC_PGID: "472"
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
