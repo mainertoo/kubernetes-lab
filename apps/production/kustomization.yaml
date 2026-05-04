@@ -69,6 +69,7 @@ resources:
   - it-tools/kustomization.yaml
   - homepage/kustomization.yaml
   - lcshare/kustomization.yaml
+  - convertx/kustomization.yaml
   - omni-tools/kustomization.yaml
   - drawio/kustomization.yaml
   - zurg/kustomization.yaml
