@@ -76,3 +76,6 @@ Downloads/
 *.tar.gz
 *.tgz
 .DS_Store
+.DS_Store
+.claude/scheduled_tasks.lock
+.DS_Store
