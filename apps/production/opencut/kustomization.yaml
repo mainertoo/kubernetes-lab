@@ -31,3 +31,4 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PORT: "3000"
       GATUS_PATH: /api/health
+      GATUS_APP: opencut-web
