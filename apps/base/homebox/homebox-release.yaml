@@ -33,7 +33,7 @@ spec:
           main:
             image:
               repository: ghcr.io/sysadminsmedia/homebox
-              tag: v0.25.0
+              tag: "0.25.0"
             env:
               TZ: America/Los_Angeles
               HBOX_MODE: production
@@ -48,7 +48,7 @@ spec:
               # the Authentik OAuth2 provider and populating the secret.
               # Redirect URI to register in Authentik:
               #   https://homebox.lab.mainertoo.com/api/v1/users/login/oidc/callback
-              HBOX_OIDC_ENABLED: "false"
+              HBOX_OIDC_ENABLED: "true"
               HBOX_OIDC_ISSUER_URL: "https://authentik.lab.mainertoo.com/application/o/homebox/"
               HBOX_OIDC_SCOPE: "openid profile email"
               HBOX_OIDC_VERIFY_EMAIL: "true"
