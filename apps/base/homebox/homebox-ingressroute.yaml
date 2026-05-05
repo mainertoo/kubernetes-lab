@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: homebox-ingressroute
+  namespace: homebox
+  annotations:
+    gethomepage.dev/href: "https://homebox.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Homebox"
+    gethomepage.dev/description: "Home inventory management"
+    gethomepage.dev/app: homebox
+    gethomepage.dev/group: "Utilities"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/homebox.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`homebox.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: homebox
+          port: 7745
+          scheme: http
+  tls: {}
