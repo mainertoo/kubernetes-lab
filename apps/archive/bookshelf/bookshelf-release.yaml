@@ -1,11 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: readarr
+  name: bookshelf
   namespace: media
 spec:
   interval: 30m
-  releaseName: readarr
+  releaseName: bookshelf
 
   chartRef:
     kind: OCIRepository
@@ -33,7 +33,6 @@ spec:
       main:
         strategy: Recreate
 
-        # Ensure the per-app folder exists on the shared CephFS symlinks PVC
         initContainers:
           fix-symlinks-perms:
             image:
@@ -43,13 +42,13 @@ spec:
             args:
               - |
                 set -e
-                echo "Init symlinks dirs (readarr)..."
-                mkdir -p /mnt/symlinks/readarr
-                chown -R 1000:1000 /mnt/symlinks/readarr || true
-                chmod -R 0775 /mnt/symlinks/readarr || true
+                echo "Init symlinks dirs (bookshelf)..."
+                mkdir -p /mnt/symlinks/bookshelf
+                chown -R 1000:1000 /mnt/symlinks/bookshelf || true
+                chmod -R 0775 /mnt/symlinks/bookshelf || true
                 echo "Listing /mnt/symlinks:"
                 ls -la /mnt/symlinks || true
-                ls -la /mnt/symlinks/readarr || true
+                ls -la /mnt/symlinks/bookshelf || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -63,13 +62,11 @@ spec:
         containers:
           main:
             image:
-              repository: ghcr.io/faustvii/readarr
-              tag: 0.9.1
+              repository: ghcr.io/pennydreadful/bookshelf
+              tag: hardcover
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
-              READARR__AUTH__METHOD: External
-              READARR__AUTH__REQUIRED: DisabledForLocalAddresses
 
     defaultPodOptions:
       securityContext:
@@ -79,8 +76,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
-      # Prefer to schedule Readarr on the same node as Calibre.
-      # This reduces multi-node RWX attachments and avoids "still attached" cleanup noise later.
       affinity:
         podAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -103,23 +98,20 @@ spec:
             port: 8787
 
     persistence:
-      # Readarr config (ceph-rbd PVC named "readarr")
       config:
         enabled: true
-        existingClaim: readarr
+        existingClaim: bookshelf
         advancedMounts:
           main:
             main:
               - path: /config
 
-      # QNAP media share (RW)
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
 
-      # Your decypharr visible hostPath (kept as-is)
       rclone:
         type: hostPath
         hostPath: /mnt/decypharr
@@ -127,16 +119,12 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Shared symlinks (CephFS RWX PVC)
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
         globalMounts:
           - path: /mnt/symlinks
 
-      # Calibre library (CephFS RWX PVC) - RW as requested
-      # This MUST match what Calibre is using:
-      #   /calibre-library/metadata.db
       calibre-library:
         enabled: true
         existingClaim: calibre-library-cephfs

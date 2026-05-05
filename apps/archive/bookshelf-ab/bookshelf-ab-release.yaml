@@ -1,12 +1,11 @@
-# /apps/base/media/speakarr/speakarr-release.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: speakarr
+  name: bookshelf-ab
   namespace: media
 spec:
   interval: 30m
-  releaseName: speakarr
+  releaseName: bookshelf-ab
 
   chartRef:
     kind: OCIRepository
@@ -19,11 +18,13 @@ spec:
     createNamespace: false
     remediation:
       retries: 3
+
   upgrade:
     force: true
     cleanupOnFail: true
     remediation:
       retries: 3
+
   uninstall:
     keepHistory: false
 
@@ -32,7 +33,6 @@ spec:
       main:
         strategy: Recreate
 
-        # Ensure the per-app folder exists on the shared CephFS symlinks PVC
         initContainers:
           fix-symlinks-perms:
             image:
@@ -42,13 +42,13 @@ spec:
             args:
               - |
                 set -e
-                echo "Init symlinks dirs (speakarr)..."
-                mkdir -p /mnt/symlinks/speakarr
-                chown -R 1000:1000 /mnt/symlinks/speakarr || true
-                chmod -R 0775 /mnt/symlinks/speakarr || true
+                echo "Init symlinks dirs (bookshelf-ab)..."
+                mkdir -p /mnt/symlinks/bookshelf-ab
+                chown -R 1000:1000 /mnt/symlinks/bookshelf-ab || true
+                chmod -R 0775 /mnt/symlinks/bookshelf-ab || true
                 echo "Listing /mnt/symlinks:"
                 ls -la /mnt/symlinks || true
-                ls -la /mnt/symlinks/speakarr || true
+                ls -la /mnt/symlinks/bookshelf-ab || true
                 echo "Done."
             securityContext:
               runAsUser: 0
@@ -62,13 +62,11 @@ spec:
         containers:
           main:
             image:
-              repository: ghcr.io/faustvii/readarr
-              tag: 0.9.1
+              repository: ghcr.io/pennydreadful/bookshelf
+              tag: hardcover
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
-              READARR__AUTH__METHOD: External
-              READARR__AUTH__REQUIRED: DisabledForLocalAddresses
 
     defaultPodOptions:
       securityContext:
@@ -77,6 +75,7 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -99,13 +98,12 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: speakarr
+        existingClaim: bookshelf-ab
         advancedMounts:
           main:
             main:
               - path: /config
 
-      # Mount QNAP ONCE at /data (use /data/torrents inside the app)
       qnap-media:
         enabled: true
         existingClaim: qnap-media-pvc
@@ -119,9 +117,6 @@ spec:
           - path: /mnt/decypharr
             readOnly: true
 
-      # Shared symlinks (CephFS RWX PVC)
-      # Mount the whole share at /mnt/symlinks (no subPath),
-      # and Speakarr uses /mnt/symlinks/speakarr inside it.
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs
