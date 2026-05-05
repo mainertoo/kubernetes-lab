@@ -5,7 +5,7 @@ resources:
   # - homepage/  # migrated to apps/production/homepage (Stage 2, 2026-05-04)
   # - lcshare/   # migrated to apps/production/lcshare (Stage 2, 2026-05-04)
   # - convertx/  # migrated to apps/production/convertx (2026-05-04)
-  - opencut/
+  # - opencut/  # migrated to apps/production/opencut (2026-05-04)
 
   # Disabled — not currently deployed in staging or production
   # - riven/
