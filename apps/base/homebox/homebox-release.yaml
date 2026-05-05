@@ -51,7 +51,7 @@ spec:
               HBOX_OIDC_ENABLED: "true"
               HBOX_OIDC_ISSUER_URL: "https://authentik.lab.mainertoo.com/application/o/homebox/"
               HBOX_OIDC_SCOPE: "openid profile email"
-              HBOX_OIDC_VERIFY_EMAIL: "true"
+              HBOX_OIDC_VERIFY_EMAIL: "false"
               HBOX_OIDC_AUTO_REDIRECT: "false"
               HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "true"
 
