@@ -1,0 +1,89 @@
+---
+name: Build opencut
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — check upstream for new releases
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Upstream tag to build (e.g. v0.3.0). Leave blank to use latest release."
+        required: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mainertoo/opencut
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Get target upstream tag
+        id: upstream
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG=$(curl -fsSL https://api.github.com/repos/opencut-app/opencut/releases/latest \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              | jq -r '.tag_name')
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building opencut $TAG"
+
+      - name: Check if image already exists for this tag
+        id: check
+        run: |
+          if docker manifest inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.upstream.outputs.tag }} \
+            > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Image already exists — skipping build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Image not found — will build"
+          fi
+
+      - name: Clone upstream at tag
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git clone --depth 1 \
+            --branch ${{ steps.upstream.outputs.tag }} \
+            https://github.com/opencut-app/opencut.git \
+            opencut-src
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: opencut-src
+          file: opencut-src/apps/web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.upstream.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            FREESOUND_CLIENT_ID=${{ secrets.OPENCUT_FREESOUND_CLIENT_ID }}
+            FREESOUND_API_KEY=${{ secrets.OPENCUT_FREESOUND_API_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/opencut-app/opencut
+            org.opencontainers.image.revision=${{ steps.upstream.outputs.tag }}

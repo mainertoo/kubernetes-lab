@@ -90,8 +90,8 @@ spec:
         containers:
           main:
             image:
-              repository: ghcr.io/reesmorris/opencut
-              tag: latest
+              repository: ghcr.io/mainertoo/opencut
+              tag: v0.3.0
             env:
               TZ: America/Los_Angeles
               NODE_ENV: production
