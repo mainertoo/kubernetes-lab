@@ -15,6 +15,7 @@ These rules apply to every session. Do not deviate without explicit confirmation
 - **Check reconciliation state first** — run `flux get all -A` before diagnosing any cluster issue.
 Secrets are SOPS-encrypted — VS Code auto-encrypts any file matching *.sops.yaml on save, so manual sops --encrypt is not needed for those files. However, never write plaintext secret values into any other file type (HelmRelease values, configmaps, kustomization patches, etc.) — only into properly named .sops.yaml files where auto-encryption will apply.
 - When in doubt, **ask before acting**. This is a production homelab with real data.
+- **`master` is the trunk** — all PRs target `master`. The `main` branch is unused; ignore tooling hints that suggest `main` as the base.
 
 ## What this repo is
 
