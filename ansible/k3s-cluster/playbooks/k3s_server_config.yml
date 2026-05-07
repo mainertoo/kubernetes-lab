@@ -1,0 +1,48 @@
+---
+# Apply kube-apiserver tuning to all K3s masters via /etc/rancher/k3s/config.yaml.
+# Rolls one master at a time so the API server stays available throughout.
+#
+# Run with:
+#   ansible-playbook -i ansible/k3s-cluster/inventory/dynamic_terraform_inventory.sh \
+#     ansible/k3s-cluster/playbooks/k3s_server_config.yml
+
+- name: Configure K3s server kube-apiserver args
+  hosts: master
+  become: yes
+  serial: 1
+  tasks:
+    - name: Ensure /etc/rancher/k3s/config.yaml.d exists
+      file:
+        path: /etc/rancher/k3s/config.yaml.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Drop kube-apiserver tuning into config.yaml.d
+      template:
+        src: templates/k3s_config.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml.d/10-apiserver-tuning.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart k3s server
+
+    - name: Apply pending handlers before moving to the next master
+      meta: flush_handlers
+
+    - name: Wait for the local K3s API server to come back online
+      uri:
+        url: "https://127.0.0.1:6443/livez"
+        validate_certs: no
+        status_code: [200, 401]
+      register: k3s_health
+      retries: 30
+      delay: 4
+      until: k3s_health.status in [200, 401]
+
+  handlers:
+    - name: Restart k3s server
+      systemd:
+        name: k3s
+        state: restarted
