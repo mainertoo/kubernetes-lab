@@ -66,6 +66,7 @@ resources:
   - convertx/kustomization.yaml
   - opencut/kustomization.yaml
   - homebox/kustomization.yaml
+  - wallos/kustomization.yaml
   - omni-tools/kustomization.yaml
   - drawio/kustomization.yaml
   - zurg/kustomization.yaml
