@@ -3,3 +3,74 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+- flux-pdbs.yaml
+patches:
+  # Scale the four Flux controllers to 2 replicas each. They use
+  # leader election internally, so the second pod is a hot standby
+  # that takes over within seconds if the leader's node dies.
+  # Topology spread is "ScheduleAnyway" so a degraded cluster
+  # (e.g. 2/3 workers down) never leaves Flux Pending.
+  - target:
+      kind: Deployment
+      name: source-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: source-controller
+  - target:
+      kind: Deployment
+      name: kustomize-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: kustomize-controller
+  - target:
+      kind: Deployment
+      name: helm-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: helm-controller
+  - target:
+      kind: Deployment
+      name: notification-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: notification-controller

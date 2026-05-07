@@ -27,18 +27,65 @@ spec:
       retries: 3
   values:
     admissionController:
-      replicas: 1
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: admission-controller
+              app.kubernetes.io/instance: kyverno
       serviceMonitor:
         enabled: true
+
     backgroundController:
-      replicas: 1
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: background-controller
+              app.kubernetes.io/instance: kyverno
       serviceMonitor:
         enabled: true
+
     cleanupController:
-      replicas: 1
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: cleanup-controller
+              app.kubernetes.io/instance: kyverno
       serviceMonitor:
         enabled: true
+
     reportsController:
-      replicas: 1
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: reports-controller
+              app.kubernetes.io/instance: kyverno
       serviceMonitor:
         enabled: true
