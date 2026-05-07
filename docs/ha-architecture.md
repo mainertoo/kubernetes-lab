@@ -110,13 +110,13 @@ These look like HA gaps but aren't:
 
 - **cloudflared** — each replica creates an independent tunnel connection to Cloudflare's edge. Multi-replica = multi-tunnel; only one service (seerr) uses it; the cluster's primary ingress is via Pangolin/newt.
 - **newt** (Pangolin agent) — same architectural pattern as cloudflared. Multi-newt HA is supported by Pangolin server but requires explicit server-side configuration; not the default and not currently set up.
+- **tailscale-operator** — research complete (May 2026): the chart does **not** expose `replicaCount`, leader election, PDB, or topologySpreadConstraints. The operator deployment is hardcoded to 1 replica in the chart template, and there's no `Lease` object in the `tailscale` namespace (operator doesn't run leader election by default). Multi-instance without leader election would split-brain on Tailscale-Service reconciliation. Mitigation: existing `ts-*` StatefulSet tunnels keep running while the operator is down — only *new* tunnel creation pauses, and the 30s eviction grace already cuts pod-recreation time from ~5min to ~45s. Don't add a PDB either — `minAvailable: 1` with `replicas: 1` blocks all voluntary drains.
 - **home-assistant**, **matter-server**, **esphome** — pinned to `worker-2` for hardware/mDNS reasons. Scaling out requires either RWX state migration or accepting a hostNetwork single-pod design.
 
 ---
 
 ## What's still single-replica (acknowledged)
 
-- **tailscale-operator** — operator chart supports HA but values come from a SOPS-encrypted secret; needs separate research before scaling. Tracked as next-session work.
 - **rancher**, **fleet-controller**, etc. — Rancher/Fleet's own HA story; not addressed here.
 - **kube-prometheus-stack** components — Prometheus is a single replica with persistent storage; clustering it is a Thanos / Mimir conversation, not a quick HA fix.
 
