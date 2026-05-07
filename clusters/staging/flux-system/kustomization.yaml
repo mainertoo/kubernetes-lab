@@ -6,27 +6,20 @@ resources:
   - cluster-secrets.sops.yaml
   - flux-pdbs.yaml
 patches:
-  # Scale the four Flux controllers to 2 replicas each. They use
-  # leader election internally, so the second pod is a hot standby
-  # that takes over within seconds if the leader's node dies.
-  # Topology spread is "ScheduleAnyway" so a degraded cluster
-  # (e.g. 2/3 workers down) never leaves Flux Pending.
-  - target:
-      kind: Deployment
-      name: source-controller
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-      - op: add
-        path: /spec/template/spec/topologySpreadConstraints
-        value:
-          - maxSkew: 1
-            topologyKey: kubernetes.io/hostname
-            whenUnsatisfiable: ScheduleAnyway
-            labelSelector:
-              matchLabels:
-                app: source-controller
+  # Scale the kustomize/helm/notification controllers to 2 replicas
+  # each. They use leader election internally, so the second pod is
+  # a hot standby that takes over within seconds if the leader's
+  # node dies. Topology spread is "ScheduleAnyway" so a degraded
+  # cluster never leaves Flux Pending.
+  #
+  # source-controller is intentionally NOT scaled here. Its standby
+  # pod never becomes Ready (port 9090 only binds after acquiring
+  # the leader lease), which makes kube-prometheus-stack alert on
+  # KubeDeploymentReplicasMismatch / KubeDeploymentRolloutStuck
+  # forever. With replicas: 1, the standard 30s eviction grace
+  # gives ~45s recovery on node failure -- comparable to the hot-
+  # standby benefit since source-controller's emptyDir cache is
+  # wiped on pod death anyway.
   - target:
       kind: Deployment
       name: kustomize-controller
