@@ -67,6 +67,7 @@ resources:
   - opencut/kustomization.yaml
   - homebox/kustomization.yaml
   - wallos/kustomization.yaml
+  - open-notebook/kustomization.yaml
   - omni-tools/kustomization.yaml
   - drawio/kustomization.yaml
   - zurg/kustomization.yaml

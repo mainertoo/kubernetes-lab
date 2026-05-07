@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: open-notebook
+resources:
+  - open-notebook-namespace.yaml
+  - open-notebook-secret.sops.yaml
+  - open-notebook-release.yaml
+  - open-notebook-ingressroute.yaml
