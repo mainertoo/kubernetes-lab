@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wallos-ingressroute
+  namespace: wallos
+  annotations:
+    gethomepage.dev/href: "https://wallos.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Wallos"
+    gethomepage.dev/description: "Self-hosted subscription tracker"
+    gethomepage.dev/app: wallos
+    gethomepage.dev/group: "Utilities"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/wallos.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`wallos.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: wallos
+          port: 80
+          scheme: http
+  tls: {}
