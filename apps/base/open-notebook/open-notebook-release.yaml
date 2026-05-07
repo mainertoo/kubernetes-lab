@@ -39,8 +39,10 @@ spec:
               SURREAL_URL: ws://localhost:8000/rpc
               SURREAL_NAMESPACE: open_notebook
               SURREAL_DATABASE: open_notebook
-              API_URL: http://localhost:5055
-              NEXT_PUBLIC_API_URL: https://open-notebook.lab.mainertoo.com/api
+              # Public URL used for callbacks/webhooks; bare domain (no /api).
+              # Next.js handles /api/* rewrites internally on port 8502.
+              API_URL: https://open-notebook.lab.mainertoo.com
+              # SSR calls the local FastAPI directly on the same pod.
               INTERNAL_API_URL: http://localhost:5055
             envFrom:
               - secretRef:

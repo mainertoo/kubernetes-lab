@@ -16,15 +16,9 @@ spec:
     - websecure
     - web
   routes:
-    - match: Host(`open-notebook.lab.mainertoo.com`) && PathPrefix(`/api`)
-      kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
-      services:
-        - name: open-notebook
-          port: 5055
-          scheme: http
+    # Open Notebook v1.1+ uses Next.js rewrites: /api/* is proxied internally
+    # from port 8502 to FastAPI on 5055. Single-route is required — splitting
+    # /api off bypasses the rewrite layer and breaks the frontend.
     - match: Host(`open-notebook.lab.mainertoo.com`)
       kind: Rule
       middlewares:
