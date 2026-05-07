@@ -21,7 +21,15 @@ spec:
       retries: 3
   values:
     controller:
-      replicaCount: 1
+      replicaCount: 2
       args:
         enableDistributedSnapshotting: true
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: snapshot-controller
+              app.kubernetes.io/instance: snapshot-controller-system-snapshot-controller
   targetNamespace: snapshot-controller-system

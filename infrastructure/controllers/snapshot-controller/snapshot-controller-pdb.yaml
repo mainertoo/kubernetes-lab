@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: snapshot-controller
+  namespace: snapshot-controller-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: snapshot-controller
+      app.kubernetes.io/instance: snapshot-controller-system-snapshot-controller
