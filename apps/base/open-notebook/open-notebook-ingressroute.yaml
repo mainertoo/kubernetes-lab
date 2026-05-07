@@ -1,0 +1,37 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: open-notebook-ingressroute
+  namespace: open-notebook
+  annotations:
+    gethomepage.dev/href: "https://open-notebook.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Open Notebook"
+    gethomepage.dev/description: "Self-hosted research notebook (NotebookLM alternative)"
+    gethomepage.dev/app: open-notebook
+    gethomepage.dev/group: "Productivity"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/notebooklm.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`open-notebook.lab.mainertoo.com`) && PathPrefix(`/api`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: open-notebook
+          port: 5055
+          scheme: http
+    - match: Host(`open-notebook.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: open-notebook
+          port: 8502
+          scheme: http
+  tls: {}
