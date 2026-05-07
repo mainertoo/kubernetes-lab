@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rancher
+  namespace: cattle-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: rancher

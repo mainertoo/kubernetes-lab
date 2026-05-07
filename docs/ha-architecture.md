@@ -53,6 +53,7 @@ The DefaultTolerationSeconds plugin runs on every pod create, so server-side dry
 | **Traefik** (`traefik-system`) | 3 | 1 | hostname, ScheduleAnyway | HelmRelease values |
 | **snapshot-controller** (`snapshot-controller-system`) | 2 | 1 | hostname, ScheduleAnyway | HelmRelease values + explicit PDB |
 | **metallb-controller** (`metallb-system`) | 2 | 1 | hostname, ScheduleAnyway | Ansible playbook (kubectl patch) |
+| **rancher** (`cattle-system`) | 3 | 1 | hostname, antiAffinity preferred | HelmRelease values + explicit PDB |
 
 **DaemonSets** (already inherently HA, one per node, no change needed): metallb-speaker, ceph-csi-rbd / cephfs node plugins, csi-nfsplugin, intel-gpu-plugin, alloy, kube-prometheus-stack-prometheus-node-exporter, kube-vip.
 
@@ -124,7 +125,8 @@ These look like HA gaps but aren't:
 
 ## What's still single-replica (acknowledged)
 
-- **rancher**, **fleet-controller**, etc. — Rancher/Fleet's own HA story; not addressed here.
+- **fleet-controller** — runs leader election; could go to 2-3 with PDB, not addressed yet.
+- **rancher-webhook** — managed automatically by Rancher itself, not by Flux. Default 1 replica.
 - **kube-prometheus-stack** components — Prometheus is a single replica with persistent storage; clustering it is a Thanos / Mimir conversation, not a quick HA fix.
 
 ---
