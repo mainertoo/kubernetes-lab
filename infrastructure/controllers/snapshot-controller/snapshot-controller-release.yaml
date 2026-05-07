@@ -5,6 +5,12 @@ metadata:
   namespace: snapshot-controller-system
 spec:
   interval: 1h
+  # Pin the actual Helm release name. Without this, Flux defaults to
+  # "<targetNamespace>-<metadata.name>" — already what's deployed, but
+  # making it explicit (a) keeps Helm release identity stable across
+  # any future Flux default changes and (b) lets tools like flux-local
+  # render labels accurately when computing diffs.
+  releaseName: snapshot-controller-system-snapshot-controller
   chartRef:
     kind: OCIRepository
     name: snapshot-controller
