@@ -28,7 +28,10 @@ spec:
         bootstrapPassword: ""
         bootstrapPasswordSecretName: rancher-bootstrap
 
-    replicas: 1
+    # HA: 3 replicas spread across worker nodes. The chart defaults to 3 with
+    # antiAffinity=preferred + topologyKey=hostname, which already matches the
+    # cluster's "ScheduleAnyway"-style spread (see docs/ha-architecture.md).
+    replicas: 3
 
     # Optional: tighten resources a bit for home-lab
     resources:
