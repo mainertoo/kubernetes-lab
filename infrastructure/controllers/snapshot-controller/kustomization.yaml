@@ -4,6 +4,7 @@ resources:
   - snapshot-controller-namespace.yaml
   - snapshot-controller-repository.yaml
   - snapshot-controller-release.yaml
+  - snapshot-controller-pdb.yaml
 
   # Snapshot classes (required for VolumeSnapshots + VolSync Snapshot copyMethod)
   - volumesnapshotclass-ceph-rbd.yaml
