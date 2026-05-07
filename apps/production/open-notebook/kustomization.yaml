@@ -33,7 +33,9 @@ spec:
       SUBDOMAIN: *app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PORT: "8502"
-      GATUS_PATH: /
+      # Frontend redirects "/" → "/notebooks" (307), so check the redirect
+      # target directly to avoid a false-positive on the internal endpoint.
+      GATUS_PATH: /notebooks
 
       VOLSYNC_REPO_PATH: open-notebook/data
       CAPACITY: 10Gi
