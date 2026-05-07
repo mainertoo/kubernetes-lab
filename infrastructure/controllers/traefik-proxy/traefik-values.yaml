@@ -1,6 +1,33 @@
 image:
   tag: "v3.6.7"
 
+deployment:
+  replicas: 3
+  additionalVolumes:
+    - name: traefik-file-provider-pve
+      configMap:
+        name: traefik-file-provider-pve
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
+        app.kubernetes.io/instance: traefik-proxy-traefik-system
+
+# Persistence is unused: TLS is provided by cert-manager-issued
+# Secrets referenced via IngressRoute `tls.secretName`, not by an
+# in-Traefik ACME resolver. The previous local-path PVC also
+# pinned Traefik to a single node, defeating any HA scale-out.
+persistence:
+  enabled: false
+
 ingressRoute:
   dashboard:
     enabled: true
@@ -14,11 +41,6 @@ providers:
   kubernetesCRD:
     allowCrossNamespace: true
 
-persistence:
-  enabled: true
-  path: /certs
-  size: 128Mi
-
 ports:
   web:
     http:
@@ -31,12 +53,6 @@ ports:
 additionalArguments:
   - "--providers.file.directory=/config"
   - "--providers.file.watch=true"
-
-deployment:
-  additionalVolumes:
-    - name: traefik-file-provider-pve
-      configMap:
-        name: traefik-file-provider-pve
 
 additionalVolumeMounts:
   - name: traefik-file-provider-pve
