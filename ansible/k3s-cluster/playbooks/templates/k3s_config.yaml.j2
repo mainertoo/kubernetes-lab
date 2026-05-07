@@ -1,0 +1,14 @@
+# /etc/rancher/k3s/config.yaml.d/10-apiserver-tuning.yaml
+# Managed by Ansible (k3s_server_config.yml). Manual edits will be overwritten.
+#
+# K3s merges all YAML files in /etc/rancher/k3s/config.yaml.d/ over the base
+# /etc/rancher/k3s/config.yaml. Putting our overrides here means we never
+# touch the existing base config (which holds `disable: [traefik, servicelb]`
+# and `write-kubeconfig-mode: "0644"`).
+#
+# kube-apiserver-arg flags are passed through to the embedded kube-apiserver.
+# We override the DefaultTolerationSeconds admission plugin defaults (300s)
+# so pods on a NotReady/unreachable node get evicted in 30s instead of 5min.
+kube-apiserver-arg:
+  - default-not-ready-toleration-seconds=30
+  - default-unreachable-toleration-seconds=30
