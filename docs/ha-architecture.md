@@ -46,7 +46,8 @@ The DefaultTolerationSeconds plugin runs on every pod create, so server-side dry
 
 | Controller / namespace | Replicas | PDB `minAvailable` | Topology spread | Configured via |
 |---|---|---|---|---|
-| **Flux** (`flux-system`) — source / kustomize / helm / notification | 2 each | 1 | hostname, ScheduleAnyway | Kustomize patches in `clusters/{staging,production}/flux-system/kustomization.yaml` + `flux-pdbs.yaml` |
+| **Flux** (`flux-system`) — kustomize / helm / notification | 2 each | 1 | hostname, ScheduleAnyway | Kustomize patches in `clusters/{staging,production}/flux-system/kustomization.yaml` + `flux-pdbs.yaml` |
+| **Flux** (`flux-system`) — source-controller | **1** (intentional, see gotchas) | — | — | Chart default |
 | **cert-manager** (`cert-manager`) — controller / webhook / cainjector | 2 each | 1 | hostname, ScheduleAnyway | HelmRelease values |
 | **Kyverno** (`kyverno`) — admission / background / cleanup / reports | 2 each | 1 | hostname, ScheduleAnyway | HelmRelease values |
 | **Traefik** (`traefik-system`) | 3 | 1 | hostname, ScheduleAnyway | HelmRelease values |
@@ -78,13 +79,19 @@ Stage 1 is self-contained and can ship without Stage 2; that's how the eviction-
 
 ## Subtle gotchas
 
-### source-controller's standby pod is intentionally NotReady
+### source-controller stays at 1 replica (different from the other Flux controllers)
 
-Look at `kubectl get deploy -n flux-system source-controller` and you'll see `2/1` ready, with kubelet logging `Readiness probe failed: connection refused` on port 9090 every probe cycle.
+source-controller's HTTP server on port 9090 only binds **after** the pod acquires the leader lease. The other three Flux controllers use `/healthz` on port 9440 for readiness, which binds at startup, so a 2-replica deploy of those shows `2/2 Ready` and behaves cleanly. source-controller, however, would show `1/2 Ready` indefinitely — its standby pod is intentionally NotReady to keep the Service from routing requests to a pod whose 9090 isn't listening yet.
 
-This is by design. source-controller's HTTP server (port 9090) **only binds after acquiring the leader lease**. The other Flux controllers use `/healthz` on port 9440 for readiness, which binds at startup, so they show `2/2`. The intentional NotReady on source-controller standby keeps the Service from routing requests to a pod that isn't actually serving — when the leader dies, the standby acquires the lease in ~15s, binds 9090, and joins the Service endpoints. Failover is fast.
+We initially shipped `replicas: 2` for source-controller anyway (PR #231), reasoning that the `1/2 Ready` was cosmetic and failover from the hot-standby was ~15s. That broke when kube-prometheus-stack started firing `KubeDeploymentReplicasMismatch` and `KubeDeploymentRolloutStuck` after the standard 15-minute threshold — they're real alerts seeing real-looking-broken state.
 
-Side-effect: source-controller's PDB shows `ALLOWED DISRUPTIONS = 0` because there's only ever 1 ready pod. Voluntary drains on the leader's host briefly block until the standby promotes.
+The fix is to leave source-controller at the chart default (`replicas: 1`):
+
+- Recovery on node failure: ~45s (30s eviction grace + ~15s pod restart) — comparable to the hot-standby benefit, since source-controller's source cache lives on `emptyDir` and is wiped on pod death anyway. The standby would be re-fetching from origin on takeover, just like a fresh pod.
+- No alert noise.
+- Drains don't block (no PDB on a 1-replica deploy means voluntary disruption is allowed).
+
+The other three Flux controllers (`kustomize`, `helm`, `notification`) keep `replicas: 2` + PDB + topology spread because their readiness model is normal.
 
 ### Helm release name vs. HelmRelease metadata.name
 
@@ -132,7 +139,7 @@ kubectl get deploy -A | grep -E '(flux-system|cert-manager|kyverno|traefik-syste
 
 # All PDBs present
 kubectl get pdb -A
-# Expect ~13: 4 (flux) + 3 (cert-manager) + 4 (kyverno) + 1 (traefik) + 1 (snapshot-controller) + 1 (metallb) + 1 pre-existing (authentik-postgresql)
+# Expect ~12: 3 (flux: kustomize/helm/notification) + 3 (cert-manager) + 4 (kyverno) + 1 (traefik) + 1 (snapshot-controller) + 1 (metallb) + 1 pre-existing (authentik-postgresql) -- source-controller has no PDB by design
 
 # Topology spread is actually spreading pods (no clustering)
 for ns in flux-system cert-manager kyverno traefik-system snapshot-controller-system metallb-system; do
