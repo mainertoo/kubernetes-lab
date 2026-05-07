@@ -2,17 +2,6 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: source-controller
-  namespace: flux-system
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: source-controller
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
   name: kustomize-controller
   namespace: flux-system
 spec:
