@@ -72,7 +72,7 @@ spec:
           redis:
             image:
               repository: docker.io/library/redis
-              tag: "8.6.2"
+              tag: "8.6.3"
 
 
     service:
