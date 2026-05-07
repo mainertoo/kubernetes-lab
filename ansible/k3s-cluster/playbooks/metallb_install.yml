@@ -30,3 +30,39 @@
       failed_when: >
         metallb_config.rc != 0
         and 'AlreadyExists' not in metallb_config.stderr
+
+    # HA: the upstream metallb-native.yaml hard-codes replicas:1 on the
+    # controller Deployment. We re-scale to 2 after each apply (idempotent).
+    # The speaker is already a DaemonSet, no change needed there.
+    - name: Scale metallb-controller to 2 replicas
+      ansible.builtin.shell: |
+        kubectl -n metallb-system scale deploy/controller --replicas=2
+      run_once: true
+      register: metallb_scale
+      changed_when: "'no change' not in (metallb_scale.stdout | default(''))"
+
+    - name: Add topologySpreadConstraints to metallb-controller
+      ansible.builtin.shell: |
+        kubectl -n metallb-system patch deploy/controller --type=strategic --patch='{"spec":{"template":{"spec":{"topologySpreadConstraints":[{"maxSkew":1,"topologyKey":"kubernetes.io/hostname","whenUnsatisfiable":"ScheduleAnyway","labelSelector":{"matchLabels":{"app":"metallb","component":"controller"}}}]}}}}'
+      run_once: true
+      register: metallb_topology
+      changed_when: "'no change' not in (metallb_topology.stdout | default(''))"
+
+    - name: Apply metallb-controller PodDisruptionBudget
+      ansible.builtin.shell: |
+        kubectl apply -f - <<'EOF'
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: controller
+          namespace: metallb-system
+        spec:
+          minAvailable: 1
+          selector:
+            matchLabels:
+              app: metallb
+              component: controller
+        EOF
+      run_once: true
+      register: metallb_pdb
+      changed_when: "'unchanged' not in (metallb_pdb.stdout | default(''))"
