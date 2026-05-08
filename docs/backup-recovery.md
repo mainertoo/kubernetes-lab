@@ -89,7 +89,7 @@ Use when volsync/Garage is unavailable, or when you want a snapshot older than v
 
 ### 2a. RBD-backed PVC (e.g. most apps)
 
-The RBD images live in `/mnt/cephfs/rbd-backup/<csi-vol-XXX>/<csi-vol-XXX>-YYYY-MM-DD.img` inside the kopia repo.
+The RBD images live in the `/mnt/rbd-backup` Kopia source as `<csi-vol-XXX>/<csi-vol-XXX>-YYYY-MM-DD.img` (renamed 2026-05-08; older snapshots are still under the deprecated `/mnt/cephfs` source as `rbd-backup/<csi-vol-XXX>/...`).
 
 1. Identify the csi-vol UUID for the PVC:
    ```bash
@@ -102,29 +102,32 @@ The RBD images live in `/mnt/cephfs/rbd-backup/<csi-vol-XXX>/<csi-vol-XXX>-YYYY-
    $ ssh ubuntu@192.168.90.161 'sudo grep <pvc> /var/backups/rbd-pv-index-k3s.csv'
    ```
 
-2. Mount the desired Kopia snapshot read-only:
+2. Mount the desired Kopia snapshot read-only. For 2026-05-08 onward use `/mnt/rbd-backup`; for older points-in-time use `/mnt/cephfs`:
    ```bash
    kopia# mkdir /mnt/restore
-   kopia# kopia snapshot list /mnt/cephfs | tail -10           # pick the snapshot ID
+   # Recent snapshot (2026-05-08+):
+   kopia# kopia snapshot list /mnt/rbd-backup | tail -10        # pick the snapshot ID
+   # Older (pre-rename):
+   kopia# kopia snapshot list /mnt/cephfs     | tail -10        # pick the snapshot ID (rbd-backup/ subdir)
    kopia# kopia snapshot mount <snapshot-id> /mnt/restore
    ```
-   Or mount-by-path/time:
-   ```bash
-   kopia# kopia mount /mnt/cephfs@<timestamp-or-snapshot-id> /mnt/restore
-   ```
 
-3. Find the image:
+3. Find the image. Path differs depending on which source you mounted:
    ```bash
+   # If mounted from /mnt/rbd-backup (post-2026-05-08):
+   kopia# ls /mnt/restore/csi-vol-fa7e.../
+   # If mounted from /mnt/cephfs (pre-rename):
    kopia# ls /mnt/restore/rbd-backup/csi-vol-fa7e.../
-   # csi-vol-fa7e...-2026-05-01.img
-   # csi-vol-fa7e...-2026-05-01.meta.txt
-   kopia# cat /mnt/restore/rbd-backup/csi-vol-fa7e.../*.meta.txt   # confirm it's the right PVC
+   # Either way:
+   #   csi-vol-fa7e...-DATE.img
+   #   csi-vol-fa7e...-DATE.meta.txt
+   kopia# cat /mnt/restore/.../*.meta.txt   # confirm it's the right PVC
    ```
 
 4. Push the image into a fresh Ceph RBD volume on a master VM:
    ```bash
    # SCP the image to a master VM (or a node that has rbd CLI + ceph keyring)
-   $ ssh kopia 'cat /mnt/restore/rbd-backup/csi-vol-fa7e.../csi-vol-fa7e...-2026-05-01.img' \
+   $ ssh kopia 'cat /mnt/restore/csi-vol-fa7e.../csi-vol-fa7e...-DATE.img' \
      | ssh ubuntu@192.168.90.161 'sudo tee /tmp/restore.img > /dev/null'
 
    # On the master:
@@ -243,17 +246,18 @@ Worst-case path. Sequence:
 1. **Rebuild Proxmox + Ceph** (Terraform doesn't manage Ceph today; manual). Recreate pools `k3s-rbd`, `k3s-fs-data`, `k3s-fs-metadata`, `ceph-shared`, `ceph-swarm.{meta,data}`.
 2. **Re-establish CephFS** with the same `mds_namespace` names (`k3s-fs`, `ceph-swarm`) so existing CSI volume handles validate.
 3. **Mount Kopia repo** on a recovery VM (any host with `/mnt/zbackup` available — or a fresh Linux VM with a fresh `kopia repository connect filesystem --path=...`).
-4. **Re-import RBD images first** (Layer 3 path):
+4. **Re-import RBD images first** (Layer 3 path). For most-recent state use `/mnt/rbd-backup`; for older point-in-time use `/mnt/cephfs`:
    ```bash
-   kopia# kopia snapshot list /mnt/cephfs | tail -5            # pick the day you want
+   kopia# kopia snapshot list /mnt/rbd-backup | tail -5         # pick the day you want
    kopia# kopia snapshot mount <id> /mnt/restore
-   # For every csi-vol-XXX directory under /mnt/restore/rbd-backup/:
-   for dir in /mnt/restore/rbd-backup/*/; do
+   # For every csi-vol-XXX directory under /mnt/restore/:
+   for dir in /mnt/restore/*/; do
        img=$(ls $dir/*.img | head -1)
        name=$(basename $dir)
        cat $dir/*.meta.txt    # confirm namespace + PVC mapping
        rbd import "$img" "k3s-rbd/$name"
    done
+   # If using a pre-2026-05-08 snapshot, paths are /mnt/restore/rbd-backup/*/
    ```
 5. **Re-import CephFS subvolumes** (Layer 4 path): same idea, `rsync -aHAX` from `/mnt/restore/volumes/csi/<subvol>/<subvol>/` into the freshly-created subvolumes (after `ceph fs subvolume create k3s-fs <name> <group>`).
 6. **Reconstruct PV objects** in K8s: for every entry in the `/var/backups/pv-index-k3s.csv` (recovered from the latest PBS backup of master-1's VM disk), create a `PersistentVolume` of type `csi` with `volumeHandle` pointing at the import. Same `claimRef` ns/name lets the existing PVC objects bind.
@@ -272,6 +276,8 @@ After implementing Findings 1+2 and offsite (§11 of architecture doc): zbackup 
 1. Stand up new NAS (or reuse repaired QNAP).
 2. Restore `/share/CACHEDEV1_DATA/proxmox/proxmox-backup-server/` from a kopia snapshot of `/mnt/qnap_pbs`.
 3. Restore `/share/CACHEDEV1_DATA/garage/` from a kopia snapshot of `/mnt/qnap_garage`.
+4. Restore `/share/CACHEDEV1_DATA/Container/` from `/mnt/qnap_container` — needed before Garage container can be restarted.
+5. Restore `/share/CACHEDEV1_DATA/appdata/` from `/mnt/qnap_appdata` — QNAP service state.
 4. Re-export NFS, point PBS and Garage at the restored paths.
 5. Walk through §4 (cluster-nuke) using the recovered Garage repos.
 
@@ -353,9 +359,12 @@ k8s$ kubectl get pv -o json | jq -r '.items[] | select(.spec.csi.volumeAttribute
 # Source 2: latest CSV index (preserved in PBS backup of master VM disk)
 $ ssh ubuntu@192.168.90.161 'sudo grep <image-or-subvol> /var/backups/pv-index-k3s.csv'
 
-# Source 3: .meta.txt next to the image in cephfs-swarm/Kopia
+# Source 3: .meta.txt next to the image
+# On the live cephfs-swarm filesystem (today's RBD exports only):
 kopia# cat /mnt/cephfs/rbd-backup/<csi-vol-XXX>/*.meta.txt
-# Or via a kopia snapshot mount of /mnt/cephfs first
+# In Kopia for historical data:
+#   post-2026-05-08:  kopia snapshot mount <id-from-/mnt/rbd-backup>     /mnt/restore  (path: /mnt/restore/<csi-vol>/)
+#   pre-rename:       kopia snapshot mount <id-from-/mnt/cephfs>         /mnt/restore  (path: /mnt/restore/rbd-backup/<csi-vol>/)
 ```
 
 The CSV path survives if Ceph is gone; the .meta.txt path survives if PBS is gone. Both surviving in different blast radii is the whole point of having two.
