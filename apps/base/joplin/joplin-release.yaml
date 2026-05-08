@@ -54,17 +54,21 @@ spec:
               APP_PORT: "22300"
               APP_BASE_URL: "https://joplin.lab.mainertoo.com"
               DB_CLIENT: "pg"
-              POSTGRES_HOST: "joplin-joplin-db"
+              # CNPG cutover 2026-05-08: joplin app now talks to the CNPG-managed
+              # cluster (joplin-db) instead of the legacy joplin-joplin-db Deployment.
+              # The legacy Deployment is intentionally left running for now (no traffic);
+              # decommission in a follow-up PR after 24h soak.
+              POSTGRES_HOST: "joplin-db-rw"
               POSTGRES_PORT: "5432"
               POSTGRES_PASSWORD:
                 valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_PASSWORD }
+                  secretKeyRef: { name: joplin-db-app, key: password }
               POSTGRES_USER:
                 valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_USER }
-              POSTGRES_DATABASE:
-                valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_DB }
+                  secretKeyRef: { name: joplin-db-app, key: username }
+              # CNPG bootstrap.initdb.database creates a DB literally named "joplin"
+              # (matching the legacy DB name from joplin-secret/POSTGRES_DB).
+              POSTGRES_DATABASE: "joplin"
 
     service:
       joplin-db:
