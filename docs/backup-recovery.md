@@ -292,15 +292,15 @@ After offsite is implemented: pull the offsite repo back into the rebuilt zbacku
 
 ## 8. Loss of Garage S3 (mid-cluster)
 
-Volsync repos all unreachable; cluster keeps running, just no new backups.
+**Garage runs as a Docker container natively on the QNAP** (not in K8s). If the container or its data dies, volsync repos all unreachable; cluster keeps running, just no new backups.
 
-1. Restore Garage's data PVC from its own backup.
-   - Today: there isn't one. Pre-implementation of Finding 2: data at `/share/CACHEDEV1_DATA/garage` on QNAP — if intact, just re-deploy Garage and re-mount the same NFS path.
-   - Post-Finding-2: Kopia snapshot of `/mnt/qnap_garage` → restore over the NFS path → re-deploy Garage.
+1. Restore Garage's data on the QNAP:
+   - If the QNAP filesystem at `/share/CACHEDEV1_DATA/garage/` is intact: restart the Garage container on QNAP (Container Station UI or QNAP CLI) — done.
+   - If the data is corrupt/missing: restore from Kopia snapshot of `/mnt/qnap_garage` over NFS to QNAP, then restart container.
 2. Verify by listing one app's repo:
    ```bash
    k8s$ kubectl -n <ns> exec -it <app>-pod -- env | grep RESTIC
-   k8s$ # Or run a temporary mover Job with the secret
+   # Or run a temporary mover Job with the secret
    ```
 3. Trigger a re-sync of every ReplicationSource: `kubectl annotate rs <app> -n <ns> volsync.backube/triggered=manual`.
 
