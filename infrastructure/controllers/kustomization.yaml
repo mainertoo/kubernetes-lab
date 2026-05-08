@@ -36,3 +36,6 @@ resources:
 
   # Kyverno policy engine (manages volsync mover jitter + future policies)
   - kyverno
+
+  # CloudNativePG operator — manages postgres Clusters with WAL streaming to S3
+  - cnpg
