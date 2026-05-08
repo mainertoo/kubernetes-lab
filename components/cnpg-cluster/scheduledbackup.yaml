@@ -1,0 +1,15 @@
+---
+# Daily base backup. WAL streaming runs continuously; this is the periodic
+# full snapshot that lets PITR truncate WAL chains.
+#
+# CNPG schedule format is 6-field cron with seconds: <s> <m> <h> <dom> <mon> <dow>
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: ${APP}-daily
+spec:
+  schedule: "${CNPG_BACKUP_SCHEDULE:=0 0 4 * * *}"
+  cluster:
+    name: ${APP}
+  backupOwnerReference: self
+  immediate: false
