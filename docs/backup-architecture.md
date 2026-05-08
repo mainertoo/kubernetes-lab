@@ -12,11 +12,15 @@ Five independent backup layers, each with its own schedule and target:
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
 | 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
-| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia → zbackup ZFS |
-| 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia → zbackup ZFS |
-| 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia → zbackup ZFS |
+| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
+| 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
+| 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
+| 6 | PBS datastore mirror (F1) | Kopia (NFS RO) | QNAP `/proxmox/proxmox-backup-server` → Kopia source `/mnt/qnap_pbs` → zbackup |
+| 7 | Garage S3 mirror (F2) | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/garage` → Kopia source `/mnt/qnap_garage` → zbackup |
+| 8 | QNAP Container Station mirror | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/Container` → Kopia source `/mnt/qnap_container` → zbackup |
+| 9 | QNAP appdata mirror | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/appdata` → Kopia source `/mnt/qnap_appdata` → zbackup |
 
-**Two critical gaps**: PBS data and Garage data both live on QNAP, neither is mirrored to zbackup. Lose the QNAP and you lose every VM backup and every volsync restic repo simultaneously. Both are 1-copy.
+**Originally surfaced critical gaps** (PBS data, Garage data, QNAP Container/appdata) **all closed 2026-05-08**: every layer now mirrors to zbackup ZFS via Kopia. Same-day follow-up renamed Layer 3 source from `/mnt/cephfs` → `/mnt/rbd-backup` and cleaned ~122 GB of legacy docker-swarm content from cephfs.
 
 ---
 
@@ -341,6 +345,8 @@ Window from 01:30 to ~04:00 is the densest. RBD export → CephFS settle → Kop
 
 ## 9. Critical findings
 
+> All audit-day P0 findings (F1, F2) and the same-day follow-up (Container/appdata gap, rbd-backup rename, cephfs cleanup, ignore rules) closed on 2026-05-08. Detailed change-log lives in `docs/backup-system-wiki.md` §9. The findings remain documented below for context — and so future audits can verify the decisions still hold.
+
 ### Finding 1 — PBS data: secondary copy via Kopia ✅ implemented 2026-05-08
 
 PBS writes **~2.0 TB** of vzdump backups to QNAP via NFS (the original audit estimate of 301 GB came from a QNAP-local `du` that under-reported; NFS walk shows 2.0 TB). The Kopia QNAP job mounts `qnas:/QNAS` (which is `/share/CACHEDEV1_DATA/QNAS`), **not** `/share/CACHEDEV1_DATA/proxmox`. Before fix: the single QNAP volume was the only copy.
@@ -439,6 +445,10 @@ Investigation showed the LXC mounts CephFS directly via the kernel ceph client (
 |---|---|---|---|
 | ~~P0~~ ✅ | ~~Mirror PBS dir into Kopia (Finding 1)~~ — **done 2026-05-08** | 30 min | A second copy of every VM/LXC backup |
 | ~~P0~~ ✅ | ~~Mirror Garage dir into Kopia (Finding 2)~~ — **done 2026-05-08** | 1 hr | A second copy of every volsync repo |
+| ~~P0~~ ✅ | ~~Mirror QNAP Container/appdata into Kopia~~ — **done 2026-05-08** | 30 min | Garage container + QNAP service state recoverable |
+| ~~P1~~ ✅ | ~~Rename Layer 3 source `/mnt/cephfs` → `/mnt/rbd-backup`~~ — **done 2026-05-08** | 15 min | Source name matches purpose; cleaner UI |
+| ~~P1~~ ✅ | ~~Clean up legacy ~122 GB on cephfs-swarm pool~~ — **done 2026-05-08** | passive | Stop daily-snapshotting docker-swarm corpse |
+| ~~P1~~ ✅ | ~~Add `/volumes/_deleting/` ignore on cephfs-k3s~~ — **done 2026-05-08** | 1 min | Silence ~750 fatal-error log lines per run |
 | P0 | Stand up an offsite target (see §11) — *waiting on offsite NAS hardware* | 1–8 hr depending on choice | Off-site copy = real disaster recovery |
 | P1 | Bump PBS `keep-monthly` to 6 | 1 min | Longer window to detect data-corruption regressions |
 | P1 | Add logrotate for `/var/log/kopia-*.log` | 5 min | Prevent kopia-lxc / filling |
