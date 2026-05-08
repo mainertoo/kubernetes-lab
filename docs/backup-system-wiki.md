@@ -4,7 +4,7 @@
 >
 > Companion files in this repo: `docs/backup-architecture.md` (longer prose form) and `docs/backup-recovery.md` (procedure-only).
 >
-> Last full audit: **2026-05-07**. F1 + F2 implemented **2026-05-08**. Re-audit annually or after any major change.
+> Last full audit: **2026-05-07**. F1 + F2 implemented **2026-05-08**. Same-day follow-up: rbd-backup source rename + QNAP Container/appdata gap-fill + CephFS legacy-data cleanup. Re-audit annually or after any major change.
 
 ---
 
@@ -29,27 +29,38 @@
 
 ## 1. Overview
 
-Seven independent backup layers (5 + 2 from F1/F2 fix), each with its own schedule and target:
+Nine independent backup layers (5 original + F1/F2 + Container/appdata gap-fill), each with its own schedule and target:
 
 | # | What | Tool | Source → Target |
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
 | 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
-| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia → zbackup ZFS |
-| 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia → zbackup ZFS |
-| 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia → zbackup ZFS |
-| 6 | **PBS datastore mirror** (F1) | Kopia (NFS RO mount) | QNAP `/proxmox/proxmox-backup-server` → Kopia → zbackup ZFS |
-| 7 | **Garage S3 mirror** (F2) | Kopia (NFS RO mount + subdir bind) | QNAP `/share/CACHEDEV1_DATA/garage` → Kopia → zbackup ZFS |
+| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
+| 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
+| 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
+| 6 | **PBS datastore mirror** (F1) | Kopia (NFS RO mount) | QNAP `/proxmox/proxmox-backup-server` → Kopia source `/mnt/qnap_pbs` → zbackup ZFS |
+| 7 | **Garage S3 mirror** (F2) | Kopia (NFS RO mount + subdir bind) | QNAP `/share/CACHEDEV1_DATA/garage` → Kopia source `/mnt/qnap_garage` → zbackup ZFS |
+| 8 | **QNAP Container Station mirror** | Kopia (NFS RO mount + subdir bind) | QNAP `/share/CACHEDEV1_DATA/Container` → Kopia source `/mnt/qnap_container` → zbackup ZFS |
+| 9 | **QNAP appdata mirror** | Kopia (NFS RO mount + subdir bind) | QNAP `/share/CACHEDEV1_DATA/appdata` → Kopia source `/mnt/qnap_appdata` → zbackup ZFS |
+
+> **Note on the deprecated `/mnt/cephfs` source**: Layer 3 was previously snapshotted via `/mnt/cephfs` (a wider source containing both rbd-backup + legacy docker-swarm content). On 2026-05-08 the cron switched to `/mnt/rbd-backup` and the `/mnt/cephfs` source stopped receiving new snapshots. Existing `/mnt/cephfs` snapshots remain in the repo as historical RBD restore points and will age out per the global retention policy (~12 months for monthlies, 3 years for annuals).
 
 Plus two parallel **inventory mechanisms** (so blob names like `csi-vol-fa7e…` can be traced back to the originating PVC during recovery):
 
 - `rbd-nightly-backup.sh` writes `<image>-YYYY-MM-DD.meta.txt` next to each RBD export → captured by Layer 4 Kopia run.
 - `k3s-pv-index.sh` writes RBD + CephFS PV CSV indexes to `/var/backups/` inside each k3s master VM → captured by Layer 1 PBS backup at 02:00.
 
-**Two critical gaps** identified 2026-05-07, **fixed 2026-05-08**:
+**Critical gaps** identified 2026-05-07, **fixed 2026-05-08**:
 
 1. ✅ **PBS data (~2.0 TB)** — added Kopia source `/mnt/qnap_pbs` (RO NFSv4 from QNAP `/proxmox/proxmox-backup-server`), daily 04:45 UTC.
 2. ✅ **Garage S3 data (~168 GB)** — added Kopia source `/mnt/qnap_garage` (RO NFSv3 via QNAP volume root, bound from `/mnt/qnap_root/garage`), daily 05:30 UTC.
+3. ✅ **QNAP Container Station data (~23 GB)** — added Kopia source `/mnt/qnap_container` (covers Garage Docker container's image+config — needed to rebuild Garage from scratch), daily 06:00 UTC.
+4. ✅ **QNAP appdata (~2 GB)** — added Kopia source `/mnt/qnap_appdata`, daily 06:15 UTC.
+
+Plus a same-day follow-up cleanup (see [§9](#9-critical-findings--gaps)):
+5. ✅ **Renamed Layer 3 source**: `/mnt/cephfs` → `/mnt/rbd-backup` for clarity (the cephfs swarm pool was being used purely as RBD-export staging).
+6. ✅ **Deleted ~122 GB of legacy docker-swarm data** from CephFS that had been getting re-snapshotted daily.
+7. ✅ **Added `/volumes/_deleting/` ignore rule** on `/mnt/cephfs-k3s` (silences ~750 fatal-error log lines per run from CSI tombstones).
 
 See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 
@@ -120,12 +131,12 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 
 | Source | Mount point | Where |
 |---|---|---|
-| `192.168.99.12/13/14:/` (mds_namespace=ceph-swarm) | `/mnt/pve/cephfs-swarm` | mammoth, whistler, zermatt, ugreen, kopia-lxc (as `/mnt/cephfs`) |
+| `192.168.99.12/13/14:/` (mds_namespace=ceph-swarm) | `/mnt/pve/cephfs-swarm` (host) → `/mnt/cephfs` (kopia-lxc, mp0; deprecated as Kopia source) + `/mnt/rbd-backup` (kopia-lxc, mp6 = `/mnt/pve/cephfs-swarm/rbd-backup` subdir) | All PVE hosts + kopia-lxc |
 | `192.168.99.11/12/13:/` (mds_namespace=k3s-fs) | `/mnt/cephfs-k3s` | kopia-lxc (kernel ceph client; bind via mp2) |
 | `192.168.1.252:/QNAS` | `/mnt/pve/tank` (host) → `/mnt/qnap_alldata` (in kopia-lxc) | All PVE hosts + kopia-lxc |
 | `192.168.1.252:/pve-ha` | `/mnt/pve/shared-nfs` | All PVE hosts (PVE shared storage class) |
-| `192.168.1.252:/proxmox/proxmox-backup-server` | `/mnt/pbs-backups` (PBS VM, RW) / `/mnt/qnap_pbs` (pve-ugreen + kopia-lxc, RO) | F1 mirror added 2026-05-08 |
-| `192.168.1.252:/share/CACHEDEV1_DATA/CACHEDEV1_DATA` (NFSv3, volume root) | `/mnt/qnap_root` (pve-ugreen, RO) → `/mnt/qnap_garage` (kopia-lxc, bound `/garage` subdir RO) | F2 mirror added 2026-05-08 |
+| `192.168.1.252:/proxmox/proxmox-backup-server` | `/mnt/pbs-backups` (PBS VM, RW) / `/mnt/qnap_pbs` (pve-ugreen + kopia-lxc mp4, RO) | F1 mirror added 2026-05-08 |
+| `192.168.1.252:/share/CACHEDEV1_DATA/CACHEDEV1_DATA` (NFSv3, volume root) | `/mnt/qnap_root` (pve-ugreen, RO) → kopia-lxc bind mounts: mp5 `/garage` → `/mnt/qnap_garage`, mp7 `/Container` → `/mnt/qnap_container`, mp8 `/appdata` → `/mnt/qnap_appdata` (all RO) | Volume-root mount serves F2 + Container + appdata; added 2026-05-08 |
 | `zbackup` (ZFS) | `/zbackup` (host) → `/mnt/zbackup` (in kopia-lxc) | pve-ugreen, kopia-lxc |
 
 ---
@@ -194,7 +205,7 @@ For each image:
   5. emit <image>-YYYY-MM-DD.meta.txt    (namespace, PVC name, size, Flux SHA, etc.)
         │
         ▼
-[CephFS k3s-fs at /mnt/pve/cephfs-swarm/rbd-backup/]   ← Kopia picks this up at 02:45
+[CephFS ceph-swarm at /mnt/pve/cephfs-swarm/rbd-backup/]   ← Kopia source /mnt/rbd-backup (mp6 bind, RO read) snapshots this at 02:45
 ```
 
 Pattern is intentional: cephfs-swarm holds only the latest export, Kopia provides historical retention. See [§6 source](#6a-rbd-nightly-backupsh) for the full script.
@@ -208,7 +219,7 @@ Pattern is intentional: cephfs-swarm holds only the latest export, Kopia provide
         │  /mnt/cephfs-k3s                           │  /mnt/cephfs
         ▼                                            ▼
                           [kopia-lxc, LXC 111 on pve-ugreen]
-                            cron 45 2 * * *  → kopia snapshot create /mnt/cephfs --parallel=4
+                            cron 45 2 * * *  → kopia snapshot create /mnt/rbd-backup --parallel=4   (was /mnt/cephfs before 2026-05-08 rename)
                             cron 10 3 * * *  → kopia snapshot create /mnt/cephfs-k3s --parallel=4
                                                 │
                                                 ▼
@@ -222,17 +233,30 @@ Pattern is intentional: cephfs-swarm holds only the latest export, Kopia provide
 
 ```
 QNAP   /share/CACHEDEV1_DATA/   (31 TB used)
-  ├── QNAS/         ────────► /QNAS NFS export ────► Kopia /mnt/qnap_alldata (29 TB) ─► zbackup
-  │     ├── data/        (29 TB — predominantly user data)
+  ├── QNAS/         ────────► /QNAS NFS export ────► Kopia /mnt/qnap_alldata (29 TB src, 279 GB stored) ─► zbackup
+  │     ├── data/        (29 TB — bulk excluded by .kopiaignore: media, torrents, usenet)
   │     ├── backup/      (86 GB)
   │     └── ...
   ├── proxmox/      ────────► /proxmox NFS ──► PBS (RW) + Kopia /mnt/qnap_pbs (RO) ─► zbackup ✅ F1 (~2.0 TB)
   ├── garage/       ────────► (volume-root NFSv3) ──► Kopia /mnt/qnap_garage (RO) ─► zbackup ✅ F2 (~168 GB; Docker-on-QNAP)
-  ├── pve-ha/       ────────► /pve-ha NFS, "shared-nfs" PVE storage (52 KB)
-  └── Container/, appdata/, Public/, TimeMachine/ — also not in Kopia
+  ├── Container/    ────────► (volume-root NFSv3) ──► Kopia /mnt/qnap_container (RO) ─► zbackup ✅ (~23 GB; Garage container + Portainer)
+  ├── appdata/      ────────► (volume-root NFSv3) ──► Kopia /mnt/qnap_appdata (RO) ─► zbackup ✅ (~2 GB; QNAP service state)
+  ├── pve-ha/       ────────► /pve-ha NFS, "shared-nfs" PVE storage (~63 GB; VM disks already covered by vzdump→PBS)
+  ├── TimeMachine/  ────────► (not backed up; Mac can recreate)
+  └── Public/       ────────► (not backed up; almost empty, 3 MB)
 ```
 
-Cron on kopia-lxc: `30 3 * * * /usr/bin/kopia snapshot create /mnt/qnap_alldata --parallel=8`
+> **Note on QNAP `du` reliability**: The QNAP-side `du -sh /share/CACHEDEV1_DATA/<dir>` consistently under-reports vs NFS-side reads (likely permission-restricted user namespace on QNAP). `pve-ha` showed as 52 KB locally but 63 GB via NFS. Same issue caused the original PBS dataset estimate of 301 GB (true value: 2.0 TB). When sizing things from QNAP, **always walk from NFS-side as root**.
+
+Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s for context):
+
+```cron
+30 3 * * * kopia snapshot create /mnt/qnap_alldata    # Layer 5: /QNAS subtree
+45 4 * * * kopia snapshot create /mnt/qnap_pbs        # F1
+30 5 * * * kopia snapshot create /mnt/qnap_garage     # F2
+0  6 * * * kopia snapshot create /mnt/qnap_container  # Container Station (added 2026-05-08)
+15 6 * * * kopia snapshot create /mnt/qnap_appdata    # appdata (added 2026-05-08)
+```
 
 ---
 
@@ -243,18 +267,20 @@ Cron on kopia-lxc: `30 3 * * * /usr/bin/kopia snapshot create /mnt/qnap_alldata 
 01:05/07/09 ── k3s-pv-index.sh on master-1/2/3  → /var/backups/*.csv
 01:30 ──────── rbd-nightly-backup.sh on pve-ugreen  → /mnt/pve/cephfs-swarm/rbd-backup/
 02:00 ──────── PVE vzdump (all guests except 299)  → PBS → QNAP
-02:45 ──────── kopia snapshot /mnt/cephfs (incl. rbd-backup/)  → zbackup
+02:45 ──────── kopia snapshot /mnt/rbd-backup  → zbackup    (was /mnt/cephfs before 2026-05-08 rename)
 03:00 ──────── /var/tmp/vzdumptmp* cleanup on pve-ugreen
 03:10 ──────── kopia snapshot /mnt/cephfs-k3s  → zbackup
 03:30 ──────── kopia snapshot /mnt/qnap_alldata  → zbackup
 04:45 ──────── kopia snapshot /mnt/qnap_pbs    → zbackup    (F1, added 2026-05-08)
 05:30 ──────── kopia snapshot /mnt/qnap_garage → zbackup    (F2, added 2026-05-08)
+06:00 ──────── kopia snapshot /mnt/qnap_container → zbackup (added 2026-05-08)
+06:15 ──────── kopia snapshot /mnt/qnap_appdata → zbackup   (added 2026-05-08)
 12:05 UTC ──── volsync ReplicationSource sweep (second daily run)
 daily ──────── PBS GC + prune (keep 17/7/8/2 last/daily/weekly/monthly)
 monthly ────── PBS verify job v-e00654e0-3168 (ignore-verified=true)
 ```
 
-Window 01:30–05:45 is the densest. Each consumer reads what the prior step wrote (rbd-export → cephfs settle → kopia pulls), serialized by clock.
+Window 01:30–06:30 is the densest. Each consumer reads what the prior step wrote (rbd-export → cephfs settle → kopia pulls), serialized by clock.
 
 ---
 
@@ -634,15 +660,23 @@ echo "[k3s-pv-index] Node UUID: ${NODE_UUID}"
 ### `kopia` LXC (root crontab)
 
 ```cron
-# Daily CephFS backup to zbackup via Kopia
-45 2 * * * /usr/bin/kopia snapshot create /mnt/cephfs --parallel=4 >> /var/log/kopia-cephfs.log 2>&1
+# Layer 3: RBD nightly exports (renamed from /mnt/cephfs to /mnt/rbd-backup on 2026-05-08)
+45 2 * * * /usr/bin/kopia snapshot create /mnt/rbd-backup --parallel=4 >> /var/log/kopia-rbd-backup.log 2>&1
+# Layer 4: Live CephFS PVCs
 10 3 * * * /usr/bin/kopia snapshot create /mnt/cephfs-k3s --parallel=4 >> /var/log/kopia-cephfs-k3s.log 2>&1
+# Layer 5: QNAP /QNAS subtree (with .kopiaignore excluding media/torrents/usenet)
 30 3 * * * /usr/bin/kopia snapshot create /mnt/qnap_alldata --parallel=8 >> /var/log/kopia-qnap.log 2>&1
-# F1: PBS datastore mirror (added 2026-05-08)
+# Layer 6: PBS datastore mirror (F1, added 2026-05-08)
 45 4 * * * /usr/bin/kopia snapshot create /mnt/qnap_pbs --parallel=4 >> /var/log/kopia-pbs.log 2>&1
-# F2: Garage S3 backend mirror (added 2026-05-08)
+# Layer 7: Garage S3 backend mirror (F2, added 2026-05-08)
 30 5 * * * /usr/bin/kopia snapshot create /mnt/qnap_garage --parallel=4 >> /var/log/kopia-garage.log 2>&1
+# Layer 8: QNAP Container Station data (added 2026-05-08; covers Garage container image+config)
+0 6 * * * /usr/bin/kopia snapshot create /mnt/qnap_container --parallel=4 >> /var/log/kopia-container.log 2>&1
+# Layer 9: QNAP appdata (added 2026-05-08)
+15 6 * * * /usr/bin/kopia snapshot create /mnt/qnap_appdata --parallel=4 >> /var/log/kopia-appdata.log 2>&1
 ```
+
+> The old `/mnt/cephfs` cron line was removed when the source was renamed to `/mnt/rbd-backup` on 2026-05-08. Existing `/mnt/cephfs` snapshots in the repo remain (aging out per retention).
 
 ### k3s masters (root crontab on each — staggered minutes)
 
@@ -673,12 +707,15 @@ cores: 2
 features: nesting=1
 hostname: kopia-lxc
 memory: 4096
-mp0: /mnt/pve/cephfs-swarm,mp=/mnt/cephfs
+mp0: /mnt/pve/cephfs-swarm,mp=/mnt/cephfs                            # (deprecated as Kopia source 2026-05-08; bind-mount kept for legacy access)
 mp1: /zbackup,mp=/mnt/zbackup
 mp2: /mnt/pve/cephfs-k3s,mp=/mnt/cephfs-k3s
 mp3: /mnt/pve/tank,mp=/mnt/qnap_alldata
-mp4: /mnt/qnap_pbs,mp=/mnt/qnap_pbs,ro=1                    # F1 added 2026-05-08
-mp5: /mnt/qnap_root/garage,mp=/mnt/qnap_garage,ro=1         # F2 added 2026-05-08
+mp4: /mnt/qnap_pbs,mp=/mnt/qnap_pbs,ro=1                             # F1 added 2026-05-08
+mp5: /mnt/qnap_root/garage,mp=/mnt/qnap_garage,ro=1                  # F2 added 2026-05-08
+mp6: /mnt/pve/cephfs-swarm/rbd-backup,mp=/mnt/rbd-backup,ro=0        # rename of Layer 3 source 2026-05-08
+mp7: /mnt/qnap_root/Container,mp=/mnt/qnap_container,ro=1            # added 2026-05-08
+mp8: /mnt/qnap_root/appdata,mp=/mnt/qnap_appdata,ro=1                # added 2026-05-08
 net0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:A2:BB:B1,ip=dhcp,type=veth
 onboot: 1
 ostype: debian
@@ -689,6 +726,7 @@ unprivileged: 0
 ```
 
 > Note: `unprivileged: 0` (privileged). Required so the kernel CephFS client and ZFS bind-mount work cleanly.
+> mp6 is the only RW bind (`ro=0`) — but Kopia only reads from it. The mp6 path is the rbd-backup-staging subdir of mp0; using a dedicated mountpoint gives the Kopia source a clean name (`/mnt/rbd-backup`) that matches its purpose.
 
 ### `pve-ugreen` `/etc/fstab` additions (F1 + F2)
 
@@ -731,10 +769,25 @@ Latest snapshots:                       10
 ### Kopia per-source ignore rules (post-fix)
 
 ```
-/mnt/cephfs-k3s   →   ignore:  /volumes/_deleting/
+/mnt/cephfs-k3s     →   ignore:  /volumes/_deleting/    (silences ~750 fatal-error log lines per run from CSI tombstones being garbage-collected)
+/mnt/qnap_container →   ignore:  /@Recycle/             (QNAP trash inside Container Station data)
+/mnt/qnap_alldata   →   .kopiaignore at /QNAS root:
+                                 /data/media/**
+                                 /data/torrents/**
+                                 /data/usenet/**
+                                 /@Recycle/**
+                                 /.Recycle/**
+                                 /.Trash-*/**
+                                 /.streams/**
+                                 /.@upload_cache/**
+                                 /@Recently-Snapshot/**
 ```
 
-Apply with `kopia policy set --add-ignore "/volumes/_deleting/" /mnt/cephfs-k3s` on kopia-lxc.
+Apply with:
+```bash
+kopia policy set --add-ignore "/volumes/_deleting/" /mnt/cephfs-k3s
+kopia policy set --add-ignore "/@Recycle/"          /mnt/qnap_container
+```
 
 ### PBS — `/etc/proxmox-backup/datastore.cfg`
 
@@ -944,10 +997,14 @@ The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged con
 |---|---|---|---|
 | ~~P0~~ ✅ | ~~Mirror PBS dir into Kopia (F1)~~ — **done 2026-05-08** | 30 min | A second copy of every VM/LXC backup |
 | ~~P0~~ ✅ | ~~Mirror Garage dir into Kopia (F2)~~ — **done 2026-05-08** | 1 hr | A second copy of every volsync repo |
-| P0 | Stand up an offsite target (see §11) — *waiting on offsite NAS* | 1–8 hr | Real disaster recovery |
+| ~~P0~~ ✅ | ~~Mirror QNAP Container/appdata into Kopia~~ — **done 2026-05-08** | 30 min | Garage container image+config recoverable; QNAP service state preserved |
+| ~~P1~~ ✅ | ~~Rename `/mnt/cephfs` source to `/mnt/rbd-backup`~~ — **done 2026-05-08** | 15 min | Source name matches purpose |
+| ~~P1~~ ✅ | ~~Clean up legacy ~122 GB on cephfs swarm pool~~ — **done 2026-05-08** | passive (rm) | Stop daily-snapshotting docker-swarm corpse |
+| ~~P1~~ ✅ | ~~Add `/volumes/_deleting/` ignore rule on cephfs-k3s~~ — **done 2026-05-08** | 1 min | Silence ~750 fatal-error log lines per run |
+| P0 | Stand up an offsite target (see §11) — *waiting on offsite NAS hardware* | 1–8 hr | Real disaster recovery |
 | P1 | Bump PBS `keep-monthly` to 6 | 1 min | Longer regression-detection window |
 | P1 | Add logrotate for `/var/log/kopia-*.log` | 5 min | Prevent kopia-lxc / filling |
-| P1 | Add weekly `kopia maintenance run --full` cron | 5 min | Repo health, faster restores |
+| P1 | Add weekly `kopia maintenance run --full` cron | 5 min | Repo health, faster restores (optional — auto-maintenance verified working) |
 | P1 | Add monthly `kopia snapshot verify --verify-files-percent=1` per source | 10 min | Catch repo corruption early |
 | P1 | Test-restore a VM and a PVC quarterly (calendar reminder) | 30 min/qtr | Backup is unproven until restored |
 | P2 | Migrate `dawarich-db` and `authentik-postgresql` to CNPG | 2–4 hr each | App-consistent DB backups |
@@ -955,6 +1012,7 @@ The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged con
 | P2 | Document this audit's findings in CLAUDE.md | 5 min | Continuity for future work |
 | P3 | Drop legacy `kube-rbd` Ceph pool | 5 min | Cleanup |
 | P3 | Garage replication or HA config | half-day | Resilience inside cluster |
+| P3 | After ~12 months: remove old `/mnt/cephfs` Kopia source once retention has fully aged out | 1 min | UI cleanliness |
 
 ---
 
