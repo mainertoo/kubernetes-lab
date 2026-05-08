@@ -9,7 +9,7 @@
 #
 # Required substituteFrom Secret (in flux-system):
 #   volsync-garage-base — must provide AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-#                         S3_ENDPOINT, S3_BUCKET
+#                         AWS_DEFAULT_REGION, S3_ENDPOINT, S3_BUCKET
 #
 # Optional substitutions (defaults shown):
 #   CNPG_INSTANCES         1
@@ -56,6 +56,9 @@ spec:
         secretAccessKey:
           name: ${APP}-cnpg-s3
           key: AWS_SECRET_ACCESS_KEY
+        region:
+          name: ${APP}-cnpg-s3
+          key: AWS_DEFAULT_REGION
       wal:
         compression: gzip
         maxParallel: 4
