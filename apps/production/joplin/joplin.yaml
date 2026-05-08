@@ -1,0 +1,68 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app joplin
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/joplin
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/volsync-v2
+    - ../../../components/volsync/remote
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: *app
+
+      # --- volsync (rbd, postgres data) ---
+      VOLSYNC_STORAGECLASS: ceph-rbd
+      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
+      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
+      CAPACITY: 10Gi
+
+      VOLSYNC_REPO_PATH: joplin/data
+
+      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
+      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CACHE_CAPACITY: 1Gi
+
+      # postgres user — must match the uid that owns the data files
+      VOLSYNC_PUID: "999"
+      VOLSYNC_PGID: "999"
+      # restore uid must also be 999 so postgres can read its own files after bootstrap
+      VOLSYNC_RESTORE_PUID: "999"
+      VOLSYNC_RESTORE_PGID: "999"
+
+      # --- gatus health checks ---
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "22300"
+      GATUS_STATUS_INTERNAL: "404"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
