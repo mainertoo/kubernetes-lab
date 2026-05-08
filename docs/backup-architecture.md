@@ -11,7 +11,7 @@ Five independent backup layers, each with its own schedule and target:
 | # | What | Tool | Source → Target |
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
-| 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (NFS-backed PVC on QNAP) |
+| 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
 | 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia → zbackup ZFS |
 | 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia → zbackup ZFS |
 | 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia → zbackup ZFS |
@@ -131,7 +131,7 @@ Ceph pools breakdown (`ceph df`):
 
 ### Where the data physically lands
 
-`/share/CACHEDEV1_DATA/proxmox/proxmox-backup-server/{ct,vm}/<vmid>/<timestamp>` on the QNAP. **301 GB total today**.
+`/share/CACHEDEV1_DATA/proxmox/proxmox-backup-server/{ct,vm,.chunks}/...` on the QNAP. **~2.0 TB total** (per NFS-side walk; the original audit's 301 GB number came from a QNAP-local `du` that under-reported).
 
 ---
 
@@ -155,9 +155,10 @@ Ceph pools breakdown (`ceph df`):
         │           encrypted with RESTIC_PASSWORD from volsync-garage-base
         │
         ▼
-[Garage S3, in-cluster Deployment]
-   data PVC → NFS-backed → 192.168.1.252:/share/CACHEDEV1_DATA/garage
-   ~167 GB on QNAP today
+[Garage S3 — Docker container running natively on QNAP]
+   ingress: garage.lab.mainertoo.com + garageui.lab.mainertoo.com → 192.168.90.180
+   data on local QNAP filesystem: /share/CACHEDEV1_DATA/garage/{data,meta,config}
+   ~168 GB on QNAP today
 ```
 
 ### Configuration
@@ -261,13 +262,13 @@ QNAP   /share/CACHEDEV1_DATA/   (top-level, 31 TB used)
   │     ├── @Recycle/    (178 GB)
   │     └── temp/        (7.3 GB)
   │
-  ├── proxmox/      ────────► exported as /proxmox/proxmox-backup-server ──► PBS only (NOT Kopia)  ⚠ 301 GB
-  │     └── proxmox-backup-server/{ct,vm}/...
+  ├── proxmox/      ────────► /proxmox NFS ──► PBS (RW) + Kopia /mnt/qnap_pbs (RO) ──► zbackup ✅ F1
+  │     └── proxmox-backup-server/{ct,vm,.chunks}/...   (~2.0 TB)
   │
-  ├── garage/       ────────► NFS-backed PVC for in-cluster Garage S3      ⚠ NOT in Kopia    167 GB
-  │     ├── data/   (object-storage chunks)
+  ├── garage/       ────────► (volume-root NFSv3 RO) ──► Kopia /mnt/qnap_garage (RO) ──► zbackup ✅ F2
+  │     ├── data/   (Docker-on-QNAP Garage container's S3 object chunks)
   │     ├── meta/
-  │     └── config/
+  │     └── config/   (~168 GB)
   │
   ├── pve-ha/       ────────► /pve-ha NFS, used as `shared-nfs` PVE storage (52 KB — almost empty today)
   │
@@ -340,9 +341,11 @@ Window from 01:30 to ~04:00 is the densest. RBD export → CephFS settle → Kop
 
 ## 9. Critical findings
 
-### Finding 1 — PBS data has no secondary copy *(severity: HIGH)*
+### Finding 1 — PBS data: secondary copy via Kopia ✅ implemented 2026-05-08
 
-PBS writes 301 GB of vzdump backups to QNAP via NFS. The Kopia QNAP job mounts `qnas:/QNAS` (which is `/share/CACHEDEV1_DATA/QNAS`), **not** `/share/CACHEDEV1_DATA/proxmox`. The single QNAP volume is the only copy.
+PBS writes **~2.0 TB** of vzdump backups to QNAP via NFS (the original audit estimate of 301 GB came from a QNAP-local `du` that under-reported; NFS walk shows 2.0 TB). The Kopia QNAP job mounts `qnas:/QNAS` (which is `/share/CACHEDEV1_DATA/QNAS`), **not** `/share/CACHEDEV1_DATA/proxmox`. Before fix: the single QNAP volume was the only copy.
+
+**Fix applied** — see the wiki doc (`docs/backup-system-wiki.md`) §9 F1 for full details. Summary: NFSv4 RO mount on pve-ugreen + LXC mp4 RO bind + cron `45 4 * * * kopia snapshot create /mnt/qnap_pbs`. Initial 2 TB seed running 2026-05-08.
 
 **Failure mode**: QNAP volume corruption, RAID failure across more disks than parity tolerates, NAS firmware bug, ransomware against the NFS share — any of these takes out every VM/LXC backup in one event.
 
@@ -363,9 +366,11 @@ PBS writes 301 GB of vzdump backups to QNAP via NFS. The Kopia QNAP job mounts `
 
 Note: PBS uses a chunk-based, content-addressed store. Snapshotting it with Kopia (also content-addressed) is correct in principle but somewhat redundant — Kopia will re-hash chunks. Acceptable cost for the safety it buys.
 
-### Finding 2 — Garage S3 has no secondary copy *(severity: HIGH)*
+### Finding 2 — Garage S3: secondary copy via Kopia ✅ implemented 2026-05-08
 
-Volsync writes every app's restic repo to Garage. Garage's data PVC is NFS-backed by `qnas:/share/CACHEDEV1_DATA/garage` (167 GB). Same blast radius as Finding 1: lose the QNAP and you lose every app's backup history simultaneously.
+**Architecture correction from original audit**: Garage runs as a Docker container natively on the QNAP (not in K8s as the original audit guessed). Ingresses `garage.lab.mainertoo.com` and `garageui.lab.mainertoo.com` → `192.168.90.180`. Data lives on QNAP filesystem at `/share/CACHEDEV1_DATA/garage/{data,meta,config}` (~168 GB).
+
+**Fix applied** — see the wiki doc (`docs/backup-system-wiki.md`) §9 F2 for full details. Summary: NFSv3 RO mount of QNAP volume root on pve-ugreen + LXC mp5 binds only the `garage/` subdir RO + cron `30 5 * * * kopia snapshot create /mnt/qnap_garage`. Initial 168 GB seed running 2026-05-08.
 
 **Fix shape**:
 
@@ -377,11 +382,9 @@ Volsync writes every app's restic repo to Garage. Garage's data PVC is NFS-backe
 
 I recommend documenting this gap and fixing it the *clean* way (rclone or Garage replication) — see §11 (offsite DR), since the same target solves both this and the offsite gap.
 
-### Finding 3 — Single failure domain on QNAP (compounds 1 & 2)
+### Finding 3 — Single failure domain on QNAP — partially mitigated by F1+F2
 
-PBS, Garage S3, the K8s NFS-CSI provisioner targets, the `pve-ha` shared-storage VM disks, and the Kopia QNAS source are all on the same QNAP. Kopia → zbackup is the only path that escapes this domain, and only for one of the four (Layer 5 covers `/QNAS` only).
-
-**Mitigation**: see Findings 1 + 2 above and the offsite proposal in §11.
+PBS, Garage S3, the K8s NFS-CSI provisioner targets, the `pve-ha` shared-storage VM disks, and the Kopia QNAS source are all on the same QNAP. **After F1+F2 (2026-05-08)**: PBS and Garage data now escape to zbackup. Remaining single-point: K8s NFS-CSI provisioner targets and `pve-ha` shared storage (small/empty today). Full mitigation needs the offsite target in §11.
 
 ### Finding 4 — Two PostgreSQL databases backed up via volsync raw-PVC *(severity: MEDIUM)*
 
@@ -434,9 +437,9 @@ Investigation showed the LXC mounts CephFS directly via the kernel ceph client (
 
 | Priority | Action | Effort | Buys you |
 |---|---|---|---|
-| P0 | Mirror PBS dir into Kopia (Finding 1) | 30 min | A second copy of every VM/LXC backup |
-| P0 | Mirror Garage dir into Kopia, OR set up Garage replication / rclone (Finding 2) | 1 hr / 4 hr | A second copy of every volsync repo |
-| P0 | Stand up an offsite target (see §11) | 1–8 hr depending on choice | Off-site copy = real disaster recovery |
+| ~~P0~~ ✅ | ~~Mirror PBS dir into Kopia (Finding 1)~~ — **done 2026-05-08** | 30 min | A second copy of every VM/LXC backup |
+| ~~P0~~ ✅ | ~~Mirror Garage dir into Kopia (Finding 2)~~ — **done 2026-05-08** | 1 hr | A second copy of every volsync repo |
+| P0 | Stand up an offsite target (see §11) — *waiting on offsite NAS hardware* | 1–8 hr depending on choice | Off-site copy = real disaster recovery |
 | P1 | Bump PBS `keep-monthly` to 6 | 1 min | Longer window to detect data-corruption regressions |
 | P1 | Add logrotate for `/var/log/kopia-*.log` | 5 min | Prevent kopia-lxc / filling |
 | P1 | Add weekly `kopia maintenance run --full` cron | 5 min | Repo health, faster restores |
