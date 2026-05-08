@@ -52,7 +52,7 @@ resources:
   - mealie/kustomization.yaml
   - donetick/kustomization.yaml
   - code-server/kustomization.yaml
-  - joplin/kustomization.yaml
+  - joplin/
   - expense-owl/kustomization.yaml
   - memos/kustomization.yaml
   - tandoor/kustomization.yaml
