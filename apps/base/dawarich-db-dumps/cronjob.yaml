@@ -26,18 +26,21 @@ spec:
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c"]
               args:
+                # NOTE: the $$ escapes are required because Flux postBuild.substitute
+                # interprets ${VAR} as its own placeholder and replaces undefined vars
+                # with empty string. Use $$VAR / $${VAR} to pass literal $ to bash.
                 - |
                   set -euo pipefail
-                  STAMP=$(date -u +%Y%m%d-%H%M%SZ)
-                  OUT="/dumps/dawarich-${STAMP}.sql.gz"
-                  echo "[dump] start ${STAMP} → ${OUT}"
+                  STAMP=$$(date -u +%Y%m%d-%H%M%SZ)
+                  OUT="/dumps/dawarich-$${STAMP}.sql.gz"
+                  echo "[dump] start $${STAMP} → $${OUT}"
                   pg_dump \
                     -h dawarich-dawarich-db \
-                    -U "${POSTGRES_USER}" \
+                    -U "$${POSTGRES_USER}" \
                     --no-owner --no-acl \
-                    "${POSTGRES_DB}" \
-                    | gzip --rsyncable -9 > "${OUT}"
-                  ls -lh "${OUT}"
+                    "$${POSTGRES_DB}" \
+                    | gzip --rsyncable -9 > "$${OUT}"
+                  ls -lh "$${OUT}"
                   # Retain the last 14 dumps locally; volsync provides longer history
                   echo "[dump] rotating, keeping latest 14"
                   ls -t /dumps/dawarich-*.sql.gz 2>/dev/null | tail -n +15 | xargs -r rm -v
