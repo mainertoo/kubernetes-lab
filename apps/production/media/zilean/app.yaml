@@ -13,6 +13,13 @@ spec:
   timeout: 10m
   wait: false
 
+  # Wait for the CNPG cluster (zilean-db) to be Ready before applying the
+  # zilean app. Matters for from-scratch GitOps restores so the app pod
+  # doesn't CrashLoopBackOff trying to read a not-yet-existing
+  # zilean-db-app Secret.
+  dependsOn:
+    - name: zilean-db
+
   decryption:
     provider: sops
     secretRef:
