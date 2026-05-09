@@ -3,6 +3,5 @@ kind: Kustomization
 resources:
   - db.yaml
   - db-cnpg.yaml
-  - db-dumps.yaml
   - media.yaml
   - app.yaml
