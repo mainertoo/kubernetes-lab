@@ -67,7 +67,7 @@ spec:
       CNPG_DB_OWNER: wikijs
 
       # Postgres 15 — match the legacy postgres:15-alpine.
-      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.13-bookworm
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.14-bookworm
 
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
