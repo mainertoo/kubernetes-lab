@@ -1,0 +1,138 @@
+---
+# One-shot migration Job: dumps wiki-js's in-pod postgres sidecar
+# (postgres 15.15-alpine `db` container) → wiki-js-cnpg-db CNPG cluster.
+#
+# Apply manually after the CNPG cluster is healthy:
+#
+#   kubectl apply -f docs/migrations/wiki-js-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n wiki-js logs -f job/wiki-js-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour (ttlSecondsAfterFinished).
+#
+# ## Migration approach
+#
+# wiki-js source DB is small (10 MB, 1 page, mostly empty — the user hasn't
+# actively populated this wiki). Only `plpgsql` extension. Standard
+# pg_dump | psql --single-transaction works without exclusions or
+# pre-installed extensions. First-try success expected, identical to
+# authentik / opencut.
+#
+# Source is reachable via the wiki-js-db Service (5432/TCP) which exposes
+# the in-pod sidecar. The wiki-js app itself uses DB_HOST=localhost from
+# inside the same pod, but the Service is what other pods (like this Job)
+# go through.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wiki-js-cnpg-migration
+  namespace: wiki-js
+  labels:
+    app.kubernetes.io/name: wiki-js
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: wiki-js-db
+    migration.kubernetes-lab/target: wiki-js-cnpg-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wiki-js
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:15-bookworm
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " wiki-js sidecar postgres → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/5] Source connectivity (wiki-js-db) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h wiki-js-db -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/5] Destination connectivity (wiki-js-cnpg-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h wiki-js-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/5] Source row counts ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h wiki-js-db -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC LIMIT 20;
+              "
+
+              echo ""
+              echo "[4/5] pg_dump | psql --single-transaction ..."
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --no-owner --no-acl --no-publications --no-subscriptions \
+                -h wiki-js-db -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h wiki-js-cnpg-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/5] Destination row counts + ANALYZE ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h wiki-js-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC LIMIT 20;
+                SELECT pg_size_pretty(pg_database_size('wiki')) AS dst_db_size;
+              "
+              PGPASSWORD="$DST_PASSWORD" psql -h wiki-js-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "ANALYZE"
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo "==========================================="
+
+          env:
+            - name: SRC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-secret
+                  key: POSTGRES_USER
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-secret
+                  key: POSTGRES_PASSWORD
+            - name: SRC_DB
+              value: "wiki"
+
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-cnpg-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-cnpg-db-app
+                  key: password
+            - name: DST_DB
+              value: "wiki"
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
