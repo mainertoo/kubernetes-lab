@@ -1,0 +1,158 @@
+---
+# One-shot migration Job: dumps authentik's bitnami StatefulSet postgres
+# (authentik-postgresql-0) → authentik-db CNPG cluster.
+#
+# This file is intentionally NOT in any kustomization.yaml — Flux will not apply it.
+# Apply manually after CNPG cluster authentik-db is healthy:
+#
+#   kubectl apply -f docs/migrations/authentik-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n authentik logs -f job/authentik-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour (ttlSecondsAfterFinished).
+#
+# ## Migration approach
+#
+# We do NOT scale authentik to 0 for this Job — it's the migration rehearsal
+# that validates the pipeline. The actual cutover (a later PR) is when we'll
+# accept a brief data-loss window (any logins or session updates between
+# this dump and the cutover restart will be lost).
+#
+# pg_dump uses a REPEATABLE READ snapshot, so the dump itself is point-in-time
+# consistent. Active sessions during the ~1-2 minute dump may need to re-login.
+# At ~500 MB / 50k sessions / 519k task logs, expect <100 row drift.
+#
+# ## Vanilla postgres — no extension drama
+#
+# Authentik's source DB has only `plpgsql` extension (always present in any
+# postgres DB). No postgis, no fuzzystrmatch, no special schemas. Standard
+# `pg_dump | psql --single-transaction` works without exclusions.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authentik-cnpg-migration
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: authentik-postgresql
+    migration.kubernetes-lab/target: authentik-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: authentik
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:17-bookworm
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " authentik bitnami → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/5] Verify source connectivity (authentik-postgresql) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h authentik-postgresql -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/5] Verify destination connectivity (authentik-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h authentik-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/5] Source row counts (top tables) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h authentik-postgresql -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s
+                JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC
+                LIMIT 15;
+              "
+
+              echo ""
+              echo "[4/5] pg_dump | psql --single-transaction ..."
+              echo ""
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --no-owner --no-acl --no-publications --no-subscriptions \
+                -h authentik-postgresql -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h authentik-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/5] Destination row counts (post-restore) + ANALYZE ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h authentik-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s
+                JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC
+                LIMIT 15;
+              "
+
+              PGPASSWORD="$DST_PASSWORD" psql -h authentik-db-rw -U "$DST_USER" -d "$DST_DB" -c "ANALYZE"
+
+              PGPASSWORD="$DST_PASSWORD" psql -h authentik-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT pg_size_pretty(pg_database_size('authentik')) AS dst_db_size;
+              "
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo " expected drift: a few rows in session/task tables"
+              echo "==========================================="
+
+          env:
+            # ----- SOURCE: bitnami authentik-postgresql StatefulSet (postgres 17) -----
+            #
+            # The dawarich/riven trap (POSTGRES_DB in secret != live DB name)
+            # does not apply here: bitnami sets the user/db from values
+            # (username=authentik, database=authentik) at chart install time
+            # via the existingSecret pattern. Verified `psql -l` shows only
+            # `authentik`, `postgres`, `template0`, `template1`.
+            - name: SRC_USER
+              value: "authentik"
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-postgresql
+                  key: password
+            - name: SRC_DB
+              value: "authentik"
+
+            # ----- DESTINATION: CNPG-managed authentik-db -----
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-db-app
+                  key: password
+            - name: DST_DB
+              value: "authentik"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
