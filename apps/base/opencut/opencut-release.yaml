@@ -92,65 +92,86 @@ spec:
             image:
               repository: ghcr.io/mainertoo/opencut
               tag: v0.3.0
+            # CNPG cutover 2026-05-09 (Phase 3e-cutover): converted from
+            # map-style env to list-style so PGUSER and PGPASSWORD are
+            # declared BEFORE DATABASE_URL — the K8s $(VAR) substitution
+            # only resolves vars declared earlier in the env list. The
+            # DATABASE_URL value override below points at the CNPG-managed
+            # opencut-cnpg-db-rw service using the auto-generated
+            # opencut-cnpg-db-app credentials. The legacy `DATABASE_URL`
+            # key in `opencut-secret` is no longer referenced.
             env:
-              TZ: America/Los_Angeles
-              NODE_ENV: production
+              - name: TZ
+                value: America/Los_Angeles
+              - name: NODE_ENV
+                value: production
 
-              DATABASE_URL:
+              # CNPG-generated credentials (must come BEFORE DATABASE_URL
+              # so $(VAR) substitution can resolve them).
+              - name: PGUSER
                 valueFrom:
                   secretKeyRef:
-                    name: opencut-secret
-                    key: DATABASE_URL
+                    name: opencut-cnpg-db-app
+                    key: username
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: opencut-cnpg-db-app
+                    key: password
+              - name: DATABASE_URL
+                value: "postgresql://$(PGUSER):$(PGPASSWORD)@opencut-cnpg-db-rw:5432/opencut"
 
               # IMPORTANT: use the prefixed service name
-              UPSTASH_REDIS_REST_URL: "http://opencut-serverless-redis-http:80"
+              - name: UPSTASH_REDIS_REST_URL
+                value: "http://opencut-serverless-redis-http:80"
 
-              BETTER_AUTH_URL: "https://opencut.lab.mainertoo.com"
+              - name: BETTER_AUTH_URL
+                value: "https://opencut.lab.mainertoo.com"
 
-              UPSTASH_REDIS_REST_TOKEN:
+              - name: UPSTASH_REDIS_REST_TOKEN
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: SRH_TOKEN
 
-              BETTER_AUTH_SECRET:
+              - name: BETTER_AUTH_SECRET
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: BETTER_AUTH_SECRET
 
-              FREESOUND_CLIENT_ID:
+              - name: FREESOUND_CLIENT_ID
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: FREESOUND_CLIENT_ID
-              FREESOUND_API_KEY:
+              - name: FREESOUND_API_KEY
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: FREESOUND_API_KEY
 
-              CLOUDFLARE_ACCOUNT_ID:
+              - name: CLOUDFLARE_ACCOUNT_ID
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: CLOUDFLARE_ACCOUNT_ID
-              R2_ACCESS_KEY_ID:
+              - name: R2_ACCESS_KEY_ID
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: R2_ACCESS_KEY_ID
-              R2_SECRET_ACCESS_KEY:
+              - name: R2_SECRET_ACCESS_KEY
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: R2_SECRET_ACCESS_KEY
-              R2_BUCKET_NAME:
+              - name: R2_BUCKET_NAME
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
                     key: R2_BUCKET_NAME
-              MODAL_TRANSCRIPTION_URL:
+              - name: MODAL_TRANSCRIPTION_URL
                 valueFrom:
                   secretKeyRef:
                     name: opencut-secret
