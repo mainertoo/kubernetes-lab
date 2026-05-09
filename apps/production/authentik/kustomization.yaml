@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - postgres.yaml
   - postgres-dumps.yaml
+  - db-cnpg.yaml
   - media.yaml
   - app.yaml
