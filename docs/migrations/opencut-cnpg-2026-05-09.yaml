@@ -1,0 +1,134 @@
+---
+# One-shot migration Job: dumps opencut's existing legacy postgres
+# (in-namespace opencut-db Deployment) → opencut-cnpg-db CNPG cluster.
+#
+# This file is intentionally NOT in any kustomization.yaml — Flux will not apply it.
+# Apply manually after the CNPG cluster is healthy:
+#
+#   kubectl apply -f docs/migrations/opencut-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n opencut logs -f job/opencut-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour (ttlSecondsAfterFinished).
+#
+# ## Migration approach
+#
+# The legacy DB is essentially empty (7.5 MB of postgres internals + plpgsql,
+# zero user tables — opencut hasn't created its schema yet on the legacy
+# instance). This Job is more of a rehearsal than a real migration: it
+# verifies connectivity, runs pg_dump | psql which is a near-no-op, and
+# validates the pipeline before the cutover.
+#
+# After cutover, opencut's app will create its schema on first connect to
+# the CNPG cluster.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opencut-cnpg-migration
+  namespace: opencut
+  labels:
+    app.kubernetes.io/name: opencut
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: opencut-db
+    migration.kubernetes-lab/target: opencut-cnpg-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opencut
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:17-bookworm
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " opencut legacy postgres → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/5] Verify source connectivity (opencut-db) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h opencut-db -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/5] Verify destination connectivity (opencut-cnpg-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h opencut-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/5] Source row counts (top tables — likely empty) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h opencut-db -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC LIMIT 15;
+              "
+
+              echo ""
+              echo "[4/5] pg_dump | psql --single-transaction ..."
+              echo ""
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --no-owner --no-acl --no-publications --no-subscriptions \
+                -h opencut-db -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h opencut-cnpg-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/5] Destination size + post-restore ANALYZE ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h opencut-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT pg_size_pretty(pg_database_size('opencut')) AS dst_db_size;
+                SELECT count(*) AS user_tables FROM pg_tables WHERE schemaname='public';
+              "
+              PGPASSWORD="$DST_PASSWORD" psql -h opencut-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "ANALYZE"
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo "==========================================="
+
+          env:
+            - name: SRC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: opencut-secret
+                  key: POSTGRES_USER
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencut-secret
+                  key: POSTGRES_PASSWORD
+            - name: SRC_DB
+              value: "opencut"
+
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: opencut-cnpg-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencut-cnpg-db-app
+                  key: password
+            - name: DST_DB
+              value: "opencut"
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
