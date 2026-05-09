@@ -1,0 +1,90 @@
+---
+# Phase 3f (sparky-fitness): deploy a CloudNativePG-managed postgres cluster
+# `sparky-fitness-cnpg-db` alongside the existing `sparky-fitness-db`
+# in-pod controller (postgres 15.15-alpine on the legacy `sparky-fitness`
+# 20 GiB PVC).
+#
+# Cutover (separate PR after migration verified): point sparky-fitness's
+# DB connection env at the new CNPG cluster's credentials.
+#
+# Source DB has these extensions (verified 2026-05-09):
+#   - plpgsql            (default, present everywhere)
+#   - pgcrypto           (trusted in PG13+ — app user can install)
+#   - uuid-ossp          (trusted in PG13+ — app user can install)
+#   - pg_stat_statements (NOT trusted; monitoring-only — SKIP for migration)
+#
+# So the migration Job can run a normal pg_dump | psql; the dump's
+# CREATE EXTENSION IF NOT EXISTS pgcrypto/uuid-ossp will succeed under the
+# CNPG-generated app user without superuser intervention. We will explicitly
+# DROP the pg_stat_statements extension on dest before the dump (or filter
+# it via --extension flags) to avoid the non-trusted permission error.
+#
+# Naming: legacy in-pod controller is `sparky-fitness-db`, so the CNPG
+# Cluster is `sparky-fitness-cnpg-db` to avoid collision. App will connect
+# to Service `sparky-fitness-cnpg-db-rw`.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: sparky-fitness-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/empty
+  targetNamespace: sparky-fitness
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: sparky-fitness-cnpg-db
+      namespace: sparky-fitness
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/cnpg-cluster
+
+  postBuild:
+    substitute:
+      APP: sparky-fitness-cnpg-db
+      APP_NAMESPACE: sparky-fitness
+
+      # Source DB name has an underscore (sparkyfitness_db, not sparky-fitness)
+      # — verified by `psql -l` on the legacy postgres pod.
+      CNPG_DB_NAME: sparkyfitness_db
+      CNPG_DB_OWNER: sparky
+
+      # Postgres 15 — match the legacy postgres:15.15-alpine major.
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.13-bookworm
+
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+
+      CNPG_INSTANCES: "1"
+
+      # Daily base backup at 07:30 UTC — clear of the others.
+      CNPG_BACKUP_SCHEDULE: "0 30 7 * * *"
+
+      CNPG_RETENTION: "30d"
+
+      CNPG_CPU_REQUEST: "100m"
+      CNPG_MEMORY_REQUEST: "256Mi"
+      CNPG_MEMORY_LIMIT: "1Gi"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
