@@ -31,7 +31,14 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  # Path now points at apps/base/sparky-fitness/db-cnpg/ which holds the
+  # SOPS-encrypted Secret for the sparky_app role's password. The
+  # cnpg-cluster Component below renders the Cluster, ScheduledBackup,
+  # and S3 credentials Secret. By co-locating both under this single
+  # Flux Kustomization, the password Secret reconciles together with
+  # the Cluster — avoiding the ordering pitfall where managed.roles
+  # would reference a Secret that doesn't yet exist.
+  path: ./apps/base/sparky-fitness/db-cnpg
   targetNamespace: sparky-fitness
 
   prune: true
@@ -57,6 +64,38 @@ spec:
 
   components:
     - ../../../components/cnpg-cluster
+
+  # Patch the Cluster (rendered by the cnpg-cluster Component) to add
+  # CNPG-managed roles and post-init application SQL. This captures the
+  # sparky_app role + its grants in GitOps so a fresh `bootstrap.initdb`
+  # restore reproduces them automatically — no more manual psql commands.
+  #
+  # - managed.roles: declares the sparky_app login role; CNPG keeps the
+  #   role's password in sync with sparky-fitness-app-db-secret.
+  # - postInitApplicationSQL: runs once at initdb in the app database.
+  #   ALTER DEFAULT PRIVILEGES means any tables sparky creates in the
+  #   future (e.g. when the migration Job re-imports data) auto-grant
+  #   SELECT/INSERT/UPDATE/DELETE to sparky_app — same outcome as the
+  #   manual GRANT statements done during the May 9 migration.
+  patches:
+    - target:
+        kind: Cluster
+        name: sparky-fitness-cnpg-db
+      patch: |
+        - op: add
+          path: /spec/managed
+          value:
+            roles:
+              - name: sparky_app
+                login: true
+                ensure: present
+                passwordSecret:
+                  name: sparky-fitness-app-db-secret
+        - op: add
+          path: /spec/bootstrap/initdb/postInitApplicationSQL
+          value:
+            - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sparky_app;"
+            - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT USAGE, SELECT ON SEQUENCES TO sparky_app;"
 
   postBuild:
     substitute:
