@@ -67,13 +67,16 @@ spec:
               - |
                 set -eux
 
-                until nslookup dawarich-dawarich-db.dawarich.svc.cluster.local >/dev/null 2>&1; do
-                  echo "waiting for DNS: dawarich-dawarich-db.dawarich.svc.cluster.local"
+                # CNPG cutover 2026-05-09 (Phase 3c-cutover): wait on the
+                # CNPG-managed dawarich-db-rw service instead of the legacy
+                # in-namespace postgres Deployment.
+                until nslookup dawarich-db-rw.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-db-rw.dawarich.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 dawarich-dawarich-db.dawarich.svc.cluster.local 5432; do
-                  echo "waiting for postgres: dawarich-dawarich-db.dawarich.svc.cluster.local:5432"
+                until nc -z -w 2 dawarich-db-rw.dawarich.svc.cluster.local 5432; do
+                  echo "waiting for postgres: dawarich-db-rw.dawarich.svc.cluster.local:5432"
                   sleep 2
                 done
 
@@ -115,14 +118,30 @@ spec:
               - "3000"
               - -b
               - "::"
+            # CNPG cutover 2026-05-09 (Phase 3c-cutover): the env values
+            # below override the DATABASE_USERNAME and DATABASE_PASSWORD
+            # entries in dawarich-secret (via envFrom) — env is evaluated
+            # AFTER envFrom, so the valueFrom references win. This switches
+            # the app to the CNPG-managed dawarich-db Cluster.
             env:
               TZ: America/Los_Angeles
               RAILS_ENV: production
 
               REDIS_URL: redis://dawarich-dawarich-redis.dawarich.svc.cluster.local:6379
 
-              DATABASE_HOST: dawarich-dawarich-db.dawarich.svc.cluster.local
+              DATABASE_HOST: dawarich-db-rw
               DATABASE_PORT: "5432"
+              DATABASE_NAME: dawarich
+              DATABASE_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-app
+                    key: username
+              DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-app
+                    key: password
 
               APPLICATION_HOSTS: "dawarich.lab.mainertoo.com,dawarich.mainertoo.com,192.168.90.186,dawarich,dawarich.dawarich.svc.cluster.local"
               APPLICATION_PROTOCOL: "https"
@@ -199,13 +218,15 @@ spec:
               - |
                 set -eux
 
-                until nslookup dawarich-dawarich-db.dawarich.svc.cluster.local >/dev/null 2>&1; do
-                  echo "waiting for DNS: dawarich-dawarich-db.dawarich.svc.cluster.local"
+                # CNPG cutover 2026-05-09 (Phase 3c-cutover): wait on the
+                # CNPG-managed dawarich-db-rw service.
+                until nslookup dawarich-db-rw.dawarich.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: dawarich-db-rw.dawarich.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 dawarich-dawarich-db.dawarich.svc.cluster.local 5432; do
-                  echo "waiting for postgres: dawarich-dawarich-db.dawarich.svc.cluster.local:5432"
+                until nc -z -w 2 dawarich-db-rw.dawarich.svc.cluster.local 5432; do
+                  echo "waiting for postgres: dawarich-db-rw.dawarich.svc.cluster.local:5432"
                   sleep 2
                 done
 
@@ -242,14 +263,28 @@ spec:
               - sidekiq-entrypoint.sh
             args:
               - sidekiq
+            # CNPG cutover 2026-05-09 (Phase 3c-cutover): same overrides
+            # as the app container — DATABASE_USERNAME/PASSWORD via
+            # valueFrom override the legacy values in dawarich-secret.
             env:
               TZ: America/Los_Angeles
               RAILS_ENV: production
 
               REDIS_URL: redis://dawarich-dawarich-redis.dawarich.svc.cluster.local:6379
 
-              DATABASE_HOST: dawarich-dawarich-db.dawarich.svc.cluster.local
+              DATABASE_HOST: dawarich-db-rw
               DATABASE_PORT: "5432"
+              DATABASE_NAME: dawarich
+              DATABASE_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-app
+                    key: username
+              DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-app
+                    key: password
 
               APPLICATION_HOSTS: "dawarich.lab.mainertoo.com,dawarich.mainertoo.com,192.168.90.186,dawarich,dawarich.dawarich.svc.cluster.local"
               APPLICATION_PROTOCOL: "https"
