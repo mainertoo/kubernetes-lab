@@ -37,11 +37,27 @@ spec:
             env:
               ASPNETCORE_URLS: "http://+:8282"
 
-              Zilean__Database__ConnectionString:
+              # CNPG cutover 2026-05-09 (Phase 3a-cutover):
+              # - PGUSER / PGPASSWORD come from the CNPG-generated zilean-db-app
+              #   Secret. CNPG rotates these on cluster recovery and the K8s
+              #   $(VAR) substitution below resolves them on every pod start.
+              # - bjw-s app-template renders env maps as alphabetically-ordered
+              #   lists; P < Z, so PGUSER+PGPASSWORD evaluate before the
+              #   Zilean__... reference, which $(VAR) substitution requires.
+              # - Legacy zilean-env / ZILEAN_DB_CONNECTION no longer referenced;
+              #   cleaned up in Phase 3a-decommission after 24h soak.
+              PGUSER:
                 valueFrom:
                   secretKeyRef:
-                    name: zilean-env
-                    key: ZILEAN_DB_CONNECTION
+                    name: zilean-db-app
+                    key: username
+              PGPASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: zilean-db-app
+                    key: password
+
+              Zilean__Database__ConnectionString: "Host=zilean-db-rw;Port=5432;Database=zilean;Username=$(PGUSER);Password=$(PGPASSWORD);Include Error Detail=true;Timeout=30;CommandTimeout=3600"
 
             resources:
               requests:
