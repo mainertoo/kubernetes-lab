@@ -64,14 +64,15 @@ spec:
               - |
                 set -eux
 
-                # Hardcode FQDN (you already observed template/vars getting blanked)
-                until nslookup sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
-                  echo "waiting for DNS: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local"
+                # CNPG cutover 2026-05-09 (Phase 3f-cutover): wait on the
+                # CNPG-managed sparky-fitness-cnpg-db-rw service.
+                until nslookup sparky-fitness-cnpg-db-rw.sparky-fitness.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: sparky-fitness-cnpg-db-rw.sparky-fitness.svc.cluster.local"
                   sleep 2
                 done
 
-                until nc -z -w 2 sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local 5432; do
-                  echo "waiting for postgres: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local:5432"
+                until nc -z -w 2 sparky-fitness-cnpg-db-rw.sparky-fitness.svc.cluster.local 5432; do
+                  echo "waiting for postgres: sparky-fitness-cnpg-db-rw.sparky-fitness.svc.cluster.local:5432"
                   sleep 2
                 done
 
@@ -83,13 +84,27 @@ spec:
               repository: codewithcj/sparkyfitness_server
               tag: v0.16.6.1
               pullPolicy: Always
+            # CNPG cutover 2026-05-09 (Phase 3f-cutover): SPARKY_FITNESS_DB_HOST
+            # now points at the CNPG-managed cluster's read-write Service.
+            # SPARKY_FITNESS_DB_PASSWORD is overridden via valueFrom to the
+            # CNPG auto-generated Secret (env wins over envFrom). The
+            # SPARKY_FITNESS_APP_DB_USER / APP_DB_PASSWORD pair stay from
+            # envFrom — the sparky_app role + password were recreated on the
+            # CNPG cluster as part of the migration (the legacy password is
+            # used so envFrom values still work).
             env:
               TZ: America/Los_Angeles
               NODE_ENV: production
               SPARKY_FITNESS_LOG_LEVEL: ERROR
 
-              SPARKY_FITNESS_DB_HOST: sparky-fitness-sparky-fitness-db.sparky-fitness.svc.cluster.local
+              SPARKY_FITNESS_DB_HOST: sparky-fitness-cnpg-db-rw
               SPARKY_FITNESS_DB_PORT: "5432"
+
+              SPARKY_FITNESS_DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: sparky-fitness-cnpg-db-app
+                    key: password
 
               SPARKY_FITNESS_FRONTEND_URL: "https://sparky-fitness.lab.mainertoo.com"
               SPARKY_FITNESS_DISABLE_SIGNUP: "false"
