@@ -65,6 +65,7 @@ resources:
   - lcshare/kustomization.yaml
   - convertx/kustomization.yaml
   - opencut/kustomization.yaml
+  - opencut/db-cnpg.yaml
   - homebox/kustomization.yaml
   - wallos/kustomization.yaml
   - open-notebook/kustomization.yaml
