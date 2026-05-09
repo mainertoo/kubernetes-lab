@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wiki-js
+# Empty resources list — the cnpg-cluster Component (referenced from
+# apps/production/wiki-js/db-cnpg.yaml) provides Cluster + ScheduledBackup +
+# S3 credentials Secret. No additional per-app Secrets are needed because
+# wiki-js uses a single role (wikijs) which CNPG manages via the
+# auto-generated <APP>-app Secret.
+resources: []

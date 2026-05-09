@@ -1,0 +1,89 @@
+---
+# Phase 3g (wiki-js): deploy a CloudNativePG-managed postgres cluster
+# `wiki-js-cnpg-db` alongside the existing in-pod `db` sidecar (postgres
+# 15-alpine running in the same pod as the wiki-js app container).
+#
+# Cutover (separate PR after migration verified): point wiki-js's app
+# container DB env at the new CNPG cluster's credentials. Like riven was,
+# this means the in-pod postgres sidecar can be removed at decommission.
+#
+# Source DB has only plpgsql extension — clean vanilla migration like
+# authentik. 10 MB / 1 page / standard wiki-js content (basically empty,
+# the user doesn't actively write to this wiki).
+#
+# Layout:
+#   apps/base/wiki-js/db-cnpg/         <-- managed by THIS Flux Kustomization
+#     kustomization.yaml               (empty resources list; Component
+#                                       provides Cluster/ScheduledBackup)
+#
+# No SOPS secret needed in this dir — wiki-js uses a single postgres role
+# (wikijs) which is the DB owner; CNPG's auto-generated wiki-js-cnpg-db-app
+# Secret provides the credentials.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: wiki-js-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  # Note: components paths are relative to spec.path (./apps/base/wiki-js/db-cnpg),
+  # which is 4 directory levels deep, so we need 4 `..` segments to reach the
+  # repo root before descending into components/. Lesson learned from PR #297.
+  path: ./apps/base/wiki-js/db-cnpg
+  targetNamespace: wiki-js
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: wiki-js-cnpg-db
+      namespace: wiki-js
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/cnpg-cluster
+
+  postBuild:
+    substitute:
+      APP: wiki-js-cnpg-db
+      APP_NAMESPACE: wiki-js
+
+      CNPG_DB_NAME: wiki
+      CNPG_DB_OWNER: wikijs
+
+      # Postgres 15 — match the legacy postgres:15-alpine.
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.13-bookworm
+
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+
+      CNPG_INSTANCES: "1"
+
+      # Daily base backup at 08:00 UTC — the last open slot in the morning
+      # window after the others.
+      CNPG_BACKUP_SCHEDULE: "0 0 8 * * *"
+
+      CNPG_RETENTION: "30d"
+
+      CNPG_CPU_REQUEST: "100m"
+      CNPG_MEMORY_REQUEST: "256Mi"
+      CNPG_MEMORY_LIMIT: "1Gi"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
