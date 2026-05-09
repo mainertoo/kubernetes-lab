@@ -117,6 +117,16 @@ spec:
 
           env:
             # ----- SOURCE: in-pod postgres sidecar (postgres 17.5-alpine) -----
+            #
+            # NOTE: riven-postgres-secret/POSTGRES_DB is the literal value
+            # "riven-postgres" — a confusingly-named EMPTY database that the
+            # postgres container creates at first boot from POSTGRES_DB env.
+            # The riven app actually uses a different database called "riven"
+            # (hardcoded in riven-backend-secret/RIVEN_DATABASE_HOST URL,
+            # path component `/riven`). So SRC_DB must be the literal "riven",
+            # NOT the value from POSTGRES_DB. Found this the hard way: the
+            # first run of this Job dumped 0 rows because it targeted the
+            # wrong (empty) database.
             - name: SRC_USER
               valueFrom:
                 secretKeyRef:
@@ -128,10 +138,7 @@ spec:
                   name: riven-postgres-secret
                   key: POSTGRES_PASSWORD
             - name: SRC_DB
-              valueFrom:
-                secretKeyRef:
-                  name: riven-postgres-secret
-                  key: POSTGRES_DB
+              value: "riven"
 
             # ----- DESTINATION: CNPG-managed riven-db (auto-generated) -----
             - name: DST_USER
