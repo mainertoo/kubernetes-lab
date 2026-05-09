@@ -1,0 +1,159 @@
+---
+# One-shot migration Job: dumps sparky-fitness's legacy postgres
+# (in-pod sparky-fitness-db controller, postgres 15.15-alpine) → the new
+# sparky-fitness-cnpg-db CNPG cluster.
+#
+# Apply manually (NOT in any kustomization.yaml — Flux ignores this file):
+#
+#   kubectl apply -f docs/migrations/sparky-fitness-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n sparky-fitness logs -f job/sparky-fitness-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour.
+#
+# ## Pre-flight (must run BEFORE this Job)
+#
+#   kubectl -n sparky-fitness exec sparky-fitness-cnpg-db-1 -c postgres -- \
+#     psql -U postgres -c 'DROP DATABASE IF EXISTS sparkyfitness_db'
+#   kubectl -n sparky-fitness exec sparky-fitness-cnpg-db-1 -c postgres -- \
+#     psql -U postgres -c 'CREATE DATABASE sparkyfitness_db OWNER sparky'
+#   kubectl -n sparky-fitness exec sparky-fitness-cnpg-db-1 -c postgres -- \
+#     psql -U postgres -d sparkyfitness_db -c \
+#     'CREATE EXTENSION pgcrypto; CREATE EXTENSION "uuid-ossp";'
+#
+# Why pre-install: pgcrypto and uuid-ossp are TRUSTED in PG13+ (the app user
+# COULD install them), but `COMMENT ON EXTENSION` requires being the
+# extension owner. Pre-installing as the OS-level postgres superuser makes
+# the dump's `CREATE EXTENSION IF NOT EXISTS` a no-op and we use
+# `--extension=plpgsql` on pg_dump to skip the COMMENT ownership conflicts.
+#
+# ## Why pg_stat_statements is excluded
+#
+# pg_stat_statements is NOT a trusted extension and requires
+# `shared_preload_libraries='pg_stat_statements'` in postgresql.conf to
+# function. CNPG's default config doesn't preload it. It's a query-stats
+# collector — purely monitoring data, not user data — so dropping it from
+# the migration is safe. Re-enable later by editing the Cluster spec's
+# postgresql.parameters.shared_preload_libraries if observability is wanted.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sparky-fitness-cnpg-migration
+  namespace: sparky-fitness
+  labels:
+    app.kubernetes.io/name: sparky-fitness
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: sparky-fitness-db
+    migration.kubernetes-lab/target: sparky-fitness-cnpg-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sparky-fitness
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          # postgres 15 client matches the source major.
+          image: postgres:15-bookworm
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " sparky-fitness legacy → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/5] Source connectivity (sparky-fitness-sparky-fitness-db) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h sparky-fitness-sparky-fitness-db -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/5] Destination connectivity (sparky-fitness-cnpg-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h sparky-fitness-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/5] Source row counts ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h sparky-fitness-sparky-fitness-db -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC LIMIT 20;
+              "
+
+              echo ""
+              echo "[4/5] pg_dump | psql --single-transaction"
+              echo "      --extension=plpgsql to skip CREATE/COMMENT for pre-installed"
+              echo "      extensions (pgcrypto, uuid-ossp). pg_stat_statements is also"
+              echo "      excluded — not pre-installed (monitoring-only, requires"
+              echo "      shared_preload_libraries config that CNPG default lacks)."
+              echo ""
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --no-owner --no-acl --no-publications --no-subscriptions \
+                --extension=plpgsql \
+                -h sparky-fitness-sparky-fitness-db -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h sparky-fitness-cnpg-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/5] Destination row counts + ANALYZE ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h sparky-fitness-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC LIMIT 20;
+                SELECT pg_size_pretty(pg_database_size('sparkyfitness_db')) AS dst_db_size;
+                SELECT extname, extversion FROM pg_extension ORDER BY extname;
+              "
+              PGPASSWORD="$DST_PASSWORD" psql -h sparky-fitness-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "ANALYZE"
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo "==========================================="
+
+          env:
+            - name: SRC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sparky-fitness-secret
+                  key: POSTGRES_USER
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sparky-fitness-secret
+                  key: POSTGRES_PASSWORD
+            - name: SRC_DB
+              value: "sparkyfitness_db"
+
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sparky-fitness-cnpg-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sparky-fitness-cnpg-db-app
+                  key: password
+            - name: DST_DB
+              value: "sparkyfitness_db"
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
