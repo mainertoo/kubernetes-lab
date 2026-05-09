@@ -1,0 +1,85 @@
+---
+# Phase 3e (opencut): deploy a CloudNativePG-managed postgres cluster
+# `opencut-db` alongside the existing in-namespace `opencut-db` Deployment.
+# App still connects to the OLD database — this PR just makes the new one
+# exist with WAL streaming to Garage S3, so we can validate the bootstrap
+# path before any data migration / cutover.
+#
+# Cutover (separate PR after migration verified): point opencut's HelmRelease
+# DATABASE_URL secret at the CNPG-managed authentik-db-app credentials.
+#
+# Vanilla postgres 17 — no extensions other than plpgsql in the source DB
+# (verified via pg_extension query 2026-05-09). DB is currently 7.5 MB with
+# zero user tables (opencut hasn't been heavily used yet), so the migration
+# itself is a near-no-op — the CNPG cluster will boot fresh and the app's
+# next connect will create its schema.
+#
+# Naming note: the legacy Deployment in-cluster is also called `opencut-db`,
+# so the CNPG Cluster name in this file (`opencut-cnpg-db`) is distinct.
+# The Service the app will connect to is `opencut-cnpg-db-rw`.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: opencut-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/empty
+  targetNamespace: opencut
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: opencut-cnpg-db
+      namespace: opencut
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/cnpg-cluster
+
+  postBuild:
+    substitute:
+      APP: opencut-cnpg-db
+      APP_NAMESPACE: opencut
+
+      CNPG_DB_NAME: opencut
+      CNPG_DB_OWNER: opencut
+
+      # Default CNPG image — postgres 17.5-bookworm, matches the existing
+      # postgres:17 image used by the legacy opencut-db Deployment.
+
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+
+      CNPG_INSTANCES: "1"
+
+      # Daily base backup at 07:00 UTC — clear of the others (joplin 04:30,
+      # qnap_pbs 04:45, zilean 05:15, qnap_garage 05:30, riven 05:45,
+      # dawarich 06:00, authentik 06:30).
+      CNPG_BACKUP_SCHEDULE: "0 0 7 * * *"
+
+      CNPG_RETENTION: "30d"
+
+      CNPG_CPU_REQUEST: "100m"
+      CNPG_MEMORY_REQUEST: "256Mi"
+      CNPG_MEMORY_LIMIT: "1Gi"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
