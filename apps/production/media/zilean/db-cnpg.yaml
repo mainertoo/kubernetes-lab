@@ -44,7 +44,7 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/cnpg-cluster
+    - ../../../components/cnpg-cluster
 
   postBuild:
     substitute:
