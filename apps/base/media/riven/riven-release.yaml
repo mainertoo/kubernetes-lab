@@ -39,41 +39,41 @@ spec:
                           - "true"
 
         containers:
-          postgres:
-            image:
-              repository: postgres
-              tag: 17.5-alpine3.20
-            envFrom:
-              - secretRef:
-                  name: riven-postgres-secret
-              - configMapRef:
-                  name: riven-postgres-configmap
-            env:
-              - name: PGDATA
-                value: /var/lib/postgresql/data/pgdata
-            probes:
-              readiness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command: ["pg_isready", "-U", "postgres"]
-                  initialDelaySeconds: 10
-                  periodSeconds: 5
+          # CNPG cutover 2026-05-09 (Phase 3b-cutover): the postgres sidecar
+          # was removed from this pod. The riven backend now connects to the
+          # CNPG-managed cluster `riven-db` via Service `riven-db-rw`. The
+          # legacy `riven-backend-pvc` (which used to hold the postgres data)
+          # is now unused — decommission in Phase 3b-decommission after 24h soak.
 
           backend:
             image:
               repository: docker.io/spoked/riven
               tag: v0.23.6
+            # env[] is evaluated AFTER envFrom — so the RIVEN_DATABASE_HOST set
+            # here OVERRIDES the legacy URL still present in riven-backend-secret.
+            # bjw-s app-template renders env list-style entries in declaration
+            # order, so PGUSER and PGPASSWORD are evaluated before
+            # RIVEN_DATABASE_HOST, satisfying K8s $(VAR) substitution.
             env:
               - name: TZ
                 value: America/Los_Angeles
+              - name: PGUSER
+                valueFrom:
+                  secretKeyRef:
+                    name: riven-db-app
+                    key: username
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: riven-db-app
+                    key: password
+              - name: RIVEN_DATABASE_HOST
+                value: "postgresql+psycopg2://$(PGUSER):$(PGPASSWORD)@riven-db-rw/riven"
             envFrom:
               - secretRef:
                   name: riven-backend-secret
               - configMapRef:
                   name: riven-backend-configmap
-            dependsOn: postgres
 
           frontend:
             image:
@@ -88,6 +88,10 @@ spec:
               - configMapRef:
                   name: riven-frontend-configmap
             dependsOn: backend
+        # Note: backend.dependsOn previously listed `postgres`. Now that the
+        # postgres sidecar is gone, the backend has no in-pod ordering deps.
+        # External ordering (CNPG cluster Ready before this app) is enforced
+        # via the Flux-Kustomization-level dependsOn in apps/production/media/riven/app.yaml.
 
     service:
       frontend:
@@ -104,13 +108,9 @@ spec:
           http:
             port: &portbackend 8080
 
-      postgres:
-        controller: riven
-        type: ClusterIP
-        ports:
-          postgres:
-            port: &portpostgres 5432
-            targetPort: 5432
+      # `postgres` Service removed during CNPG cutover 2026-05-09. Was
+      # exposing the in-pod postgres sidecar on 5432; that container no
+      # longer exists. Apps now connect to riven-db-rw (CNPG primary).
 
     persistence:
       data:
@@ -136,9 +136,7 @@ spec:
             backend:
               - path: /mnt/library
 
-      database:
-        existingClaim: riven-backend-pvc
-        advancedMounts:
-          riven:
-            postgres:
-              - path: /var/lib/postgresql/data
+      # `database` persistence (was: existingClaim riven-backend-pvc mounted
+      # to the postgres sidecar) removed during CNPG cutover 2026-05-09.
+      # The riven-backend-pvc still exists in-cluster but is unmounted; it
+      # gets pruned in Phase 3b-decommission after the 24h soak.
