@@ -62,8 +62,11 @@ spec:
     name: flux-system
     namespace: flux-system
 
+  # Note: components paths are relative to spec.path (./apps/base/sparky-fitness/db-cnpg),
+  # which is 4 directory levels deep, so we need 4 `..` segments to reach the
+  # repo root before descending into components/.
   components:
-    - ../../../components/cnpg-cluster
+    - ../../../../components/cnpg-cluster
 
   # Patch the Cluster (rendered by the cnpg-cluster Component) to add
   # CNPG-managed roles and post-init application SQL. This captures the
