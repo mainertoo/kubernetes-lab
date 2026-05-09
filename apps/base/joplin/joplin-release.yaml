@@ -23,26 +23,6 @@ spec:
 
   values:
     controllers:
-      joplin-db:
-        containers:
-          app:
-            image:
-              repository: postgres
-              tag: "16"
-            env:
-              # ✅ Put DB files in a subdir under the mount
-              PGDATA: /var/lib/postgresql/data/pgdata
-
-              POSTGRES_PASSWORD:
-                valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_PASSWORD }
-              POSTGRES_USER:
-                valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_USER }
-              POSTGRES_DB:
-                valueFrom:
-                  secretKeyRef: { name: joplin-secret, key: POSTGRES_DB }
-
       joplin:
         containers:
           app:
@@ -54,10 +34,10 @@ spec:
               APP_PORT: "22300"
               APP_BASE_URL: "https://joplin.lab.mainertoo.com"
               DB_CLIENT: "pg"
-              # CNPG cutover 2026-05-08: joplin app now talks to the CNPG-managed
-              # cluster (joplin-db) instead of the legacy joplin-joplin-db Deployment.
-              # The legacy Deployment is intentionally left running for now (no traffic);
-              # decommission in a follow-up PR after 24h soak.
+              # Postgres is provided by the CNPG cluster joplin-db (see
+              # apps/production/joplin/db-cnpg.yaml). The legacy
+              # joplin-joplin-db Deployment, its PVC, and its volsync chain
+              # were retired 2026-05-09 (Phase 2d).
               POSTGRES_HOST: "joplin-db-rw"
               POSTGRES_PORT: "5432"
               POSTGRES_PASSWORD:
@@ -66,30 +46,12 @@ spec:
               POSTGRES_USER:
                 valueFrom:
                   secretKeyRef: { name: joplin-db-app, key: username }
-              # CNPG bootstrap.initdb.database creates a DB literally named "joplin"
-              # (matching the legacy DB name from joplin-secret/POSTGRES_DB).
+              # CNPG bootstrap.initdb.database creates a DB literally named "joplin".
               POSTGRES_DATABASE: "joplin"
 
     service:
-      joplin-db:
-        controller: joplin-db
-        ports:
-          postgres:
-            port: 5432
       joplin:
         controller: joplin
         ports:
           http:
             port: 22300
-
-    persistence:
-      db:
-        enabled: true
-        # PVC is provisioned by components/volsync-v2 with name = ${APP}.
-        # Renamed from joplin-db during the Phase 1c migration.
-        existingClaim: joplin
-        advancedMounts:
-          joplin-db:
-            app:
-              # ✅ Mount one level up; PGDATA handles the subdir
-              - path: /var/lib/postgresql/data
