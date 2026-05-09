@@ -1,0 +1,155 @@
+---
+# One-shot migration Job: dumps riven's existing in-pod-sidecar postgres
+# → riven-db CNPG cluster.
+#
+# This file is intentionally NOT in any kustomization.yaml — Flux will not apply it.
+# Apply manually after CNPG cluster riven-db is healthy:
+#
+#   kubectl apply -f docs/migrations/riven-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n media logs -f job/riven-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour (ttlSecondsAfterFinished).
+#
+# IMPORTANT: scale riven app to 0 BEFORE running this so writes don't go to
+# the old DB during the dump. Note: scaling to 0 will ALSO terminate the
+# postgres sidecar (because they're in the same pod) — but the data persists
+# on riven-backend-pvc which stays mounted to nothing while replicas=0.
+#
+# Wait — that's a problem. We need the postgres sidecar UP to dump from it.
+#
+# Workaround: leave riven at replicas=1 but BLOCK writes by stopping just the
+# backend container. Easier alternative: run pg_dump via `kubectl exec` on the
+# live pod into a local temp file, then psql that file into riven-db-rw.
+#
+# Cleaner alternative used here: do NOT scale down. Instead, accept that
+# any writes during the ~5-second dump may be lost. For riven (sparse writes,
+# can re-scrape) this is fine. The pg_dump uses REPEATABLE READ isolation so
+# the dump itself is point-in-time consistent; only writes that happen after
+# the snapshot start are not in the dump.
+#
+# If you want zero-loss: kubectl scale deploy riven --replicas=0 BEFORE
+# running this Job, then run the Job (which will fail to connect to the
+# now-dead postgres-sidecar), and instead use a different approach (revert
+# scale to 1, dump, scale back to 0). For our use case (12 MB DB, easy to
+# re-scrape if anything is missed), zero-downtime is the chosen tradeoff.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: riven-cnpg-migration
+  namespace: media
+  labels:
+    app.kubernetes.io/name: riven
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: riven-postgres
+    migration.kubernetes-lab/target: riven-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: riven
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:17-bookworm
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " riven postgres → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/5] Verify source connectivity (riven-postgres) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h riven-postgres -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/5] Verify destination connectivity (riven-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h riven-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/5] Source row counts ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h riven-postgres -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT schemaname || '.' || relname AS table_name,
+                       n_live_tup AS approx_rows
+                FROM pg_stat_user_tables
+                ORDER BY n_live_tup DESC
+                LIMIT 30;
+              "
+
+              echo ""
+              echo "[4/5] pg_dump | psql --single-transaction ..."
+              PGPASSWORD="$SRC_PASSWORD" pg_dump --no-owner --no-acl --no-publications --no-subscriptions \
+                -h riven-postgres -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h riven-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/5] Destination row counts (post-restore) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h riven-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT schemaname || '.' || relname AS table_name,
+                       n_live_tup AS approx_rows
+                FROM pg_stat_user_tables
+                ORDER BY n_live_tup DESC
+                LIMIT 30;
+              "
+
+              echo ""
+              echo "[bonus] ANALYZE destination ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h riven-db-rw -U "$DST_USER" -d "$DST_DB" -c "ANALYZE"
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo "==========================================="
+
+          env:
+            # ----- SOURCE: in-pod postgres sidecar (postgres 17.5-alpine) -----
+            - name: SRC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: riven-postgres-secret
+                  key: POSTGRES_USER
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: riven-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: SRC_DB
+              valueFrom:
+                secretKeyRef:
+                  name: riven-postgres-secret
+                  key: POSTGRES_DB
+
+            # ----- DESTINATION: CNPG-managed riven-db (auto-generated) -----
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: riven-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: riven-db-app
+                  key: password
+            - name: DST_DB
+              value: "riven"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
