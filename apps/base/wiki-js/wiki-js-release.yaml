@@ -58,9 +58,21 @@ spec:
               - secretRef:
                   name: wiki-js-secret
 
+            # CNPG cutover 2026-05-09 (Phase 3g-cutover): override DB_HOST
+            # (was localhost from wiki-js-secret) and DB_PASS (was the
+            # legacy literal in the secret) to point at the CNPG-managed
+            # wiki-js-cnpg-db. env wins over envFrom so the wiki-js-secret
+            # values for DB_HOST and DB_PASS no longer matter at runtime.
             env:
               TZ: America/Los_Angeles
               PORT: "3000"
+
+              DB_HOST: wiki-js-cnpg-db-rw
+              DB_PASS:
+                valueFrom:
+                  secretKeyRef:
+                    name: wiki-js-cnpg-db-app
+                    key: password
 
             resources:
               requests:
