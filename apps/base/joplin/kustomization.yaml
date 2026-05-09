@@ -3,9 +3,5 @@ kind: Kustomization
 namespace: joplin
 resources:
   - joplin-namespace.yaml
-  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
-  # Renamed from joplin-db → joplin during the Phase 1c migration.
-  # - joplin-db-pvc.yaml
-  - joplin-secret.sops.yaml
   - joplin-release.yaml
   - joplin-ingressroute.yaml
