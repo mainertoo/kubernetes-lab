@@ -1,0 +1,206 @@
+---
+# One-shot migration Job: dumps dawarich's existing legacy postgres
+# (dawarich-dawarich-db Deployment) → dawarich-db CNPG cluster.
+#
+# This file is intentionally NOT in any kustomization.yaml — Flux will not apply it.
+# Apply manually after CNPG cluster dawarich-db is healthy:
+#
+#   kubectl apply -f docs/migrations/dawarich-cnpg-2026-05-09.yaml
+#
+# Watch:
+#
+#   kubectl -n dawarich logs -f job/dawarich-cnpg-migration
+#
+# After completion, the Job auto-deletes after 1 hour (ttlSecondsAfterFinished).
+#
+# ## Migration approach
+#
+# We do NOT scale the dawarich app to 0 for THIS Job — this is the migration
+# rehearsal that validates the dump/restore pipeline. The actual cutover (a
+# later PR) is when we'll either accept a small data-loss window OR briefly
+# drain the app.
+#
+# pg_dump uses a REPEATABLE READ snapshot, so the dump itself is point-in-time
+# consistent. Any GPS points written AFTER the snapshot start are not in the
+# dump. At ~3-5 points/minute (~5,440/day for 2 active users), we expect a
+# few points to drift between source and destination over the 5-10 min the
+# Job runs. This is fine for the migration TEST — at cutover time we'll
+# either re-run the migration after pausing writes, or do a final delta sync.
+#
+# ## Postgis-specific handling
+#
+# CNPG's default `dawarich` user is NOT a postgres superuser, so it can't
+# install extensions. Before this Job runs, the destination DB must already
+# have these extensions installed (via peer-auth as the OS-level postgres user
+# inside the dawarich-db-1 pod):
+#
+#   kubectl -n dawarich exec dawarich-db-1 -c postgres -- psql -U postgres -c \
+#     'DROP DATABASE IF EXISTS dawarich'
+#   kubectl -n dawarich exec dawarich-db-1 -c postgres -- psql -U postgres -c \
+#     'CREATE DATABASE dawarich OWNER dawarich'
+#   kubectl -n dawarich exec dawarich-db-1 -c postgres -- psql -U postgres -d dawarich -c \
+#     'CREATE EXTENSION postgis;
+#      CREATE EXTENSION postgis_topology;
+#      CREATE EXTENSION fuzzystrmatch;
+#      CREATE EXTENSION postgis_tiger_geocoder;
+#      GRANT USAGE ON SCHEMA tiger TO dawarich;
+#      GRANT USAGE ON SCHEMA topology TO dawarich;'
+#
+# With extensions pre-installed, the dump's `CREATE EXTENSION IF NOT EXISTS`
+# becomes a no-op. We additionally use:
+#
+# - `--exclude-table-data=public.spatial_ref_sys` — skip the postgis SRID
+#   lookup contents (~8,500 standard rows). The extension repopulates them
+#   on install, so including the data causes primary-key conflicts.
+#
+# - `--exclude-schema=tiger` and `--exclude-schema=topology` — these schemas
+#   are managed by `postgis_tiger_geocoder` and `postgis_topology` and are
+#   populated with reference data (USA Census geocoding rules, topology
+#   metadata) at extension-install time. Dumping them would conflict with
+#   the extension-created tables. dawarich does not modify their contents.
+#
+# - Both source (3.5.5) and destination (3.5.2) are within the postgis 3.5
+#   minor — extension API is identical, only patch-level fixes differ.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dawarich-cnpg-migration
+  namespace: dawarich
+  labels:
+    app.kubernetes.io/name: dawarich
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: dawarich-dawarich-db
+    migration.kubernetes-lab/target: dawarich-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dawarich
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          # postgis image so pg_dump understands postgis types & functions if
+          # any custom dumps reference them. Match the legacy and CNPG image
+          # versions (17/3.5).
+          image: postgis/postgis:17-3.5
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " dawarich legacy postgres → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/6] Verify source connectivity (dawarich-dawarich-db) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h dawarich-dawarich-db -U "$SRC_USER" -d "$SRC_DB" \
+                -c "SELECT 'src ok ' || version()"
+
+              echo ""
+              echo "[2/6] Verify destination connectivity (dawarich-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h dawarich-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "SELECT 'dst ok ' || version()"
+
+              echo ""
+              echo "[3/6] Source row counts (top tables) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h dawarich-dawarich-db -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s
+                JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC
+                LIMIT 20;
+              "
+
+              echo ""
+              echo "[4/6] pg_dump | psql --single-transaction (postgis-aware) ..."
+              echo "      using --extension=plpgsql to skip CREATE/COMMENT for"
+              echo "      postgis* + fuzzystrmatch (the dawarich app user is not"
+              echo "      the extension owner, so COMMENT ON EXTENSION fails)."
+              echo "      Extension-owned tables (spatial_ref_sys, tiger.*,"
+              echo "      topology.*) are also excluded automatically."
+              echo ""
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --no-owner --no-acl --no-publications --no-subscriptions \
+                --extension=plpgsql \
+                --exclude-schema=tiger \
+                --exclude-schema=topology \
+                -h dawarich-dawarich-db -U "$SRC_USER" "$SRC_DB" |
+              PGPASSWORD="$DST_PASSWORD" psql --single-transaction --set ON_ERROR_STOP=1 \
+                -h dawarich-db-rw -U "$DST_USER" -d "$DST_DB"
+
+              echo ""
+              echo "[5/6] Destination row counts (post-restore) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h dawarich-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT s.schemaname || '.' || s.relname AS table_name,
+                       s.n_live_tup AS approx_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS sz
+                FROM pg_stat_user_tables s
+                JOIN pg_class c ON c.oid = s.relid
+                ORDER BY s.n_live_tup DESC
+                LIMIT 20;
+              "
+
+              echo ""
+              echo "[6/6] ANALYZE destination + verify postgis ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h dawarich-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT extname, extversion FROM pg_extension WHERE extname LIKE 'postgis%';
+                ANALYZE;
+                SELECT 'sample point' AS test, count(*) FROM points;
+              "
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo " expected drift: a few rows in points/visits (live writes during dump)"
+              echo "==========================================="
+
+          env:
+            # ----- SOURCE: legacy dawarich-dawarich-db (postgis 17-3.5-alpine) -----
+            #
+            # POSTGRES_DB in dawarich-secret is "dawarich" — verified against
+            # `psql -l` (no riven-style trap here). The "dawarich" role is the
+            # superuser of this DB; there is no separate "postgres" role.
+            - name: SRC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-secret
+                  key: POSTGRES_USER
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-secret
+                  key: POSTGRES_PASSWORD
+            - name: SRC_DB
+              value: "dawarich"
+
+            # ----- DESTINATION: CNPG-managed dawarich-db -----
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db-app
+                  key: password
+            - name: DST_DB
+              value: "dawarich"
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              # 4.9 GB DB → pg_dump streams, doesn't buffer the whole DB.
+              # 1Gi gives generous headroom for psql restore parsing.
+              memory: 1Gi
