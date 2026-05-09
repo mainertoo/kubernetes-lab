@@ -13,6 +13,13 @@ spec:
   timeout: 10m
   wait: false
 
+  # Wait for the CNPG cluster (riven-db) to be Ready before applying the
+  # riven app. Matters for from-scratch GitOps restores so the app pod
+  # doesn't CrashLoopBackOff trying to read a not-yet-existing
+  # riven-db-app Secret.
+  dependsOn:
+    - name: riven-db
+
   decryption:
     provider: sops
     secretRef:
