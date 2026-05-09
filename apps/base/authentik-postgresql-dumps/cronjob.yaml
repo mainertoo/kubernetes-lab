@@ -26,18 +26,21 @@ spec:
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c"]
               args:
+                # NOTE: the $$ escapes are required because Flux postBuild.substitute
+                # interprets ${VAR} as its own placeholder and replaces undefined vars
+                # with empty string. Use $$VAR / $${VAR} to pass literal $ to bash.
                 - |
                   set -euo pipefail
-                  STAMP=$(date -u +%Y%m%d-%H%M%SZ)
-                  OUT="/dumps/authentik-${STAMP}.sql.gz"
-                  echo "[dump] start ${STAMP} → ${OUT}"
+                  STAMP=$$(date -u +%Y%m%d-%H%M%SZ)
+                  OUT="/dumps/authentik-$${STAMP}.sql.gz"
+                  echo "[dump] start $${STAMP} → $${OUT}"
                   pg_dump \
                     -h authentik-postgresql \
                     -U authentik \
                     --no-owner --no-acl \
                     authentik \
-                    | gzip --rsyncable -9 > "${OUT}"
-                  ls -lh "${OUT}"
+                    | gzip --rsyncable -9 > "$${OUT}"
+                  ls -lh "$${OUT}"
                   echo "[dump] rotating, keeping latest 14"
                   ls -t /dumps/authentik-*.sql.gz 2>/dev/null | tail -n +15 | xargs -r rm -v
                   echo "[dump] done"
