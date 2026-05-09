@@ -45,7 +45,7 @@ spec:
       CNPG_DB_OWNER: joplin
 
       # Match the existing joplin postgres version (16) so dump/restore is same-version
-      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:16.10-bookworm
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.6-bookworm
 
       # Storage matches the existing joplin postgres PVC (10Gi)
       CNPG_STORAGE_SIZE: 10Gi

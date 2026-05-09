@@ -60,7 +60,7 @@ spec:
       CNPG_DB_OWNER: riven
 
       # Match the existing postgres sidecar version (17.5)
-      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.5-bookworm
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.6-bookworm
 
       # Existing DB is 12 MB; bumping to 2Gi for headroom (legacy was 1Gi
       # for the entire backend PVC including OS overhead)
