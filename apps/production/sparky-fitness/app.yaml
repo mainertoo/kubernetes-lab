@@ -13,6 +13,11 @@ spec:
   timeout: 10m
   wait: false
 
+  # CNPG cutover 2026-05-09 (Phase 3f-cutover): the sparky-fitness app now
+  # depends on the CNPG-managed sparky-fitness-cnpg-db Cluster.
+  dependsOn:
+    - name: sparky-fitness-db-cnpg
+
   decryption:
     provider: sops
     secretRef:
