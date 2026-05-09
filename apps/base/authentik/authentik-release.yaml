@@ -65,7 +65,12 @@ spec:
         use_tls: true
         use_ssl: false
       postgresql:
-        host: "{{ .Release.Name }}-postgresql"
+        # CNPG cutover 2026-05-09 (Phase 3d-cutover): point at the
+        # CNPG-managed authentik-db-rw service. The legacy bitnami
+        # subchart (postgresql.enabled: true below) keeps its
+        # StatefulSet running but unused — decommission in Phase 3d
+        # after the 24h soak.
+        host: authentik-db-rw
         name: authentik
         user: authentik
         port: 5432
@@ -111,10 +116,14 @@ spec:
               name: authentik-postgresql
               key: AUTHENTIK_EMAIL__FROM
 
+        # CNPG cutover 2026-05-09 (Phase 3d-cutover): switch the postgres
+        # password to the CNPG-auto-generated Secret. The other Secrets
+        # (AUTHENTIK_SECRET_KEY, AUTHENTIK_EMAIL__*) are unrelated to
+        # postgres and stay on authentik-postgresql.
         - name: AUTHENTIK_POSTGRESQL__PASSWORD
           valueFrom:
             secretKeyRef:
-              name: authentik-postgresql
+              name: authentik-db-app
               key: password
 
     worker:
@@ -137,8 +146,12 @@ spec:
               name: authentik-postgresql
               key: AUTHENTIK_SECRET_KEY
 
+        # CNPG cutover 2026-05-09 (Phase 3d-cutover): switch the postgres
+        # password to the CNPG-auto-generated Secret. The other Secrets
+        # (AUTHENTIK_SECRET_KEY, AUTHENTIK_EMAIL__*) are unrelated to
+        # postgres and stay on authentik-postgresql.
         - name: AUTHENTIK_POSTGRESQL__PASSWORD
           valueFrom:
             secretKeyRef:
-              name: authentik-postgresql
+              name: authentik-db-app
               key: password
