@@ -80,25 +80,37 @@ spec:
   #   future (e.g. when the migration Job re-imports data) auto-grant
   #   SELECT/INSERT/UPDATE/DELETE to sparky_app — same outcome as the
   #   manual GRANT statements done during the May 9 migration.
+  #
+  # Note: using strategic merge patch (with apiVersion/kind/metadata) rather
+  # than JSON6902. The earlier JSON6902 form silently rendered without
+  # applying — `flux build` showed the Cluster missing the patched fields.
   patches:
+    # Patch must match the resource name as kustomize sees it BEFORE Flux
+    # postBuild substitution. The cnpg-cluster Component renders the
+    # Cluster with metadata.name: ${APP} (literal text). Targeting the
+    # literal placeholder makes the merge match; postBuild then rewrites
+    # both the patched and the original to the real name.
     - target:
         kind: Cluster
-        name: sparky-fitness-cnpg-db
-      patch: |
-        - op: add
-          path: /spec/managed
-          value:
+        name: \${APP}
+      patch: |-
+        apiVersion: postgresql.cnpg.io/v1
+        kind: Cluster
+        metadata:
+          name: ${APP}
+        spec:
+          managed:
             roles:
               - name: sparky_app
                 login: true
                 ensure: present
                 passwordSecret:
                   name: sparky-fitness-app-db-secret
-        - op: add
-          path: /spec/bootstrap/initdb/postInitApplicationSQL
-          value:
-            - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sparky_app;"
-            - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT USAGE, SELECT ON SEQUENCES TO sparky_app;"
+          bootstrap:
+            initdb:
+              postInitApplicationSQL:
+                - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sparky_app;"
+                - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT USAGE, SELECT ON SEQUENCES TO sparky_app;"
 
   postBuild:
     substitute:
