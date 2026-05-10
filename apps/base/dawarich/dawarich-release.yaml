@@ -302,37 +302,9 @@ spec:
               - secretRef:
                   name: dawarich-secret
 
-      dawarich-db:
-        strategy: Recreate
-
-        initContainers:
-          init-pgdata-dir:
-            image:
-              repository: busybox
-              tag: "1.37"
-            command: ["/bin/sh", "-c"]
-            args:
-              - |
-                set -eux
-                mkdir -p /var/lib/postgresql/data/pgdata
-                chown -R 999:999 /var/lib/postgresql/data/pgdata || true
-                chmod 0700 /var/lib/postgresql/data/pgdata || true
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-
-        containers:
-          db:
-            image:
-              repository: postgis/postgis
-              tag: 17-3.5-alpine
-              pullPolicy: IfNotPresent
-            env:
-              PGDATA: /var/lib/postgresql/data/pgdata
-            envFrom:
-              - secretRef:
-                  name: dawarich-secret
+      # Legacy `dawarich-db` controller (postgis/postgis:17-3.5-alpine)
+      # removed in Phase 5f (CNPG migration cleanup 2026-05-09). App now
+      # connects to dawarich-db-rw via the CNPG-managed cluster.
 
       dawarich-redis:
         strategy: Recreate
@@ -361,13 +333,8 @@ spec:
             port: 8080
             targetPort: 8080
 
-      dawarich-db:
-        controller: dawarich-db
-        type: ClusterIP
-        ports:
-          postgres:
-            port: 5432
-            targetPort: 5432
+      # `dawarich-db` Service removed in Phase 5f. App connects to
+      # dawarich-db-rw (CNPG-managed cluster).
 
       dawarich-redis:
         controller: dawarich-redis
@@ -378,15 +345,9 @@ spec:
             targetPort: 6379
 
     persistence:
-      data:
-        enabled: true
-        existingClaim: dawarich-db
-        advancedMounts:
-          dawarich-db:
-            init-pgdata-dir:
-              - path: /var/lib/postgresql/data
-            db:
-              - path: /var/lib/postgresql/data
+      # `data` (mounted to the legacy dawarich-db controller, claim name
+      # `dawarich-db`, 25 GiB) removed in Phase 5f. The PVC is also pruned
+      # via removal of apps/production/dawarich/db.yaml below.
 
       media:
         enabled: true
