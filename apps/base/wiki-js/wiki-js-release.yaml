@@ -82,73 +82,9 @@ spec:
                 cpu: 1000m
                 memory: 1Gi
 
-          # 2) Postgres DB sidecar
-          db:
-            image:
-              repository: postgres
-              tag: "15-alpine"
-              pullPolicy: IfNotPresent
-
-            envFrom:
-              - secretRef:
-                  name: wiki-js-secret
-
-            env:
-              POSTGRES_DB:
-                valueFrom:
-                  secretKeyRef:
-                    name: wiki-js-secret
-                    key: POSTGRES_DB
-              POSTGRES_USER:
-                valueFrom:
-                  secretKeyRef:
-                    name: wiki-js-secret
-                    key: POSTGRES_USER
-              POSTGRES_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: wiki-js-secret
-                    key: POSTGRES_PASSWORD
-              # # keep the PGDATA subdir trick for Ceph RBD
-              # PGDATA: /var/lib/postgresql/data/pgdata
-
-            resources:
-              requests:
-                cpu: 50m
-                memory: 256Mi
-              limits:
-                cpu: 500m
-                memory: 1Gi
-
-            probes:
-              liveness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - |
-                        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1
-                  initialDelaySeconds: 30
-                  periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 5
-              readiness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - |
-                        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 5
+          # Legacy postgres `db` sidecar removed in Phase 5b (CNPG migration
+          # cleanup). App now connects to wiki-js-cnpg-db-rw via the env
+          # override on the `app` container above.
 
     defaultPodOptions:
       securityContext:
@@ -163,22 +99,13 @@ spec:
           http:
             port: 3000
 
-      db:
-        enabled: true
-        controller: main
-        ports:
-          postgres:
-            enabled: true
-            port: 5432
+      # `db` Service (5432 → in-pod sidecar) removed in Phase 5b. Migration
+      # tooling and the app both go through wiki-js-cnpg-db-rw now.
 
     persistence:
-      # Postgres data on Ceph RBD
-      db-data:
-        enabled: true
-        existingClaim: wiki-js-db
-        globalMounts:
-          - path: /var/lib/postgresql/data
-            subPath: pgdata
+      # `db-data` (mounted to the legacy `db` sidecar at /var/lib/postgresql/data)
+      # removed in Phase 5b. The wiki-js-db PVC itself is also pruned via
+      # removal of apps/production/wiki-js/db.yaml below — reclaims 10 GiB.
 
       # CephFS for config + data
       wiki-data:
