@@ -3,10 +3,11 @@ kind: Kustomization
 resources:
   - zilean-release.yaml
   - zilean-env.sops.yaml
-  - zilean-postgres.yaml
-  - zilean-postgres-secret.sops.yaml
   - zilean-ingressroute.yaml
-  - zilean-pgadmin.yaml       # NEW: pgAdmin deployment+svc+PVC
-  - zilean-pgadmin-ingressroute.yaml  # NEW: pgAdmin ingress
+  # pgAdmin still in place but its target (zilean-postgres Service) is gone
+  # after Phase 5c. Either delete pgadmin entirely or update
+  # zilean-pgadmin-config.sops.yaml to point at zilean-cnpg-db-rw.
+  - zilean-pgadmin.yaml
+  - zilean-pgadmin-ingressroute.yaml
   - zilean-pgadmin-env.sops.yaml
   - zilean-pgadmin-config.sops.yaml
