@@ -151,36 +151,10 @@ spec:
               capabilities:
                 drop: ["ALL"]
 
-      sparky-fitness-db:
-        strategy: Recreate
-
-        initContainers:
-          init-pgdata-dir:
-            image:
-              repository: busybox
-              tag: "1.37"
-            command: ["/bin/sh", "-c"]
-            args:
-              - |
-                set -eux
-                mkdir -p /var/lib/postgresql/data/pgdata
-                chown -R 999:999 /var/lib/postgresql/data/pgdata || true
-                chmod 0700 /var/lib/postgresql/data/pgdata || true
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-
-        containers:
-          db:
-            image:
-              repository: postgres
-              tag: 15-alpine
-            env:
-              PGDATA: /var/lib/postgresql/data/pgdata
-            envFrom:
-              - secretRef:
-                  name: sparky-fitness-secret
+      # Legacy `sparky-fitness-db` controller (postgres:15-alpine) removed
+      # in Phase 5d (CNPG migration cleanup 2026-05-09). App now connects
+      # to sparky-fitness-cnpg-db-rw via the env override on the `server`
+      # container above.
 
     service:
       # This is what Traefik points to (port 80)
@@ -193,25 +167,13 @@ spec:
             # nginx in the frontend container listens on 80
             targetPort: 80
 
-      # DB service name stays the same
-      sparky-fitness-db:
-        controller: sparky-fitness-db
-        type: ClusterIP
-        ports:
-          postgres:
-            port: 5432
-            targetPort: 5432
+      # `sparky-fitness-db` Service removed in Phase 5d. App connects to
+      # sparky-fitness-cnpg-db-rw (CNPG-managed cluster).
 
     persistence:
-      data:
-        enabled: true
-        existingClaim: sparky-fitness
-        advancedMounts:
-          sparky-fitness-db:
-            init-pgdata-dir:
-              - path: /var/lib/postgresql/data
-            db:
-              - path: /var/lib/postgresql/data
+      # `data` (mounted to the legacy sparky-fitness-db controller, claim
+      # name `sparky-fitness`, 20 GiB) removed in Phase 5d. The PVC is also
+      # pruned via removal of apps/production/sparky-fitness/db.yaml below.
 
       media:
         enabled: true
