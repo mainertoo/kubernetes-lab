@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: opencut
 resources:
   - opencut-namespace.yaml
-  - opencut-postgres-pvc.yaml
   - opencut-secret.sops.yaml
   - opencut-release.yaml
   - opencut-ingressroute.yaml

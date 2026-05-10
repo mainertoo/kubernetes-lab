@@ -30,32 +30,9 @@ spec:
 
   values:
     controllers:
-      db:
-        strategy: Recreate
-        containers:
-          main:
-            image:
-              repository: postgres
-              tag: "17"
-            env:
-              TZ: America/Los_Angeles
-              POSTGRES_USER:
-                valueFrom:
-                  secretKeyRef:
-                    name: opencut-secret
-                    key: POSTGRES_USER
-              POSTGRES_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: opencut-secret
-                    key: POSTGRES_PASSWORD
-              POSTGRES_DB:
-                valueFrom:
-                  secretKeyRef:
-                    name: opencut-secret
-                    key: POSTGRES_DB
-              # Important for Ceph-RBD + lost+found
-              PGDATA: /var/lib/postgresql/data/pgdata
+      # Legacy `db` controller (postgres:17 in-namespace Deployment) removed
+      # in Phase 5a (2026-05-09) after the CNPG migration. App connects to
+      # opencut-cnpg-db-rw via the env override in the `web` container.
 
       redis:
         strategy: Recreate
@@ -190,13 +167,8 @@ spec:
                 port: 3000
 
     service:
-      db:
-        controller: db
-        type: ClusterIP
-        ports:
-          postgres:
-            port: 5432
-            targetPort: 5432
+      # `db` Service removed in Phase 5a (CNPG migration cleanup). App now
+      # connects to Service opencut-cnpg-db-rw (CNPG-managed cluster).
 
       redis:
         controller: redis
@@ -222,11 +194,7 @@ spec:
             port: 3000
             targetPort: 3000
 
-    persistence:
-      postgres-data:
-        enabled: true
-        existingClaim: opencut-postgres
-        advancedMounts:
-          db:
-            main:
-              - path: /var/lib/postgresql/data
+    # `persistence.postgres-data` (mounted to the legacy `db` controller's
+    # opencut-postgres PVC) removed in Phase 5a. The PVC itself is also
+    # removed below by dropping opencut-postgres-pvc.yaml from the
+    # kustomization — Flux prune cascades, freeing 10 GiB ceph-rbd.
