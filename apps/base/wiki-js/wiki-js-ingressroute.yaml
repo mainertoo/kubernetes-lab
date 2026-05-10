@@ -22,5 +22,10 @@ spec:
       #   - name: authentik-sso
       #     namespace: traefik-system
       services:
-        - name: wiki-js-main
+        # Service was renamed wiki-js-main → wiki-js when the legacy `db`
+        # sidecar was removed from the HelmRelease in PR #306 (Phase 5b).
+        # bjw-s app-template renders <release-name>-<service-key> when the
+        # release has multiple services, but collapses to <release-name>
+        # when only one service remains. Updating to the post-decom name.
+        - name: wiki-js
           port: 3000
