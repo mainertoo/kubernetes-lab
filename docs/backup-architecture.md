@@ -1,17 +1,19 @@
 # Backup Architecture
 
-> Audited 2026-05-07 by reading every host, cron entry, script body, and config end-to-end. Captures **the actual state of the system on that date**, not the way I described it from memory. Companion runbook: `docs/backup-recovery.md`.
+> Audited 2026-05-07 by reading every host, cron entry, script body, and config end-to-end. Re-confirmed 2026-05-09–10 after the CNPG migration completed. Captures **the actual state of the system as of 2026-05-10**, not the way I described it from memory. Companion runbook: `docs/backup-recovery.md`.
+>
+> **2026-05-09–10 changes**: All 8 in-cluster postgres apps migrated to CloudNativePG. Layer 10 added (CNPG WAL streaming + base backups → Garage S3). 88 GiB of legacy postgres PVCs reclaimed in Phase 5. Finding 4 (raw-PVC postgres backups) RESOLVED.
 
 ---
 
 ## TL;DR
 
-Five independent backup layers, each with its own schedule and target:
+Ten independent backup layers, each with its own schedule and target:
 
 | # | What | Tool | Source → Target |
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
-| 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
+| 2 | K8s app PVCs (live, non-postgres) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
 | 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
 | 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
 | 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
@@ -19,8 +21,11 @@ Five independent backup layers, each with its own schedule and target:
 | 7 | Garage S3 mirror (F2) | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/garage` → Kopia source `/mnt/qnap_garage` → zbackup |
 | 8 | QNAP Container Station mirror | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/Container` → Kopia source `/mnt/qnap_container` → zbackup |
 | 9 | QNAP appdata mirror | Kopia (NFS RO + subdir bind) | QNAP `/share/CACHEDEV1_DATA/appdata` → Kopia source `/mnt/qnap_appdata` → zbackup |
+| **10** | **K8s Postgres (8 apps)** | **CNPG (barman-cloud)** | **WAL stream + base backup → Garage S3 prefix `cnpg/<cluster>/`** |
 
 **Originally surfaced critical gaps** (PBS data, Garage data, QNAP Container/appdata) **all closed 2026-05-08**: every layer now mirrors to zbackup ZFS via Kopia. Same-day follow-up renamed Layer 3 source from `/mnt/cephfs` → `/mnt/rbd-backup` and cleaned ~122 GB of legacy docker-swarm content from cephfs.
+
+**2026-05-09–10**: Layer 10 (CNPG) added. All 8 postgres apps now have continuous WAL streaming + daily base backups instead of crash-consistent volsync raw-PVC. **88 GiB of legacy postgres data reclaimed** in Phase 5 decommission. Postgres-related Findings 4 RESOLVED.
 
 ---
 
@@ -172,10 +177,10 @@ Ceph pools breakdown (`ceph df`):
 - **Default retention** (per-app restic repo): 24 hourly, 7 daily, 5 weekly, 3 monthly (in `components/volsync-v2/backup/volsync-replicationsource.yaml`).
 - **Master credential**: SOPS-encrypted Secret `volsync-garage-base` in `flux-system`. Per-app Secrets are derived via Flux `postBuild.substituteFrom`.
 - **chart**: `oci://ghcr.io/home-operations/charts-mirror/volsync` tag `0.15.0`.
-- **Live state (2026-05-07 audit)**:
+- **Live state (2026-05-10)**:
   - 50+ ReplicationSources, all synced within 17 minutes of audit time.
   - Notable long-running: `crafty` 17m, `dumb` 2h51m, `jellyfin` 52m, `plex` 53m (the big media metadata DBs).
-  - **`dawarich-db`** and **`authentik-postgresql`** are PostgreSQL volumes backed up via volsync raw-PVC. **This is crash-consistent, not app-consistent** — restoring may produce a corrupt database. CNPG with native backup is the proper solution.
+  - **All 8 postgres apps now excluded from this layer** — they have CNPG (Layer 10) instead of raw-PVC volsync. Was: `dawarich-db`, `authentik-postgresql`, `riven-backend-pvc`, `zilean-postgres-data`, `wiki-js-db`, `sparky-fitness`, `opencut-postgres`, `joplin-db`. All of those PVCs were pruned during Phase 5 decommission (2026-05-09–10).
 
 ---
 
@@ -290,6 +295,66 @@ This is a cleanly-running daily job — multi-month history visible in `kopia sn
 
 ---
 
+## 6b. Layer 10 — K8s Postgres CNPG (WAL stream + base backups → Garage S3)
+
+```
+[8 in-cluster postgres apps]              joplin / zilean / riven / dawarich / authentik
+                                          opencut / sparky-fitness / wiki-js
+        │
+        │ Each app's HelmRelease connects to its CNPG Cluster's <APP>-rw Service.
+        │ CNPG operator runs in cnpg-system namespace (HelmRelease in
+        │   infrastructure/controllers/cnpg/).
+        │
+        ▼
+[CloudNativePG Cluster CRDs, one per app]   apps/production/<app>/db-cnpg.yaml
+   - postgresql.cnpg.io/v1 Cluster
+   - 1 instance, ceph-rbd PVC (5–50 GiB)
+   - barman-cloud sidecar streams WAL continuously
+   - ScheduledBackup runs base backup daily at staggered slots
+        │
+        ▼ (continuous WAL + daily base)
+[Garage S3 — same Docker container on QNAP as Layer 2]
+   bucket: volsync (re-used)
+   prefix:  cnpg/<cluster>/{base,wals,server-status}/
+   ~5 GiB total across 8 clusters today
+   30-day retention per cluster (CNPG-managed prune)
+```
+
+**Per-app CNPG Cluster details (live 2026-05-10):**
+
+| Namespace | Cluster name | Postgres image | Storage | Backup slot (UTC) |
+|---|---|---|---|---|
+| `joplin` | `joplin-db` | postgres 16.10 | 2 GiB ceph-rbd | 04:30 |
+| `media` | `zilean-db` | postgres 16.10 | 5 GiB ceph-rbd | 05:15 |
+| `media` | `riven-db` | postgres 17.5 | 2 GiB ceph-rbd | 05:45 |
+| `dawarich` | `dawarich-db` | postgis 17/3.5 | 50 GiB ceph-rbd | 06:00 |
+| `authentik` | `authentik-db` | postgres 17.5 | 5 GiB ceph-rbd | 06:30 |
+| `opencut` | `opencut-cnpg-db` | postgres 17.5 | 5 GiB ceph-rbd | 07:00 |
+| `sparky-fitness` | `sparky-fitness-cnpg-db` | postgres 15.14 | 5 GiB ceph-rbd | 07:30 |
+| `wiki-js` | `wiki-js-cnpg-db` | postgres 15.14 | 5 GiB ceph-rbd | 08:00 |
+
+### Why CNPG instead of raw-PVC volsync
+
+- **App-consistent** — barman-cloud takes a postgres-aware base backup with `pg_basebackup`, then streams WAL continuously. Restore guarantees a coherent DB state at any point-in-time within retention. Raw-PVC snapshots are only crash-consistent — restoring a partially-flushed write can require `pg_resetwal` or worse.
+- **Point-in-time recovery** — pick any timestamp within retention, CNPG replays WAL up to that moment. Volsync raw-PVC could only restore "the moment of last snapshot."
+- **Uniform tooling** — all 8 apps use the same Component (`components/cnpg-cluster/`) with parameter substitution. No per-app pg_dump CronJobs, no per-app backup secrets.
+
+### Restore (point-in-time)
+
+CNPG supports `bootstrap.recovery` which restores from an S3 backup into a fresh Cluster. Pattern documented in `docs/backup-recovery.md` §1b. The `components/cnpg-cluster/recovery/` Component variant (pending — see project memory) will templatize this for one-PR cluster restoration.
+
+### Retention
+
+Per-cluster `retentionPolicy: 30d` in `components/cnpg-cluster/cluster.yaml`. Old base backups + WAL beyond 30 days are auto-pruned by the operator. WAL accumulates ~5 MB/day per quiet cluster, more for active ones (dawarich at peak).
+
+### What's NOT covered by Layer 10
+
+- The CNPG **operator itself** (the controller pod in `cnpg-system`). It's stateless — re-installed via the HelmRelease in `infrastructure/controllers/cnpg/` on a fresh cluster. The Cluster CRDs in app namespaces are reconciled from git.
+- The CNPG-managed **PVCs** (e.g., `dawarich-db-1`, 50 GiB). These hold the *primary copy* of the database; CNPG's backups are to S3. Layer 3 (RBD nightly) does cover them passively (rbd-nightly-backup.sh exports every k3s-rbd image), but CNPG's S3 backup is the canonical recovery path.
+- **Managed roles** (e.g., `sparky_app` for sparky-fitness): captured in GitOps via `managed.roles` + SOPS-encrypted password Secret. Reproduced on `bootstrap.initdb` via the `apps/base/<app>/db-cnpg/` subdir pattern. Sparky-fitness is the only app currently using this; pattern available for future apps.
+
+---
+
 ## 7. Inventory mechanisms
 
 Two parallel inventories, neither alone is sufficient — they cover different dimensions:
@@ -333,13 +398,26 @@ Two parallel inventories, neither alone is sufficient — they cover different d
 03:00 ──────── /var/tmp/vzdumptmp* cleanup on pve-ugreen
 03:10 ──────── kopia snapshot /mnt/cephfs-k3s  → zbackup
 03:30 ──────── kopia snapshot /mnt/qnap_alldata  → zbackup
+04:30 UTC ──── CNPG ScheduledBackup: joplin-db                → Garage S3
+04:45 UTC ──── kopia snapshot /mnt/qnap_pbs (F1 PBS mirror)    → zbackup
+05:15 UTC ──── CNPG ScheduledBackup: zilean-db                 → Garage S3
+05:30 UTC ──── kopia snapshot /mnt/qnap_garage (F2 Garage mirror)  → zbackup
+05:45 UTC ──── CNPG ScheduledBackup: riven-db                  → Garage S3
+06:00 UTC ──── CNPG ScheduledBackup: dawarich-db (postgis)     → Garage S3
+06:30 UTC ──── CNPG ScheduledBackup: authentik-db              → Garage S3
+07:00 UTC ──── CNPG ScheduledBackup: opencut-cnpg-db           → Garage S3
+07:30 UTC ──── CNPG ScheduledBackup: sparky-fitness-cnpg-db    → Garage S3
+08:00 UTC ──── CNPG ScheduledBackup: wiki-js-cnpg-db           → Garage S3
 12:05 UTC ──── volsync ReplicationSource sweep (second daily run)
+continuous ──  CNPG WAL streaming (all 8 clusters)             → Garage S3
 daily ──────── PBS GC (datastore: pbs-backups)
 daily ──────── PBS prune (keep 17/7/8/2 last/daily/weekly/monthly)
 monthly ────── PBS verify job v-e00654e0-3168 (ignore-verified=true)
 ```
 
 Window from 01:30 to ~04:00 is the densest. RBD export → CephFS settle → Kopia all serialize cleanly because each consumer reads what the prior step wrote.
+
+CNPG base backups are interleaved 04:30–08:00 UTC (30-min slots) so they don't collide with each other or with the kopia mirror jobs. Each is a small (5 MB–50 MB compressed) S3 push so they finish in seconds.
 
 ---
 
@@ -392,11 +470,13 @@ I recommend documenting this gap and fixing it the *clean* way (rclone or Garage
 
 PBS, Garage S3, the K8s NFS-CSI provisioner targets, the `pve-ha` shared-storage VM disks, and the Kopia QNAS source are all on the same QNAP. **After F1+F2 (2026-05-08)**: PBS and Garage data now escape to zbackup. Remaining single-point: K8s NFS-CSI provisioner targets and `pve-ha` shared storage (small/empty today). Full mitigation needs the offsite target in §11.
 
-### Finding 4 — Two PostgreSQL databases backed up via volsync raw-PVC *(severity: MEDIUM)*
+### Finding 4 — Postgres databases backed up via volsync raw-PVC ✅ RESOLVED 2026-05-09–10
 
-`dawarich-db` and `authentik-postgresql` both use volsync ReplicationSource directly on a live Postgres data dir. This is crash-consistent, not app-consistent. If Postgres is mid-write during the snapshot, restore can produce a corrupted DB requiring `pg_resetwal` or worse.
+Originally identified `dawarich-db` and `authentik-postgresql` as crash-consistent raw-PVC backups; expanded scope during the migration project to include all 8 in-cluster postgres apps (`joplin`, `zilean`, `riven`, `dawarich`, `authentik`, `opencut`, `sparky-fitness`, `wiki-js`).
 
-**Fix shape**: migrate both to CNPG with native logical/physical backup to S3, then add a CNPG-aware retention policy. This is a separate project — flag for the next session.
+**Fix applied**: All 8 apps migrated to CloudNativePG (Layer 10 above). Each app now has app-consistent base backups + continuous WAL streaming to Garage S3, with point-in-time recovery within a 30-day window. Phase 5 decommission removed the legacy postgres pods + their 88 GiB of raw-PVC data.
+
+Migration project details documented in `docs/backup-system-wiki.md` §10 and project memory `project_cnpg_migration.md`.
 
 ### Finding 5 — No PBS sync target; no offsite copy of any layer *(severity: MEDIUM)*
 
@@ -455,7 +535,7 @@ Investigation showed the LXC mounts CephFS directly via the kernel ceph client (
 | P1 | Add weekly `kopia maintenance run --full` cron | 5 min | Repo health, faster restores |
 | P1 | Add monthly `kopia snapshot verify --verify-files-percent=1` cron (per source) | 10 min | Catch repo corruption before you need it |
 | P1 | Test-restore a VM and a PVC quarterly (calendar reminder) | 30 min/quarter | Backup is unproven until restored |
-| P2 | Migrate `dawarich-db` and `authentik-postgresql` to CNPG | 2–4 hr each | App-consistent DB backups |
+| ~~P2~~ ✅ | ~~Migrate postgres apps to CNPG~~ — **done 2026-05-09–10** (all 8 apps; 88 GiB reclaimed in Phase 5) | 2 days total | App-consistent DB backups + point-in-time recovery |
 | P2 | Document this audit's findings in CLAUDE.md so future sessions don't re-discover | 5 min | Continuity |
 | P3 | Add a Garage SnapshotClass or per-bucket replication to make Garage HA | half-day | Resilience inside cluster |
 | P3 | Drop legacy `kube-rbd` Ceph pool | 5 min | Cleanup |
