@@ -44,7 +44,8 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "3000"
-      GATUS_APP: wiki-js-main
+      # Renamed wiki-js-main → wiki-js when the db sidecar was removed in PR #306.
+      GATUS_APP: wiki-js
 
     substituteFrom:
       - kind: Secret
