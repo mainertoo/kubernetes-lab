@@ -25,17 +25,19 @@ spec:
           database: authentik
           existingSecret: authentik-postgresql
 
+    # Bitnami postgresql subchart disabled in Phase 5g (CNPG migration
+    # cleanup 2026-05-09). The authentik app has been on the CNPG-managed
+    # authentik-db-rw cluster since PR #287. Disabling the subchart removes
+    # the legacy StatefulSet from the cluster.
+    #
+    # NOTE: the authentik-postgresql-0 PVC `data-authentik-postgresql-0`
+    # (5 GiB) is NOT auto-deleted by helm — bitnami StatefulSets create
+    # their PVCs via volumeClaimTemplate which Helm does not own. After
+    # this PR merges and the StatefulSet terminates, a manual `kubectl
+    # delete pvc data-authentik-postgresql-0 -n authentik` is required to
+    # reclaim the 5 GiB. The orphan PVC is harmless until then.
     postgresql:
-      enabled: true
-      auth:
-        username: authentik
-        database: authentik
-        existingSecret: authentik-postgresql
-      primary:
-        persistence:
-          enabled: true
-          storageClass: ceph-rbd
-          size: 5Gi
+      enabled: false
 
     redis:
       enabled: true
