@@ -10,7 +10,9 @@ spec:
       port: 80          # what CF tunnel will hit
       targetPort: 80    # Seerr container listens on 80
       protocol: TCP
+  # Selector uses only instance+name — both labels are stable across
+  # bjw-s app-template v3 and v5. Seerr is a single-controller HR so
+  # no discriminator is needed.
   selector:
     app.kubernetes.io/instance: seerr
     app.kubernetes.io/name: seerr
-    app.kubernetes.io/component: seerr

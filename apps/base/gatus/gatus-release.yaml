@@ -87,6 +87,9 @@ spec:
                 memory: 256Mi
 
     defaultPodOptions:
+      # k8s-sidecar initContainer needs SA token to watch ConfigMaps/Secrets cluster-wide;
+      # v5 of bjw-s app-template defaults this to false, so we must opt back in.
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -100,10 +103,6 @@ spec:
         ports:
           http:
             port: *port
-
-    serviceAccount:
-      create: true
-      name: gatus
 
     persistence:
       config:
