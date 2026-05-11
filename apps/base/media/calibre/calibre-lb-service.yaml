@@ -8,10 +8,12 @@ metadata:
     # metallb.universe.tf/loadBalancerIPs: "192.168.1.240"
 spec:
   type: LoadBalancer
+  # Selector uses only instance+name — both labels are stable across
+  # bjw-s app-template v3 and v5. Calibre is a single-controller HR so
+  # no discriminator is needed.
   selector:
     app.kubernetes.io/instance: calibre
     app.kubernetes.io/name: calibre
-    app.kubernetes.io/component: main
   ports:
     # Calibre content server (this is what Readarr uses; also useful for CF)
     - name: content

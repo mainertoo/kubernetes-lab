@@ -14,7 +14,14 @@ spec:
       port: 8080
       targetPort: 8080
       protocol: TCP
+  # dawarich is a multi-controller HR (main + dawarich-redis +
+  # dawarich-sidekiq); without a discriminator the LB would balance
+  # traffic across all three. 'controller' is the v5 bjw-s app-template
+  # label that replaced 'component'. During the v3 -> v5 cutover the LB
+  # is briefly unreachable (a few minutes while v3 pods are still
+  # labeled component= and the new v5 selector finds nothing yet) —
+  # accepted downtime for the GPS tracking endpoint.
   selector:
-    app.kubernetes.io/component: dawarich
+    app.kubernetes.io/controller: dawarich
     app.kubernetes.io/instance: dawarich
     app.kubernetes.io/name: dawarich
