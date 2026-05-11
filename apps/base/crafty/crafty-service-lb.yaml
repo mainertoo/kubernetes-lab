@@ -10,7 +10,11 @@ spec:
       port: 19132
       targetPort: 19132
       protocol: UDP
+  # Selector uses only instance+name — both labels are stable across
+  # bjw-s app-template v3 and v5. Adding the controller-discriminator
+  # (component= in v3, controller= in v5) would tie this LB to a
+  # specific chart-version label key. Safe here: crafty is a single-
+  # controller HR so no discriminator is needed.
   selector:
-    app.kubernetes.io/component: crafty
     app.kubernetes.io/instance: crafty
     app.kubernetes.io/name: crafty
