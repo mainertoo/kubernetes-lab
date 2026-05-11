@@ -68,6 +68,9 @@ spec:
               runAsNonRoot: false
 
     defaultPodOptions:
+      # homepage needs SA token to scrape pods/nodes/ingresses for dashboard widgets;
+      # v5 of bjw-s app-template defaults this to false, so we must opt back in.
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -100,6 +103,3 @@ spec:
               - path: /defaults
                 readOnly: true
 
-    serviceAccount:
-      create: true
-      name: *app
