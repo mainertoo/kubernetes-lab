@@ -39,3 +39,8 @@ resources:
 
   # CloudNativePG operator — manages postgres Clusters with WAL streaming to S3
   - cnpg
+
+  # pvc-plumber-restic — shadow-mode backup-existence oracle for the
+  # volsync label-driven restore project (Phase 2;
+  # docs/volsync-storage-recovery.md)
+  - pvc-plumber-restic
