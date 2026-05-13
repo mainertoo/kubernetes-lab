@@ -5,3 +5,4 @@ resources:
   - gatus-secret.sops.yaml
   - alertmanager-secret.sops.yaml
   - volsync-garage.sops.yaml
+  - volsync-shared-base.sops.yaml
