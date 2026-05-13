@@ -164,7 +164,8 @@ HEALTH_OK
 
 ## Phase 3+ (deferred)
 
-- 3b: After 3a settles, drop `osd_memory_target` 8 GiB → 6 GiB (default 4 GiB is conservative; 6 GiB pairs well with 0.05s trim interval).
+- 3a: ✅ Completed — `passive` compression on osd.3, reverted 2026-05-12 (see Phase 3a outcome below).
+- 3b: ✅ Applied 2026-05-12 — `osd_memory_target` 8 GiB → 6 GiB cluster-wide (see Phase 3b section below). Pending T+24h / T+48h evaluation.
 - 4a: Replace SPCC drive on zermatt (osd.4). 64-68 °C under load, 8 433 power-on hours, lowest IOPS. Standard `ceph osd out 4` → drain → zap → bootstrap.
 - 4b: 7-day watch on whistler for new MCE / segfault / osd.2 crash to confirm `isolcpus=4,5` mitigates the Raptor Lake P-core defect.
 
@@ -213,10 +214,101 @@ osd.0 and osd.5 are the controls (same 990 EVO Plus drive model as osd.3, both s
 - If osd.3 deferred-queue avgtime drops noticeably vs osd.0/osd.5 *and* slow counters stay at 0 → roll `passive` cluster-wide.
 - If osd.3 deferred-queue avgtime stays flat or rises → revert and call compression a non-issue.
 
+### Phase 3a outcome (2026-05-12) — REVERTED
+
+Ran ~2.8 days with osd.3 on `passive`. T+48h head-to-head (cumulative counters since OSD restart, `/tmp/ceph-phase3a-t48h/osd{0,1,3,5}.json`):
+
+| OSD | Mode | Uptime | `deferred_queue_lat avgtime` | `slow_committed_kv` | `slow_aio_wait` |
+|-----|------|--------|------------------------------|---------------------|------------------|
+| osd.0 mammoth | aggressive | 7.7d | **0.361 s** | 0 | 0 |
+| osd.3 mammoth | passive    | 5.3d (2.8d passive) | **0.244 s** | **120** | **10** |
+| osd.5 whistler | aggressive | 6.0d | 0.256 s | 0 | 0 |
+| osd.1 zermatt | aggressive | 5.8d | 0.269 s | 20 | 0 |
+
+Imputed compression-eval rate on osd.3 after passive engaged dropped ~64 % (~4.75 M/day → ~1.72 M/day), confirming passive was mechanically working as intended.
+
+**Decision rule evaluation:** latency improvement was real (32 % drop vs same-host control osd.0) but **slow counters did not stay at 0**. osd.3 had the *highest* `slow_committed_kv` of any OSD (6× osd.1's count), and slow ops also fired on the aggressive control osd.1 — so passive did not address the original problem (`BLUESTORE_SLOW_OP_ALERT`), which was the reason for the experiment.
+
+**Reverted 2026-05-12 ~21:25 local:**
+```
+ceph config rm osd.3 bluestore_compression_mode
+```
+No daemon restart needed; takes effect live. Verified via `ceph daemon osd.3 config get bluestore_compression_mode` → `aggressive`. Cluster is back to uniform `aggressive + lz4 + 0.7 ratio` on all OSDs.
+
+The 32 % avg latency win was not load-bearing — average deferred-queue latency was already well below any threshold that triggers alerts; making it lower did not change observed cluster behavior. Operational cleanliness (no per-OSD overrides to mentally subtract during future debugging) outweighed keeping the win.
+
+## Phase 3b — `osd_memory_target` 8 GiB → 6 GiB (2026-05-12)
+
+### Rationale
+
+- `osd_memory_target=8 GiB` was 2× the Squid 19 default of 4 GiB; original reason for the bump is not documented and predates this project.
+- With `bluestore_cache_trim_interval` corrected back to 0.05 s in Phase 1, the case for an outsized cache target weakens — the cache turns over fast enough that 6 GiB pairs well with the trim interval without thrashing.
+- Frees ~4 GiB per host (12 GiB cluster-wide). Concretely: pve-zermatt's history of slab leaks (osd.4 SPCC + AIO failures, see `project_ceph_osd_health`) means any host memory pressure relief is welcome insurance.
+- Phase 3a closure rules out compression as a contributor — `osd_memory_target` is the next remaining variable on the original change list.
+
+### Cluster state at kickoff
+
+- `HEALTH_WARN` (slow-op alert on osd.1 + osd.3, cumulative since their last restart 5-7 days ago)
+- 273/273 PGs `active+clean`, 6/6 OSDs `up`, MONs quorate, no recent crashes
+- Phase 3a reverted; uniform `bluestore_compression_mode=aggressive` cluster-wide
+
+### Pre-change baseline (T-0)
+
+Saved to workstation `/tmp/ceph-phase3b/osd{0..5}_pre.json`. Headline counters at the moment of cutover:
+
+| OSD | `deferred_queue_lat avgtime` | `slow_committed_kv` | `slow_aio_wait` |
+|-----|------------------------------|---------------------|------------------|
+| osd.0 (mammoth, 990 EVO+) | 0.362 s | 0 | 0 |
+| osd.1 (zermatt, 990 EVO+) | 0.271 s | 20 | 0 |
+| osd.2 (whistler, 990 EVO non-Plus) | 0.287 s | 0 | 0 |
+| osd.3 (mammoth, 990 EVO+) | 0.245 s | 120 | 10 |
+| osd.4 (zermatt, SPCC) | 0.331 s | 0 | 0 |
+| osd.5 (whistler, 990 EVO+) | 0.257 s | 0 | 0 |
+
+Host memory at kickoff:
+
+| Host | RAM total | Used | Free | Buff/cache | Available | Swap used |
+|------|-----------|------|------|------------|-----------|-----------|
+| pve-mammoth | 94 GiB | 59 GiB | 14 GiB | 21 GiB | 34 GiB | 2 GiB / 7 GiB |
+| pve-whistler | 94 GiB | 56 GiB | 5 GiB | 33 GiB | 37 GiB | 0 / 39 GiB |
+| pve-zermatt | 94 GiB | 60 GiB | 14 GiB | 20 GiB | 33 GiB | 2 GiB / 39 GiB |
+
+### Change applied
+
+```
+ceph config set osd osd_memory_target 6442450944
+```
+
+Then sequential OSD restarts, one host at a time, waiting for full `273 active+clean` between each:
+
+| OSD | Host | Restart issued | Cluster back to `active+clean` |
+|-----|------|----------------|--------------------------------|
+| osd.0 | pve-mammoth | 23:37 PDT | ~50 s |
+| osd.3 | pve-mammoth | +1 min     | ~55 s |
+| osd.2 | pve-whistler | following | ~110 s |
+| osd.5 | pve-whistler | following | ~60 s |
+| osd.1 | pve-zermatt | following | ~50 s |
+| osd.4 | pve-zermatt | following | ~115 s |
+
+All daemons came back with `slow_committed_kv_count=0` and `slow_aio_wait_count=0` (counters zero at restart), and `ceph daemon osd.N config get osd_memory_target` reported `6442450944` on every OSD. Final state: `HEALTH_OK`.
+
+Side benefit: the restart cycle cleared the `BLUESTORE_SLOW_OP_ALERT` warnings (osd.1 and osd.3) at source.
+
+### Observation plan
+
+- Re-sample at T+24h and T+48h: `slow_committed_kv_count`, `slow_aio_wait_count`, `state_deferred_queued_lat avgtime`, `kv_sync_lat avgtime`, and host-level memory pressure (`free`, `/proc/slabinfo` on pve-zermatt).
+- Watch for any new slow-op alerts in the Prometheus `CephHealthWarn` window.
+- Compare against the same metrics from Phase 3a's T+48h capture (matching uptime windows). With compression no longer a variable, any reduction in slow-op accumulation rate can be attributed cleanly to the memory-target drop.
+- **Decision rule:**
+  - Slow counters stay at 0 across the 48h window *and* host memory pressure on pve-zermatt is reduced → keep 6 GiB cluster-wide, mark Phase 3b a win, move to Phase 4a (SPCC drive replacement).
+  - Slow ops resume at meaningful rates → revert: `ceph config set osd osd_memory_target 8589934592`, restart OSDs sequentially again, treat memory target as non-factor and move to Phase 4a regardless.
+
 ## Files
 
 Baseline & post-snapshot perf dumps saved on the workstation:
 
 Phase 0–2 (`/tmp/ceph-baseline/`): `osd2_perf_pre.json`, `osd3_perf_pre.json`, `osd5_perf_pre.json`; `osd*_perf_t0.json`; `osd*_perf_t10.json`; `osd3_config_diff.json`, `osd3_config_diff_post.json`.
 
-Phase 3a (`/tmp/ceph-phase3a/`): `osd0_perf_pre.json`, `osd3_perf_pre.json`, `osd5_perf_pre.json` (control + test baselines); `osd3_perf_t0.json` (right after `passive` set); `osd3_config_diff_pre.json`, `osd3_config_diff_post.json`.
+Phase 3a (`/tmp/ceph-phase3a/`): `osd0_perf_pre.json`, `osd3_perf_pre.json`, `osd5_perf_pre.json` (control + test baselines); `osd3_perf_t0.json` (right after `passive` set); `osd3_config_diff_pre.json`, `osd3_config_diff_post.json`. T+48h snapshots in `/tmp/ceph-phase3a-t48h/osd{0,1,3,5}.json`.
+
+Phase 3b (`/tmp/ceph-phase3b/`): `osd{0..5}_pre.json` (T-0 baselines captured just before the cluster-wide `osd_memory_target` change), `osd{0..5}_t0.json` (post-restart snapshots, all slow counters at 0).
