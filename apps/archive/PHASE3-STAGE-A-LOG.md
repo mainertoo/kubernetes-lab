@@ -29,3 +29,13 @@ Format: ✅ or ❌ | namespace/pvc | YYYY-MM-DD | snapshot count | notes
 - [x] **homepage/homepage** | 2026-05-13 | 22 snapshots | first migration; pattern locked in [05-volsync-shared-migrate-homepage.yaml](./05-volsync-shared-migrate-homepage.yaml)
 - [x] **donetick/donetick** | 2026-05-13 | 25 snapshots | first template+script validation
 - [x] **dumb/dumb** | 2026-05-14 | 28 snapshots | first run with auto-cleanup bug fix verified
+
+## Bulk rollout 2026-05-14T03:24:10Z
+
+- [x] **dumbassets/dumbassets** | 2026-05-14 | 23 snapshots
+- [x] **dumbdo/dumbdo** | 2026-05-14 | 23 snapshots
+- [x] **expense-owl/expense-owl** | 2026-05-14 | 25 snapshots
+
+## Bulk rollout 2026-05-14T03:26:01Z
+
+- [x] **actual-budget/actual-budget** | 2026-05-14 | 28 snapshots
