@@ -1,0 +1,181 @@
+# Phase 4 of the volsync label-driven restore project — validate rules
+# only, both in `validationFailureAction: Audit` so they LOG but never
+# DENY admission. The mutate + generate rules from design doc §2.3
+# (rules 2, 3, 5, 6, 7) intentionally land later, with Phase 5's
+# per-app cutover.
+#
+# Rules in this file:
+#   1. require-authoritative-backup-decision — calls the pvc-plumber-
+#      restic /exists oracle and audit-flags any PVC admission where
+#      the response isn't authoritative or carries an error.
+#   2. require-skip-restore-reason — when the
+#      volsync.backup/skip-restore=true escape hatch is set, also
+#      requires a non-empty reason annotation.
+#
+# Activation: a PVC must carry label `backup: hourly` or `backup: daily`
+# for either rule to fire. No PVCs currently carry those labels, so the
+# policy is effectively dormant until Phase 5 starts labeling apps for
+# real (or a tester labels one PVC manually to validate the policy).
+#
+# Excluded namespaces (hardcoded — design doc §2.5): control-plane and
+# storage-infra namespaces where backup labels would be a misconfig.
+# Adding `backup:` in any of these is a no-op.
+#
+# References:
+#   - design doc: docs/volsync-storage-recovery.md §2.3
+#   - upstream policy: github.com/mitchross/talos-argocd-proxmox
+#   - oracle service: pvc-plumber-restic.volsync-system.svc:8080
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: volsync-pvc-backup-restore
+  annotations:
+    policies.kyverno.io/title: VolSync PVC backup/restore admission
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+    policies.kyverno.io/description: >-
+      Backup-existence-aware PVC admission validation. Calls the
+      pvc-plumber-restic oracle to confirm the answer is authoritative
+      before allowing a backup-labeled PVC to admit. Phase 4 keeps both
+      rules in Audit mode — they log violations to ClusterPolicyReport
+      but never block admission. Phase 6 flips to Enforce.
+spec:
+  # Audit only — Phase 4. Phase 6 will switch this to Enforce.
+  validationFailureAction: Audit
+  background: false
+  # Fail-closed at the webhook layer. If pvc-plumber-restic is
+  # unreachable the validate rule errors and Kyverno's webhook fails.
+  # In Audit mode this just shows up as a failed audit entry, not a
+  # denied admission — so it's safe to keep Fail here pre-Enforce.
+  failurePolicy: Fail
+  webhookTimeoutSeconds: 10
+  rules:
+    # ─────────────────────────────────────────────────────────────────
+    # Rule 1: require-authoritative-backup-decision
+    # ─────────────────────────────────────────────────────────────────
+    # Calls /exists/<ns>/<pvc>. Audit-logs a violation when the oracle's
+    # answer isn't authoritative (e.g. operator pod can't reach the
+    # restic repo) or when an error is present. In Enforce mode this
+    # would deny admission; in Audit it just lands in the PolicyReport.
+    #
+    # The preconditions block excludes PVCs that opted out via the
+    # skip-restore annotation — those are handled by rule 2.
+    - name: require-authoritative-backup-decision
+      match:
+        any:
+          - resources:
+              kinds:
+                - PersistentVolumeClaim
+              selector:
+                matchExpressions:
+                  - key: backup
+                    operator: In
+                    values:
+                      - hourly
+                      - daily
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - flux-system
+                - kube-system
+                - kyverno
+                - volsync-system
+                - cert-manager
+                - traefik
+                - ceph-csi-rbd
+                - ceph-csi-cephfs
+                - monitoring
+                - tailscale
+                - cloudflared
+                - newt
+                - intel-gpu
+      context:
+        - name: existsResponse
+          apiCall:
+            method: GET
+            service:
+              url: "http://pvc-plumber-restic.volsync-system.svc.cluster.local:8080/exists/{{request.namespace}}/{{request.object.metadata.name}}"
+            jmesPath: "@"
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
+            operator: NotEquals
+            value: "true"
+      validate:
+        message: >-
+          PVC {{request.namespace}}/{{request.object.metadata.name}}
+          admission requires an authoritative backup-existence decision
+          from pvc-plumber-restic. Oracle returned authoritative=
+          {{existsResponse.authoritative}}, decision={{existsResponse.decision}},
+          error={{existsResponse.error || 'none'}}.
+        deny:
+          conditions:
+            any:
+              - key: "{{ existsResponse.authoritative }}"
+                operator: NotEquals
+                value: true
+              - key: "{{ existsResponse.error || '' }}"
+                operator: NotEquals
+                value: ""
+
+    # ─────────────────────────────────────────────────────────────────
+    # Rule 2: require-skip-restore-reason
+    # ─────────────────────────────────────────────────────────────────
+    # When the volsync.backup/skip-restore=true escape hatch is set,
+    # require a non-empty volsync.backup/skip-restore-reason annotation
+    # so the operator can't accidentally leave a PVC in indefinite
+    # bypass without an explanation in the audit trail. Skip-restore
+    # bypasses rules 1 + (eventually 2, 3, 5, 6, 7) per design doc §2.6
+    # so the operator only owes the system a reason.
+    - name: require-skip-restore-reason
+      match:
+        any:
+          - resources:
+              kinds:
+                - PersistentVolumeClaim
+              selector:
+                matchExpressions:
+                  - key: backup
+                    operator: In
+                    values:
+                      - hourly
+                      - daily
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - flux-system
+                - kube-system
+                - kyverno
+                - volsync-system
+                - cert-manager
+                - traefik
+                - ceph-csi-rbd
+                - ceph-csi-cephfs
+                - monitoring
+                - tailscale
+                - cloudflared
+                - newt
+                - intel-gpu
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: >-
+          PVC {{request.namespace}}/{{request.object.metadata.name}}
+          carries volsync.backup/skip-restore=true but no
+          volsync.backup/skip-restore-reason annotation (or reason is
+          empty). Skip-restore is an emergency escape hatch — it must
+          be documented so the operator who labeled the PVC and the
+          on-call who finds it in skip mode three weeks later can see
+          why protection was disabled.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore-reason\" || '' }}"
+                operator: Equals
+                value: ""
