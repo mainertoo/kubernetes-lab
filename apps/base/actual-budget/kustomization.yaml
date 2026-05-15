@@ -6,3 +6,4 @@ resources:
   # - actual-budget-pvc.yaml  # Managed by VolSync bootstrap in production
   - actual-budget-release.yaml
   - actual-budget-ingressroute.yaml
+  - actual-budget-pvc.yaml
