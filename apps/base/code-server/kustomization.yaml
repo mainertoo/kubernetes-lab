@@ -4,7 +4,7 @@ namespace: code-server
 resources:
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
   # See apps/production/code-server/kustomization.yaml for the volsync wiring.
-  # - code-server-pvc.yaml
+  - code-server-pvc.yaml
   - code-server-release.yaml
   - code-server-ingressroute.yaml
   # - code-server-servers-transport.yaml
