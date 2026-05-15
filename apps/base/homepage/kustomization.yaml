@@ -4,8 +4,10 @@ namespace: homepage
 resources:
   - homepage-namespace.yaml
   - homepage-default-configmap.yaml
-  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle)
-  # - homepage-config-pvc.yaml
+  # Phase 5b: PVC ownership transferred from components/volsync-v2 to a
+  # static manifest carrying `backup: daily`. ClusterPolicy
+  # `volsync-pvc-backup-restore` generates the volsync trio off the label.
+  - homepage-pvc.yaml
   - homepage-rbac.yaml
   - homepage-release.yaml
   - homepage-ingressroute.yaml

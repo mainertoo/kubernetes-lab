@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: homepage
+  labels:
+    # Phase 5b of the volsync label-driven restore project. The label
+    # is consumed by ClusterPolicy `volsync-pvc-backup-restore` which
+    # generates `volsync-homepage` Secret + `homepage-backup` RS + RD
+    # in this namespace. Was previously a kubectl-patched out-of-band
+    # label (PR #353 patch attempt didn't survive Flux's pre-postBuild
+    # patch timing) — now baked into the static manifest.
+    backup: daily
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: cephfs
