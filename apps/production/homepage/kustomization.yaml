@@ -28,6 +28,25 @@ spec:
     - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
+  # Phase 5a of the volsync label-driven restore project (TEMPORARY
+  # patch; folded into a static manifest in 5b). Labeling the
+  # Component-generated PVC triggers Kyverno's generate rules to
+  # provision the new `volsync-homepage` Secret + `homepage-backup`
+  # RS + RD, in parallel with the legacy `homepage` RS that
+  # components/volsync-v2 keeps running. Stage B cuts the legacy RS
+  # over; 5b removes the volsync-v2 + volsync/remote Components and
+  # this patch (the label moves into a static PVC manifest).
+  patches:
+    - target:
+        kind: PersistentVolumeClaim
+        name: homepage
+      patch: |-
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: homepage
+          labels:
+            backup: daily
   postBuild:
     substitute:
       APP: *app
