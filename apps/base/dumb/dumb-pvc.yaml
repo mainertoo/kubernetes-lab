@@ -7,6 +7,14 @@ metadata:
     # ClusterPolicy volsync-pvc-backup-restore matches this label and
     # generates volsync-dumb Secret + dumb-backup RS + RD in this ns.
     backup: daily
+  annotations:
+    # Override the policy's default 5Gi cache. Dumb's 100Gi cephfs
+    # source filled the smaller cache mid-initial-sync (alert
+    # KubePersistentVolumeFillingUp fired repeatedly 2026-05-15).
+    # Shared-repo cache demand = ~5% of TOTAL repo size, not just
+    # this app's snapshots, so the working set is larger than
+    # per-app-repo intuition would suggest.
+    volsync.backup/cache-capacity: 10Gi
 spec:
   accessModes:
     - ReadWriteMany
