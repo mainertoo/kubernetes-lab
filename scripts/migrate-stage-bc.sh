@@ -95,26 +95,43 @@ CAP="$(echo "$PVC_JSON" | jq -r '.spec.resources.requests.storage')"
 ACCESS="$(echo "$PVC_JSON" | jq -r '.spec.accessModes[0]')"
 LIVE_REF="$(echo "$PVC_JSON" | jq -c '.spec.dataSourceRef // null')"
 
-# App's git layout — base manifests + production overlay path.
-BASE_DIR="$REPO_ROOT/apps/base/$NS"
-PROD_FILE="$REPO_ROOT/apps/production/$NS/kustomization.yaml"
-[ -d "$BASE_DIR" ]   || { echo "ERROR: $BASE_DIR not a directory" >&2; exit 1; }
-[ -f "$PROD_FILE" ]  || { echo "ERROR: $PROD_FILE not found" >&2; exit 1; }
+# App's git layout — Flux Kustomization name doesn't always match the
+# target namespace. Audiobookshelf lives at apps/base/audiobookshelf/
+# but its RS is in the `media` ns. Bazarr lives at apps/base/media/
+# bazarr/ (nested). Discover the Flux Kustomization owner from the
+# PVC's own label, then read spec.path from the live Kustomization.
+APP="$(echo "$PVC_JSON" | jq -r '.metadata.labels["kustomize.toolkit.fluxcd.io/name"] // empty')"
+[ -n "$APP" ] || { echo "ERROR: PVC $NS/$PVC has no kustomize.toolkit.fluxcd.io/name label" >&2; exit 1; }
+SPEC_PATH="$(kubectl -n flux-system get kustomization "$APP" -o jsonpath='{.spec.path}' 2>/dev/null || true)"
+[ -n "$SPEC_PATH" ] || { echo "ERROR: Flux Kustomization $APP not found or has no spec.path" >&2; exit 1; }
+# Normalize leading "./"
+SPEC_PATH="${SPEC_PATH#./}"
+BASE_DIR="$REPO_ROOT/$SPEC_PATH"
+[ -d "$BASE_DIR" ] || { echo "ERROR: $BASE_DIR not a directory (spec.path=$SPEC_PATH)" >&2; exit 1; }
 
-echo "  PVC:           $PVC"
+# Production overlay file — grep for the manifest declaring this APP
+# name. Handles both plain `name: foo` and anchored `name: &app foo`.
+PROD_FILE="$(grep -rlE "^[[:space:]]*name:[[:space:]]+(&[A-Za-z0-9_-]+[[:space:]]+)?${APP}[[:space:]]*\$" \
+  "$REPO_ROOT/apps/production/" 2>/dev/null | head -1)"
+[ -n "$PROD_FILE" ] || { echo "ERROR: no production overlay found for app=$APP under apps/production/" >&2; exit 1; }
+
+echo "  PVC:           $PVC ($NS/$PVC)"
+echo "  Flux Kust:     $APP"
+echo "  Base dir:      $BASE_DIR"
+echo "  Prod file:     ${PROD_FILE#$REPO_ROOT/}"
 echo "  Storage:       $SC, $ACCESS, $CAP"
 echo "  Legacy Secret: $LEGACY_SECRET"
 echo "  Live ref:      $LIVE_REF"
 echo "  Backup label:  $BACKUP_LABEL"
-echo "  Branch:        feat/volsync-phase5b-$NS"
+echo "  Branch:        feat/volsync-phase5b-$APP"
 echo "  Tag (Kyverno): $NS/$PVC"
 
 # ─── preflight checks ───────────────────────────────────────────────
 preflight() {
   local already
-  already="$(kubectl -n flux-system get kustomization "$NS" -o jsonpath='{.spec.suspend}' 2>/dev/null || true)"
+  already="$(kubectl -n flux-system get kustomization "$APP" -o jsonpath='{.spec.suspend}' 2>/dev/null || true)"
   if [ "$already" = "true" ]; then
-    echo "ERROR: Flux Kustomization $NS is already suspended. Previous cutover stuck?" >&2
+    echo "ERROR: Flux Kustomization $APP is already suspended. Previous cutover stuck?" >&2
     echo "       Inspect: kubectl -n flux-system get kustomization $NS -o yaml" >&2
     exit 2
   fi
@@ -136,8 +153,8 @@ trap_state() {
     kubectl -n "$NS" patch replicationsource.volsync.backube "$RS" --type merge -p '{"spec":{"paused":false}}' || true
   fi
   if [ "${FLUX_SUSPENDED:-0}" -eq 1 ]; then
-    echo "  resuming Flux $NS"
-    flux resume kustomization "$NS" -n flux-system || true
+    echo "  resuming Flux $APP"
+    flux resume kustomization "$APP" -n flux-system || true
   fi
 }
 
@@ -166,8 +183,8 @@ run_stage_b() {
 
   # 3. Suspend Flux. Stage B's runtime changes (pause, delete RS)
   #    must not be reverted by a reconcile from the still-old manifest.
-  echo "  [3/6] Suspending Flux Kustomization $NS"
-  flux suspend kustomization "$NS" -n flux-system >/dev/null
+  echo "  [3/6] Suspending Flux Kustomization $APP"
+  flux suspend kustomization "$APP" -n flux-system >/dev/null
   FLUX_SUSPENDED=1
 
   # 4. Pause the legacy RS and drain any in-flight mover Jobs.
@@ -207,7 +224,7 @@ run_stage_b() {
   kubectl -n "$NS" delete replicationsource.volsync.backube "$RS" >/dev/null
   STAGE_B_DONE=1
 
-  echo "  STAGE B OK — Flux $NS remains suspended; legacy RS deleted."
+  echo "  STAGE B OK — Flux $APP remains suspended; legacy RS deleted."
 }
 
 # ─── 5b PR generation ───────────────────────────────────────────────
@@ -350,7 +367,7 @@ EOF
 
 # ─── PR branch + open + CI + merge ──────────────────────────────────
 open_5b_pr() {
-  local branch="feat/volsync-phase5b-$NS"
+  local branch="feat/volsync-phase5b-$APP"
   echo ""
   echo "─── PR ─────────────────────────────────────────────────────"
   cd "$REPO_ROOT"
@@ -362,15 +379,15 @@ open_5b_pr() {
     echo "  No changes staged; either already merged or run was a no-op."
     return 0
   fi
-  git commit -m "feat($NS): Phase 5b — drop volsync-v2 Components, static PVC manifest
+  git commit -m "feat($APP): Phase 5b — drop volsync-v2 Components, static PVC manifest
 
 Driven by scripts/migrate-stage-bc.sh. Stage B already ran (Flux
-suspended for $NS, legacy $RS RS deleted, final restic copy
-completed).
+Kustomization $APP suspended, legacy $RS RS in ns $NS deleted, final
+restic copy completed).
 
-  - apps/base/$NS/$PVC-pvc.yaml — backup: $BACKUP_LABEL label$([ "$LIVE_REF" != "null" ] && echo " + dataSourceRef mirror")
-  - apps/base/$NS/kustomization.yaml — PVC referenced
-  - apps/production/$NS/kustomization.yaml — volsync Components + VOLSYNC_* substitutes pruned
+  - $SPEC_PATH/$PVC-pvc.yaml — backup: $BACKUP_LABEL label$([ "$LIVE_REF" != "null" ] && echo " + dataSourceRef mirror")
+  - $SPEC_PATH/kustomization.yaml — PVC referenced
+  - ${PROD_FILE#$REPO_ROOT/} — volsync Components + VOLSYNC_* substitutes pruned
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 " >/dev/null
@@ -379,8 +396,8 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 
   local pr_url
   pr_url="$(gh pr create --base master \
-    --title "feat($NS): Phase 5b — drop volsync-v2 Components" \
-    --body "Per-app cutover for $NS. Stage B already ran; this is the GitOps half.
+    --title "feat($APP): Phase 5b — drop volsync-v2 Components" \
+    --body "Per-app cutover for Flux Kustomization \`$APP\` (target ns: \`$NS\`). Stage B already ran; this is the GitOps half.
 
 | | |
 |---|---|
@@ -391,7 +408,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 | Legacy RS | \`$RS\` (deleted by Stage B) |
 | New trio | \`volsync-$PVC\` Secret + \`$PVC-backup\` RS + RD |
 
-After merge, run \`flux resume kustomization $NS\` (or let the driver
+After merge, run \`flux resume kustomization $APP\` (or let the driver
 do Stage C if invoked end-to-end).
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)")"
@@ -444,14 +461,14 @@ run_stage_c() {
 
   # 2. Resume Flux.
   echo "  [2/3] Resuming Flux"
-  flux resume kustomization "$NS" -n flux-system >/dev/null
+  flux resume kustomization "$APP" -n flux-system >/dev/null
 
   # 3. Wait for Ready=True, max ~3min.
   echo "  [3/3] Waiting for Ready=True"
   kubectl -n flux-system wait --for=condition=Ready --timeout=180s \
-    kustomization "$NS" >/dev/null || \
-    { echo "ERROR: Flux $NS did not reach Ready=True" >&2; exit 14; }
-  echo "  STAGE C OK — $NS cut over."
+    kustomization "$APP" >/dev/null || \
+    { echo "ERROR: Flux $APP did not reach Ready=True" >&2; exit 14; }
+  echo "  STAGE C OK — $APP cut over."
 }
 
 # ─── orchestration ──────────────────────────────────────────────────
