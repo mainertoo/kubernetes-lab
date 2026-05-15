@@ -1,10 +1,18 @@
 # volsync-v2 Components
 
-Reusable Kustomize Components that wire apps into the volsync backup/restore lifecycle. Pick the variant that matches the app's PVC ownership and lifecycle stage.
+> ## ⚠️ DEPRECATED — use the label-driven pattern instead
+>
+> As of Phase 5 of the [volsync label-driven restore project](../../docs/volsync-storage-recovery.md), new apps should NOT add `volsync-v2/*` Components. Backups are now provisioned automatically by [ClusterPolicy `volsync-pvc-backup-restore`](../../infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore.yaml) on any PVC carrying a `backup: hourly|daily` label. See [`docs/label-driven-backups.md`](../../docs/label-driven-backups.md) for the new pattern.
+>
+> Existing apps are being migrated app-by-app via [`scripts/migrate-stage-bc.sh`](../../scripts/migrate-stage-bc.sh). Each successful cutover removes its references to these Components. When the last app is migrated (Phase 5 complete), this directory will be deleted.
+>
+> **Do not add new references.** If you find yourself reading this README for a NEW app: stop, see `docs/label-driven-backups.md`.
+
+Reusable Kustomize Components that wire apps into the volsync backup/restore lifecycle. Pick the variant that matches the app's PVC ownership and lifecycle stage. Historical pattern; kept here only to support apps still mid-migration.
 
 S3 backend: **Garage**, deployed in-cluster. Each app uses a dedicated restic repo named `${APP}-volsync` whose credentials live in a per-app `Secret` provided by `components/volsync/remote/`. Master credentials and S3 endpoint live in the `volsync-garage-base` Secret in `flux-system`; per-app Secrets are derived from it via Flux postBuild substitution.
 
-> The `volsync-v2/` directory will be renamed to `volsync/` once the legacy `components/volsync/remote/` Secret-only Component is folded in (Phase 4 of the volsync cleanup project).
+> The `volsync-v2/` rename to `volsync/` plan (Phase 4 of the volsync cleanup project) is **obsolete** — the label-driven design eliminates per-app Components entirely, so the directory is just deleted at the end of Phase 5, not renamed.
 
 ---
 
