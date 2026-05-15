@@ -1,0 +1,36 @@
+# Phase 5 prep RBAC for the volsync-pvc-backup-restore ClusterPolicy.
+#
+# Kyverno's background controller (the one that fulfills generate
+# rules with synchronize: true) ships with conservative defaults — it
+# can't read Secrets, can't create volsync resources. Aggregating these
+# extra permissions in via the `rbac.kyverno.io/aggregate-to-
+# background-controller` label is Kyverno's documented extension point.
+#
+# Trade-off note: aggregation is cluster-wide; we can't scope "read
+# secrets" to just `volsync-shared-base` in flux-system. The BG
+# controller therefore gains cluster-wide secret read. Accepted for
+# homelab; existing Kyverno admission-controller already has broad
+# read powers via its admission-review role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno:background-controller:volsync-policy
+  labels:
+    rbac.kyverno.io/aggregate-to-background-controller: "true"
+    app.kubernetes.io/part-of: volsync-pvc-backup-restore
+rules:
+  # Generate rule 5 needs to read the shared base Secret to populate
+  # per-PVC Secret stringData.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  # Generate rule 5 creates/updates/synchronizes the per-PVC Secret in
+  # the app's namespace.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "update", "patch", "delete"]
+  # Generate rules 6 + 7 create/update/synchronize the per-PVC
+  # ReplicationSource + ReplicationDestination.
+  - apiGroups: ["volsync.backube"]
+    resources: ["replicationsources", "replicationdestinations"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
