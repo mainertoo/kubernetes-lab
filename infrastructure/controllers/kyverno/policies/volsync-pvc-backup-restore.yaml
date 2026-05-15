@@ -106,12 +106,23 @@ spec:
     # the CSI populator pulls the source data from the shared repo.
     # Skips when skip-restore=true (escape hatch) or when the PVC's
     # dataSourceRef is already set (don't clobber).
+    #
+    # operations: [CREATE] — mutate is ONLY meaningful at PVC create
+    # time (before bind, so the CSI populator can act on it). PVC spec
+    # is immutable post-bind, so firing on UPDATE events (e.g. when
+    # Phase 5 adds the backup label to an existing PVC with no
+    # dataSourceRef) causes K8s admission to reject the entire change.
+    # First surfaced on mealie cutover: its PVC had dataSourceRef=null
+    # so the precondition matched, mutate fired on label-add, K8s
+    # rejected the patch.
     - name: add-datasource-if-backup-exists
       match:
         any:
           - resources:
               kinds:
                 - PersistentVolumeClaim
+              operations:
+                - CREATE
               selector:
                 matchExpressions:
                   - key: backup
@@ -172,12 +183,17 @@ spec:
     # webhook's call succeeded, the PVC would otherwise be created
     # without dataSourceRef but oracle says restore — empty PVC over
     # historical data. Catch that here.
+    #
+    # operations: [CREATE] — pairs with rule 2; only meaningful at
+    # create time when rule 2 had a chance to fire.
     - name: require-datasource-when-restore
       match:
         any:
           - resources:
               kinds:
                 - PersistentVolumeClaim
+              operations:
+                - CREATE
               selector:
                 matchExpressions:
                   - key: backup
