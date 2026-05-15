@@ -1,14 +1,16 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 3 (settled) — grafana on production with volsync-v2 ongoing backup.
+# Phase 5b (settled) — grafana on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/grafana/grafana-pvc.yaml with `backup: hourly`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app grafana
+  name: grafana
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/grafana
+  path: "./apps/base/grafana"
   targetNamespace: grafana
   prune: true
   retryInterval: 2m
@@ -22,26 +24,7 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
   postBuild:
     substitute:
-      APP: *app
+      APP: grafana
       APP_NAMESPACE: grafana
-      VOLSYNC_REPO_PATH: grafana/data
-      CAPACITY: 10Gi
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 2Gi
-      VOLSYNC_PUID: "472"
-      VOLSYNC_PGID: "472"
-      VOLSYNC_RESTORE_PUID: "472"
-      VOLSYNC_RESTORE_PGID: "472"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base

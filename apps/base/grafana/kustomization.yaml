@@ -5,3 +5,4 @@ resources:
   - grafana-secret.sops.yaml
   - grafana-ingressroute.yaml
   - grafana-release.yaml
+  - grafana-pvc.yaml
