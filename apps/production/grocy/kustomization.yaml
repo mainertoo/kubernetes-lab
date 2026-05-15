@@ -1,49 +1,35 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5b (settled) — grocy on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/grocy/grocy-pvc.yaml with `backup: daily`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app grocy
+  name: grocy
   namespace: flux-system
 spec:
   commonMetadata:
     labels:
-      app.kubernetes.io/name: *app
+      app.kubernetes.io/name: grocy
   components:
-    - ../../../components/volsync-v2/backup-only
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
   interval: 1h
-  path: ./apps/base/grocy
+  path: "./apps/base/grocy"
   postBuild:
     substitute:
-      APP: *app
-      SUBDOMAIN: *app
+      APP: grocy
+      SUBDOMAIN: grocy
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PATH: /
-      GATUS_PORT: "80"
-
-      # Backup-only volsync: PVC is created by apps/base/grocy/grocy-pvc.yaml
-      VOLSYNC_SOURCE_PVC: *app
-      VOLSYNC_REPO_PATH: grocy/data
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_PATH: "/"
+      GATUS_PORT: '80'
   prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: &namespace grocy
+  targetNamespace: grocy
   timeout: 5m
   wait: false
