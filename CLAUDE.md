@@ -61,11 +61,17 @@ Each app lives under `apps/base/<name>/` and typically contains:
 - `<name>-ingressroute.yaml` — Traefik `IngressRoute`
 - `<name>-namespace.yaml` — `Namespace` (if the app owns it)
 - `<name>-secret.sops.yaml` — SOPS-encrypted `Secret` (if needed)
-- `<name>-pvc.yaml` — `PersistentVolumeClaim` (if not managed by volsync)
+- `<name>-pvc.yaml` — `PersistentVolumeClaim` with a `backup: hourly|daily` label to opt into automatic volsync backups (Phase 5+ label-driven pattern)
 
 To activate an app, add its path to `apps/production/kustomization.yaml`. To disable without deleting, comment it out.
 
 The bjw-s `app-template` chart is the standard HelmRelease base for all apps. Refer to existing releases (e.g. `apps/base/media/plex/plex-release.yaml`) as the canonical pattern.
+
+### Backing up an app's PVC
+
+For any app whose data is worth restoring after a cluster nuke: add `backup: daily` (or `backup: hourly` for high-churn data like databases/passwords) to the PVC's `metadata.labels`. [`ClusterPolicy/volsync-pvc-backup-restore`](infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore.yaml) auto-generates the per-PVC volsync Secret + ReplicationSource + ReplicationDestination at admission time. See [`docs/label-driven-backups.md`](docs/label-driven-backups.md) for full semantics and troubleshooting.
+
+The legacy `components/volsync-v2/*` Components are deprecated — used by some apps mid-migration but no new references. Existing migrations use [`scripts/migrate-stage-bc.sh`](scripts/migrate-stage-bc.sh).
 
 ## Secrets management (SOPS)
 
