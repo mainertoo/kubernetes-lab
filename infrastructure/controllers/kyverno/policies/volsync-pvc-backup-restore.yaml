@@ -429,6 +429,15 @@ spec:
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
+        # Cache PVC size. Default 5Gi (was 1Gi pre-fix — too small for
+        # the shared-repo design where the cache holds index metadata
+        # for ALL apps' snapshots, not just this one's). Per-PVC
+        # override via annotation: `volsync.backup/cache-capacity:
+        # 10Gi`. Apps with >50Gi sources (dumb, plex, jellyfin, large
+        # media libraries) should set 10–20Gi explicitly.
+        - name: cacheCap
+          variable:
+            jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
         apiVersion: volsync.backube/v1alpha1
@@ -447,7 +456,7 @@ spec:
               volumeSnapshotClassName: "{{snapClass}}"
               accessModes:
                 - "{{rwMode}}"
-              cacheCapacity: 1Gi
+              cacheCapacity: "{{cacheCap}}"
               cacheStorageClassName: ceph-rbd
               cacheAccessModes:
                 - ReadWriteOnce
@@ -510,6 +519,10 @@ spec:
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
+        # Cache PVC size; mirrors rule 6's logic. See rule 6 comment.
+        - name: cacheCap
+          variable:
+            jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
         apiVersion: volsync.backube/v1alpha1
@@ -528,7 +541,7 @@ spec:
                 - "{{rwMode}}"
               storageClassName: "{{request.object.spec.storageClassName}}"
               volumeSnapshotClassName: "{{snapClass}}"
-              cacheCapacity: 1Gi
+              cacheCapacity: "{{cacheCap}}"
               cacheStorageClassName: ceph-rbd
               cacheAccessModes:
                 - ReadWriteOnce
