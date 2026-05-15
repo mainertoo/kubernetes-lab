@@ -1,7 +1,10 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 3 (settled) — homepage on production with volsync-v2 ongoing backup.
-# PVC renamed from homepage-config → homepage to match volsync convention.
+# Phase 5b (settled) — homepage on production with label-driven volsync
+# backup. Replaces the legacy components/volsync-v2 + volsync/remote
+# pair. PVC is now owned by a static manifest in apps/base/homepage/
+# that carries `backup: daily`; ClusterPolicy `volsync-pvc-backup-
+# restore` generates the per-PVC Secret + RS + RD trio off the label.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -24,29 +27,8 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
-  # Phase 5a of the volsync label-driven restore project (TEMPORARY
-  # patch; folded into a static manifest in 5b). Labeling the
-  # Component-generated PVC triggers Kyverno's generate rules to
-  # provision the new `volsync-homepage` Secret + `homepage-backup`
-  # RS + RD, in parallel with the legacy `homepage` RS that
-  # components/volsync-v2 keeps running. Stage B cuts the legacy RS
-  # over; 5b removes the volsync-v2 + volsync/remote Components and
-  # this patch (the label moves into a static PVC manifest).
-  patches:
-    - target:
-        kind: PersistentVolumeClaim
-        name: homepage
-      patch: |-
-        apiVersion: v1
-        kind: PersistentVolumeClaim
-        metadata:
-          name: homepage
-          labels:
-            backup: daily
   postBuild:
     substitute:
       APP: *app
@@ -55,19 +37,3 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PORT: "3000"
       GATUS_PATH: /
-      VOLSYNC_REPO_PATH: homepage/config
-      CAPACITY: 2Gi
-      VOLSYNC_STORAGECLASS: cephfs
-      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-      VOLSYNC_ACCESSMODES: ReadWriteMany
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-      VOLSYNC_RESTORE_PUID: "1000"
-      VOLSYNC_RESTORE_PGID: "1000"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
