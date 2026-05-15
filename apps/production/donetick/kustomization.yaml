@@ -1,5 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5b (settled) — donetick on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/donetick/donetick-pvc.yaml with `backup: daily`. gatus stays.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -26,8 +29,6 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
 
@@ -35,27 +36,7 @@ spec:
     substitute:
       APP: *app
       APP_NAMESPACE: *app
-
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      CAPACITY: 2Gi
-
-      VOLSYNC_REPO_PATH: donetick/data
-
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-
       SUBDOMAIN: *app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "2021"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
