@@ -1,5 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5b (settled) — mealie on production with label-driven volsync
+# backup. components/volsync-v2/backup-only + volsync/remote removed;
+# PVC (`mealie-data`) carries `backup: daily` and is owned by the
+# static manifest in apps/base/mealie/mealie-pvc.yaml. gatus stays.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -10,8 +14,6 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../components/volsync-v2/backup-only
-    - ../../../components/volsync/remote
     - ../../../components/gatus/internal
     - ../../../components/gatus/external
   interval: 1h
@@ -22,22 +24,6 @@ spec:
       SUBDOMAIN: *app
       GATUS_PATH: /api/app/about
       GATUS_PORT: "9000"
-
-      # Backup-only volsync: PVC is created by apps/base/mealie/mealie-pvc.yaml
-      # and named "mealie-data" (not matching APP).
-      VOLSYNC_SOURCE_PVC: mealie-data
-      VOLSYNC_REPO_PATH: mealie/data
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
   prune: true
   retryInterval: 2m
   sourceRef:

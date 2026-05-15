@@ -2,7 +2,17 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mealie-data
-  namespace: mealie
+  labels:
+    # Phase 5b of the volsync label-driven restore project. ClusterPolicy
+    # `volsync-pvc-backup-restore` matches this label and generates
+    # `volsync-mealie-data` Secret + `mealie-data-backup` RS + RD.
+    # Note the generated names use the PVC name (mealie-data), not the
+    # app name (mealie). Coexists cleanly with any non-volsync resources
+    # the production overlay's HelmRelease still creates.
+    #
+    # No dataSourceRef to mirror — mealie's PVC is owned by the
+    # HelmRelease (backup-only variant), never bootstrap-populated.
+    backup: daily
 spec:
   accessModes:
     - ReadWriteOnce
