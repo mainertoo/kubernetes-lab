@@ -13,6 +13,17 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
+  # dataSourceRef is immutable post-bind. The live PVC has a stale
+  # `homepage-bootstrap` ref left over from the original volsync-v2/
+  # bootstrap variant's one-time populator (the bootstrap RD itself
+  # is long gone). The field can't be removed, so we mirror it here
+  # to keep Flux's dry-run happy. On a fresh cluster rebuild,
+  # Kyverno's mutate rule will replace this with `homepage-backup`
+  # at admission time before the PVC binds.
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: homepage-bootstrap
   resources:
     requests:
       storage: 2Gi
