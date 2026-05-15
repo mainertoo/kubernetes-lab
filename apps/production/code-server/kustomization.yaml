@@ -1,66 +1,37 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5b (settled) — code-server on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/code-server/code-server-pvc.yaml with `backup: daily`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app code-server
+  name: code-server
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/code-server
-  targetNamespace: *app
-
+  path: "./apps/base/code-server"
+  targetNamespace: code-server
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
-
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
   postBuild:
     substitute:
-      APP: *app
-      APP_NAMESPACE: *app
-
-      # --- volsync (cephfs/RWX) ---
-      VOLSYNC_STORAGECLASS: cephfs
-      VOLSYNC_ACCESSMODES: ReadWriteMany
-      VOLSYNC_SNAPSHOTCLASS: cephfs-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteMany
-      CAPACITY: 20Gi
-
-      VOLSYNC_REPO_PATH: code-server/data
-
-      # Cache stays rbd RWO — canonical for cephfs apps (matches paperless-ngx)
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 10Gi
-
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-
-      # --- gatus health checks ---
-      # IngressRoute hosts vscode.lab.mainertoo.com (primary, set as
-      # PROXY_DOMAIN on the app) and code-server.lab.mainertoo.com.
+      APP: code-server
+      APP_NAMESPACE: code-server
       SUBDOMAIN: vscode
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PATH: /
-      GATUS_PORT: "8443"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_PATH: "/"
+      GATUS_PORT: '8443'
