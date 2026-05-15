@@ -4,6 +4,6 @@ namespace: expense-owl
 resources:
   - expense-owl-namespace.yaml
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
-  # - expense-owl-pvc.yaml
+  - expense-owl-pvc.yaml
   - expense-owl-release.yaml
   - expense-owl-ingressroute.yaml
