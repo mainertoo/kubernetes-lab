@@ -265,15 +265,20 @@ EOF
 EOF
 
   # 2. Ensure the base kustomization references the PVC manifest.
+  # NOTE: macOS BSD sed/grep don't honor GNU `\s`. Use POSIX
+  # `[[:space:]]` everywhere (caught on crafty — sed silently failed
+  # to uncomment, leaving the rendered PVC without its backup label).
   echo "  [2/4] Ensuring $base_kust references $PVC-pvc.yaml"
-  if grep -qE "^\s*-\s+$PVC-pvc\.yaml\s*\$" "$base_kust"; then
+  if grep -qE "^[[:space:]]*-[[:space:]]+$PVC-pvc\.yaml[[:space:]]*\$" "$base_kust"; then
     echo "        already referenced (idempotent)"
-  elif grep -qE "^\s*#\s*-\s+$PVC-pvc\.yaml\s*\$" "$base_kust"; then
+  elif grep -qE "^[[:space:]]*#[[:space:]]*-[[:space:]]+$PVC-pvc\.yaml[[:space:]]*\$" "$base_kust"; then
     # Uncomment the existing line.
-    sed -i.bak -E "s|^(\s*)#\s*-\s+($PVC-pvc\.yaml\s*)\$|\1- \2|" "$base_kust" && rm "$base_kust.bak"
+    sed -i.bak -E "s|^([[:space:]]*)#[[:space:]]*-[[:space:]]+($PVC-pvc\.yaml[[:space:]]*)\$|\1- \2|" "$base_kust" && rm "$base_kust.bak"
     echo "        uncommented existing reference"
   else
-    # Append.
+    # Append. Guard against the file ending without a trailing
+    # newline (the new entry would otherwise join the last line).
+    [ -z "$(tail -c 1 "$base_kust" 2>/dev/null)" ] || echo "" >> "$base_kust"
     printf -- "  - %s-pvc.yaml\n" "$PVC" >> "$base_kust"
     echo "        appended reference"
   fi
