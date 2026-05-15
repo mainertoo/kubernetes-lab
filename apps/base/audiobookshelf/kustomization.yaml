@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: media
 resources:
   # - audiobookshelf-namespace.yaml
-  # - audiobookshelf-pvc.yaml
+  - audiobookshelf-pvc.yaml
   - audiobookshelf-release.yaml
   - audiobookshelf-ingressroute.yaml
