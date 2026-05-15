@@ -4,4 +4,3 @@ resources:
   - kyverno-volsync-jitter.yaml
   - volsync-pvc-backup-restore.yaml
   - volsync-policy-rbac.yaml
-  - volsync-rs-cache-override.yaml
