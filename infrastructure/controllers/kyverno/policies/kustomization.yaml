@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - kyverno-volsync-jitter.yaml
   - volsync-pvc-backup-restore.yaml
+  - volsync-policy-rbac.yaml
