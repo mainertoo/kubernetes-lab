@@ -236,6 +236,34 @@ generate_5b() {
   echo ""
   echo "─── 5b PR ──────────────────────────────────────────────────"
 
+  # Empty-base sentinel handling. Some apps' production overlays
+  # point at apps/base/empty/ because the volsync-v2 Components used
+  # to render everything inline. Phase 5b needs real manifests, so we
+  # create a per-app dedicated dir named after the Flux Kustomization
+  # name and rewrite spec.path. apps/base/empty/kustomization.yaml
+  # MUST be left as `resources: []` (still consumed by other
+  # empty-base apps that haven't cut over yet).
+  local empty_base=0
+  if [ "$SPEC_PATH" = "apps/base/empty" ]; then
+    empty_base=1
+    local new_dir="apps/base/$APP"
+    echo "  [0/4] Empty-base sentinel detected; creating $new_dir/"
+    mkdir -p "$REPO_ROOT/$new_dir"
+    BASE_DIR="$REPO_ROOT/$new_dir"
+    SPEC_PATH="$new_dir"
+    cat > "$BASE_DIR/kustomization.yaml" <<EOF
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: $NS
+resources:
+  - $PVC-pvc.yaml
+EOF
+    # Rewrite production overlay spec.path. Handles both quoted and
+    # unquoted forms.
+    sed -i.bak -E "s|(^[[:space:]]+path:[[:space:]]+)\"?\\./apps/base/empty\"?[[:space:]]*\$|\\1\"./$new_dir\"|" "$PROD_FILE" \
+      && rm "$PROD_FILE.bak"
+  fi
+
   local pvc_file="$BASE_DIR/$PVC-pvc.yaml"
   local base_kust="$BASE_DIR/kustomization.yaml"
 
@@ -286,18 +314,26 @@ EOF
   # `[[:space:]]` everywhere (caught on crafty — sed silently failed
   # to uncomment, leaving the rendered PVC without its backup label).
   echo "  [2/4] Ensuring $base_kust references $PVC-pvc.yaml"
-  if grep -qE "^[[:space:]]*-[[:space:]]+$PVC-pvc\.yaml[[:space:]]*\$" "$base_kust"; then
+  if [ "$empty_base" -eq 1 ]; then
+    echo "        kustomization.yaml created with reference (empty-base path)"
+  elif grep -qE "^[[:space:]]*-[[:space:]]+$PVC-pvc\.yaml[[:space:]]*\$" "$base_kust"; then
     echo "        already referenced (idempotent)"
   elif grep -qE "^[[:space:]]*#[[:space:]]*-[[:space:]]+$PVC-pvc\.yaml[[:space:]]*\$" "$base_kust"; then
     # Uncomment the existing line.
     sed -i.bak -E "s|^([[:space:]]*)#[[:space:]]*-[[:space:]]+($PVC-pvc\.yaml[[:space:]]*)\$|\1- \2|" "$base_kust" && rm "$base_kust.bak"
     echo "        uncommented existing reference"
   else
-    # Append. Guard against the file ending without a trailing
-    # newline (the new entry would otherwise join the last line).
-    [ -z "$(tail -c 1 "$base_kust" 2>/dev/null)" ] || echo "" >> "$base_kust"
-    printf -- "  - %s-pvc.yaml\n" "$PVC" >> "$base_kust"
-    echo "        appended reference"
+    # Insert under the `resources:` block via awk. Naive end-of-file
+    # append put new entries under whichever top-level field was last
+    # (configMapGenerator, configurations, …) — broke mosquitto.
+    awk -v entry="$PVC-pvc.yaml" '
+      function ins() { if (state==1 && !done) { print "  - " entry; done=1; state=2 } }
+      /^resources:[[:space:]]*$/ { state=1; print; next }
+      state==1 && (/^[^ ]/ || /^$/) { ins() }
+      { print }
+      END { ins() }
+    ' "$base_kust" > "$base_kust.tmp" && mv "$base_kust.tmp" "$base_kust"
+    echo "        inserted into resources: block"
   fi
 
   # 3. Prune volsync-v2 + volsync/remote Components and VOLSYNC_*
