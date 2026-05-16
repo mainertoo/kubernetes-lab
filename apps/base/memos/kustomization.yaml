@@ -3,6 +3,6 @@ kind: Kustomization
 resources:
   - memos-namespace.yaml
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
-  # - memos-pvc.yaml
+  - memos-pvc.yaml
   - memos-release.yaml
   - memos-ingressroute.yaml
