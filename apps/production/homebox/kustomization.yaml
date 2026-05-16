@@ -1,13 +1,16 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5b (settled) — homebox on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/homebox/homebox-pvc.yaml with `backup: daily`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app homebox
+  name: homebox
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/homebox
+  path: "./apps/base/homebox"
   targetNamespace: homebox
   prune: true
   retryInterval: 2m
@@ -22,30 +25,13 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
   postBuild:
     substitute:
-      APP: *app
+      APP: homebox
       APP_NAMESPACE: homebox
-      SUBDOMAIN: *app
+      SUBDOMAIN: homebox
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PORT: "7745"
-      GATUS_PATH: /
-
-      VOLSYNC_REPO_PATH: homebox/data
-      CAPACITY: 5Gi
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_PORT: '7745'
+      GATUS_PATH: "/"

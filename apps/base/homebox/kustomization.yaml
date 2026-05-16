@@ -6,3 +6,4 @@ resources:
   - homebox-secret.sops.yaml
   - homebox-release.yaml
   - homebox-ingressroute.yaml
+  - homebox-pvc.yaml
