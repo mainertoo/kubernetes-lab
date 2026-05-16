@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - esphome-release.yaml
   - esphome-ingressroute.yaml
+  - esphome-pvc.yaml
