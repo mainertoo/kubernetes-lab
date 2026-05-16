@@ -5,3 +5,4 @@ resources:
   # - lidarr-data-pvc.yaml
   - lidarr-release.yaml
   - lidarr-ingressroute.yaml
+  - lidarr-pvc.yaml
