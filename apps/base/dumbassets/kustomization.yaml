@@ -4,6 +4,6 @@ namespace: dumbassets
 resources:
   - dumbassets-namespace.yaml
   # PVC owned by volsync-v2
-  # - dumbassets-pvc.yaml
+  - dumbassets-pvc.yaml
   - dumbassets-release.yaml
   - dumbassets-ingressroute.yaml
