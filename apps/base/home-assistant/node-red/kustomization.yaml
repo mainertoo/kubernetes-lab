@@ -4,3 +4,4 @@ namespace: home-assistant
 resources:
   - node-red-release.yaml
   - node-red-ingressroute.yaml
+  - node-red-pvc.yaml
