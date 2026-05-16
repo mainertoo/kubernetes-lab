@@ -5,3 +5,4 @@ resources:
   # - bazarr-data-pvc.yaml
   - bazarr-release.yaml
   - bazarr-ingressroute.yaml
+  - bazarr-pvc.yaml
