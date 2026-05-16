@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: pvc-plumber
-          image: ghcr.io/mainertoo/pvc-plumber-restic:sha-5a102e0
+          image: ghcr.io/mainertoo/pvc-plumber-restic:sha-1e3bff9
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -51,10 +51,15 @@ spec:
               value: "8080"
             - name: LOG_LEVEL
               value: info
-            - name: CACHE_TTL
-              value: 60s
+            # CACHE_TTL omitted — image sha-1e3bff9+ defaults it to
+            # RE_WARM_INTERVAL so entries stay valid between re-warms
+            # (was 60s here, which left a 4-min cold-cache gap and was
+            # the trigger for the issue #1 503 storm).
             - name: RE_WARM_INTERVAL
               value: 5m
+            # HTTP_TIMEOUT, HEALTH_CHECK_TIMEOUT, RESTIC_MAX_CONCURRENCY
+            # left at image defaults (30s, 15s, 2 respectively as of
+            # sha-1e3bff9). Override here if cluster behavior diverges.
             - name: RESTIC_CREDENTIALS_PATH
               value: /var/secret/pvc-plumber-restic
             - name: RESTIC_CACHE_DIR
@@ -90,9 +95,9 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 128Mi
             limits:
-              memory: 5Gi
+              memory: 1Gi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
