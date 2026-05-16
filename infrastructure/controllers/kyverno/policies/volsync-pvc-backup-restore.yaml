@@ -23,14 +23,15 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore
   annotations:
-    # One-shot force-recreate: rules 6+7 are renamed to -v2 with new
-    # cacheCapacity semantics, but Kyverno rejects in-place generate-rule
-    # mutations (immutable-fields check applies to rule TARGET, not just
-    # rule NAME — verified 2026-05-16). Flux must delete + recreate the
-    # policy so Kyverno GCs the v1 RSes/RDs and the new rules regenerate
-    # them with annotation-driven cache sizing. ~5–15 min backup gap
-    # while the 41 cut-over apps' RS/RD/cache PVCs cycle. Restic state
-    # on S3 survives. SAFE TO REMOVE after this commit reconciles.
+    # One-shot force-recreate: adds `generateExisting: true` to rules
+    # 5/6/7 so that future force-recreates auto-regenerate RS/RD/Secret
+    # for existing labeled PVCs (without it, manual `kubectl annotate`
+    # of each PVC is required — observed during the v2 cacheCapacity
+    # rollout 2026-05-16). Because `generateExisting` lives inside
+    # `generate:`, Kyverno's immutability check rejects in-place edits;
+    # only a delete + recreate via this annotation gets it past
+    # admission. ~5–15 min backup gap while the 42 RSes cycle.
+    # SAFE TO REMOVE in a follow-up commit after this reconciles.
     kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync PVC backup/restore admission
     policies.kyverno.io/category: VolSync
@@ -358,6 +359,13 @@ spec:
             jmesPath: "@"
       generate:
         synchronize: true
+        # Fire on existing matching PVCs at policy load, not just on
+        # PVC CREATE/UPDATE events. Without this, force-recreating the
+        # policy (e.g. to change generate.data values via [[feedback_
+        # kyverno_generate_rules_immutable]]) leaves all matching PVCs
+        # without their generated children until each PVC is manually
+        # touched. Verified 2026-05-16 on the cacheCapacity v2 rollout.
+        generateExisting: true
         apiVersion: v1
         kind: Secret
         name: "volsync-{{request.object.metadata.name}}"
@@ -457,6 +465,9 @@ spec:
             jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
+        # See rule 5 comment — fires on existing matching PVCs at policy
+        # load so future force-recreates self-heal.
+        generateExisting: true
         apiVersion: volsync.backube/v1alpha1
         kind: ReplicationSource
         name: "{{request.object.metadata.name}}-backup"
@@ -545,6 +556,9 @@ spec:
             jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
+        # See rule 5 comment — fires on existing matching PVCs at policy
+        # load so future force-recreates self-heal.
+        generateExisting: true
         apiVersion: volsync.backube/v1alpha1
         kind: ReplicationDestination
         name: "{{request.object.metadata.name}}-backup"
