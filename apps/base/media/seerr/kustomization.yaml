@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: seerr
 resources:
   # - seerr-namespace.yaml
-  # - seerr-pvc.yaml
+  - seerr-pvc.yaml
   - seerr-release.yaml
   - seerr-ingressroute.yaml
   - seerr-lb-service.yaml
