@@ -4,6 +4,6 @@ namespace: lcshare
 resources:
   - lcshare-namespace.yaml
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle)
-  # - lcshare-pvc.yaml
+  - lcshare-pvc.yaml
   - lcshare-release.yaml
   - lcshare-ingressroute.yaml

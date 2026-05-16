@@ -1,14 +1,16 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Stage 3 (settled) — lcshare on production with volsync-v2 ongoing backup.
+# Phase 5b (settled) — lcshare on production with label-driven volsync
+# backup. components/volsync-v2 + volsync/remote removed; PVC owned by
+# apps/base/lcshare/lcshare-pvc.yaml with `backup: daily`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app lcshare
+  name: lcshare
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/lcshare
+  path: "./apps/base/lcshare"
   targetNamespace: lcshare
   prune: true
   retryInterval: 2m
@@ -23,31 +25,13 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
   postBuild:
     substitute:
-      APP: *app
+      APP: lcshare
       APP_NAMESPACE: lcshare
-      SUBDOMAIN: *app
+      SUBDOMAIN: lcshare
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PORT: "8080"
-      GATUS_PATH: /
-      VOLSYNC_REPO_PATH: lcshare/data
-      CAPACITY: 5Gi
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 2Gi
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-      VOLSYNC_RESTORE_PUID: "1000"
-      VOLSYNC_RESTORE_PGID: "1000"
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_PORT: '8080'
+      GATUS_PATH: "/"
