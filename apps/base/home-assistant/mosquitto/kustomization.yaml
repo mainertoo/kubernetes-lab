@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - mosquitto-secret.sops.yaml
   - mosquitto-release.yaml
+  - mosquitto-pvc.yaml
 
 configMapGenerator:
   - name: mosquitto-configmap
