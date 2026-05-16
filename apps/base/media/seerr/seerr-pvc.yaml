@@ -2,11 +2,15 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: seerr
-  namespace: seerr
+  labels:
+    # Phase 5b of the volsync label-driven restore project.
+    # ClusterPolicy volsync-pvc-backup-restore matches this label and
+    # generates volsync-seerr Secret + seerr-backup RS + RD in this ns.
+    backup: daily
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: cephfs
   resources:
     requests:
       storage: 10Gi
-  storageClassName: cephfs
