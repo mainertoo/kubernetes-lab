@@ -5,3 +5,4 @@ resources:
   # - sonarr4k-config-pvc.yaml
   - sonarr4k-release.yaml
   - sonarr4k-ingressroute.yaml
+  - sonarr4k-pvc.yaml
