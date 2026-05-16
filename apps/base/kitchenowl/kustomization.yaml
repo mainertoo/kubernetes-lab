@@ -5,7 +5,7 @@ resources:
   - kitchenowl-namespace.yaml
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
   # Renamed from kitchenowl-data → kitchenowl during Phase 1c migration.
-  # - kitchenowl-pvc.yaml
+  - kitchenowl-pvc.yaml
   - kitchenowl-sso-secret.sops.yaml
   - kitchenowl-release.yaml
   - kitchenowl-ingressroute.yaml
