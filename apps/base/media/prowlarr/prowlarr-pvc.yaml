@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr
+  labels:
+    # Phase 5b of the volsync label-driven restore project.
+    # ClusterPolicy volsync-pvc-backup-restore matches this label and
+    # generates volsync-prowlarr Secret + prowlarr-backup RS + RD in this ns.
+    backup: daily
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  # Stale ref left over from the volsync-v2/bootstrap variant's
+  # one-time populator (the bootstrap RD itself is long gone).
+  # dataSourceRef is immutable on a bound PVC, so we mirror it here
+  # to keep Flux's dry-run happy. On a fresh cluster rebuild,
+  # Kyverno's mutate rule (CREATE-only) swaps it for prowlarr-backup
+  # at admission before bind.
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: prowlarr-bootstrap
+  resources:
+    requests:
+      storage: 5Gi
