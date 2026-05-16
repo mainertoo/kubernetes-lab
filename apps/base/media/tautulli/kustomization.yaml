@@ -4,3 +4,4 @@ namespace: media
 resources:
   - tautulli-release.yaml
   - tautulli-ingressroute.yaml
+  - tautulli-pvc.yaml
