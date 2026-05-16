@@ -23,16 +23,6 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore
   annotations:
-    # One-shot force-recreate: adds `generateExisting: true` to rules
-    # 5/6/7 so that future force-recreates auto-regenerate RS/RD/Secret
-    # for existing labeled PVCs (without it, manual `kubectl annotate`
-    # of each PVC is required — observed during the v2 cacheCapacity
-    # rollout 2026-05-16). Because `generateExisting` lives inside
-    # `generate:`, Kyverno's immutability check rejects in-place edits;
-    # only a delete + recreate via this annotation gets it past
-    # admission. ~5–15 min backup gap while the 42 RSes cycle.
-    # SAFE TO REMOVE in a follow-up commit after this reconciles.
-    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
