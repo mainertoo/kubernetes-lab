@@ -1,3 +1,7 @@
+---
+# Phase 5b (settled) — media/cinesync on production with label-driven
+# volsync backup. components/volsync-v2 + volsync/remote removed; PVC
+# owned by apps/base/media/cinesync/cinesync-pvc.yaml with `backup: daily`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -24,8 +28,6 @@ spec:
     namespace: flux-system
 
   components:
-    - ../../../../components/volsync-v2
-    - ../../../../components/volsync/remote
     - ../../../../components/gatus/internal
     - ../../../../components/gatus/external
 
@@ -34,26 +36,8 @@ spec:
       APP: cinesync
       APP_NAMESPACE: media
 
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      CAPACITY: 5Gi
-
-      VOLSYNC_REPO_PATH: media/cinesync
-
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-
-      VOLSYNC_PUID: "1000"
-      VOLSYNC_PGID: "1000"
-
       SUBDOMAIN: cinesync
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /
       GATUS_PORT: "8082"
       GATUS_STATUS_INTERNAL: "200"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
