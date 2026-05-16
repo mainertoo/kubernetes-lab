@@ -5,3 +5,4 @@ resources:
   - zigbee2mqtt-secret.sops.yaml
   - zigbee2mqtt-release.yaml
   - zigbee2mqtt-ingressroute.yaml
+  - zigbee2mqtt-pvc.yaml
