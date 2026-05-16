@@ -6,3 +6,4 @@ resources:
   - wallos-secret.sops.yaml
   - wallos-release.yaml
   - wallos-ingressroute.yaml
+  - wallos-pvc.yaml
