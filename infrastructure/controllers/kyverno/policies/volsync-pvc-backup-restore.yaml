@@ -23,6 +23,15 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore
   annotations:
+    # One-shot force-recreate: rules 6+7 are renamed to -v2 with new
+    # cacheCapacity semantics, but Kyverno rejects in-place generate-rule
+    # mutations (immutable-fields check applies to rule TARGET, not just
+    # rule NAME — verified 2026-05-16). Flux must delete + recreate the
+    # policy so Kyverno GCs the v1 RSes/RDs and the new rules regenerate
+    # them with annotation-driven cache sizing. ~5–15 min backup gap
+    # while the 41 cut-over apps' RS/RD/cache PVCs cycle. Restic state
+    # on S3 survives. SAFE TO REMOVE after this commit reconciles.
+    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
@@ -369,13 +378,19 @@ spec:
             AWS_EC2_METADATA_DISABLED: "true"
 
     # ─────────────────────────────────────────────────────────────────
-    # Rule 6: generate-replication-source  (generate, synchronize: true)
+    # Rule 6: generate-replication-source-v2  (generate, synchronize: true)
     # ─────────────────────────────────────────────────────────────────
     # Creates `<pvc>-backup` RS in the PVC's namespace. Schedule + cron
     # minute derived from label and namespace length per design §2.4.
     # Storage class and snapshot class are derived from the source PVC's
     # own spec so the generated RS handles cephfs and ceph-rbd uniformly.
-    - name: generate-replication-source
+    #
+    # Renamed from `generate-replication-source` to bypass Kyverno's
+    # admission block on in-place generate.data edits (PRs #373/#376
+    # round-tripped that path). The old rule is removed; Kyverno's
+    # synchronize: true cleanup GCs its RSes and this rule regenerates
+    # them with the new cacheCapacity semantics.
+    - name: generate-replication-source-v2
       match:
         any:
           - resources:
@@ -429,6 +444,17 @@ spec:
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
+        # Cache PVC size. Default 5Gi (was hardcoded 1Gi in the v1 rule —
+        # too small for the shared-repo design where the cache holds
+        # restic index/pack metadata for ALL apps' snapshots in the
+        # shared repo, not just this app's). Per-PVC override via
+        # annotation `volsync.backup/cache-capacity: 10Gi`. Apps with
+        # >50Gi sources or large file counts (dumb, plex, jellyfin,
+        # large media libraries, esphome/platformio toolchains) should
+        # set explicit values.
+        - name: cacheCap
+          variable:
+            jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
         apiVersion: volsync.backube/v1alpha1
@@ -447,7 +473,7 @@ spec:
               volumeSnapshotClassName: "{{snapClass}}"
               accessModes:
                 - "{{rwMode}}"
-              cacheCapacity: 1Gi
+              cacheCapacity: "{{cacheCap}}"
               cacheStorageClassName: ceph-rbd
               cacheAccessModes:
                 - ReadWriteOnce
@@ -463,14 +489,17 @@ spec:
                 monthly: 3
 
     # ─────────────────────────────────────────────────────────────────
-    # Rule 7: generate-replication-destination  (generate, synchronize: true)
+    # Rule 7: generate-replication-destination-v2  (generate, synchronize: true)
     # ─────────────────────────────────────────────────────────────────
     # Creates `<pvc>-backup` RD in the PVC's namespace. The mutate rule
     # patches the PVC's dataSourceRef to point here, and the CSI
     # populator triggers the RD to populate fresh PVCs from restic.
     # `trigger.manual` is constant — the RD fires once on first
     # restore, then idles.
-    - name: generate-replication-destination
+    #
+    # Renamed from `generate-replication-destination` alongside rule 6
+    # so the RD's cache PVC sizing tracks the same annotation override.
+    - name: generate-replication-destination-v2
       match:
         any:
           - resources:
@@ -510,6 +539,10 @@ spec:
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
+        # Cache PVC size; mirrors rule 6's logic. See rule 6 comment.
+        - name: cacheCap
+          variable:
+            jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
         apiVersion: volsync.backube/v1alpha1
@@ -528,7 +561,7 @@ spec:
                 - "{{rwMode}}"
               storageClassName: "{{request.object.spec.storageClassName}}"
               volumeSnapshotClassName: "{{snapClass}}"
-              cacheCapacity: 1Gi
+              cacheCapacity: "{{cacheCap}}"
               cacheStorageClassName: ceph-rbd
               cacheAccessModes:
                 - ReadWriteOnce
