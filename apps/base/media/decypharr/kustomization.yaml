@@ -6,3 +6,4 @@ resources:
   - decypharr-secret.sops.yaml
   - decypharr-release.yaml
   - decypharr-ingressroute.yaml
+  - decypharr-pvc.yaml
