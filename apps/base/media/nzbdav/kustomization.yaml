@@ -4,3 +4,4 @@ namespace: media
 resources:
   - nzbdav-release.yaml
   - nzbdav-ingressroute.yaml
+  - nzbdav-pvc.yaml
