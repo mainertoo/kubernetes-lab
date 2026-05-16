@@ -5,3 +5,4 @@ resources:
   - cinesync-release.yaml
   - cinesync-ingressroute.yaml
   - cinesync-secret.sops.yaml
+  - cinesync-pvc.yaml
