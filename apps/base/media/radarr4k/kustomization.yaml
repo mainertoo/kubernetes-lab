@@ -5,3 +5,4 @@ resources:
   # - radarr4k-data-pvc.yaml
   - radarr4k-release.yaml
   - radarr4k-ingressroute.yaml
+  - radarr4k-pvc.yaml
