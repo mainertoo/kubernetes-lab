@@ -29,4 +29,10 @@ spec:
                   - name: jitter
                     image: busybox:latest
                     imagePullPolicy: IfNotPresent
-                    command: ["sh", "-c", "sleep $((RANDOM % 180))"]
+                    # Spread up to 30 min. With ~70 movers on a shared restic
+                    # repo, 180s (3 min) wasn't enough — mover-vs-mover
+                    # `restic forget --retry-lock=0s` collisions piled up,
+                    # and on 2026-05-16 a fleet force-recreate that spawned
+                    # 51 fresh RSes simultaneously OOM'd worker-2 (kubelet
+                    # killed restic) and pinned worker-1 at 99% CPU.
+                    command: ["sh", "-c", "sleep $((RANDOM % 1800))"]
