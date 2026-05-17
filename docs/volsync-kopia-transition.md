@@ -1,8 +1,12 @@
 # VolSync Kopia Transition — Plan
 
-**Status:** DRAFT v5 — Phase 0 audit (2026-05-18 AM) revealed the v1–v4 plans rested on a false premise. v5 corrects the foundation. Ready for user sign-off before Phase 1 starts.
+**Status:** DRAFT v6 — Phase 0 audit step 3 (read perfectra1n's mover-kopia/entry.sh) + Codex v4 adversarial review against v5 both completed 2026-05-18 AM. v6 closes the 6 v5 bugs Codex surfaced AND incorporates audit-step-3 findings. Ready for user sign-off before Phase 1 starts.
 **Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the **mitchross/talos-argocd-proxmox** reference design as it is *actually implemented* (not as v1–v4 imagined it).
 **Trigger:** 2026-05-17 cluster incident — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §10 and the project memory `project_volsync_label_driven_restore.md`.
+
+> **What changed v5 → v6:** Codex's fourth pass found 6 v5 bugs introduced by the reframe. Most important: (a) v5 Phase 1a's HelmRelease snippet used `HelmRepository.spec.url`, but our actual `volsync-release.yaml` uses `OCIRepository` + `chartRef` (verified 2026-05-18). v6 rewrites Phase 1a to switch from OCIRepository → HelmRepository, since perfectra1n publishes to `https://perfectra1n.github.io/volsync/charts` (gh-pages), not OCI. (b) v5 Phase 2 said "adapt ExternalSecret to SOPS" but didn't enumerate the keys. v6 lists the exact 3-key Secret schema `pvc-plumber-kopia` expects, with the deployment's env vars + file-mount layout. (c) v5 Phase 1a chart swap (`backube/volsync@0.15.0` → `perfectra1n/volsync@0.18.5`) could invalidate the 41 live Kyverno-managed RSes/RDs from yesterday's regen if CRD shape differs. v6 adds an explicit `kubectl diff` gate before the chart-swap commit lands. (d) v5 Phase 6 step 4 wording was ambiguous after the no-rename reframe. v6 makes the deletion target explicit. (e) v5 didn't pin `mitchross/pvc-plumber:3.1.0` source repo + commit. v6 pins. (f) Phase 0 audit step 3 only covered BLOCKER criteria; v6 adds a §3a deeper-audit checklist for `do_restore`, repo connect/create, retry/timeout, and maintenance ownership paths.
+
+> **Phase 0 step 3 audit verdict (2026-05-18 AM):** **NO BLOCKERS.** Perfectra1n's mover-kopia/entry.sh (2473 LOC) properly checks exit codes (`do_backup`, `do_maintenance` both fail-fast), has NO destructive default retention (controller `mover.go:898` returns empty env vars when `retainPolicy == nil` — the OPPOSITE of restic's `--keep-last 1` trap), uses standard S3 env vars compatible with our Kyverno secret schema, and Kopia's concurrent-multi-writer model means no exclusive-lock contention. The split between per-backup work (light: `do_backup; do_retention`) and maintenance (heavy: `do_maintenance` invoked by KopiaMaintenance CRD CronJob) is exactly the architecture we wanted. Detailed findings in §10.
 
 > **What changed v4 → v5 (the big one):** The Phase 0 audit revealed `backube/volsync` does NOT ship a Kopia mover — not in v0.15.0, not on `main`, and only as an unmerged 56k-line PR (#1723 "Implement Kopia") that has been open since 2025-08-06. **The upstream Kopia mover does not exist.** Mitchross's actual setup uses the **`perfectra1n/volsync` community fork** (`ghcr.io/perfectra1n/volsync:v0.17.11` + chart `perfectra1n/volsync 0.18.5`). Mitchross's own internal research doc (`docs/research/volsync-fork-vs-upstream-2026-05-08.md`) concludes "stay on the fork, delete the JobMutator". v1–v4 of THIS doc described a transition to a non-existent thing. v5 redirects to what actually works.
 
@@ -138,12 +142,67 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
 
 **Activities:**
 
-0. **Phase 1a — swap volsync HelmRelease to perfectra1n's chart.** This is its own PR before any Kopia infra is touched.
-   - Edit `infrastructure/controllers/volsync/app/volsync-repository.yaml`: switch `HelmRepository.spec.url` from `https://backube.github.io/helm-charts` to `https://perfectra1n.github.io/volsync/charts`.
-   - Edit `infrastructure/controllers/volsync/app/volsync-release.yaml`: bump `spec.chart.spec.version` to `0.18.5`, set `values.image.{repository,tag}` to `ghcr.io/perfectra1n/volsync` / `v0.17.11`, set per-mover image overrides (`kopia`, `restic`, `rclone`, etc.) to the same image (pattern from mitchross's `values.yaml`).
-   - Smoke test: after Flux reconciles, `kubectl -n volsync-system get deploy volsync-system-volsync -o jsonpath='{.spec.template.spec.containers[0].image}'` returns the perfectra1n image. Existing Restic ReplicationSources continue to function (perfectra1n's `mover-restic` is the same upstream code).
-   - **CRITICAL pre-merge check:** flux-local diff must NOT show RS/RD spec drift. Perfectra1n's volsync CRD adds Kopia-specific fields but should be backward-compatible with existing Restic spec shape. If diff shows churn on existing Restic-backed RSes/RDs, abort and reconsider chart-version pinning.
-   - **Rollback:** revert the two files; Flux re-installs backube/volsync 0.15.0.
+0. **Phase 1a — swap volsync from backube OCIRepository to perfectra1n HelmRepository.** Its own PR before any Kopia infra is touched. **Codex v4 finding [1] caught this:** v5 said "edit HelmRepository.spec.url" but our actual `infrastructure/controllers/volsync/app/volsync-release.yaml` uses `chartRef → OCIRepository` (verified 2026-05-18), not `HelmRepository.spec.chart.spec.version`. Plus perfectra1n publishes via gh-pages chart repo, NOT OCI. So the migration is OCIRepository → HelmRepository.
+   
+   **Edits:**
+   - **DELETE** `infrastructure/controllers/volsync/app/volsync-repository.yaml` (the existing `OCIRepository` pointing at `oci://ghcr.io/home-operations/charts-mirror/volsync` tag `0.15.0` — perfectra1n is not mirrored there).
+   - **CREATE** `infrastructure/controllers/volsync/app/volsync-helmrepo.yaml`:
+     ```yaml
+     apiVersion: source.toolkit.fluxcd.io/v1
+     kind: HelmRepository
+     metadata:
+       name: perfectra1n-volsync
+       namespace: volsync-system
+     spec:
+       interval: 1h
+       url: https://perfectra1n.github.io/volsync/charts
+     ```
+     (No `verify.provider: cosign` here — perfectra1n's chart is not cosign-signed. We lose the verification step we had with the home-operations OCI mirror. Risk noted in §7.)
+   - **EDIT** `infrastructure/controllers/volsync/app/volsync-release.yaml`:
+     - Replace the `spec.chartRef` block with `spec.chart.spec` pattern:
+       ```yaml
+       spec:
+         chart:
+           spec:
+             chart: volsync
+             version: 0.18.5
+             sourceRef:
+               kind: HelmRepository
+               name: perfectra1n-volsync
+               namespace: volsync-system
+             interval: 24h
+       ```
+     - In `spec.values`, add the image overrides (pattern from mitchross's `values.yaml`):
+       ```yaml
+       image: &volsyncImage
+         repository: ghcr.io/perfectra1n/volsync
+         tag: v0.17.11
+       kopia: *volsyncImage
+       rclone: *volsyncImage
+       restic: *volsyncImage
+       rsync: *volsyncImage
+       rsync-tls: *volsyncImage
+       syncthing: *volsyncImage
+       ```
+     - Keep existing `manageCRDs: true`, `metrics.disableAuth: true`, `replicaCount: 1`, `targetNamespace: volsync-system` from current values.
+   - **EDIT** `infrastructure/controllers/volsync/app/kustomization.yaml`: change `volsync-repository.yaml` reference to `volsync-helmrepo.yaml`.
+   
+   **CRD compatibility check (Codex v4 finding [3], required pre-merge):**
+   ```bash
+   # Pull perfectra1n CRD from their chart, compare against backube v0.15.0 CRD
+   helm pull volsync --version 0.18.5 --repo https://perfectra1n.github.io/volsync/charts --untar -d /tmp/perfectra1n-chart
+   diff -u <(kubectl get crd replicationsources.volsync.backube -o yaml | yq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.generation, .metadata.managedFields)') \
+           /tmp/perfectra1n-chart/volsync/crds/replicationsources.volsync.backube.yaml | head -100
+   # Apply the perfectra1n CRD in dry-run + diff existing managed RSes against it
+   kubectl apply --dry-run=server -f /tmp/perfectra1n-chart/volsync/crds/replicationsources.volsync.backube.yaml
+   kubectl get replicationsource.volsync.backube -A -l "app.kubernetes.io/managed-by=kyverno" -o yaml | \
+     kubectl apply --dry-run=server -f - 2>&1 | tee /tmp/crd-validate.log
+   ```
+   **Pass criterion:** all 41 existing RSes validate clean against perfectra1n CRDs (no `unknown field` errors, no `validation failed` lines). If ANY error: abort Phase 1a, file an issue against perfectra1n, evaluate workaround (probably hand-patch the RSes to remove deprecated fields before chart-swap).
+   
+   **Smoke test post-merge:** after Flux reconciles, `kubectl -n volsync-system get deploy volsync-system-volsync -o jsonpath='{.spec.template.spec.containers[0].image}'` returns `ghcr.io/perfectra1n/volsync:v0.17.11`. Existing Restic ReplicationSources continue to function — perfectra1n's `mover-restic` is the same upstream code.
+   
+   **Rollback:** revert the three file changes (helmrepo create, release edit, kustomization edit) + re-create `volsync-repository.yaml`. Flux re-installs backube/volsync 0.15.0 via the OCI mirror. Existing PVC-managed RSes continue to operate.
 
 1. **Phase 1b — Kopia repo on Garage.** Decide bucket scope:
    - **Option A:** new bucket `volsync-kopia-shared` (clean separation, easier to nuke later)
@@ -165,18 +224,49 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
 
 **Output:** `pvc-plumber` deployment in `volsync-system` running `ghcr.io/mitchross/pvc-plumber:3.1.0` (mitchross's v3 operator with `KopiaMaintenance` CRD). Our `mainertoo/pvc-plumber-restic` fork stays running in parallel during Phase 5 — Restic-backed apps still consult it. Both deployments serve their own Kyverno policy.
 
+**Source pin (Codex v4 finding [5]):**
+- Image: `ghcr.io/mitchross/pvc-plumber:3.1.0`
+- Source repo: `https://github.com/mitchross/pvc-plumber` (tag `v3.1.0`)
+- `KopiaMaintenance` CRD: shipped from the same repo (CRD manifest is bundled in mitchross's `infrastructure/controllers/pvc-plumber/` reference layout — not a separate Helm chart).
+- Pin by digest at Phase 2 implementation time: `crane digest ghcr.io/mitchross/pvc-plumber:3.1.0` → copy the sha256 → use `image: ghcr.io/mitchross/pvc-plumber@sha256:...` in our deployment so Renovate updates are explicit not silent.
+
+**Required Secret schema (Codex v4 finding [2] — enumerated from mitchross's deployment+externalsecret):**
+
+The pvc-plumber:3.1.0 deployment expects a Secret named `pvc-plumber-kopia` in namespace `volsync-system`, mounted as a directory at `/var/secret/pvc-plumber-kopia` (mode 0440, NOT consumed via `secretKeyRef` env vars — see v3.1.0's lazy-credentials pattern below). Three keys:
+
+| Secret key | Value source for us | Mitchross uses |
+|---|---|---|
+| `KOPIA_PASSWORD` | New password generated for the Kopia repo, stored in 1Password personal vault (item: "volsync-kopia repository master password") | 1Password property `rustfs/kopia_password` |
+| `AWS_ACCESS_KEY_ID` | Garage IAM key scoped to `volsync-kopia` bucket | 1Password `rustfs/k8s-admin-access-key` |
+| `AWS_SECRET_ACCESS_KEY` | Same Garage IAM secret | 1Password `rustfs/k8s-admin-secret-key` |
+
+**v3.1.0 lazy-credentials pattern (important — explains the mount-as-directory choice):** The operator reads creds files on each `kopia` subprocess invocation and retries with backoff if any file is missing/empty. This was added in v3.1.0 specifically to avoid the pod-startup `secretKeyRef` race that crashed v3.0.0 when ExternalSecrets hadn't finished rendering yet. For us (SOPS), the race doesn't apply (Flux renders the Secret before reconciling the Deployment), but the file-mount pattern is what the operator expects — don't try to convert to env vars.
+
+**Deployment env vars (plain values, NOT from secret):**
+
+| Env var | Mitchross value | Our value |
+|---|---|---|
+| `BACKEND_TYPE` | `kopia-s3` | `kopia-s3` |
+| `KOPIA_S3_ENDPOINT` | `192.168.10.133:30293` (RustFS) | `garage.lab.mainertoo.com` (bare host, no scheme — see comment in mitchross's deployment.yaml: "kopia's S3 backend rejects fully-qualified URLs") |
+| `KOPIA_S3_BUCKET` | `volsync-kopia` | `volsync-kopia` |
+| `KOPIA_S3_DISABLE_TLS` | `true` (HTTP RustFS) | `false` (Garage fronted by HTTPS via Traefik — confirm in Phase 1b) |
+| `LOG_LEVEL` | `info` | `info` |
+| `CACHE_TTL` | `5m` | `5m` |
+| `HTTP_TIMEOUT` | `7s` | `7s` |
+| `RE_WARM_INTERVAL` | `90s` | `90s` |
+
 **Activities:**
-1. Read mitchross's `infrastructure/controllers/pvc-plumber/` reference layout. Files: `certificate.yaml` (cert-manager for webhook TLS), `deployment.yaml`, `externalsecret.yaml` (for Kopia creds), `kustomization.yaml`, `rbac.yaml`, `webhooks.yaml`.
-2. **NOTE:** mitchross uses `ExternalSecrets` operator. Our cluster uses SOPS directly. Adapt: replace their `ExternalSecret` with a SOPS-encrypted `Secret` at `infrastructure/secrets-prod/pvc-plumber-kopia.sops.yaml` carrying the same keys (`KOPIA_PASSWORD`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
-3. Build/pin: `ghcr.io/mitchross/pvc-plumber:3.1.0` — pin by digest (`kubectl-images` or `crane digest`) so Renovate updates are explicit, not silent.
-4. Adapt webhook TLS: mitchross uses `cert-manager` Certificate for the webhook cert. We already have cert-manager. Same pattern works as-is.
-5. New manifests under `infrastructure/controllers/pvc-plumber/` (DIFFERENT directory from existing `pvc-plumber-restic/`). Add this directory to `infrastructure/controllers/kustomization.yaml`.
-6. **`KopiaMaintenance` CRD:** mitchross's v3 operator installs and reconciles a `KopiaMaintenance` resource that drives the `kopia-maintenance` CronJob. We use the same CRD — no separate volsync-restic-forget-style CronJob needed.
-7. Smoke test:
+1. Read mitchross's `infrastructure/controllers/pvc-plumber/` reference layout (already cloned at `/tmp/mitchross` during Phase 0). Files: `certificate.yaml` (cert-manager for webhook TLS), `deployment.yaml`, `externalsecret.yaml` (for Kopia creds), `kustomization.yaml`, `rbac.yaml`, `webhooks.yaml`.
+2. Replace mitchross's `externalsecret.yaml` with a SOPS-encrypted `Secret` at `infrastructure/secrets-prod/pvc-plumber-kopia.sops.yaml` carrying the 3 keys from the schema above. SOPS auto-encrypts on save per CLAUDE.md.
+3. Adapt webhook TLS: mitchross uses `cert-manager` Certificate for the webhook cert. We already have cert-manager. Same pattern works as-is.
+4. New manifests under `infrastructure/controllers/pvc-plumber/` (DIFFERENT directory from existing `pvc-plumber-restic/`). Add this directory to `infrastructure/controllers/kustomization.yaml`.
+5. **`KopiaMaintenance` CRD:** mitchross's v3 operator installs and reconciles a `KopiaMaintenance` resource that drives the `kopia-maintenance` CronJob. CRD definition ships from the operator repo. We use the same CRD — no separate volsync-restic-forget-style CronJob needed.
+6. Smoke test:
    - `kubectl -n volsync-system get deploy pvc-plumber` Ready=1/1
    - Webhook reachable: `kubectl get validatingwebhookconfiguration` shows the pvc-plumber webhook with `serviceName: pvc-plumber` and `service.namespace: volsync-system`
    - Oracle responds: `kubectl -n volsync-system port-forward svc/pvc-plumber 18080:8080 &` then `curl -s http://localhost:18080/exists/foo/nonexistent | jq` returns `decision:fresh, authoritative:true, backend:kopia-s3`
    - `KopiaMaintenance` CRD reconciles a CronJob without error
+   - Creds-file mount visible inside the pod: `kubectl -n volsync-system exec -it deploy/pvc-plumber -- ls -la /var/secret/pvc-plumber-kopia` shows 3 files (KOPIA_PASSWORD, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) at mode 0440
 
 **During Phase 5:** both pvc-plumbers run concurrently. Each engine-specific Kyverno policy points at its own pvc-plumber Service. No cross-talk.
 
@@ -395,7 +485,7 @@ Batch order:
 1. Verify §9.1 scratch-namespace runbook validation passes (gate from Codex v3 finding [5]).
 2. Suspend `volsync-restic-forget` CronJob (don't delete yet).
 3. Suspend `pvc-plumber-restic` Deployment (replicas → 0).
-4. Delete the Restic Kyverno policy `volsync-pvc-backup-restore` (the originally-named policy, which by Phase 5 end only contains the engine selector for restic; no PVCs depend on it anymore).
+4. Delete the Restic Kyverno policy `volsync-pvc-backup-restore`. **Pre-condition (Codex v4 finding [4]):** confirm zero PVCs carry `backup-engine: restic` first via `kubectl get pvc -A -l backup-engine=restic --no-headers | wc -l` → must be 0. **DO NOT** delete `volsync-pvc-backup-restore-kopia` (the active Kopia policy that all 70 PVCs depend on) and **DO NOT** delete `volsync-pvc-engine-required` (the validate-only policy that enforces the engine label). Only the Restic-specific policy goes.
 5. Wait 24h. Verify no app is broken — every backup-labeled PVC should have `backup-engine: kopia` and a working Kopia RS at this point.
 6. PR: delete `infrastructure/controllers/pvc-plumber-restic/` directory entirely.
 7. PR: delete `infrastructure/controllers/volsync/app/volsync-restic-forget-cronjob.yaml`.
@@ -425,6 +515,22 @@ Batch order:
 8. Memory: mark `project_volsync_label_driven_restore.md` as COMPLETE 2026-05-XX
 
 **Exit criteria:** 10-min DR drill passes on staging. Docs reflect reality.
+
+---
+
+## 3a. Phase 0 deeper-audit checklist (Codex v4 finding [6])
+
+Phase 0 audit step 3 covered the BLOCKER criteria and verified `do_backup`, `do_retention`, `do_maintenance`, controller `retainPolicy == nil` handling, and S3 env-var compatibility. With 2473 LOC in `entry.sh`, four more areas need review BEFORE Phase 5 starts (not before Phase 1 — these are mover-side concerns that only matter when actual backups run):
+
+| Function / path | What to verify | Status |
+|---|---|---|
+| `do_restore` (line ~2291) | Restore mode error handling. Does a failed restore leave the target PVC half-populated? Does the script abort cleanly so the volsync controller marks the RD failed? | TBD before Phase 7 DR drill |
+| `connect_repository` (line 1398) | Password-mismatch behavior. If the per-PVC Secret has a stale `KOPIA_PASSWORD` (e.g., during password rotation), does the script error out clearly, or retry indefinitely? Is the rotation runbook safe? | TBD before Phase 5 batch 1 |
+| `create_repository` (line 1705) | First-time repo creation. We init the Kopia repo manually in Phase 1b — confirm the mover script doesn't try to re-init or overwrite the existing repo on first backup against it. | TBD before Phase 5 batch 1 (test with scratch PVC in Phase 3 step 3e) |
+| Garage S3 retry/timeout | Network-transient handling. Garage occasionally returns 503s under load (we saw this with restic). Does the Kopia mover retry with backoff, or fail-fast? Look for `--retries`, `--retry-interval`, timeout flags. | TBD before Phase 5 batch 2 |
+| `ensure_maintenance_ownership` (line 2000) | Already audited — uses `kopia maintenance set --owner=` with the `KOPIA_OVERRIDE_MAINTENANCE_USERNAME` env var (default `maintenance@volsync`). Confirmed safe. | ✅ done |
+
+Each checklist item logs findings as comments in this section. Items don't gate Phase 1, but each gates the specific phase noted.
 
 ---
 
@@ -592,6 +698,31 @@ EOF
 
 ## 10. Audits + Codex adversarial reviews — addressed findings
 
+### v6 — Codex v4 review of v5 + Phase 0 audit step 3 (2026-05-18 AM)
+
+**Codex v4 review against v5:** 6 findings, all from the perfectra1n-fork reframe. Codex was hampered by a sandbox/network read-only constraint mid-review (couldn't reach mitchross's repo or patch files), but the issues were enumerable from what it COULD read.
+
+| # | Severity | Finding | Resolution in v6 |
+|---|---|---|---|
+| 1 | HIGH | v5 Phase 1a HelmRelease snippet used `HelmRepository.spec.url`, but our `volsync-release.yaml` uses `OCIRepository` + `chartRef` (verified 2026-05-18). Perfectra1n publishes via gh-pages, not OCI. | Phase 1a rewritten: DELETE OCIRepository, CREATE HelmRepository for `https://perfectra1n.github.io/volsync/charts`, EDIT release to use `spec.chart.spec.sourceRef`. Cosign verification dropped (perfectra1n unsigned). |
+| 2 | HIGH | v5 said "adapt ExternalSecret to SOPS" without enumerating keys | Phase 2 now lists the 3 keys (`KOPIA_PASSWORD`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`), mount path (`/var/secret/pvc-plumber-kopia`, mode 0440), AND the 8 plain-value env vars on the deployment with mitchross-vs-us mapping table. |
+| 3 | HIGH | Chart-swap v0.15→v0.18 may invalidate the 41 live Kyverno-managed RSes/RDs | Phase 1a now has explicit pre-merge `helm pull` + `kubectl apply --dry-run=server` CRD validation gate. Pass criterion: zero `unknown field` errors. |
+| 4 | LOW | Phase 6 step 4 wording ambiguous after no-rename reframe | Step 4 now explicit: delete `volsync-pvc-backup-restore` only after confirming zero `backup-engine: restic` PVCs; do NOT delete the kopia or engine-required policies. |
+| 5 | MED | `mitchross/pvc-plumber:3.1.0` source not pinned | Phase 2 source-pin block added: repo `github.com/mitchross/pvc-plumber` tag `v3.1.0`, image `ghcr.io/mitchross/pvc-plumber:3.1.0`, pin-by-digest instruction (`crane digest`). |
+| 6 | MED | Phase 0 step 3 only covered BLOCKERs | New §3a checklist for `do_restore`, `connect_repository`, `create_repository`, Garage S3 retry/timeout, with phase-gating per item. |
+
+**Phase 0 audit step 3 findings (read perfectra1n/volsync@v0.17.11/mover-kopia/entry.sh, 2473 LOC):**
+
+| BLOCKER check | Result | Evidence |
+|---|---|---|
+| Silent exit-code handling | ✅ PASS | `do_backup` line 1979: `if ! run_with_progress_output...; then error 1 "Failed to create snapshot"`. `do_maintenance` line 2113: `|| maint_exit_code=$?` + explicit return on non-zero. `set -e -o pipefail` line 55. |
+| Exclusive lock without retry | ✅ PASS | No `kopia repository lock` calls. Concurrent-multi-writer by Kopia design. Maintenance uses ownership model (`maintenance set --owner=`) not locks. |
+| Destructive default retention | ✅ PASS | Controller `mover.go:898`: `if m.retainPolicy == nil { return envVars }` — zero `KOPIA_RETAIN_*` env vars passed when retain unset. Mover's `do_retention` then runs `policy set DATA_DIR` with no flags = no-op. The OPPOSITE of restic's `--keep-last 1` trap. |
+| S3 cred incompat | ✅ PASS | Standard env vars: `KOPIA_PASSWORD`, `KOPIA_S3_ENDPOINT`, `KOPIA_S3_BUCKET`, `KOPIA_S3_DISABLE_TLS`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. |
+| `copyMethod: Snapshot` | ⚠️ Deferred to Phase 2/3 | volsync CRD shape identical between movers; verify in Phase 3 step 3e scratch test. |
+
+**Bonus positive finding:** entry.sh has `# Function removed: do_retention_global is no longer needed / Global retention should be configured through the KopiaMaintenance CRD if needed`. Perfectra1n actively separated per-backup work (light) from maintenance (CRD-driven heavy). Exactly the architecture we wanted.
+
 ### v5 reframe — Phase 0 audit step 1+2 findings (2026-05-18 AM)
 
 Executing Phase 0's first audit step revealed v1–v4's central premise was wrong. v5 corrects.
@@ -670,6 +801,8 @@ What v2 did NOT change (acknowledged but accepted):
 | 2026-05-17 | v4 applied — CNPG exclude by label not namespace, concurrency cap (3 normal / 1 big-data), explicit Stage B/5b/C ordering, Phase 5 same-PVC preflight, Phase 0 BLOCKER specifics, §9.1 scratch validation test | Claude |
 | 2026-05-18 | Phase 0 audit step 1+2 executed — discovered upstream volsync has NO Kopia mover; reframe required | Claude |
 | 2026-05-18 | v5 applied — adopt `perfectra1n/volsync` fork + `mitchross/pvc-plumber:3.1.0`, §6.1 fork governance, §7 fork-CVE risk entries, JobMutator anti-pattern documented, Phase 0 audit step 3 redirected to perfectra1n's mover | Claude |
-| TBD | Phase 0 audit step 3 (perfectra1n `mover-kopia/entry.sh`) | Claude or user |
-| TBD | Phase 0 sign-off (user reads v5, confirms commit to perfectra1n fork dependency) | User |
+| 2026-05-18 | Phase 0 audit step 3 executed against perfectra1n@v0.17.11/mover-kopia/entry.sh — NO BLOCKERS, full findings in §10 | Claude |
+| 2026-05-18 | Codex v4 adversarial review of v5 — 6 findings (1 HIGH HelmRepo shape, 2 HIGH Secret schema, 3 HIGH CRD compat, 4 LOW Phase 6 wording, 5 MED source pin, 6 MED audit checklist) | Codex |
+| 2026-05-18 | v6 applied — Phase 1a rewritten for HelmRepository, Phase 2 enumerates Secret schema + 8 env vars + source pin, Phase 1a CRD diff gate added, Phase 6 deletion target made explicit, §3a deeper-audit checklist for Phase 5/7 gating items | Claude |
+| TBD | Phase 0 sign-off (user reads v6, confirms commit to perfectra1n fork dependency) | User |
 | TBD | Phase 1 start (HelmRelease swap + Kopia bucket) | User |
