@@ -23,24 +23,6 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore
   annotations:
-    # One-shot force-recreate: rule 6 drops `retain:` from generate.data,
-    # which is an immutable change per [[feedback_kyverno_generate_rules_
-    # immutable]]. Without `retain` the volsync mover skips its per-backup
-    # `restic forget` step entirely → no exclusive-lock contention on the
-    # shared repo → no mover-vs-mover storm even with 41+ concurrent
-    # backups. Retention is preserved centrally via the new nightly
-    # `volsync-restic-forget` CronJob (sole exclusive-lock writer).
-    #
-    # Background: mitchross's reference design works because Kopia
-    # supports concurrent multi-writer access. Restic requires exclusive
-    # locks for forget/prune, so the per-mover retain pattern doesn't
-    # transfer cleanly from Kopia → Restic. See doc §2.4 ("revisit at
-    # ~50 backup-labeled PVCs"); we're at 41 and the structural break
-    # arrived early after PR #419's force-recreate herd.
-    #
-    # SAFE TO REMOVE in a follow-up commit after Flux reconciles + first
-    # nightly forget run verifies retention is being applied centrally.
-    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
