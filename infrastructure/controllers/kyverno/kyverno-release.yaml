@@ -44,6 +44,20 @@ spec:
 
     backgroundController:
       replicas: 2
+      # Chart default 128Mi limit OOMs the controller when it has to
+      # process a wide UpdateRequest burst (e.g. 96+ URs queued during
+      # the 2026-05-17 volsync ClusterPolicy delete+recreate to drop
+      # `retain:` from generated RSes — see [[project_volsync_label_
+      # driven_restore]] 2026-05-17 entry). At 42 backup-labeled PVCs
+      # each generate cycle queues 3 URs (Secret/RS/RD) so a single
+      # policy reload is ~126 URs in flight. Bump request + limit to
+      # give headroom; this scales with herd size, not steady state.
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
       podDisruptionBudget:
         enabled: true
         minAvailable: 1
