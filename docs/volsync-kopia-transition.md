@@ -1,10 +1,14 @@
 # VolSync Kopia Transition — Plan
 
-**Status:** DRAFT v4 — incorporates Codex adversarial review v3 findings (see §10). Ready for user sign-off before Phase 1 starts.
-**Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the upstream `mitchross/talos-argocd-proxmox` reference design that this project was originally adapted from.
+**Status:** DRAFT v5 — Phase 0 audit (2026-05-18 AM) revealed the v1–v4 plans rested on a false premise. v5 corrects the foundation. Ready for user sign-off before Phase 1 starts.
+**Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the **mitchross/talos-argocd-proxmox** reference design as it is *actually implemented* (not as v1–v4 imagined it).
 **Trigger:** 2026-05-17 cluster incident — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §10 and the project memory `project_volsync_label_driven_restore.md`.
 
-> **What changed v3 → v4:** Codex's third pass surfaced 6 findings (2 HIGH, 4 MED). Most consequential: (a) **CNPG exclusion is by LABEL not namespace** — v3 said "exclude CNPG namespaces" but CNPG dbs live in app namespaces (`authentik`, `dawarich`, `joplin`, `wiki-js`) and namespace exclusion would block the app PVCs we DO want to migrate; v4 excludes by `cnpg.io/cluster Exists` PVC label; (b) **Phase 5 batch concurrency capped at 3 (1 for cephfs/big-data)** — v3's "batches of 12" reproduces today's herd; v4 introduces a driver semaphore; (c) **Stage B/5b/Stage C ordering rewritten explicitly** so the "Flux resumes before 5b PR merges → live PVC label reverted" race can't materialize from sloppy script implementation; (d) **Phase 5 step 1 gets a preflight gate** that waits for any active Restic backup Job to finish before spawning the Kopia probe RS (avoids same-PVC concurrent CSI VolumeSnapshot pressure); (e) **Phase 0 BLOCKER bullet** for destructive retention is now concrete (specific Kopia commands instead of vibes); (f) **§9 emergency runbook** is acknowledged as untested theory and gets a scratch-namespace validation test added pre-Phase-6.
+> **What changed v4 → v5 (the big one):** The Phase 0 audit revealed `backube/volsync` does NOT ship a Kopia mover — not in v0.15.0, not on `main`, and only as an unmerged 56k-line PR (#1723 "Implement Kopia") that has been open since 2025-08-06. **The upstream Kopia mover does not exist.** Mitchross's actual setup uses the **`perfectra1n/volsync` community fork** (`ghcr.io/perfectra1n/volsync:v0.17.11` + chart `perfectra1n/volsync 0.18.5`). Mitchross's own internal research doc (`docs/research/volsync-fork-vs-upstream-2026-05-08.md`) concludes "stay on the fork, delete the JobMutator". v1–v4 of THIS doc described a transition to a non-existent thing. v5 redirects to what actually works.
+
+> **Smaller v4 → v5 changes:** (a) Phase 1 now includes swapping the volsync HelmRelease to perfectra1n's chart, alongside Kopia repo creation; (b) Phase 2 pvc-plumber is now mitchross's `ghcr.io/mitchross/pvc-plumber:3.1.0` v3 operator (not "upstream pvc-plumber" which doesn't exist as a Kopia-aware service), and we **delete** our `mainertoo/pvc-plumber-restic` fork in Phase 6; (c) new §7 risk entry for fork CVE-lag and the upstream-watch discipline that mitigates it; (d) new "fork governance" subsection in §6 covering what happens if the fork stagnates further or if PR #1723 finally merges.
+
+> **What stays from v4:** all six v3 findings (CNPG label-not-namespace, concurrency cap 3/1, Stage B/5b/C ordering, same-PVC preflight, Phase 0 BLOCKER specifics, §9.1 scratch test). All v1+v2+v3 findings remain applied. The Kyverno policy split, the parallel-probe-RS Phase 5 handoff, the cold-start-with-gate strategy — unchanged.
 
 ---
 
@@ -14,7 +18,17 @@ The original design ([`volsync-storage-recovery.md`](./volsync-storage-recovery.
 
 > *"Switch from restic to Kopia — Kopia's CDC dedup is strictly better than restic's, but compounds two big migrations (mover + admission). Deferred to a separate project."*
 
-This is that separate project, executed earlier than originally hoped because **Restic's locking model is fundamentally incompatible with the shared-repo + multi-writer pattern the design depends on**:
+This is that separate project, executed earlier than originally hoped because **Restic's locking model is fundamentally incompatible with the shared-repo + multi-writer pattern the design depends on**.
+
+**Correction from v4 (read the Phase 0 audit findings before going further):** v1–v4 assumed the upstream `backube/volsync` operator supports Kopia. It does not. There is no `mover-kopia/entry.sh` in any released volsync version. Adopting Kopia means adopting **`perfectra1n/volsync` — a community fork maintained by the same person whose PR #1723 has been pending upstream merge since 2025-08-06**. This is what `mitchross/talos-argocd-proxmox` actually uses. Their own published research doc (`docs/research/volsync-fork-vs-upstream-2026-05-08.md`) is the canonical justification:
+
+> *"The fork is the only viable Kopia option — upstream has no Kopia mover and won't have one on any timeline you can plan against. Whatever you do, you stay on the fork. So 'fork vs upstream' is a non-question."* — mitchross internal research, 2026-05-08
+
+The same doc traces the `CreateOrUpdateDeleteOnImmutableErr` controller behavior (which broke mitchross's cluster once) to upstream PR #302 from 2022 — i.e. **switching to upstream wouldn't help even if upstream had Kopia, because the controller logic is identical between fork and upstream**.
+
+We adopt the fork because that's where the Kopia mover lives. We accept the maintenance burden (CVE-watch discipline, see §7) because it's the same burden every Kopia-on-volsync operator has.
+
+
 
 | Property | Kopia | Restic |
 |---|---|---|
@@ -52,14 +66,16 @@ The mover-image fork is technically workable (~2 hr) but signs us up for indefin
 
 | Layer | Was (Restic) | Becomes (Kopia) |
 |---|---|---|
-| Mover engine | volsync 0.15.0 + `mover-restic/entry.sh` | volsync 0.15.0 + `mover-kopia/entry.sh` |
-| pvc-plumber | Our fork `mainertoo/pvc-plumber-restic` (~600 LOC restic CLI shell-out) | **Upstream `mitchross/pvc-plumber`** — pin a digest, retire our fork |
-| Per-PVC Secret | `volsync-<pvc>` with `RESTIC_*` env vars | `volsync-<pvc>` with `KOPIA_*` env vars + S3 creds |
-| Shared repo | `s3://garage.lab.mainertoo.com/volsync-shared/restic` | `s3://garage.lab.mainertoo.com/volsync-shared/kopia` (new bucket OR new prefix) |
-| Per-mover forget | Hardcoded in entry.sh, always runs | Kopia's `gc`/maintenance is concurrent-safe; no contention |
-| Central forget CronJob | `volsync-restic-forget` (deployed PR #429) | **DELETE** — Kopia doesn't need it |
-| Snapshot tagging | `<ns>/<pvc>` restic tag + `RESTIC_HOSTNAME=<ns>/<pvc>` | Kopia source path identifier (TBD — verify upstream pvc-plumber convention) |
+| Operator image | `quay.io/backube/volsync:0.15.0` (upstream) | `ghcr.io/perfectra1n/volsync:v0.17.11` (community fork) |
+| Operator Helm chart | `backube/volsync@0.15.0` | `perfectra1n/volsync@0.18.5` (chart/image version mismatch is intentional per mitchross's notes) |
+| Mover engines | restic, rclone, rsync, etc — all `backube/volsync:0.15.0` | **Same set + `kopia`** — all from `ghcr.io/perfectra1n/volsync:v0.17.11` |
+| pvc-plumber | Our fork `mainertoo/pvc-plumber-restic` (~600 LOC restic CLI shell-out, lives in volsync-system) | **`ghcr.io/mitchross/pvc-plumber:3.1.0`** — mitchross's v3 operator with `KopiaMaintenance` CRD. We DELETE our restic fork in Phase 6. |
+| Per-PVC Secret | `volsync-<pvc>` with `RESTIC_*` env vars | `volsync-<pvc>` with `KOPIA_PASSWORD`, `KOPIA_S3_ENDPOINT`, `KOPIA_S3_BUCKET`, `KOPIA_S3_DISABLE_TLS` (if needed), `AWS_*` creds (Kopia uses standard AWS env vars for S3 auth) |
+| Shared repo | `s3://garage.lab.mainertoo.com/volsync-shared/restic` | `s3://garage.lab.mainertoo.com/volsync-kopia` (new dedicated bucket) |
+| Maintenance | `volsync-restic-forget` CronJob (deployed PR #429) | **`kopia-maintenance` CronJob** — runs `kopia maintenance run`, manages identity ownership via stable synthetic hostname `maintenance@cluster` (pattern from mitchross's `kopia-maintenance-cronjob.yaml`) |
+| Snapshot identity | `<ns>/<pvc>` restic tag + `RESTIC_HOSTNAME` env | Kopia `--source-path-override` + `--host` + `--username`, set per-RS by the perfectra1n mover from `spec.kopia.{hostname,username,sourcePathOverride}` |
 | Snapshot format | Restic packfile format | Kopia content-addressable format — **NOT cross-readable** |
+| JobMutator pattern | N/A (restic mover uses env-var creds) | **EXPLICITLY AVOIDED.** Mitchross's research doc warns against admission-time mutation of mover Jobs (cf. their cluster-wide outage, attributed to upstream PR #302's drift-correction). Our Kyverno policy generates the per-PVC Secret + RS + RD as before — no Job-spec mutation, no admission injection. |
 
 ### Stays in place during transition (then retired)
 
@@ -73,26 +89,30 @@ The mover-image fork is technically workable (~2 hr) but signs us up for indefin
 
 Each phase leaves the cluster in a working state. No phase combines unrelated changes. Time estimates assume single-operator focused sessions.
 
-### Phase 0 — Plan + audit + sign-off (tonight + tomorrow AM, ~3 hr)
+### Phase 0 — Plan + audit + sign-off (2026-05-17 evening through 2026-05-18 AM, ~5 hr total)
 
-**Output:** this document at v2+, with verified-by-source-reading answers to "does Kopia have an equivalent of Restic's locking trap?" question before any execution begins.
+**Output:** this document at v5, with the perfectra1n fork's Kopia mover audited and the BLOCKER/WORKAROUND criteria evaluated against ACTUAL code (not an imagined upstream).
 
 **Activities:**
-1. ✅ Codex adversarial review of v1 — done (see §10)
-2. ✅ Apply findings → v2 — done (this document)
-3. **🔜 Audit `mover-kopia/entry.sh` at the volsync release tag we run** — see "Phase 0 mandatory audit" below
-4. **🔜 Decide remaining open questions** — only 3 left after v2 closed #2 and #5 (see §6)
-5. **🔜 User sign-off** on the v2 plan
-6. **Out of band:** stabilize the live cluster by re-adding the original `retain:` to live rule 6 via a one-line PR (prevents accidental `--keep-last 1` destruction if volsync is ever re-enabled before Phase 5 starts)
+1. ✅ Codex adversarial reviews v1/v2/v3 — done (see §10)
+2. ✅ v1 → v2 → v3 → v4 applied iteratively — done
+3. ✅ **Phase 0 audit step 1 (upstream Kopia check)** — done 2026-05-18 AM. Result: **upstream volsync has NO Kopia mover.** Triggered v5 reframe.
+4. ✅ **Phase 0 audit step 2 (perfectra1n fork existence + activity)** — done. Result: fork is active (last commit 2026-03-22), used by mitchross in production, image `ghcr.io/perfectra1n/volsync:v0.17.11` available.
+5. **🔜 Phase 0 audit step 3: read perfectra1n's `mover-kopia/entry.sh`** at `v0.17.11` — see "Phase 0 mandatory audit" below. BLOCKER/WORKAROUND criteria evaluated against THAT, not upstream.
+6. **🔜 User sign-off** on the v5 plan
+7. **🔜 Out of band:** stabilize the live cluster by re-adding the original `retain:` to live rule 6 via a one-line PR (prevents accidental `--keep-last 1` destruction if volsync is ever re-enabled before Phase 5 starts). Lower priority — volsync controller is at 0 replicas; the mitigation is a safety net not a fix.
 
-**Exit criteria:** all four "🔜" items complete. Kopia mover audit confirms there is no analog of Restic's `--retry-lock=0s` trap, OR if one exists, mitigation is folded into Phase 3.
+**Exit criteria:** Phase 0 audit step 3 complete. No BLOCKER hit, OR if a BLOCKER hits, decision logged on whether to (a) pause project, (b) carry workaround into Phase 3, or (c) escalate to a deeper fork analysis.
 
-**Phase 0 mandatory audit (Codex v1 finding [10] + v2 finding [4] decision tree):**
+**Phase 0 mandatory audit step 3 — perfectra1n fork's Kopia mover:**
 ```bash
-git clone https://github.com/backube/volsync /tmp/volsync
-git -C /tmp/volsync checkout v0.15.0
-grep -n "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy" \
-  /tmp/volsync/mover-kopia/entry.sh
+git clone https://github.com/perfectra1n/volsync /tmp/volsync-fork
+git -C /tmp/volsync-fork checkout v0.17.11
+ls /tmp/volsync-fork/mover-kopia/
+cat /tmp/volsync-fork/mover-kopia/entry.sh
+grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy" \
+  /tmp/volsync-fork/mover-kopia/ \
+  /tmp/volsync-fork/internal/controller/mover/kopia/ | head -80
 ```
 
 **BLOCKER (stop, do not proceed to Phase 1):**
@@ -112,12 +132,20 @@ grep -n "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy" 
 
 ---
 
-### Phase 1 — Kopia repo + creds (0.5 day, ~3 hr)
+### Phase 1 — Kopia repo + perfectra1n operator + creds (1 day, ~5 hr)
 
-**Output:** Operational Kopia repo on Garage, SOPS Secret `volsync-kopia-shared-base` in `flux-system`.
+**Output:** (a) Operational Kopia repo on Garage; (b) perfectra1n volsync operator + chart deployed cluster-wide; (c) SOPS Secret `volsync-kopia-shared-base` in `flux-system`. Existing Restic-side volsync infra continues to work in parallel (perfectra1n's image is a superset — restic mover image still works alongside the new kopia mover).
 
 **Activities:**
-1. Decide bucket scope:
+
+0. **Phase 1a — swap volsync HelmRelease to perfectra1n's chart.** This is its own PR before any Kopia infra is touched.
+   - Edit `infrastructure/controllers/volsync/app/volsync-repository.yaml`: switch `HelmRepository.spec.url` from `https://backube.github.io/helm-charts` to `https://perfectra1n.github.io/volsync/charts`.
+   - Edit `infrastructure/controllers/volsync/app/volsync-release.yaml`: bump `spec.chart.spec.version` to `0.18.5`, set `values.image.{repository,tag}` to `ghcr.io/perfectra1n/volsync` / `v0.17.11`, set per-mover image overrides (`kopia`, `restic`, `rclone`, etc.) to the same image (pattern from mitchross's `values.yaml`).
+   - Smoke test: after Flux reconciles, `kubectl -n volsync-system get deploy volsync-system-volsync -o jsonpath='{.spec.template.spec.containers[0].image}'` returns the perfectra1n image. Existing Restic ReplicationSources continue to function (perfectra1n's `mover-restic` is the same upstream code).
+   - **CRITICAL pre-merge check:** flux-local diff must NOT show RS/RD spec drift. Perfectra1n's volsync CRD adds Kopia-specific fields but should be backward-compatible with existing Restic spec shape. If diff shows churn on existing Restic-backed RSes/RDs, abort and reconsider chart-version pinning.
+   - **Rollback:** revert the two files; Flux re-installs backube/volsync 0.15.0.
+
+1. **Phase 1b — Kopia repo on Garage.** Decide bucket scope:
    - **Option A:** new bucket `volsync-kopia-shared` (clean separation, easier to nuke later)
    - **Option B:** reuse `volsync-shared` bucket, prefix `/kopia` (less Garage admin work)
    - *Lean: A. Cleaner Phase 6 decom.*
@@ -133,22 +161,28 @@ grep -n "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy" 
 
 ---
 
-### Phase 2 — pvc-plumber retreat to upstream (0.5–1 day, ~4 hr)
+### Phase 2 — Deploy mitchross's pvc-plumber v3 (Kopia-aware) (1 day, ~5 hr)
 
-**Output:** `pvc-plumber` deployment in `volsync-system` running upstream `mitchross/pvc-plumber` image with Kopia backend. Our `pvc-plumber-restic` fork is parked (kept running for the duration of Phase 5 coexistence; deleted in Phase 6).
+**Output:** `pvc-plumber` deployment in `volsync-system` running `ghcr.io/mitchross/pvc-plumber:3.1.0` (mitchross's v3 operator with `KopiaMaintenance` CRD). Our `mainertoo/pvc-plumber-restic` fork stays running in parallel during Phase 5 — Restic-backed apps still consult it. Both deployments serve their own Kyverno policy.
 
 **Activities:**
-1. Read the latest `mitchross/pvc-plumber` upstream — confirm Kopia client lifecycle still works
-2. Build/pin an upstream image digest reference at `ghcr.io/mitchross/pvc-plumber:<digest>`
-3. New manifests under `infrastructure/controllers/pvc-plumber/` (next to existing `pvc-plumber-restic/`)
-4. Deployment uses the new `volsync-kopia-shared-base` Secret
-5. Smoke test: `kubectl port-forward` + `curl /readyz` and `curl /exists/foo/nonexistent` returns `decision: fresh, authoritative: true, backend: kopia-*`
-6. Add `pvc-plumber` to `infrastructure/controllers/kustomization.yaml`
-7. **Both pvc-plumbers run concurrently** during Phase 5. Each app's Kyverno-generated Secret points at the right backend.
+1. Read mitchross's `infrastructure/controllers/pvc-plumber/` reference layout. Files: `certificate.yaml` (cert-manager for webhook TLS), `deployment.yaml`, `externalsecret.yaml` (for Kopia creds), `kustomization.yaml`, `rbac.yaml`, `webhooks.yaml`.
+2. **NOTE:** mitchross uses `ExternalSecrets` operator. Our cluster uses SOPS directly. Adapt: replace their `ExternalSecret` with a SOPS-encrypted `Secret` at `infrastructure/secrets-prod/pvc-plumber-kopia.sops.yaml` carrying the same keys (`KOPIA_PASSWORD`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
+3. Build/pin: `ghcr.io/mitchross/pvc-plumber:3.1.0` — pin by digest (`kubectl-images` or `crane digest`) so Renovate updates are explicit, not silent.
+4. Adapt webhook TLS: mitchross uses `cert-manager` Certificate for the webhook cert. We already have cert-manager. Same pattern works as-is.
+5. New manifests under `infrastructure/controllers/pvc-plumber/` (DIFFERENT directory from existing `pvc-plumber-restic/`). Add this directory to `infrastructure/controllers/kustomization.yaml`.
+6. **`KopiaMaintenance` CRD:** mitchross's v3 operator installs and reconciles a `KopiaMaintenance` resource that drives the `kopia-maintenance` CronJob. We use the same CRD — no separate volsync-restic-forget-style CronJob needed.
+7. Smoke test:
+   - `kubectl -n volsync-system get deploy pvc-plumber` Ready=1/1
+   - Webhook reachable: `kubectl get validatingwebhookconfiguration` shows the pvc-plumber webhook with `serviceName: pvc-plumber` and `service.namespace: volsync-system`
+   - Oracle responds: `kubectl -n volsync-system port-forward svc/pvc-plumber 18080:8080 &` then `curl -s http://localhost:18080/exists/foo/nonexistent | jq` returns `decision:fresh, authoritative:true, backend:kopia-s3`
+   - `KopiaMaintenance` CRD reconciles a CronJob without error
 
-**Exit criteria:** upstream pvc-plumber Ready=True in cluster; oracle responds. Existing `pvc-plumber-restic` continues to serve restic-backed apps unchanged.
+**During Phase 5:** both pvc-plumbers run concurrently. Each engine-specific Kyverno policy points at its own pvc-plumber Service. No cross-talk.
 
-**Rollback:** comment the new component out of the controllers kustomization; everything reverts.
+**Exit criteria:** mitchross pvc-plumber Ready, oracle responding, `KopiaMaintenance` CRD healthy. Our `pvc-plumber-restic` fork untouched and still serving Restic apps.
+
+**Rollback:** comment out the new component in `infrastructure/controllers/kustomization.yaml`; everything reverts. No data side-effects — pvc-plumber is read-mostly.
 
 ---
 
@@ -358,15 +392,17 @@ Batch order:
 **Output:** Restic infrastructure removed from the cluster. `volsync-shared/restic` Garage bucket retained in cold storage for 30 days as emergency historical archive.
 
 **Activities:**
-1. Suspend `volsync-restic-forget` CronJob (don't delete yet)
-2. Suspend `pvc-plumber-restic` Deployment (replicas → 0)
-3. Delete the Restic Kyverno policy (`volsync-pvc-backup-restore-restic` per Phase 3 option 6b)
-4. Wait 24h. Verify no app is broken.
-5. PR: delete `infrastructure/controllers/pvc-plumber-restic/` directory entirely
-6. PR: delete `infrastructure/controllers/volsync/app/volsync-restic-forget-cronjob.yaml`
-7. PR: delete `infrastructure/secrets-prod/volsync-shared-base.sops.yaml` (the old Restic creds)
-8. Mark `mainertoo/pvc-plumber-restic` GitHub repo archived
-9. Garage: keep `volsync-shared` bucket read-only for 30 days, mark for deletion 2026-06-17
+1. Verify §9.1 scratch-namespace runbook validation passes (gate from Codex v3 finding [5]).
+2. Suspend `volsync-restic-forget` CronJob (don't delete yet).
+3. Suspend `pvc-plumber-restic` Deployment (replicas → 0).
+4. Delete the Restic Kyverno policy `volsync-pvc-backup-restore` (the originally-named policy, which by Phase 5 end only contains the engine selector for restic; no PVCs depend on it anymore).
+5. Wait 24h. Verify no app is broken — every backup-labeled PVC should have `backup-engine: kopia` and a working Kopia RS at this point.
+6. PR: delete `infrastructure/controllers/pvc-plumber-restic/` directory entirely.
+7. PR: delete `infrastructure/controllers/volsync/app/volsync-restic-forget-cronjob.yaml`.
+8. PR: delete `infrastructure/secrets-prod/volsync-shared-base.sops.yaml` (the old Restic-creds Secret).
+9. Mark `mainertoo/pvc-plumber-restic` GitHub repo archived (settings → archive). Keep tags; just freeze.
+10. Garage: keep `volsync-shared` bucket read-only for 30 days, mark for deletion 2026-06-17 (calendar reminder).
+11. Update `docs/label-driven-backups.md` to remove any restic-specific examples in favor of kopia-specific ones (PVC label + annotations are identical from user perspective).
 
 **Exit criteria:** No references to restic in `infrastructure/` (excluding archived docs). Cluster fully on Kopia.
 
@@ -433,9 +469,20 @@ Closed by v3 (Codex v2 finding [6] answers + restructuring):
 - ~~v2 #7 — Restic policy rename hazard~~ → **The policy is no longer renamed in Phase 3.** v3 keeps the original name through the transition; rename happens in Phase 6 alongside deletion, where no PVC depends on it.
 - ~~v2 #4 — Phase 0 trap severity rubric~~ → Decision tree now lives in Phase 0 itself (BLOCKER vs. WORKAROUND lists).
 
+### 6.1 Fork governance — what happens if/when (v5 addition)
+
+Adopting `perfectra1n/volsync` means a long-running dependency on a community fork. Define the exit criteria now, BEFORE the dependency becomes load-bearing:
+
+| Event | Response |
+|---|---|
+| Upstream PR #1723 merges into `backube/volsync` | Watch for the release that ships Kopia upstream. Plan a "Phase 8" project to migrate `perfectra1n/volsync` → `backube/volsync@vX.Y.Z`. Same CRD shape, same image-override pattern. Should be a low-risk 1-day PR. |
+| `perfectra1n/volsync` stops getting commits for >6 months | Snapshot current behavior (image digest pinned), watch for upstream alternatives. If none, consider forking-the-fork at the last-good commit, applying our own upstream-CVE backports. |
+| Critical CVE in upstream's restic mover or controller, fork hasn't merged it | Decision tree: Critical → cherry-pick into local fork-of-the-fork; High → wait 1 week for `perfectra1n/volsync` to rebase; Medium → patch on next monthly window. |
+| mitchross stops using the fork | They're the north-star reference. Subscribe to their commits or check quarterly. If they pivot, understand why and consider following. |
+
 Still open, for the user to decide before Phase 1:
 
-1. **Dual-pvc-plumber operation during Phase 5.** Run two oracles (one restic, one kopia) routed by separate Kubernetes Services, OR build a single oracle that supports both backends behind one API? Lean: **two services**. The upstream pvc-plumber (Kopia) and our `mainertoo/pvc-plumber-restic` fork already exist; pointing two ClusterPolicies at two separate Services costs zero extra code.
+1. **Dual-pvc-plumber operation during Phase 5 — DECIDED IN V5.** Run two oracles, two Kubernetes Services. One is our existing `mainertoo/pvc-plumber-restic` fork (serving the Restic-backed apps until they cut over); one is `mitchross/pvc-plumber:3.1.0` (serving the Kopia-backed apps). Each engine-specific Kyverno policy points at its own pvc-plumber. Phase 6 deletes our restic fork; mitchross's pvc-plumber becomes the sole oracle.
 
 2. **Bucket reuse vs. new bucket.** Option A (new bucket `volsync-kopia-shared`) cleaner; Option B (reuse `volsync-shared` with prefix) less Garage admin work. **Garage capacity check is the deciding factor.** Run in Phase 1 first task. Lean: **Option A** if capacity allows.
 
@@ -447,11 +494,16 @@ Still open, for the user to decide before Phase 1:
 
 ---
 
-## 7. Risk register (transition-specific, v2 with Codex findings folded in)
+## 7. Risk register (transition-specific, v5 with all Codex findings folded in)
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| **`mover-kopia/entry.sh` has its own analog of Restic's `--retry-lock=0s` trap** (Codex [10]) | **HIGH** | Phase 0 mandatory audit — Phase 1 BLOCKED until completed. If audit surfaces a trap and only image-fork can fix it, pause the project and reconsider. |
+| **Adopting `perfectra1n/volsync` fork = ongoing dependency on a single-maintainer community fork** (v5 finding) | **HIGH** | (a) Watch upstream `backube/volsync` releases manually — Renovate or weekly script; (b) compare upstream Restic mover changes against fork's; (c) plan to re-evaluate at each minor-version boundary; (d) keep this transition's PRs annotated so a re-platform later is reproducible. mitchross's research doc explicitly flags this as the cost. |
+| **CVE in upstream `backube/volsync` not yet pulled into the fork** (v5 finding) | **HIGH** | Subscribe to GitHub Security Advisories for `backube/volsync`. If a critical CVE lands, options: (a) cherry-pick the fix into a local fork-of-the-fork; (b) revert to upstream Restic temporarily; (c) wait for `perfectra1n/volsync` to rebase. Document the decision criteria BEFORE the first CVE happens. |
+| **`perfectra1n/volsync` fork stagnates further** (v5 finding) | MED | Three exits: (a) PR #1723 finally merges upstream — we move to upstream; (b) another community member forks the fork — we follow; (c) we maintain our own fork-of-the-fork. The pattern from mitchross's research is "stay on the most-maintained Kopia-capable fork". |
+| **Mitchross's pvc-plumber v3 has its own bugs we'll discover** (v5 finding) | MED | The image is in production at mitchross's cluster with 4 documented backup-restore drills. Smoke-test in Phase 2 before relying on it. If we hit a bug, file upstream against `mitchross/pvc-plumber`; meanwhile, fall back to running both old (`pvc-plumber-restic`) and new (`pvc-plumber`) until the issue is resolved. |
+| **JobMutator pattern (admission-time mover-Job mutation) bites us** (v5 finding from mitchross's research) | **HIGH (avoided by design)** | We DO NOT replicate mitchross's old `JobMutator` pattern. Per their own research doc, JobMutator + volsync's `CreateOrUpdateDeleteOnImmutableErr` causes cluster-wide outages. Our Kyverno policy generates Secret/RS/RD — it never mutates the mover Job spec. The mover gets all creds via env vars from the per-PVC Secret (S3 pattern). |
+| **`mover-kopia/entry.sh` has an analog of Restic's `--retry-lock=0s` trap** (Codex v1 finding [10], v5 audit redirected to perfectra1n) | **HIGH** | Phase 0 mandatory audit step 3 — Phase 1 BLOCKED until completed against PERFECTRA1N's mover (not upstream). v5 BLOCKER/WORKAROUND criteria apply. |
 | Kopia + Garage S3 incompatibility | **HIGH** | Smoke test in Phase 1 BEFORE Phase 3 starts. If incompatible: fall back to S3-compatible MinIO or NFS-backed Kopia. |
 | **Dual-policy collision** during Phase 5 — both Restic + Kopia rules attempt to generate same-named Secret/RS/RD (Codex [1]) | **HIGH** | Phase 3 step 3c gates the Restic policy with `backup-engine: restic` selector BEFORE the Kopia policy is deployed. Verified via `kubectl diff` before merge. |
 | **Force-recreate UR herd** if Phase 3 Restic policy edit is done as delete+recreate (Codex [2]) | **HIGH** | Phase 3 step 3c is a label-selector tightening, NOT a `generate.data` mutation — should patch in-place. Pre-merge `kubectl diff` confirms no immutable-field error. If immutable-field error appears, abort the merge and reconsider. |
@@ -538,7 +590,19 @@ EOF
 
 ---
 
-## 10. Codex adversarial reviews — addressed findings
+## 10. Audits + Codex adversarial reviews — addressed findings
+
+### v5 reframe — Phase 0 audit step 1+2 findings (2026-05-18 AM)
+
+Executing Phase 0's first audit step revealed v1–v4's central premise was wrong. v5 corrects.
+
+| # | Severity | Finding | Resolution in v5 |
+|---|---|---|---|
+| A | **CRITICAL** | `backube/volsync` has **no Kopia mover** — not in v0.15.0, not on main, only an open 56k-line PR #1723 stalled since 2025-08-06 | Adopt `perfectra1n/volsync` fork (image `ghcr.io/perfectra1n/volsync:v0.17.11`, chart `perfectra1n/volsync 0.18.5`). Same fork mitchross uses. |
+| B | HIGH | v1–v4 specified deploying "upstream pvc-plumber" with Kopia backend; pvc-plumber upstream is `mitchross/pvc-plumber`, not a multi-backend thing | Deploy `ghcr.io/mitchross/pvc-plumber:3.1.0` (mitchross's v3 operator with `KopiaMaintenance` CRD). Our `mainertoo/pvc-plumber-restic` stays for restic apps until Phase 6. |
+| C | HIGH | Mitchross's research doc traces a previous cluster-wide outage to admission-time mutation of mover Jobs (JobMutator) racing volsync's drift-correct loop | EXPLICITLY AVOID JobMutator pattern. Our Kyverno policy generates Secret/RS/RD; never mutates mover Job spec. Mover gets creds via env vars. |
+| D | HIGH | Adopting a community fork = long-term dependency on a single maintainer | §6.1 "Fork governance" subsection added with explicit exit criteria. §7 risk register has fork-specific entries. |
+| E | MED | The Codex v1 finding [10] "audit `mover-kopia/entry.sh`" applied to a path that doesn't exist in upstream | Phase 0 audit step 3 redirected to `perfectra1n/volsync@v0.17.11/mover-kopia/entry.sh`. BLOCKER/WORKAROUND criteria evaluated against the fork. |
 
 ### v3 review (against v3 draft, 2026-05-17 ~05:30 local)
 
@@ -604,5 +668,8 @@ What v2 did NOT change (acknowledged but accepted):
 | 2026-05-17 | v3 applied — Phase 3 no-rename, Phase 5 parallel-probe-RS handoff (drops `migrating`), CNPG excludes, Phase 0 BLOCKER decision tree, §9 CNPG callout, cache-sizing locked at 10Gi default | Claude |
 | 2026-05-17 | Codex adversarial review v3 (6 new findings against v3) | Codex |
 | 2026-05-17 | v4 applied — CNPG exclude by label not namespace, concurrency cap (3 normal / 1 big-data), explicit Stage B/5b/C ordering, Phase 5 same-PVC preflight, Phase 0 BLOCKER specifics, §9.1 scratch validation test | Claude |
-| TBD | Phase 0 sign-off (user reads v4, audits `mover-kopia/entry.sh`, confirms commit) | User |
-| TBD | Phase 1 start | User |
+| 2026-05-18 | Phase 0 audit step 1+2 executed — discovered upstream volsync has NO Kopia mover; reframe required | Claude |
+| 2026-05-18 | v5 applied — adopt `perfectra1n/volsync` fork + `mitchross/pvc-plumber:3.1.0`, §6.1 fork governance, §7 fork-CVE risk entries, JobMutator anti-pattern documented, Phase 0 audit step 3 redirected to perfectra1n's mover | Claude |
+| TBD | Phase 0 audit step 3 (perfectra1n `mover-kopia/entry.sh`) | Claude or user |
+| TBD | Phase 0 sign-off (user reads v5, confirms commit to perfectra1n fork dependency) | User |
+| TBD | Phase 1 start (HelmRelease swap + Kopia bucket) | User |
