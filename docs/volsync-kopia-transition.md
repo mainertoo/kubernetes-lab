@@ -1,8 +1,10 @@
 # VolSync Kopia Transition — Plan
 
-**Status:** DRAFT v6 — Phase 0 audit step 3 (read perfectra1n's mover-kopia/entry.sh) + Codex v4 adversarial review against v5 both completed 2026-05-18 AM. v6 closes the 6 v5 bugs Codex surfaced AND incorporates audit-step-3 findings. Ready for user sign-off before Phase 1 starts.
+**Status:** DRAFT v7 — Codex's fifth adversarial pass against v6 caught 2 HIGH bugs (the CRD diff gate was a false-pass; the connect/create_repository audit gate was scheduled too late). v7 closes both plus 4 minor findings. Ready for user sign-off before Phase 1 starts.
 **Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the **mitchross/talos-argocd-proxmox** reference design as it is *actually implemented* (not as v1–v4 imagined it).
 **Trigger:** 2026-05-17 cluster incident — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §10 and the project memory `project_volsync_label_driven_restore.md`.
+
+> **What changed v6 → v7 (Codex v5 review):** Six findings, two of them HIGH. (a) The Phase 1a CRD diff gate was a **false-pass** — `kubectl apply --dry-run=server` validates against CRDs INSTALLED in the live cluster (backube v0.15), NOT against the v0.18 CRDs we pulled to `/tmp`. v7 replaces the gate with a scratch-cluster validation (kind/k3d) or offline `kubeconform`. (b) The §3a `connect_repository` / `create_repository` audit items were scheduled for "before Phase 5 batch 1" — meaning we'd discover password-mismatch or retry-loop bugs against the high-value apps (authentik-media, vaultwarden, home-assistant). v7 moves them BEFORE Phase 3 step 3e scratch validation so discovery is on a throwaway PVC. Plus: (c) HTTP_TIMEOUT bumped 7s → 15s (we hit Garage through Traefik, not in-cluster RustFS); Kyverno webhook timeout 10s → 20s to coordinate. (d) `KOPIA_S3_DISABLE_TLS=false` wording tightened (correct value, but reasoning clarified — Garage is external HTTPS, no in-cluster Service). (e) Pre-merge `rg` check added that no cluster-wide cosign policy exists (which would deny the unsigned perfectra1n HelmRepository). (f) Phase 1a swap explicitly requires atomic single-PR commit and HelmRepository name `perfectra1n-volsync` (not `volsync`) to avoid transient SourceNotReady.
 
 > **What changed v5 → v6:** Codex's fourth pass found 6 v5 bugs introduced by the reframe. Most important: (a) v5 Phase 1a's HelmRelease snippet used `HelmRepository.spec.url`, but our actual `volsync-release.yaml` uses `OCIRepository` + `chartRef` (verified 2026-05-18). v6 rewrites Phase 1a to switch from OCIRepository → HelmRepository, since perfectra1n publishes to `https://perfectra1n.github.io/volsync/charts` (gh-pages), not OCI. (b) v5 Phase 2 said "adapt ExternalSecret to SOPS" but didn't enumerate the keys. v6 lists the exact 3-key Secret schema `pvc-plumber-kopia` expects, with the deployment's env vars + file-mount layout. (c) v5 Phase 1a chart swap (`backube/volsync@0.15.0` → `perfectra1n/volsync@0.18.5`) could invalidate the 41 live Kyverno-managed RSes/RDs from yesterday's regen if CRD shape differs. v6 adds an explicit `kubectl diff` gate before the chart-swap commit lands. (d) v5 Phase 6 step 4 wording was ambiguous after the no-rename reframe. v6 makes the deletion target explicit. (e) v5 didn't pin `mitchross/pvc-plumber:3.1.0` source repo + commit. v6 pins. (f) Phase 0 audit step 3 only covered BLOCKER criteria; v6 adds a §3a deeper-audit checklist for `do_restore`, repo connect/create, retry/timeout, and maintenance ownership paths.
 
@@ -187,22 +189,59 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
      - Keep existing `manageCRDs: true`, `metrics.disableAuth: true`, `replicaCount: 1`, `targetNamespace: volsync-system` from current values.
    - **EDIT** `infrastructure/controllers/volsync/app/kustomization.yaml`: change `volsync-repository.yaml` reference to `volsync-helmrepo.yaml`.
    
-   **CRD compatibility check (Codex v4 finding [3], required pre-merge):**
+   **CRD compatibility check (Codex v4 finding [3] + v5 finding [2] correction, required pre-merge):**
+   
+   ⚠️ **v6's `kubectl apply --dry-run=server` was a FALSE-PASS gate** — server-side dry-run validates against the CRD ALREADY INSTALLED in the live cluster (backube v0.15), not against the chart we pulled to `/tmp`. The live cluster's CRD doesn't change just because we downloaded a chart. To actually catch schema breakage, we need to install perfectra1n's CRD into a DIFFERENT API server (scratch kind/k3d), or do offline validation against the chart's CRD definitions.
+   
+   **Correct gate — scratch cluster validation:**
    ```bash
-   # Pull perfectra1n CRD from their chart, compare against backube v0.15.0 CRD
+   # 1. Pull both charts' CRDs
    helm pull volsync --version 0.18.5 --repo https://perfectra1n.github.io/volsync/charts --untar -d /tmp/perfectra1n-chart
-   diff -u <(kubectl get crd replicationsources.volsync.backube -o yaml | yq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.generation, .metadata.managedFields)') \
-           /tmp/perfectra1n-chart/volsync/crds/replicationsources.volsync.backube.yaml | head -100
-   # Apply the perfectra1n CRD in dry-run + diff existing managed RSes against it
-   kubectl apply --dry-run=server -f /tmp/perfectra1n-chart/volsync/crds/replicationsources.volsync.backube.yaml
-   kubectl get replicationsource.volsync.backube -A -l "app.kubernetes.io/managed-by=kyverno" -o yaml | \
-     kubectl apply --dry-run=server -f - 2>&1 | tee /tmp/crd-validate.log
+   
+   # 2. Spin up a disposable kind cluster (or k3d)
+   kind create cluster --name volsync-crd-validate
+   
+   # 3. Install perfectra1n's CRDs into the scratch cluster
+   kubectl --context kind-volsync-crd-validate apply -f /tmp/perfectra1n-chart/volsync/crds/
+   
+   # 4. Export the 41 live RSes/RDs (clean of cluster-managed fields)
+   kubectl --context default get replicationsource.volsync.backube,replicationdestination.volsync.backube -A \
+     -l "app.kubernetes.io/managed-by=kyverno" -o yaml \
+     | yq 'del(.items[].metadata.resourceVersion, .items[].metadata.uid, .items[].metadata.creationTimestamp, .items[].metadata.generation, .items[].metadata.managedFields, .items[].status)' \
+     > /tmp/live-rses-rds.yaml
+   
+   # 5. Dry-run apply them against the scratch cluster (now has perfectra1n CRDs)
+   kubectl --context kind-volsync-crd-validate apply --dry-run=server -f /tmp/live-rses-rds.yaml 2>&1 \
+     | tee /tmp/crd-validate.log
+   
+   # 6. Teardown
+   kind delete cluster --name volsync-crd-validate
    ```
-   **Pass criterion:** all 41 existing RSes validate clean against perfectra1n CRDs (no `unknown field` errors, no `validation failed` lines). If ANY error: abort Phase 1a, file an issue against perfectra1n, evaluate workaround (probably hand-patch the RSes to remove deprecated fields before chart-swap).
+   **Pass criterion:** zero `unknown field` errors, zero `validation failed` lines in `/tmp/crd-validate.log`. If ANY error: abort Phase 1a, identify the offending field(s), evaluate hand-patching the live RSes (or filing an issue against perfectra1n for backward-compatibility).
+   
+   **Alternative (no scratch cluster needed):** use [`kubeconform`](https://github.com/yannh/kubeconform) with schemas generated from the perfectra1n CRDs:
+   ```bash
+   # Generate kubeconform schemas from perfectra1n CRDs
+   git clone --depth 1 https://github.com/yannh/kubeconform /tmp/kubeconform
+   for crd in /tmp/perfectra1n-chart/volsync/crds/*.yaml; do
+     /tmp/kubeconform/scripts/openapi2jsonschema.py "$crd"
+   done
+   # Then run kubeconform with the generated schemas against the live RS export
+   kubeconform -schema-location ./*.json /tmp/live-rses-rds.yaml
+   ```
+   Use whichever is faster for our environment.
+
+   **Pre-merge cluster-wide cosign-policy check (Codex v5 finding [1]):**
+   ```bash
+   rg -n "verifyImages|attestors|ImageValidatingPolicy|ValidatingAdmissionPolicy|provider: cosign|ImageUpdateAutomation" infrastructure/
+   ```
+   Expected output: matches ONLY on the existing per-source `verify.provider: cosign` blocks (e.g., `volsync-repository.yaml`, `snapshot-controller-repository.yaml`, `app-template.yaml`), NOT on a cluster-wide Kyverno/ValidatingAdmissionPolicy that would deny unsigned HelmRepositories. If the latter exists, adding `perfectra1n-volsync` HelmRepository would be denied at admission — we'd need to either exempt the new repo or sign perfectra1n's chart ourselves first. Current state (verified 2026-05-18): per-source only, no cluster-wide policy → safe to add unsigned HelmRepository.
    
    **Smoke test post-merge:** after Flux reconciles, `kubectl -n volsync-system get deploy volsync-system-volsync -o jsonpath='{.spec.template.spec.containers[0].image}'` returns `ghcr.io/perfectra1n/volsync:v0.17.11`. Existing Restic ReplicationSources continue to function — perfectra1n's `mover-restic` is the same upstream code.
    
-   **Rollback:** revert the three file changes (helmrepo create, release edit, kustomization edit) + re-create `volsync-repository.yaml`. Flux re-installs backube/volsync 0.15.0 via the OCI mirror. Existing PVC-managed RSes continue to operate.
+   **Atomic-PR requirement (Codex v5 finding [6]):** all four file changes (DELETE `volsync-repository.yaml`, CREATE `volsync-helmrepo.yaml`, EDIT `volsync-release.yaml`, EDIT `kustomization.yaml`) must be in **one PR / one commit**. Splitting them across PRs creates a window where the HelmRelease still references the old `OCIRepository` name while the new `HelmRepository` is added (or vice versa), leading to either Flux `SourceNotReady` errors OR continued reconciliation on the old chart longer than expected. Pre-merge: `kustomize build infrastructure/controllers/volsync | grep -E "^(kind|name|sourceRef)" -A1` must show exactly one `kind: HelmRepository` with `name: perfectra1n-volsync`, zero `kind: OCIRepository`. Note the deliberately distinct name `perfectra1n-volsync` (not `volsync` as the OCIRepository was) — different GVK + different name keeps the diff unambiguous in Flux's event log.
+   
+   **Rollback:** revert the single PR (all four file changes). Flux re-installs backube/volsync 0.15.0 via the OCI mirror. Existing Kyverno-managed RSes continue to operate.
 
 1. **Phase 1b — Kopia repo on Garage.** Decide bucket scope:
    - **Option A:** new bucket `volsync-kopia-shared` (clean separation, easier to nuke later)
@@ -249,11 +288,13 @@ The pvc-plumber:3.1.0 deployment expects a Secret named `pvc-plumber-kopia` in n
 | `BACKEND_TYPE` | `kopia-s3` | `kopia-s3` |
 | `KOPIA_S3_ENDPOINT` | `192.168.10.133:30293` (RustFS) | `garage.lab.mainertoo.com` (bare host, no scheme — see comment in mitchross's deployment.yaml: "kopia's S3 backend rejects fully-qualified URLs") |
 | `KOPIA_S3_BUCKET` | `volsync-kopia` | `volsync-kopia` |
-| `KOPIA_S3_DISABLE_TLS` | `true` (HTTP RustFS) | `false` (Garage fronted by HTTPS via Traefik — confirm in Phase 1b) |
+| `KOPIA_S3_DISABLE_TLS` | `true` (RustFS in-cluster, plain HTTP) | **`false`** — Garage is at `garage.lab.mainertoo.com` (external HTTPS, no in-cluster Service). Verified 2026-05-18 against `docs/backup-architecture.md` + existing smoke tests (`apps/archive/03b-awscli-garage-endpoint-test.yaml`, `apps/archive/04-volsync-shared-init-smoketest.yaml`) which all use HTTPS to `garage.lab.mainertoo.com`. Phase 1b in-cluster smoke test must confirm before chart-swap merge. Only set `true` if a direct in-cluster HTTP endpoint is intentionally introduced (not the case today). |
 | `LOG_LEVEL` | `info` | `info` |
 | `CACHE_TTL` | `5m` | `5m` |
-| `HTTP_TIMEOUT` | `7s` | `7s` |
+| `HTTP_TIMEOUT` | `7s` (low-latency in-cluster RustFS) | **`15s`** — our Garage path goes through HTTPS + Traefik (extra TLS handshake + ingress hop). Codex v5 finding [5] flagged 7s as too tight for this path. Bumped to 15s initially; Phase 1b records p50/p95 latency over 50 calls from an in-cluster pod; if p95 < 2s, can lower toward 7–10s before Phase 5; otherwise hold at 15s. |
 | `RE_WARM_INTERVAL` | `90s` | `90s` |
+
+**Kyverno webhook timeout (v7 addition, Codex v5 finding [5]):** The existing `volsync-pvc-backup-restore.yaml` has `webhookTimeoutSeconds: 10` (matching our restic pvc-plumber's old `HTTP_TIMEOUT=7s` + buffer). With the new kopia pvc-plumber's `HTTP_TIMEOUT=15s`, the Kyverno webhook calling it needs more headroom. Update the new Kopia ClusterPolicy `volsync-pvc-backup-restore-kopia` to set `webhookTimeoutSeconds: 20` to keep coordinated with the HTTP timeout. The restic policy can stay at 10s (its oracle hasn't changed).
 
 **Activities:**
 1. Read mitchross's `infrastructure/controllers/pvc-plumber/` reference layout (already cloned at `/tmp/mitchross` during Phase 0). Files: `certificate.yaml` (cert-manager for webhook TLS), `deployment.yaml`, `externalsecret.yaml` (for Kopia creds), `kustomization.yaml`, `rbac.yaml`, `webhooks.yaml`.
@@ -522,13 +563,15 @@ Batch order:
 
 Phase 0 audit step 3 covered the BLOCKER criteria and verified `do_backup`, `do_retention`, `do_maintenance`, controller `retainPolicy == nil` handling, and S3 env-var compatibility. With 2473 LOC in `entry.sh`, four more areas need review BEFORE Phase 5 starts (not before Phase 1 — these are mover-side concerns that only matter when actual backups run):
 
-| Function / path | What to verify | Status |
+| Function / path | What to verify | Gate (corrected v7 per Codex v5 finding [4]) |
 |---|---|---|
-| `do_restore` (line ~2291) | Restore mode error handling. Does a failed restore leave the target PVC half-populated? Does the script abort cleanly so the volsync controller marks the RD failed? | TBD before Phase 7 DR drill |
-| `connect_repository` (line 1398) | Password-mismatch behavior. If the per-PVC Secret has a stale `KOPIA_PASSWORD` (e.g., during password rotation), does the script error out clearly, or retry indefinitely? Is the rotation runbook safe? | TBD before Phase 5 batch 1 |
-| `create_repository` (line 1705) | First-time repo creation. We init the Kopia repo manually in Phase 1b — confirm the mover script doesn't try to re-init or overwrite the existing repo on first backup against it. | TBD before Phase 5 batch 1 (test with scratch PVC in Phase 3 step 3e) |
-| Garage S3 retry/timeout | Network-transient handling. Garage occasionally returns 503s under load (we saw this with restic). Does the Kopia mover retry with backoff, or fail-fast? Look for `--retries`, `--retry-interval`, timeout flags. | TBD before Phase 5 batch 2 |
-| `ensure_maintenance_ownership` (line 2000) | Already audited — uses `kopia maintenance set --owner=` with the `KOPIA_OVERRIDE_MAINTENANCE_USERNAME` env var (default `maintenance@volsync`). Confirmed safe. | ✅ done |
+| `connect_repository` (line 1398) | Password-mismatch behavior. If the per-PVC Secret has a stale `KOPIA_PASSWORD` (e.g., during password rotation), does the script error out clearly, or retry indefinitely? | **BEFORE Phase 3 step 3e scratch validation.** Discovery on a throwaway PVC, not against authentik/vaultwarden in Phase 5 batch 1. |
+| `create_repository` (line 1705) | First-time repo creation. We init the Kopia repo manually in Phase 1b — confirm the mover script doesn't try to re-init or overwrite the existing repo on first backup against it. | **BEFORE Phase 3 step 3e scratch validation.** Same reason — discovery on throwaway PVC. |
+| Garage S3 retry/timeout | Network-transient handling. Garage occasionally returns 503s under load (we saw this with restic). Does the Kopia mover retry with backoff, or fail-fast? Look for `--retries`, `--retry-interval`, timeout flags. | **DURING Phase 1b** smoke test (50 calls, record p50/p95). **RE-CHECK before Phase 5 batch 2** under load. |
+| `do_restore` (line ~2291) | Restore mode error handling. Does a failed restore leave the target PVC half-populated? Does the script abort cleanly so the volsync controller marks the RD failed? | Before Phase 7 DR drill (lower urgency — failed restores are recoverable from S3 historical archive). |
+| `ensure_maintenance_ownership` (line 2000) | Already audited 2026-05-18 — uses `kopia maintenance set --owner=` with `KOPIA_OVERRIDE_MAINTENANCE_USERNAME` env var (default `maintenance@volsync`). Confirmed safe. | ✅ done |
+
+**v6 → v7 fix:** v6 had `connect_repository` and `create_repository` gated at "Phase 5 batch 1" which would have meant discovering password-mismatch or retry-loop bugs against the high-value apps (authentik-media, vaultwarden, home-assistant). v7 moves them to **before Phase 3 step 3e scratch validation** so any pathology is found on a throwaway PVC.
 
 Each checklist item logs findings as comments in this section. Items don't gate Phase 1, but each gates the specific phase noted.
 
@@ -698,6 +741,19 @@ EOF
 
 ## 10. Audits + Codex adversarial reviews — addressed findings
 
+### v7 — Codex v5 review of v6 (2026-05-18 mid-morning)
+
+6 findings, 2 HIGH, 1 MED, 3 LOW. The HIGH ones were real bugs (v6's CRD diff gate was a false-pass; the connect/create_repository audit gate was scheduled too late).
+
+| # | Severity | Finding | Resolution in v7 |
+|---|---|---|---|
+| 1 | LOW | Cosign removal noted in §7 but no cluster-wide policy check confirmed | Added `rg` pre-merge check to Phase 1a: verify no cluster-wide `verifyImages`/`ImageValidatingPolicy` enforces signatures on HelmRepositories. Confirmed 2026-05-18 our cluster uses per-source cosign only. |
+| 2 | **HIGH** | **CRD diff gate was a false-pass.** `kubectl apply --dry-run=server` validates against CRDs INSTALLED in the cluster (backube v0.15), not the v0.18 CRDs we pulled to `/tmp`. v6's gate could not detect schema breakage. | Phase 1a gate rewritten: spin up scratch `kind` cluster, install perfectra1n CRDs there, dry-run apply live RS/RD export against scratch cluster's API server. Alternative offline path via `kubeconform`. |
+| 3 | LOW | `KOPIA_S3_DISABLE_TLS=false` correct, but v6 wording was unclear about WHY | Phase 2 table reworded with explicit 2026-05-18 verification trail (`docs/backup-architecture.md` + existing smoke tests confirm Garage is HTTPS external). |
+| 4 | **HIGH** | `connect_repository` / `create_repository` audit gated at "before Phase 5 batch 1" = discover bugs against authentik/vaultwarden | §3a gate moved to **before Phase 3 step 3e** (scratch validation). Discovery on throwaway PVC. |
+| 5 | MED | `HTTP_TIMEOUT=7s` copied verbatim from mitchross (in-cluster RustFS); our path goes HTTPS through Traefik | Bumped to 15s initially. Kyverno webhook for kopia policy bumped to 20s to coordinate. Phase 1b records p50/p95 over 50 calls; tune down if p95 < 2s. |
+| 6 | LOW | Phase 1a swap not explicitly required to be atomic | Phase 1a now mandates **single PR / single commit** for all 4 file changes (delete OCIRepository, create HelmRepository, edit release, edit kustomization). Pre-merge `kustomize build` check enforces exactly one HelmRepository named `perfectra1n-volsync`. |
+
 ### v6 — Codex v4 review of v5 + Phase 0 audit step 3 (2026-05-18 AM)
 
 **Codex v4 review against v5:** 6 findings, all from the perfectra1n-fork reframe. Codex was hampered by a sandbox/network read-only constraint mid-review (couldn't reach mitchross's repo or patch files), but the issues were enumerable from what it COULD read.
@@ -804,5 +860,7 @@ What v2 did NOT change (acknowledged but accepted):
 | 2026-05-18 | Phase 0 audit step 3 executed against perfectra1n@v0.17.11/mover-kopia/entry.sh — NO BLOCKERS, full findings in §10 | Claude |
 | 2026-05-18 | Codex v4 adversarial review of v5 — 6 findings (1 HIGH HelmRepo shape, 2 HIGH Secret schema, 3 HIGH CRD compat, 4 LOW Phase 6 wording, 5 MED source pin, 6 MED audit checklist) | Codex |
 | 2026-05-18 | v6 applied — Phase 1a rewritten for HelmRepository, Phase 2 enumerates Secret schema + 8 env vars + source pin, Phase 1a CRD diff gate added, Phase 6 deletion target made explicit, §3a deeper-audit checklist for Phase 5/7 gating items | Claude |
-| TBD | Phase 0 sign-off (user reads v6, confirms commit to perfectra1n fork dependency) | User |
+| 2026-05-18 | Codex v5 adversarial review of v6 — 6 findings (2 HIGH: CRD gate was false-pass, connect/create audit gate misplaced; 1 MED HTTP_TIMEOUT; 3 LOW cosign-policy check, TLS wording, atomic PR) | Codex |
+| 2026-05-18 | v7 applied — CRD gate switched to scratch-cluster validation (no false-pass), §3a connect/create audit moved before Phase 3 step 3e, HTTP_TIMEOUT 7s→15s + Kyverno webhook 10s→20s, cosign-policy pre-merge check, atomic-PR requirement for Phase 1a | Claude |
+| TBD | Phase 0 sign-off (user reads v7, confirms commit to perfectra1n fork dependency) | User |
 | TBD | Phase 1 start (HelmRelease swap + Kopia bucket) | User |
