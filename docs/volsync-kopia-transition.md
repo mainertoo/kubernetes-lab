@@ -1,10 +1,10 @@
 # VolSync Kopia Transition — Plan
 
-**Status:** DRAFT v2 — incorporates Codex adversarial review v1 findings (see §10). Ready for user sign-off before Phase 1 starts.
+**Status:** DRAFT v4 — incorporates Codex adversarial review v3 findings (see §10). Ready for user sign-off before Phase 1 starts.
 **Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the upstream `mitchross/talos-argocd-proxmox` reference design that this project was originally adapted from.
 **Trigger:** 2026-05-17 cluster incident — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §10 and the project memory `project_volsync_label_driven_restore.md`.
 
-> **What changed v1 → v2:** Codex flagged 6 HIGH and 4 MED issues. Most consequential: (a) Restic policy MUST be engine-gated before the Kopia policy is deployed or the two will fight over the same Secret/RS/RD names; (b) Phase 5 Stage B MUST verify a successful manual Kopia snapshot before declaring an app migrated, otherwise cold-start leaves a 0–24h restore gap; (c) `mover-kopia/entry.sh` MUST be audited in Phase 0 before any commitment — we don't actually know yet whether Kopia's volsync wrapper has its own Restic-`--retry-lock=0s`-equivalent trap. All findings applied below.
+> **What changed v3 → v4:** Codex's third pass surfaced 6 findings (2 HIGH, 4 MED). Most consequential: (a) **CNPG exclusion is by LABEL not namespace** — v3 said "exclude CNPG namespaces" but CNPG dbs live in app namespaces (`authentik`, `dawarich`, `joplin`, `wiki-js`) and namespace exclusion would block the app PVCs we DO want to migrate; v4 excludes by `cnpg.io/cluster Exists` PVC label; (b) **Phase 5 batch concurrency capped at 3 (1 for cephfs/big-data)** — v3's "batches of 12" reproduces today's herd; v4 introduces a driver semaphore; (c) **Stage B/5b/Stage C ordering rewritten explicitly** so the "Flux resumes before 5b PR merges → live PVC label reverted" race can't materialize from sloppy script implementation; (d) **Phase 5 step 1 gets a preflight gate** that waits for any active Restic backup Job to finish before spawning the Kopia probe RS (avoids same-PVC concurrent CSI VolumeSnapshot pressure); (e) **Phase 0 BLOCKER bullet** for destructive retention is now concrete (specific Kopia commands instead of vibes); (f) **§9 emergency runbook** is acknowledged as untested theory and gets a scratch-namespace validation test added pre-Phase-6.
 
 ---
 
@@ -87,20 +87,28 @@ Each phase leaves the cluster in a working state. No phase combines unrelated ch
 
 **Exit criteria:** all four "🔜" items complete. Kopia mover audit confirms there is no analog of Restic's `--retry-lock=0s` trap, OR if one exists, mitigation is folded into Phase 3.
 
-**Phase 0 mandatory audit (Codex finding [10]):**
+**Phase 0 mandatory audit (Codex v1 finding [10] + v2 finding [4] decision tree):**
 ```bash
 git clone https://github.com/backube/volsync /tmp/volsync
 git -C /tmp/volsync checkout v0.15.0
 grep -n "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy" \
   /tmp/volsync/mover-kopia/entry.sh
 ```
-Specifically confirm:
-- Does Kopia maintenance run **inline** during snapshots, or in a separate CronJob?
-- Do concurrent snapshotters share a **server connection**, or each open a direct repo connection?
-- Are there hardcoded **connection timeouts** or **retry knobs** with destructive defaults (cf. Restic's `--keep-last 1` from `feedback_volsync_default_forget_trap`)?
-- Does the volsync controller pass any **always-on flag** to the mover that locks behavior we'll regret?
 
-**If the audit surfaces a trap:** STOP. Re-evaluate. The mover-image-override hook (`RELATED_IMAGE_KOPIA_CONTAINER` per `feedback_volsync_mover_image_override`) is available as a fallback, but if Kopia needs forking too, the strategic argument for transitioning gets weaker. Pause the project and reconsider.
+**BLOCKER (stop, do not proceed to Phase 1):**
+- Script ignores non-zero exit codes from `kopia snapshot create`, `restore`, or `maintenance` — data-path failures would be silent.
+- Maintenance/retention takes exclusive locks without a bounded retry or `--no-lock`-equivalent — the lock-leak pattern from Restic recurs.
+- **Destructive retention by default.** Specifically: entry.sh or the controller invokes `kopia snapshot expire --delete`, `kopia maintenance run --full`, OR `kopia policy set` after each snapshot with synthesized retention when `spec.kopia.retain` is nil — especially `latestSnapshots/keepLatest=1` or any broad/global policy not scoped to the current `<namespace>/<pvc>` source. If retention is applied only from explicit `spec.kopia.retain` (i.e., nil → no expiration runs), this is NOT a blocker. (Codex v3 finding [4] — the v3 phrasing "analogous to `--keep-last 1`" was too vague to test against; Kopia's destructive equivalent is specifically the wrong policy scope, not a single flag.)
+- S3 credential injection format is incompatible with the generated Secret schema (different env-var names, different config-file expectations).
+- `copyMethod: Snapshot` is not exercised end-to-end — restore path may diverge from VolSync RD populator semantics.
+
+**WORKAROUND (note, handle in Phase 3, do NOT block Phase 1):**
+- Hardcoded cache path or size — addressable via `cacheCapacity` override in the generated RS.
+- Direct repo access instead of server mode — acceptable if concurrent smoke tests pass in Phase 1.
+- Noisy but bounded timeouts — acceptable if covered by Prometheus alerts.
+- Missing `--no-lock` on read-only calls — document it; add to Phase 3 tracking issue.
+
+**If a BLOCKER appears:** STOP. The mover-image-override hook (`RELATED_IMAGE_KOPIA_CONTAINER` per `feedback_volsync_mover_image_override`) is available as a fallback. But if Kopia also needs forking, the strategic argument for transitioning gets weaker — pause the project and reconsider Restic-with-mover-fork as the lesser evil.
 
 ---
 
@@ -146,55 +154,91 @@ Specifically confirm:
 
 ### Phase 3 — Kyverno policy split with engine-gating (1 day, ~5 hr)
 
-**Decision (closes §6 Open Question #5, per Codex finding [8]):** **Two separate ClusterPolicies, both explicitly engine-gated**, with a deny-on-missing-engine validate policy installed FIRST. Single-policy approach was rejected because edits to one would trigger a full UpdateRequest burst across all 70 PVCs (cf. today's incident).
+**Decision (closes §6 Open Question #5, per Codex v1 finding [8]):** **Two separate ClusterPolicies, both explicitly engine-gated**, with a deny-on-missing-engine validate policy installed FIRST. Single-policy approach was rejected because edits to one would trigger a full UpdateRequest burst across all 70 PVCs (cf. 2026-05-17 incident).
 
-**Output:** Three ClusterPolicies live in Audit mode in this order:
-1. `volsync-pvc-engine-required` — validate-only deny rule, ensures every backup-labeled PVC carries a valid `backup-engine` label
-2. `volsync-pvc-backup-restore-restic` — RENAMED + engine-gated copy of today's policy, matches only `backup-engine: restic`
-3. `volsync-pvc-backup-restore-kopia` — new policy, matches only `backup-engine: kopia`, generates Kopia-flavored Secret/RS/RD
+**Output:** Three ClusterPolicies live in Audit mode by end of Phase 3:
+1. `volsync-pvc-engine-required` — validate-only policy, enforces `backup-engine ∈ {restic, kopia}` on every backup-labeled PVC (Audit until Phase 6, then can flip to Enforce)
+2. `volsync-pvc-backup-restore` — the EXISTING policy, NOT RENAMED, with `backup-engine: restic` selector added in-place
+3. `volsync-pvc-backup-restore-kopia` — NEW policy, matches `backup-engine: kopia`, generates Kopia-flavored Secret/RS/RD
+
+> **v2→v3 change (Codex v2 finding [2]):** v2 said to rename the existing policy to `…-restic`. A rename is a delete+create under the hood, which fires `synchronize:true` GC for every generated child during the gap between old-name deletion and new-name reconcile. **v3 keeps the original policy name** through the entire transition. The rename is deferred to Phase 6 where the Restic policy is being deleted anyway — no GC hazard because by then no PVCs depend on it.
 
 **Activities (strict order):**
 
-1. **Step 3a — backfill `backup-engine: restic` on every currently labeled PVC.** Done as a single PR before any policy change. All 42 currently Kyverno-managed PVCs get the label added by hand-editing the per-app PVC manifests. Verify with: `kubectl get pvc -A -l backup --no-headers | wc -l` matches the count of `kubectl get pvc -A -l backup-engine=restic --no-headers | wc -l` after reconcile.
+1. **Step 3a — backfill `backup-engine: restic` on every currently labeled PVC.** Single PR before any policy change. All 42 currently Kyverno-managed PVCs get the label by hand-editing each app's PVC manifest. **Verification gate:** `kubectl get pvc -A -l backup --no-headers | wc -l` must equal `kubectl get pvc -A -l backup-engine=restic --no-headers | wc -l` after Flux reconcile. Step 3c is BLOCKED until parity is verified.
 
-2. **Step 3b — deploy the deny-on-missing-engine validate policy** (`volsync-pvc-engine-required`), validationFailureAction: **Audit** for now. This policy denies (audit-mode = audit-logs) any PVC with `backup ∈ {hourly, daily}` that lacks `backup-engine ∈ {restic, kopia}`. Closes Codex finding [3] / [6]: makes the engine label MANDATORY, never inferred by webhook.
+2. **Step 3b — deploy `volsync-pvc-engine-required`** (validate-only, Audit mode). Allowed set: **`backup-engine ∈ {restic, kopia, migrating}`** — `migrating` is enumerated explicitly because Phase 5 used to need it; v3 doesn't use it for the cutover anymore but enumerating it costs nothing and makes the schema future-proof. Closes Codex v1 finding [3]/[6] AND v2 finding [3].
 
-3. **Step 3c — engine-gate the existing Restic policy in place** by adding the selector `backup-engine: restic` to every rule's `match.any.resources.selector.matchExpressions`. This is a label-selector tightening, NOT a `generate.data` mutation — it should NOT be one of Kyverno's immutable-fields per `feedback_kyverno_generate_rules_immutable`. **Verify with `kubectl diff`** before merging. **Rename** the policy at the same time to `volsync-pvc-backup-restore-restic`. *Codex finding [1] / [2]: this step prevents collision and avoids force-delete churn.*
+3. **Step 3c — add `backup-engine: restic` selector to every rule of the existing `volsync-pvc-backup-restore` policy IN PLACE (no rename).** This is a `match.any.resources.selector.matchExpressions` addition only — no `generate.data` mutation, no rename, no force-recreate annotation. **Pre-merge verification:**
+   - Step 3a verification gate (above) passes.
+   - `kubectl diff -f infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore.yaml` shows ONLY the selector additions, no `metadata.name` change, no `generate.data` change.
+   - flux-local CI green.
+   
+   **Risk if 3a parity is off (Codex v2 finding [2]):** PVCs without the engine label silently lose their generated Secret/RS/RD when the selector tightens. The 3a gate above prevents this.
 
-4. **Step 3d — deploy `volsync-pvc-backup-restore-kopia`** as a new ClusterPolicy file. Identical structure to the Restic policy (rules 1–7), with:
+4. **Step 3d — deploy `volsync-pvc-backup-restore-kopia`** as a NEW ClusterPolicy file. Identical 7-rule structure to the Restic policy, with:
    - Engine selector: `backup-engine: kopia`
    - Oracle URL: routes to the upstream `pvc-plumber` Service (deployed in Phase 2)
    - Rule 5 generates Secret with `KOPIA_PASSWORD` + S3 creds (not `RESTIC_*`)
    - Rule 6 generates RS with `spec.kopia:` block
    - Rule 7 generates RD with `spec.kopia:` block
-   - **`synchronize: true` and `generateExisting: true` retained** — same drift-correction semantics as the Restic policy
+   - **EXCLUSION FOR CNPG DATA PVCs** — by **label**, NOT namespace (Codex v3 finding [3]). v3 erroneously said "exclude CNPG namespaces"; that would also block the app data PVCs in `authentik`, `dawarich`, `joplin`, `wiki-js` which we DO want to migrate. The CNPG operator labels its managed PVCs with `cnpg.io/cluster=<cluster-name>`, so excluding-by-label is precise. Preflight to verify the label exists on live CNPG PVCs:
+     ```bash
+     kubectl get pvc -A --show-labels | grep -E "cnpg.io/cluster|app.kubernetes.io/managed-by=(cnpg|cloudnative-pg)"
+     ```
+     Then both engine policies use this exclude shape:
+     ```yaml
+     exclude:
+       any:
+         - resources:
+             selector:
+               matchExpressions:
+                 - key: cnpg.io/cluster
+                   operator: Exists
+         - resources:
+             selector:
+               matchExpressions:
+                 - key: app.kubernetes.io/managed-by
+                   operator: In
+                   values:
+                     - cnpg
+                     - cloudnative-pg
+     ```
+     CNPG-managed databases are out of scope for this label-driven backup system — they use `Cluster.bootstrap.recovery` per [`backup-recovery.md`](./backup-recovery.md).
+   - **`synchronize: true` and `generateExisting: true` retained** — same drift-correction as the Restic policy.
 
-5. **Step 3e — validate on a scratch PVC** in a non-production namespace (e.g., `default` with policy exclude tweaked, OR a one-off test namespace). Label it `backup: daily, backup-engine: kopia`. Verify Kyverno generates the Kopia Secret/RS/RD trio. Manually trigger a backup via `manual:` trigger to confirm Kopia mover writes to the shared repo. **Do NOT validate on a real Phase 5 candidate yet — Phase 5 handles cutover protocol separately.**
+5. **Step 3e — validate on a scratch PVC** in a one-off test namespace. Label it `backup: daily, backup-engine: kopia`. Verify Kyverno generates the Kopia Secret/RS/RD trio. Manually trigger a backup via `manual:` trigger to confirm Kopia mover writes to the shared repo. **Do NOT validate on a real Phase 5 candidate yet — Phase 5 handles cutover protocol separately.**
 
-**Exit criteria:** Three policies live in Audit mode. Existing 42 Restic-backed apps continue to operate unchanged (Restic policy still gates them via their newly-added `backup-engine: restic` label). A scratch test PVC successfully generates a Kopia trio.
+**Exit criteria:** Three policies live in Audit mode. Existing 42 Restic-backed apps continue to operate unchanged (Restic policy still gates them via their `backup-engine: restic` label from step 3a). A scratch test PVC successfully generates a Kopia trio. CNPG namespaces are excluded from both engine policies.
 
-**Codex finding [7] — mid-flight engine switching hazard:** Because both Restic and Kopia generate rules have `synchronize: true`, changing `backup-engine: restic` → `kopia` on a live PVC would cause Kyverno's Restic policy to GC its children AT THE SAME TIME as the Kopia policy emits new ones — a window where the PVC's `dataSourceRef` points at a deleted RD. This is the same hazard the original Phase 5 (Restic) addressed with Flux suspension + driver-managed cutover. The Phase 5 protocol below introduces a transient `backup-engine: migrating` state (excluded from both policies) so the switch is never atomic.
-
-**Rollback:** Three independent policies, three independent rollbacks. Delete the Kopia policy alone, or delete the deny-validate policy alone, or revert the Restic-policy engine-selector PR. No big-bang rollback required.
+**Rollback:** Three independent policies, three independent rollbacks. Delete the Kopia policy alone, or delete the deny-validate policy alone, or revert the Restic-policy selector PR. No big-bang rollback required.
 
 ---
 
 ### Phase 4 — History migration strategy (decision locked, ~1 hr — execution folded into Phase 5)
 
-**Decision (closes §6 Open Question #2, per Codex findings [4] / [9]):** **Cold start, with a per-app gating discipline.** Each app's Stage B in Phase 5 MUST verify a successful manual Kopia snapshot BEFORE Restic authority is suspended/deleted. No app is "migrated" until its first Kopia snapshot is on disk in the shared repo.
+**Decision (closes §6 Open Question #2, per Codex v1 findings [4] / [9] + v2 finding [7]):** **Cold start, with a parallel-Kopia-RS verification gate per app.** Each app's Stage B in Phase 5 spawns a Kopia RS ALONGSIDE the still-active Restic RS and waits for it to commit a snapshot BEFORE the engine label is flipped. The Restic RS stays the authoritative path until the moment of flip, eliminating the "neither engine owns this PVC" interval that v2 had.
 
-Alternatives were:
-- **Pure cold start (rejected as bare):** Codex flagged that daily-schedule apps cut over after 02:MM UTC have a full-day window with no Kopia restore point. Unacceptable for high-value apps (authentik db, vaultwarden, joplin, home-assistant).
-- **Bridge migration (deferred):** `restic restore` each retention-relevant snapshot to a tmpdir, then `kopia snapshot create`. 2-3 days of bespoke tooling against ~9000 snapshots across 41 apps. High effort, low marginal value — old Restic repo serves as the historical archive instead (see emergency runbook §9).
+> **v2→v3 change (Codex v2 finding [7]):** v2 used a transient `backup-engine: migrating` label that caused the Restic policy to GC its Secret/RS/RD via `synchronize:true` BEFORE the Kopia probe ran. If the probe failed, the app was left with zero backup objects from either engine. v3 fixes this by spawning the Kopia probe RS DIRECTLY (not via the policy), keeping the Restic RS active until the probe commits a snapshot, and only then flipping the engine label.
+
+Alternatives considered and rejected:
+- **Pure cold start (rejected):** Daily-schedule apps cut over after 02:MM UTC have a full-day window with no Kopia restore point. Unacceptable for high-value apps.
+- **Bridge migration (deferred):** 2-3 days of bespoke tooling against ~9000 snapshots across 41 apps. Old Restic repo serves as historical archive instead (see emergency runbook §9).
 
 **Implementation (in Phase 5 driver):**
 
 For each app, the cutover order is:
-1. Add `backup-engine: migrating` label (transient state, matched by neither engine policy — Codex finding [7])
-2. **Trigger a one-shot manual Kopia snapshot** on a temporary Kopia RS pointed at the same PVC. Wait for completion. Verify the snapshot exists in the shared repo via `kopia snapshot list`.
-3. Only then: delete the Restic-side RS, set `backup-engine: kopia` label, let the Kopia policy generate the durable RS/RD/Secret.
+1. **Suspend Flux** for the app's Kustomization (existing Stage B pattern).
+2. **Spawn a parallel Kopia RS** directly via `kubectl apply` (NOT via Kyverno) at the name `<pvc>-cutover-probe`. The Restic-side `<pvc>-backup` RS remains active throughout — both engines are writing to the source PVC's snapshot, which is fine because they target different repos.
+3. **Wait** for the probe RS to commit a snapshot (`status.lastSyncTime` advances). 30-min timeout. On timeout: abort, leave Restic in place, surface error to operator.
+4. **Verify** the snapshot exists in the Kopia shared repo via `kopia snapshot list <ns>/<pvc>`.
+5. **Flip the engine label** on the PVC manifest: `backup-engine: restic` → `backup-engine: kopia`. This single edit causes:
+   - Restic policy's `synchronize:true` GCs the Restic Secret/RS/RD (this is now safe — Kopia has a committed snapshot)
+   - Kopia policy emits the durable Kopia Secret/RS/RD trio
+6. **Delete the probe RS** (the durable Kopia RS supersedes it).
+7. **Stage C** verifies + resumes Flux.
 
-The driver gate script (sketch — refined in Phase 5):
+The driver probe-RS template (sketch — refined in Phase 5 prep):
 ```bash
 kubectl -n "$NS" apply -f - <<EOF
 apiVersion: volsync.backube/v1alpha1
@@ -208,64 +252,104 @@ spec:
     copyMethod: Snapshot
     # … storage class etc. matched to source PVC
 EOF
-kubectl -n "$NS" wait --for=condition=Synchronized --timeout=30m \
+kubectl -n "$NS" wait --for=jsonpath='{.status.lastSyncTime}' --timeout=30m \
   replicationsource.volsync.backube "${PVC}-cutover-probe"
-# If wait fails: abort cutover, leave the Restic RS in place.
-kubectl -n "$NS" delete replicationsource.volsync.backube "${PVC}-cutover-probe"
+# If wait fails: abort cutover, leave Restic RS active, do NOT flip engine label.
 ```
 
-**Recovery-depth guarantee per app post-cutover:** ≥1 Kopia snapshot exists at the moment Stage B completes. Subsequent scheduled backups grow the chain normally. Emergency historical restore from the read-only Restic repo remains available for 30 days (see emergency runbook).
+**Recovery-depth guarantee per app post-cutover:** ≥1 Kopia snapshot exists at the moment the engine label flips. The Restic RS is still active up to that moment, so any data written between the last scheduled Restic backup and the flip is captured in the Kopia probe snapshot. Zero-gap handoff.
 
-**High-value app cutover-window discipline:** Apps in this list should be cut over in the window IMMEDIATELY after their last successful Restic backup, minimizing data drift between final Restic snapshot and first Kopia snapshot:
-- `authentik/authentik-db` (CNPG, but the auth metadata PVC matters)
-- `vaultwarden/vaultwarden` (passwords)
-- `home-assistant/home-assistant` (Z-Wave/Zigbee state, automations)
-- `joplin/joplin` (notes)
-- `dawarich/dawarich` (location history)
-- `wiki-js/wiki-js-data` (content)
+**High-value app cutover-window discipline:** Cut over in the window IMMEDIATELY after the last successful Restic backup. This minimizes data drift between final Restic snapshot and first Kopia snapshot — both for restore depth and for the emergency runbook fallback.
 
-**Exit criteria:** decision locked at "cold start with manual-snapshot gate". Probe-RS template added to the driver design. No execution-time work in Phase 4 — it's all inside each Phase 5 cutover.
+**CNPG data PVCs are out of scope (Codex v2 finding [5] + [6] Q5/CNPG):** PVCs owned by CloudNativePG `Cluster` resources are NOT migrated through this Phase 5 protocol. CNPG handles its own application-consistent backup/restore via WAL streaming + base backups + `Cluster.bootstrap.recovery` (see [`backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery"). Phase 3 step 3d adds an explicit exclude for CNPG namespaces. The current Phase 5 candidates list below has CNPG db PVCs scrubbed.
+
+**Phase 5 candidates (CNPG-scrubbed):** Apps in the high-value bucket are now their non-db PVCs only:
+- `authentik/authentik-media` (the auth metadata PVC — `authentik-db` is CNPG, excluded)
+- `vaultwarden/vaultwarden` (passwords — non-CNPG)
+- `home-assistant/home-assistant` (state)
+- `joplin/joplin` (notes — `joplin-db` is CNPG, excluded)
+- `dawarich/dawarich` (data — `dawarich-db` is CNPG, excluded)
+- `wiki-js/wiki-js-data` (content — `wiki-js-cnpg-db` is CNPG, excluded)
+
+**Exit criteria:** decision locked at "cold start with parallel-probe-RS handoff". Probe-RS template + driver flow drafted. No execution-time work in Phase 4 — all inside each Phase 5 cutover.
 
 ---
 
 ### Phase 5 — Per-app cutover Restic → Kopia (~15 min/app, **3-4 days** for all 70)
 
-**Output:** Every app's PVC carrying `backup: hourly|daily` has `backup-engine: kopia` and is generating snapshots into the Kopia shared repo. Restic-side RSes deleted per-app. Each app has ≥1 verified Kopia snapshot before its cutover is marked complete.
+**Output:** Every (non-CNPG) backup-labeled PVC has `backup-engine: kopia` and is generating snapshots into the Kopia shared repo. Restic-side RSes deleted per-app. Each app has ≥1 verified Kopia snapshot committed BEFORE its Restic objects are GC'd.
 
-**The cutover protocol — with the transient `migrating` state (Codex finding [7]):**
+**The cutover protocol — parallel-probe-RS handoff (replaces v2's `migrating` flow):**
 
 For each app, the sequence is:
 
-1. **5a PR — set transient label.** Edit the app's PVC manifest: `backup-engine: restic` → `backup-engine: migrating`. Merge.
-   - The Restic policy no longer matches → `synchronize:true` GCs the app's Restic Secret/RS/RD on its own schedule. **Wait for this GC to settle** (poll `kubectl get rs,rd,secret -n <ns> -l app.kubernetes.io/managed-by=kyverno` until empty for this app's resources).
-   - The Kopia policy doesn't match either → no new Kopia resources yet.
-   - The deny-on-missing-engine validate policy does NOT trip — `migrating` is in the allow set we add to it in Phase 3.
+1. **Stage B Job — driver `scripts/migrate-stage-bc.sh --engine kopia` (extended in Phase 5 prep).** The driver runs while `backup-engine: restic` is STILL set on the PVC. Steps:
+   1. `flux suspend kustomization` for the app's namespace.
+   2. Preflight: confirm app's Restic Secret/RS/RD exist (this app IS currently backed up on Restic).
+   3. **Same-PVC CSI snapshot preflight gate (Codex v3 finding [1]):** wait for any active Restic backup Job on this PVC to finish before spawning the Kopia probe. Two concurrent CSI VolumeSnapshots on the same source PVC are not a data hazard (each is independent crash-consistent), but they pressure the snapshotter queue, Ceph metadata, and worker memory. Gate:
+      ```bash
+      while kubectl -n "$NS" get jobs \
+            -l volsync.backube/source-name="${PVC}-backup" \
+            -o jsonpath='{.items[?(@.status.active>0)].metadata.name}' \
+            | grep -q .; do
+        echo "Restic backup active for ${NS}/${PVC}; waiting…"
+        sleep 30
+      done
+      ```
+      Implementation note: probe is best timed IMMEDIATELY AFTER the last successful Restic backup, not during a scheduled run. Driver should check the Restic RS's `status.nextSyncTime` and abort if the next run is within 5 minutes.
+   4. **Apply the parallel Kopia probe RS** at `<pvc>-cutover-probe` (NOT via Kyverno — direct `kubectl apply`). The probe RS targets the same source PVC as the Restic RS. Both engines now have RSes against the same PVC, but only the Kopia one will run (Restic was preflighted in step 1.3). Each engine writes to a different repo, each takes its own CSI VolumeSnapshot for `copyMethod: Snapshot`, and Kopia's locking model permits concurrent writers.
+   5. **Wait** for the probe RS's `status.lastSyncTime` to be set (30-min timeout). Verify the snapshot exists in the Kopia shared repo via `kopia snapshot list <ns>/<pvc>`.
+   6. **If probe fails (timeout, error, repo unreachable):** abort cutover via `set -e` trap. The Restic RS is still active and untouched. The probe RS gets deleted on abort. App remains on Restic. Operator picks up next session.
+   7. **Flip the engine label on the LIVE PVC ONLY:** `backup-engine: restic` → `backup-engine: kopia`. Apply via `kubectl patch`. **This is a LIVE-cluster edit, NOT a git-manifest edit.** The PVC manifest in git still says `backup-engine: restic` at this moment. Flux MUST remain suspended. This patch triggers:
+      - Restic policy's `synchronize:true` GC of the Restic Secret/RS/RD (now safe — Kopia has a committed snapshot).
+      - Kopia policy emits the durable Kopia Secret/RS/RD trio.
+   8. **Wait** for Kopia's durable RS to appear and Restic's RS to GC. Typically <60s.
+   9. **Delete the probe RS** (the durable Kopia RS supersedes it).
+   10. **Exit Stage B with Flux still suspended. Do NOT resume Flux in Stage B.**
 
-2. **Stage B Job — driver `scripts/migrate-stage-bc.sh --engine kopia` (extended in Phase 5 prep).** The driver:
-   - `flux suspend kustomization` for the app's namespace
-   - Confirm Restic-side resources are gone (preflight check)
-   - **Apply the cutover-probe Kopia RS** (template from Phase 4 above), wait for first Kopia snapshot to land. If wait fails: abort with `set -e` trap, leave PVC in `migrating` state — operator picks up next session.
-   - Delete the cutover-probe RS
-   - Set PVC label `backup-engine: kopia`
-   - Exit with Flux still suspended
+2. **5b PR — confirm static PVC manifest** in git has `backup-engine: kopia` (the live cluster does — the manifest must match for next Flux reconcile to be a no-op). Merge while Flux is suspended.
 
-3. **5b PR — confirm static PVC manifest.** Verify the app's PVC manifest in git has `backup-engine: kopia` (the live cluster does, but the manifest needs to match for next Flux reconcile to be a no-op). Merge while Flux is suspended.
+3. **Stage C Job — driver resumes Flux ONLY after explicit verification.** The race v3 risked (Codex v3 finding [2]): if anyone resumes Flux before 5b PR merges, Flux reverts the live PVC label to `restic`; Kyverno regenerates Restic children and GCs Kopia children, rolling the app back while the operator believes it migrated. Strict Stage C order:
+   ```text
+   1. Run: flux reconcile source git flux-system
+   2. Verify: flux build kustomization <app-kustomization> | grep -q "backup-engine: kopia"
+      → if missing: ABORT, do not resume Flux, operator investigates
+   3. Verify: flux build kustomization <app-kustomization> | grep -v "<pvc>-backup" | not match Restic-RS-shape
+      → if a Restic RS is rendered: ABORT, do not resume Flux
+   4. Only after 1+2+3 pass: flux resume kustomization <app-kustomization>
+   ```
+   If verification fails, the live cluster keeps the Kopia label (Stage B already flipped it). The migration is functionally complete; only the git/reconcile alignment is pending. Operator merges 5b, re-runs Stage C.
 
-4. **Stage C Job — driver resumes Flux.** Standard Stage-C verification (positive: PVC label is `kopia` in `flux build kustomization`; negative: no Restic RS for this PVC in rendered manifests). Resumes only on success.
+**Why the parallel-probe-RS approach is safe (Codex v2 finding [7]):**
 
-**Why each step is necessary (vs. atomic label swap):** Codex finding [7]. With `synchronize: true` on both engine policies, a single-edit swap `restic → kopia` would cause Kyverno's Restic policy to GC its children and Kyverno's Kopia policy to emit new children **at the same time**. The PVC's `dataSourceRef` would briefly point at a deleted RD. The `migrating` intermediate state, plus Flux suspension during Stage B, plus the cutover-probe pre-flight, eliminates the window.
+The previous `migrating` design created a window where neither engine had a Secret/RS/RD for the PVC. If anything failed in that window, the app was unprotected. v3's parallel-probe approach keeps the Restic RS active right up to the engine-label flip — there is no point in the protocol where the PVC has zero backups in flight.
 
-**Order (3 batches):**
-1. **High-value first** (6 apps, ~1 session): authentik, vaultwarden, home-assistant, joplin, dawarich, wiki-js. Each cut over immediately after its last successful Restic backup window. Per-app verification on the cutover-probe Kopia snapshot.
-2. **Already-on-Restic medium** (36 remaining of the 42, ~3 sessions): alphabetical batches of 12.
-3. **Never-on-Restic** (29 apps, ~3 sessions): direct-to-Kopia cutover, batched alphabetically. These never get a Restic RS — Phase 5a label is set to `backup-engine: kopia` immediately, Stage B still runs the cutover-probe.
-4. **Big-data deferrals last** (5 apps: plex, jellyfin, calibre-library-cephfs, shared-media-pvc, notifiarr-shared, dumb): cut over last with appropriate cache-capacity annotations.
+**Concurrent-RS safety:** During step 1.3–1.6, two RSes target the same source PVC. VolSync handles this — each RS takes its own CSI VolumeSnapshot. There is no shared lock at the VolSync level. Restic's mover holds Restic-repo locks; Kopia's mover holds Kopia-repo locks (or none, if Phase 0 audit confirms concurrent-multi-writer). No interaction.
 
-**Pace target:** 5-7 apps per session × 6-8 sessions across 3-4 days. Each cutover ~15 min (was ~10 min for Restic Phase 5 — adding the probe-wait costs ~3-5 min per app, sometimes more for large PVCs).
+**Order (4 batches) + concurrency cap (Codex v3 finding [6]):**
 
-**Exit criteria:** Every backup-labeled PVC has a Kopia-backed RS. Zero Kyverno-managed Restic RSes remain. Every app has ≥1 verified Kopia snapshot in the shared repo (verifiable via `kopia snapshot list --tags ns:* --tags pvc:*` or whatever Kopia's listing convention is — confirmed in Phase 0 audit).
+The 2026-05-17 incident showed that even 10–12 concurrent volsync movers can OOM a worker (51 RSes → worker-2 SystemOOM; 42 restore movers at 1.5–2 GiB each → worker-1 saturated). Batch SIZE in the plan is one thing; CONCURRENT IN-FLIGHT probe RSes is the actual control variable. v4 caps in-flight concurrency with a driver semaphore:
 
-**Rollback per app (within 30-day Restic-bucket retention window):** Revert the 5a PR (`backup-engine: kopia` → `restic`); the cutover-probe Kopia snapshot remains in the Kopia repo but unreferenced. The Restic policy regenerates the Restic Secret/RS/RD when the label flips back. Re-runs Restic's `dataSourceRef` populator if the PVC is deleted+recreated.
+```text
+# In scripts/migrate-stage-bc.sh (Phase 5 prep)
+MAX_CONCURRENT_PROBES=3                  # normal ceph-rbd PVCs
+BIG_DATA_MAX_CONCURRENT_PROBES=1         # cephfs OR PVC > 50Gi
+NODE_MEM_HEADROOM_PCT=70                 # don't start a new probe if any node > 70% mem
+```
+
+Start the next probe only after the prior probe RS has committed, its durable Kopia RS exists, AND `kubectl top nodes` shows every worker below the headroom threshold. Operator can override via `--max-concurrent 1` flag if cluster pressure mounts.
+
+Batch order:
+1. **High-value first** (5 apps, 1 session, serial — concurrency=1 to validate the protocol): authentik-media, vaultwarden, home-assistant, dawarich (data PVC only, not db), wiki-js-data (not the CNPG db). Cut over immediately after each app's last successful Restic backup.
+2. **Already-on-Restic medium** (~35 apps, ~3 sessions): concurrency capped at 3 per the semaphore. Batch LIST size of 12 alphabetically is fine — only 3 run at any moment.
+3. **Never-on-Restic** (~25 apps, ~3 sessions): direct-to-Kopia. Different protocol — these never had a Restic RS, so the Phase 5 driver becomes: set `backup-engine: kopia` label, let Kopia policy emit, verify first scheduled snapshot lands. No probe-RS needed. Concurrency still capped at 3.
+4. **Big-data deferrals last** (5 apps: plex, jellyfin, calibre-library-cephfs, shared-media-pvc, notifiarr-shared, dumb): concurrency **1** because these are cephfs RWX or 100Gi+ source PVCs. Each runs serially with appropriate `cacheCapacity` annotations confirmed via Phase 2 smoke tests.
+
+**Pace target:** 5–7 apps per session × 6–8 sessions across 3–4 days. Each Restic→Kopia cutover ~15 min wall time; with concurrency 3, that's ~6–9 apps per active hour. Never-on-Restic apps ~10 min each.
+
+**Exit criteria:** Every non-CNPG backup-labeled PVC has a Kopia-backed RS. Zero Kyverno-managed Restic RSes remain. Every app has ≥1 verified Kopia snapshot in the shared repo.
+
+**Rollback per app (within 30-day Restic-bucket retention window):** Revert the 5b PR (`backup-engine: kopia` → `restic`). Kopia policy GCs its trio; Restic policy regenerates its trio. The Restic repo still has the historical snapshots — restore via the Restic populator on a fresh PVC, OR via the §9 emergency runbook for an in-place restore.
 
 ---
 
@@ -336,28 +420,30 @@ For reference, the original Restic build was ~6 weeks calendar (Phases 0–5 fro
 
 ---
 
-## 6. Open questions still open (after v2)
+## 6. Open questions
 
 Closed by v2:
-- ~~#2: history migration strategy~~ → Phase 4 locked at "cold start with manual-snapshot gate per app"
+- ~~#2: history migration strategy~~ → Phase 4 locked at "cold start with parallel-probe-RS handoff" (v3 refined the handoff mechanism)
 - ~~#5: two policies vs. one~~ → Phase 3 locked at "two engine-gated policies + one deny-on-missing-engine validate policy"
 - ~~#6: `backup-engine` discriminator~~ → Phase 3 locked at "mandatory label, never inferred by webhook"
 
+Closed by v3 (Codex v2 finding [6] answers + restructuring):
+- ~~v2 #3 — Big-data cache sizing on Kopia~~ → **Default `cacheCapacity: 10Gi` for any PVC over 100Gi.** Phase 2 smoke-tests a scratch cephfs PVC at full scale before any big-data app cutover. Smoke test is a Phase 2 explicit gate.
+- ~~v2 #5 — CNPG live-snapshot consistency~~ → **CNPG data PVCs are EXCLUDED from the label-driven backup system entirely.** Restore via `Cluster.bootstrap.recovery` per [`backup-recovery.md`](./backup-recovery.md). Phase 3 step 3d adds explicit excludes; §9 runbook has a CNPG callout pointing at the right path.
+- ~~v2 #7 — Restic policy rename hazard~~ → **The policy is no longer renamed in Phase 3.** v3 keeps the original name through the transition; rename happens in Phase 6 alongside deletion, where no PVC depends on it.
+- ~~v2 #4 — Phase 0 trap severity rubric~~ → Decision tree now lives in Phase 0 itself (BLOCKER vs. WORKAROUND lists).
+
 Still open, for the user to decide before Phase 1:
 
-1. **Dual-pvc-plumber operation during Phase 5.** Run two oracles (one restic, one kopia) routed by separate Kubernetes Services, OR build a single oracle that supports both backends behind one API? Lean: two services. The upstream pvc-plumber (Kopia) and our `mainertoo/pvc-plumber-restic` fork already exist; pointing two ClusterPolicies at two separate Services costs zero extra code.
+1. **Dual-pvc-plumber operation during Phase 5.** Run two oracles (one restic, one kopia) routed by separate Kubernetes Services, OR build a single oracle that supports both backends behind one API? Lean: **two services**. The upstream pvc-plumber (Kopia) and our `mainertoo/pvc-plumber-restic` fork already exist; pointing two ClusterPolicies at two separate Services costs zero extra code.
 
-2. **Bucket reuse vs. new bucket.** Option A (new bucket `volsync-kopia-shared`) cleaner; Option B (reuse `volsync-shared` with prefix) less Garage admin work. **Garage capacity check is the deciding factor.** Run in Phase 1 first task.
+2. **Bucket reuse vs. new bucket.** Option A (new bucket `volsync-kopia-shared`) cleaner; Option B (reuse `volsync-shared` with prefix) less Garage admin work. **Garage capacity check is the deciding factor.** Run in Phase 1 first task. Lean: **Option A** if capacity allows.
 
-3. **Big-data app cache sizing on Kopia.** Restic needed `volsync.backup/cache-capacity: 10Gi` for dumb (100Gi cephfs). Kopia's caching is different. Phase 0 audit should answer: does Kopia even use a cache PVC, or is its content-addressable store fully S3-backed? If yes-cache: sizing TBD via Phase 1 smoke test.
+3. **30-day Restic-bucket retention window.** Is 30 days the right post-Phase-6 horizon, or 60-90? Lean: **30 days** — the Restic-side daily snapshots already roll off at that horizon. No marginal value keeping the bucket longer than its own snapshots' retention.
 
-4. **30-day Restic-bucket retention window.** Is 30 days the right post-Phase-6 horizon, or should it be 60-90? Tradeoff: Garage storage cost (we know the current footprint, ~XXX GiB) vs. emergency-restore depth. **My lean: 30 days; the Restic-side daily snapshots already roll off at the same horizon, so there's no marginal value in keeping the bucket longer than the snapshots' own retention.**
+4. **Validate-policy enforcement timing.** Phase 3 step 3b deploys the deny-on-missing-engine validate policy in Audit mode. When to flip to Enforce? Lean: **after Phase 5 exit, before Phase 6 starts.** Codex v2 finding [6] said "require Enforce before Phase 5" — but that would block any Phase 5 admission if the label is mis-set, with no safety net. Better: Audit during Phase 5 (catches mistakes via reports), Enforce during Phase 6 (locks the contract once everything is on Kopia).
 
-5. **CNPG apps.** WAL backup is independent (covered by `project_cnpg_migration.md`). But the `<app>-db-N` data PVC is still volsync-labeled. Will Kopia's snapshot of a live postgres PVC be crash-consistent? Restic+volsync was using `copyMethod: Snapshot` (CSI VolumeSnapshot → restore PVC → Kopia reads from the consistent snapshot). Phase 0 audit confirms: Kopia mover MUST use the same `copyMethod: Snapshot` flow.
-
-6. **Rollback at Phase 6 boundary.** Once we delete the Restic Kyverno policy in Phase 6, per-app rollback is constrained to "restore from the read-only Restic bucket via the emergency runbook" (§9). Is there a "Phase 5.9" safety-pause we should formalize? Lean: yes — Phase 5 exit criteria already require "every app has ≥1 verified Kopia snapshot", so Phase 6 starts only when the system is fully cut over. The 30-day Restic-bucket window IS the rollback safety net.
-
-7. **Restic policy rename hazard.** Phase 3 step 3c renames the policy to `volsync-pvc-backup-restore-restic` and adds a label selector. Renaming a `ClusterPolicy` triggers Kyverno to GC the old policy and emit the new one — at which point `generateExisting: true` would re-emit children for matching PVCs. With the engine-gate selector added simultaneously, only `backup-engine: restic`-labeled PVCs match, which (after step 3a backfill) is all of them. **Risk: if step 3a backfill is incomplete, some PVCs lose their Restic Secret/RS/RD when the rename happens.** Mitigation: step 3a's verification gate (label count parity) MUST pass before step 3c is merged.
+5. **Rollback at Phase 6 boundary.** Phase 5 exit criteria require every app to have ≥1 verified Kopia snapshot — so Phase 6 only starts when fully cut over. The 30-day Restic-bucket window IS the rollback safety net. No further "Phase 5.9" pause needed.
 
 ---
 
@@ -397,9 +483,13 @@ Still open, for the user to decide before Phase 1:
 
 ---
 
-## 9. Emergency restore runbook (Codex finding [5]) — Restic-side, valid until Phase 6 + 30 days
+## 9. Emergency restore runbook — Restic-side, valid until Phase 6 + 30 days
 
-If a PVC needs restore between cutover (Phase 5) and Restic-bucket retirement (Phase 6 + 30 days):
+> **⚠️ DO NOT USE THIS RUNBOOK FOR CNPG-MANAGED DATABASE PVCs** (Codex v2 finding [5]). CNPG owns its data PVCs' lifecycle and reconciles them from the `Cluster` resource. Annotating a CNPG-owned PVC with `volsync.backup/skip-restore: "true"` will get overwritten on the next operator reconcile, and `rsync`ing data into a live Postgres data directory violates CNPG's recovery semantics (WAL replay, base backup restore, etc.). For CNPG apps, restore via `Cluster.bootstrap.recovery` — patch the app's db `Cluster` manifest to add a `bootstrap.recovery:` block, push to git, let Flux reconcile, wait for `Cluster Ready`, reconnect the app. Full procedure in [`docs/backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery".
+>
+> **This runbook applies to NON-CNPG PVCs only.** Examples in scope: vaultwarden, home-assistant, joplin (the notes PVC, not the CNPG db), wiki-js-data (the content PVC, not the CNPG db), media app config PVCs, etc.
+
+If a non-CNPG PVC needs restore between cutover (Phase 5) and Restic-bucket retirement (Phase 6 + 30 days):
 
 1. **Confirm the snapshot exists in the read-only Restic repo:**
    ```bash
@@ -415,11 +505,71 @@ If a PVC needs restore between cutover (Phase 5) and Restic-bucket retirement (P
 
 **Garage retention:** Restic bucket `volsync-shared` is retained read-only for **30 days after Phase 6 completion**. After that, the bucket is deleted and this runbook is no longer applicable. After Phase 6 + 30 days, only Kopia-side recovery exists — same as the steady-state cluster.
 
+### 9.1 Pre-Phase-6 runbook validation test (Codex v3 finding [5])
+
+This runbook is **theory until proven on this cluster**. The referenced smoke-test template (`apps/archive/04-volsync-shared-init-smoketest.yaml`) only validates restic backup/restore/diff in `/tmp`, not `rsync` into a mounted PVC. Before Phase 6 begins (after Phase 5 cutovers complete), run this scratch validation on the live cluster to prove the recipe works end-to-end:
+
+```bash
+# 1. Create scratch namespace
+kubectl create ns volsync-restore-runbook-test
+
+# 2. Create source PVC + target PVC, both 1Gi ceph-rbd
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: runbook-source, namespace: volsync-restore-runbook-test }
+spec: { accessModes: [ReadWriteOnce], storageClassName: ceph-rbd, resources: { requests: { storage: 1Gi } } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: runbook-target, namespace: volsync-restore-runbook-test }
+spec: { accessModes: [ReadWriteOnce], storageClassName: ceph-rbd, resources: { requests: { storage: 1Gi } } }
+EOF
+
+# 3. Write known content + sha256 manifest to runbook-source via a writer Pod
+# 4. Run restic backup against the source, tagged volsync-restore-runbook-test/runbook-source
+# 5. Run the §9 restore Job: mount runbook-target at /data and restic restore output at /restore
+# 6. rsync -aHAX /restore/.../runbook-source/ /data/ inside the Job
+# 7. Verify sha256sum on runbook-target matches the manifest from step 3
+# 8. Tear down: kubectl delete ns volsync-restore-runbook-test
+```
+
+**Pass criteria:** sha256 manifest from step 7 byte-for-byte equal to step 3's manifest. **Until this test passes, do NOT proceed with Phase 6 retiring the Restic stack.** Test against scratch PVCs only — do NOT use production app PVCs as the runbook's first real exercise.
+
 ---
 
-## 10. Codex adversarial review v1 — addressed findings
+## 10. Codex adversarial reviews — addressed findings
 
-10 findings raised against draft v1 (`2026-05-17 ~04:30 local`). All applied to v2.
+### v3 review (against v3 draft, 2026-05-17 ~05:30 local)
+
+6 findings against v3 (2 HIGH, 4 MED). v3's biggest weakness was namespace-based CNPG exclusion — would have blocked migration of legitimate app PVCs in shared namespaces. v4 also tightens batch concurrency (3 in-flight max, 1 for big-data) and rewrites Stage B/5b/Stage C ordering explicitly to prevent a race that only matters if a driver-script implementor cuts corners.
+
+| # | Severity | Finding | Resolution in v4 |
+|---|---|---|---|
+| 1 | MED | Same-PVC concurrent CSI snapshot pressure | Phase 5 step 1.3 adds a preflight gate that waits for active Restic backup Jobs before applying the Kopia probe RS. |
+| 2 | HIGH | Stage B/5b/Stage C ordering race | Phase 5 step 1.10 + step 3 rewritten explicitly: Stage B exits with Flux suspended, 5b PR merges, source git reconciles, then Stage C verifies before resume. |
+| 3 | HIGH | CNPG exclusion by namespace would block app PVCs in shared namespaces | Phase 3 step 3d switches to label-based exclude (`cnpg.io/cluster Exists` OR `app.kubernetes.io/managed-by ∈ {cnpg, cloudnative-pg}`). |
+| 4 | MED | Phase 0 "destructive retention" BLOCKER too vague | Replaced with concrete Kopia commands (`snapshot expire --delete`, `maintenance run --full`, `policy set` with synthesized retention scope) — testable not vibes. |
+| 5 | MED | §9 emergency runbook untested theory | §9.1 added: scratch-namespace validation test, sha256 byte-equal pass criterion, required to pass before Phase 6. |
+| 6 | HIGH | "Batches of 12" reproduces today's herd | Phase 5 batch ordering caps in-flight concurrency at 3 normal / 1 big-data via a driver semaphore. Batch LIST size of 12 fine, but only 3 run at a time. |
+
+### v2 review (against v2 draft, 2026-05-17 ~05:00 local)
+
+7 findings against v2. v2's biggest weakness was the `backup-engine: migrating` Phase 5 cutover state, which Codex correctly identified as creating a "neither engine owns this PVC" window — fixed in v3 by the parallel-probe-RS approach.
+
+| # | Severity | Finding | Resolution in v3 |
+|---|---|---|---|
+| 1 | HIGH | v2 only partially closed v1 findings 2, 4, 7, 9, 10 | Findings 2, 4, 7, 9 fully closed in v3 by Phase 3/5 restructure. Finding 10 closed by Phase 0 decision tree. |
+| 2 | HIGH | Step 3c renamed the policy = force-recreate hazard | v3 drops the rename. Pure in-place selector patch. Rename deferred to Phase 6 where deletion makes it safe. |
+| 3 | HIGH | `backup-engine: migrating` not enumerated in validate policy = direct contradiction | v3 abandons the `migrating` state entirely. Parallel-probe-RS approach has no transient label state. |
+| 4 | HIGH | Phase 0 audit lacked BLOCKER/WORKAROUND criteria | v3 Phase 0 now has explicit BLOCKER and WORKAROUND lists with concrete examples. |
+| 5 | MED | §9 runbook unsafe for CNPG PVCs | v3 §9 leads with a CNPG callout box pointing at `Cluster.bootstrap.recovery` per `backup-recovery.md`. |
+| 6 | HIGH | Open Qs not closed: cache sizing + CNPG snapshot consistency | v3 closes both — `cacheCapacity: 10Gi` default for >100Gi PVCs (Phase 2 smoke test gate); CNPG data PVCs excluded from policy entirely. |
+| 7 | HIGH | Phase 5 created no-backup interval before Kopia probe | v3 parallel-probe-RS: Kopia RS spawned ALONGSIDE the active Restic RS, not after. Engine label flips only after probe commits. |
+
+### v1 review (against v1 draft, 2026-05-17 ~04:30 local)
+
+10 findings against v1. All applied to v2.
 
 | # | Severity | Area | Finding | Resolution in v2 |
 |---|---|---|---|---|
@@ -450,5 +600,9 @@ What v2 did NOT change (acknowledged but accepted):
 | 2026-05-17 | This transition plan drafted v1 | Claude |
 | 2026-05-17 | Codex adversarial review v1 | Codex |
 | 2026-05-17 | v2 applied — Phase 0 audit gate, Phase 3 policy split, Phase 4 cold-start-with-gate, Phase 5 transient-migrating-state, §9 emergency runbook | Claude |
-| TBD | Phase 0 sign-off (user reads v2, audits `mover-kopia/entry.sh`, confirms commit) | User |
+| 2026-05-17 | Codex adversarial review v2 (7 new findings against v2) | Codex |
+| 2026-05-17 | v3 applied — Phase 3 no-rename, Phase 5 parallel-probe-RS handoff (drops `migrating`), CNPG excludes, Phase 0 BLOCKER decision tree, §9 CNPG callout, cache-sizing locked at 10Gi default | Claude |
+| 2026-05-17 | Codex adversarial review v3 (6 new findings against v3) | Codex |
+| 2026-05-17 | v4 applied — CNPG exclude by label not namespace, concurrency cap (3 normal / 1 big-data), explicit Stage B/5b/C ordering, Phase 5 same-PVC preflight, Phase 0 BLOCKER specifics, §9.1 scratch validation test | Claude |
+| TBD | Phase 0 sign-off (user reads v4, audits `mover-kopia/entry.sh`, confirms commit) | User |
 | TBD | Phase 1 start | User |
