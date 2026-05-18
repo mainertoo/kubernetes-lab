@@ -6,3 +6,4 @@ resources:
   - ui-toolkit-secret.sops.yaml
   - ui-toolkit-release.yaml
   - ui-toolkit-ingressroute.yaml
+  - ui-toolkit-pvc.yaml
