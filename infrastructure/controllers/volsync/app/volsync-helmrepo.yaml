@@ -1,0 +1,27 @@
+# Perfectra1n's volsync fork — required for Kopia mover support.
+#
+# Upstream backube/volsync does not ship a Kopia mover (only an open PR
+# #1723 stalled since 2025-08-06). The mitchross/talos-argocd-proxmox
+# reference design actually uses this fork too. Their research doc:
+# docs/research/volsync-fork-vs-upstream-2026-05-08.md concludes
+# "stay on the fork, delete the JobMutator" — same path we took.
+#
+# Chart and image versions are intentionally mismatched per mitchross's
+# values.yaml comments — perfectra1n cuts chart releases on a different
+# cadence than image releases. Chart 0.18.5 + image v0.17.11 is the last-
+# verified-working combination as of 2026-05-18.
+#
+# No `verify.provider: cosign` here — perfectra1n's chart is not
+# cosign-signed. The previous OCIRepository against
+# ghcr.io/home-operations/charts-mirror/volsync DID verify cosign. This
+# is a deliberate downgrade in supply-chain assurance, accepted because
+# no upstream Kopia option exists. See docs/volsync-kopia-transition.md
+# §7 for the risk register entry on fork CVE-lag mitigation.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: perfectra1n-volsync
+  namespace: volsync-system
+spec:
+  interval: 1h
+  url: https://perfectra1n.github.io/volsync/charts
