@@ -5,10 +5,15 @@ metadata:
   namespace: volsync-system
 spec:
   interval: 1h
-  chartRef:
-    kind: OCIRepository
-    name: volsync
-    namespace: volsync-system
+  chart:
+    spec:
+      chart: volsync
+      version: 0.18.5
+      sourceRef:
+        kind: HelmRepository
+        name: perfectra1n-volsync
+        namespace: volsync-system
+      interval: 24h
   install:
     remediation:
       retries: 3
@@ -19,7 +24,27 @@ spec:
       retries: 3
   values:
     manageCRDs: true
-    replicaCount: 1
+    # DELIBERATE replicas=0 (v8 Phase 1a operational deviation, 2026-05-18):
+    # Live cluster has the deployment scaled to 0 since the 2026-05-17
+    # restic forget storm (see project_volsync_label_driven_restore).
+    # Existing 41 Kyverno-managed ReplicationSources still have no retain
+    # in their spec — booting volsync at replicas=1 here would trigger
+    # volsync's destructive `--keep-last 1` default and start a new storm.
+    # We re-enable as part of the Phase 5 cutover protocol, after the
+    # Kyverno policy split + Kopia data path are in place.
+    replicaCount: 0
     metrics:
       disableAuth: true
+    # Perfectra1n image overrides — pattern from mitchross's values.yaml.
+    # All movers point at the same fork image. Chart 0.18.5 / image v0.17.11
+    # is the last-verified-working combination per mitchross's notes.
+    image: &volsyncImage
+      repository: ghcr.io/perfectra1n/volsync
+      tag: v0.17.11
+    kopia: *volsyncImage
+    rclone: *volsyncImage
+    restic: *volsyncImage
+    rsync: *volsyncImage
+    rsync-tls: *volsyncImage
+    syncthing: *volsyncImage
   targetNamespace: volsync-system
