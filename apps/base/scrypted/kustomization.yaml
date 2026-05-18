@@ -4,7 +4,7 @@ namespace: scrypted
 resources:
   - scrypted-namespace.yaml
   # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
-  # - scrypted-pvc.yaml
+  - scrypted-pvc.yaml
   - scrypted-secret.sops.yaml
   - scrypted-release.yaml
   - scrypted-serversTransport.yaml
