@@ -13,7 +13,7 @@ metadata:
     # No dataSourceRef to mirror — mealie's PVC is owned by the
     # HelmRelease (backup-only variant), never bootstrap-populated.
     backup: daily
-    backup-engine: restic
+    backup-engine: kopia
 spec:
   accessModes:
     - ReadWriteOnce
