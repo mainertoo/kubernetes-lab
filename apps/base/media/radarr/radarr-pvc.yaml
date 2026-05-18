@@ -7,7 +7,7 @@ metadata:
     # ClusterPolicy volsync-pvc-backup-restore matches this label and
     # generates volsync-radarr Secret + radarr-backup RS + RD in this ns.
     backup: daily
-    backup-engine: restic
+    backup-engine: kopia
 spec:
   accessModes:
     - ReadWriteOnce
