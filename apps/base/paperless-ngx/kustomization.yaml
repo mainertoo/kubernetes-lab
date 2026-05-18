@@ -4,6 +4,6 @@ namespace: paperless-ngx
 resources:
   - paperless-ngx-namespace.yaml
   - paperless-ngx-ingressroute.yaml
-  # - paperless-ngx-pvc.yaml
+  - paperless-ngx-pvc.yaml
   - paperless-ngx-release.yaml
   - paperless-ngx-secret-oidc.sops.yaml
