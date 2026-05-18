@@ -2,11 +2,17 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: paperless-ngx
-  namespace: paperless-ngx
+  labels:
+    # Phase 5 of the Kopia transition (docs/volsync-kopia-transition.md).
+    # ClusterPolicy volsync-pvc-backup-restore-kopia matches both labels
+    # and generates volsync-paperless-ngx Secret + paperless-ngx-backup RS + RD with
+    # spec.kopia in this ns.
+    backup: daily
+    backup-engine: kopia
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: cephfs
   resources:
     requests:
       storage: 20Gi
-  storageClassName: cephfs
