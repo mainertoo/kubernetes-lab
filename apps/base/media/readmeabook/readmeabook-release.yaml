@@ -109,7 +109,7 @@ spec:
           main:
             image:
               repository: ghcr.io/kikootwo/readmeabook
-              tag: 1.2.0
+              tag: 1.2.1
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
