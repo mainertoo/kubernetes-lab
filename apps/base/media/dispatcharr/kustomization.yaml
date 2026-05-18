@@ -5,3 +5,4 @@ resources:
   # - dispatcharr-data-pvc.yaml
   - dispatcharr-release.yaml
   - dispatcharr-ingressroute.yaml
+  - dispatcharr-pvc.yaml
