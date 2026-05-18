@@ -24,15 +24,14 @@ spec:
       retries: 3
   values:
     manageCRDs: true
-    # DELIBERATE replicas=0 (v8 Phase 1a operational deviation, 2026-05-18):
-    # Live cluster has the deployment scaled to 0 since the 2026-05-17
-    # restic forget storm (see project_volsync_label_driven_restore).
-    # Existing 41 Kyverno-managed ReplicationSources still have no retain
-    # in their spec — booting volsync at replicas=1 here would trigger
-    # volsync's destructive `--keep-last 1` default and start a new storm.
-    # We re-enable as part of the Phase 5 cutover protocol, after the
-    # Kyverno policy split + Kopia data path are in place.
-    replicaCount: 0
+    # Phase 6 of the Kopia transition (2026-05-18). Lifted from 0 → 1 after
+    # all 70 PVCs cut over to backup-engine=kopia (zero remaining on Restic).
+    # Kopia is concurrent-multi-writer per [[feedback_kopia_vs_restic_shared_repo]]
+    # so the 70 simultaneous initial backups won't lock-contend the way Restic
+    # did in the 2026-05-17 storm. Restic-related circuit-breaker reasoning
+    # for keeping this at 0 (see git history) no longer applies — both
+    # Restic policy and pvc-plumber-restic are slated for Phase 7 decom.
+    replicaCount: 1
     metrics:
       disableAuth: true
     # Perfectra1n image overrides — pattern from mitchross's values.yaml.
