@@ -1,0 +1,12 @@
+---
+# pvc-plumber-kopia — HTTP-only Kopia oracle. Phase 2 of the volsync
+# Kopia transition project (docs/volsync-kopia-transition.md).
+#
+# Lives in volsync-system, coexists with pvc-plumber-restic/ during the
+# Phase 5 cutover window. Phase 6 deletes pvc-plumber-restic; this
+# directory becomes the sole pvc-plumber.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - rbac.yaml
+  - deployment.yaml
