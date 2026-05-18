@@ -118,7 +118,17 @@ spec:
               cpu: 10m
               memory: 128Mi
             limits:
-              cpu: 500m
+              # CPU bumped 500m → 1500m 2026-05-18 to clear chronic
+              # CPUThrottlingHigh alerts in kube-prometheus-stack. Live
+              # usage is only 8-12m, but each /exists request briefly
+              # bursts to ~1000m (kopia subprocess + TLS handshake to
+              # Garage HTTPS via Traefik). With a 500m limit + 100ms CFS
+              # period, a 60-80ms burst exceeds the 50ms quota → CFS
+              # throttles → alert fires at >25% throttling.
+              # Mitchross uses 500m too, but their RustFS is in-cluster
+              # plain HTTP — no TLS overhead. Our environment legitimately
+              # needs more burst headroom.
+              cpu: 1500m
               memory: 512Mi
           livenessProbe:
             httpGet:
