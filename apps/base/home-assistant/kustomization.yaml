@@ -7,3 +7,4 @@ resources:
   - home-assistant-ingressroute.yaml
   - home-assistant-secret.sops.yaml
   # - home-assistant-macvlan-nad.yaml
+  - home-assistant-pvc.yaml
