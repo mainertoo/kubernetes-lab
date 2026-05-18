@@ -7,3 +7,4 @@ resources:
   - volsync-garage.sops.yaml
   - volsync-shared-base.sops.yaml
   - pvc-plumber-restic-creds.sops.yaml
+  - volsync-kopia-shared-base.sops.yaml

@@ -1,0 +1,63 @@
+# Canonical shared Kopia repository credentials for the volsync label-driven
+# backup project. Mirrors the role volsync-shared-base played for restic.
+#
+# Consumed by:
+#   1. Phase 1b one-shot init + smoketest Job (apps/archive/05-volsync-kopia-
+#      init-smoketest.yaml), via secretKeyRef on the Job container env.
+#   2. Phase 2 pvc-plumber-kopia deployment (infrastructure/controllers/pvc-
+#      plumber/deployment.yaml), via volumeMount of a same-content Secret in
+#      volsync-system namespace (cross-namespace reference is not allowed for
+#      mounts, so Phase 2 will either render a duplicate Secret in
+#      volsync-system OR adopt mitchross's pattern of a separate creds
+#      bundle there).
+#   3. Phase 3 Kyverno ClusterPolicy volsync-pvc-backup-restore-kopia, which
+#      reads from this Secret at admission time via apiCall to populate the
+#      per-PVC volsync-<pvc> Secret in each app's namespace.
+#
+# Bucket name + S3 endpoint are NOT in this Secret — those are plain config
+# values, not credentials. They live as env vars in the consumer manifests:
+#   KOPIA_S3_ENDPOINT=garage.lab.mainertoo.com
+#   KOPIA_S3_BUCKET=volsync-kopia
+#   KOPIA_S3_DISABLE_TLS=false  (Garage is HTTPS via Traefik)
+#
+# Region: AWS_DEFAULT_REGION=us-west-1 matches the existing volsync-shared-
+# base + volsync-garage configs; Garage doesn't actually care about region
+# but the AWS SDK requires the env var to be present.
+#
+# How to fill in the values BEFORE committing:
+#   1. Replace <PASTE_*> placeholders with actual values from 1Password /
+#      Garage admin (kopia master password, Garage IAM access-key, Garage
+#      IAM secret-key).
+#   2. Save in VS Code — the .sops.yaml extension matches the
+#      .sops.yaml encryption regex in .sops.yaml at repo root, so VS Code
+#      auto-encrypts on save (per project memory feedback re: SOPS workflow).
+#   3. Verify encryption: `head -30` should show all the values as
+#      ENC[AES256_GCM,...] blobs, not plaintext.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: volsync-kopia-shared-base
+    namespace: flux-system
+type: Opaque
+stringData:
+    KOPIA_PASSWORD: ENC[AES256_GCM,data:ux/hUe7rzPq8/SXcyixZW+Uy8z1qlTI2ZWt2HaBVaz6jP/bD/0yNRAL8GEs=,iv:g9TtLZrzmY/C2u5gy8vhUPN4rCFgvOvSms303Sriv5w=,tag:zo+3s4W8ell1gXiwjD7nIg==,type:str]
+    AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:QUvByGbf5kyIICvta+v8kJ9qQuJb0+Lbs0E=,iv:3wfMrimPZ+0pl6uL2DzbQSSlu3KPtzUIbYgmJM4lIwk=,tag:kemxAcni7SMnyEQADlcp6w==,type:str]
+    AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:eQHaQLWYH4YVF/EJ3ZjFQR4+7P7dMM5DZRhU5MuygGouHnfYbczvJ1mfWnrF79FT8yaZxJ76547cgG4gI5bu8g==,iv:5O2+J7WGAEDFXjRRKbBXoU2/FzEb6KO9rsQ26hIuQPE=,tag:Kcy5XZVajV5fx3hiVg1WqQ==,type:str]
+    AWS_DEFAULT_REGION: ENC[AES256_GCM,data:41m2pKBQWZAn,iv:7c3mNQrA9UbZrZSKEeU7Ds8lubiaEQlu6xBuItIsJs8=,tag:GPasN1kza0yg7YX580Rt2w==,type:str]
+    AWS_REGION: ENC[AES256_GCM,data:w+3iIZQl7duN,iv:J9oS5Ma6/MOTAP9b1gwF4iCa30PtFadG57O8chm7adI=,tag:JzRX03q9HyYD/GWfjV6LDA==,type:str]
+    AWS_EC2_METADATA_DISABLED: ENC[AES256_GCM,data:RbBFhQ==,iv:8B5jRA2tjoO9PLR4+EVP63639M7iW8ySt3KWST5BJhY=,tag:HySGDh4lcE7lkTIe9IX64g==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA3OGlScE9zczI1em1NMlZz
+            ampCUjZOQnF2RGRON2xYUEZZNlY2YkxrV1IwCndQSHhZY0EwSHdXTXM0VHE5d2tD
+            N3c3YVhEdXQ1ZXBsL1dCVUVxZWlnWWMKLS0tIDl5ZkhQekRqaUVKaXpJM3UvdWha
+            VVQ3K25jSGRyVzBwNlp1T2RxUnFVdGsKhW/p8yBwQmj4WzCKpyZFz/kEWX1Fp51N
+            zSjCAkokPWy+0vCdkPSaQrGo+KzlYZnkznZQRY6IuNUpno7Bh0iT0A==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-18T02:09:24Z"
+    mac: ENC[AES256_GCM,data:cnNR7olcgu4EqlW/Cjxv+EWTzjK0YT0hNQW4Duz7E24VZPkvCP1jflgDv8UzCoy9y979DLwUyxEU+3tH0gwuPir2ygGahhJ5MFxTyEJ3c7GMIZ9OQajDJxXEB2GY3QBoustlJ/zMDO5aiZv/zlx8f1iqh8t1Xp4u8JAl/in3ey0=,iv:tqEXAjv6RhlWhgbPCLc1m6x8LUpDA0vh4Dho/Onm3ds=,tag:zM/lFGeU8SKfzgiHqq2yVw==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
