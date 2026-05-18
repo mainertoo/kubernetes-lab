@@ -10,6 +10,7 @@ metadata:
     # label (PR #353 patch attempt didn't survive Flux's pre-postBuild
     # patch timing) — now baked into the static manifest.
     backup: daily
+    backup-engine: restic
 spec:
   accessModes:
     - ReadWriteMany
