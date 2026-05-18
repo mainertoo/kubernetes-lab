@@ -1,0 +1,66 @@
+---
+# pvc-plumber-kopia (mitchross/pvc-plumber:3.1.0) — HTTP-only oracle mode.
+#
+# OPERATOR_MODE=false in the Deployment env disables the controller-runtime
+# manager and admission webhooks (see deployment.yaml comment). In that
+# mode the binary serves only `/exists`, `/healthz`, `/readyz`, `/metrics`
+# on port 8080 — no PVC watch, no volsync object lifecycle, no ES write.
+#
+# We keep mitchross's full RBAC anyway because:
+#   1. The verbs are scoped and inert when the controller code paths
+#      aren't exercised — no admission denial, no resource creation.
+#   2. Flipping OPERATOR_MODE=true later (Phase 3+ if we redesign
+#      admission around pvc-plumber's webhooks) needs them already in
+#      place; toggling RBAC alongside an env var is more PRs than
+#      necessary.
+#   3. Lease/Event verbs help even in HTTP mode (controller-runtime's
+#      metrics + ping endpoints emit Events on degraded states).
+#
+# If we settle into HTTP-only-forever in Phase 3, follow-up PR can
+# trim this back to ServiceAccount only.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pvc-plumber
+  namespace: volsync-system
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+    app.kubernetes.io/component: kopia-oracle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-plumber
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["volsync.backube"]
+    resources: ["replicationsources", "replicationdestinations"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pvc-plumber
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-plumber
+subjects:
+  - kind: ServiceAccount
+    name: pvc-plumber
+    namespace: volsync-system

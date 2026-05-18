@@ -42,5 +42,12 @@ resources:
 
   # pvc-plumber-restic — shadow-mode backup-existence oracle for the
   # volsync label-driven restore project (Phase 2;
-  # docs/volsync-storage-recovery.md)
+  # docs/volsync-storage-recovery.md). Deleted in volsync-kopia-transition
+  # Phase 6 once all apps cut over to Kopia.
   - pvc-plumber-restic
+
+  # pvc-plumber (Kopia oracle) — HTTP-only mode, mitchross/pvc-plumber:3.1.0.
+  # Phase 2 of docs/volsync-kopia-transition.md. Coexists with the restic
+  # variant above through Phase 5 cutover. Different Deployment + Service
+  # names, both in volsync-system.
+  - pvc-plumber
