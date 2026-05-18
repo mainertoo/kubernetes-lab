@@ -4,3 +4,4 @@ namespace: media
 resources:
   - sym-sonarr4k-release.yaml
   - sym-sonarr4k-ingressroute.yaml
+  - sym-sonarr4k-pvc.yaml
