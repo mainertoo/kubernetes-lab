@@ -2,5 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - kyverno-volsync-jitter.yaml
-  - volsync-pvc-backup-restore.yaml
   - volsync-policy-rbac.yaml
+  # Phase 3b — engine-label admission gate. MUST load BEFORE the engine-
+  # gated generate policies so admission rejects PVCs missing the label
+  # before either policy can match.
+  - volsync-pvc-engine-required.yaml
+  # Phase 3c — Restic policy (existing), now gated by backup-engine=restic
+  - volsync-pvc-backup-restore.yaml
+  # Phase 3d — Kopia policy (new). Activates when PVCs flip to
+  # backup-engine=kopia in Phase 5 cutover.
+  - volsync-pvc-backup-restore-kopia.yaml

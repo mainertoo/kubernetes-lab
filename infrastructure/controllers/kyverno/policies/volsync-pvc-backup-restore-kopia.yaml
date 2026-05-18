@@ -1,42 +1,65 @@
-# volsync-pvc-backup-restore — 7-rule ClusterPolicy for the volsync
-# label-driven restore project. Rules 1-4 validate admission; rule 2
-# mutates dataSourceRef on restore; rules 5-7 generate the per-PVC
-# Secret + ReplicationSource + ReplicationDestination trio that
-# replaces the legacy components/volsync/remote Component.
+# volsync-pvc-backup-restore-kopia — Phase 3d of docs/volsync-kopia-transition.md.
 #
-# Phase ordering:
-#   - Phase 4 (PR #345): only rules 1 + 4 (both validate, Audit)
-#   - Phase 5 prep (THIS commit): adds rules 2, 3, 5, 6, 7
-#   - Phase 6: flips validationFailureAction Audit → Enforce
+# Twin of volsync-pvc-backup-restore (the Restic policy) for the Kopia
+# data path. Same 7-rule structure, same admission semantics, same
+# generate-rule shape — but:
+#   1. Engine selector: backup-engine=kopia (Restic policy uses =restic)
+#   2. Oracle URL: pvc-plumber.volsync-system (Kopia, port 80 — HTTP-only
+#      mode deployed Phase 2). Restic policy uses pvc-plumber-restic on
+#      port 8080.
+#   3. Generated Secret holds KOPIA_PASSWORD + KOPIA_S3_* + AWS_* creds
+#      sourced from Secret/flux-system/volsync-kopia-shared-base. Restic
+#      Secret holds RESTIC_PASSWORD + RESTIC_REPOSITORY + AWS_*.
+#   4. Generated RS/RD use spec.kopia: instead of spec.restic:. Includes
+#      hostname=<ns>, username=<pvc>-backup, sourcePathOverride=/data
+#      to match the source-path convention pvc-plumber-kopia expects
+#      (verified at Phase 2 smoketest: oracle returns
+#      source=<pvc>-backup@<ns>:/data for any /exists query).
+#   5. Additional namespace-label exclude for CNPG-managed PVCs
+#      (cnpg.io/cluster Exists OR app.kubernetes.io/managed-by ∈
+#      {cnpg, cloudnative-pg}). Per docs/volsync-kopia-transition.md §10
+#      v3-finding [3], CNPG data PVCs are out of scope: they use
+#      Cluster.bootstrap.recovery per docs/backup-recovery.md.
+#   6. webhookTimeoutSeconds: 20 (Restic policy uses 10). v8 Codex v5
+#      finding [5]: kopia pvc-plumber's HTTP_TIMEOUT is 15s (Garage
+#      HTTPS via Traefik). Kyverno webhook timeout must exceed it.
+#   7. retain: omitted from rule 6 (mirror of v7 Restic-side change).
+#      Per perfectra1n's mover Phase 0 audit, controller mover.go:898
+#      returns empty env vars when retainPolicy is nil → mover does no
+#      retention work, just snapshot+create. Maintenance happens via
+#      the KopiaMaintenance CRD (mitchross pvc-plumber:3.1.0 ships it).
 #
-# Activation: a PVC must carry label `backup: hourly` or `backup: daily`
-# for the policy to fire. Until per-app 5a PRs land, no production PVC
-# has that label; the policy stays dormant.
+# Mode: validationFailureAction=Audit during Phase 5. v8 §6 OQ#4:
+# flip to Enforce in Phase 6.
 #
-# References:
-#   - design doc: docs/volsync-storage-recovery.md §2.3
-#   - shared repo url: s3:https://garage.lab.mainertoo.com/volsync-shared/restic
-#   - shared creds source: Secret/flux-system/volsync-shared-base (RESTIC_PASSWORD + AWS_*)
-#   - aggregated RBAC: volsync-policy-rbac.yaml in this directory
+# Activation: PVC must carry BOTH labels: backup ∈ {hourly, daily}
+# AND backup-engine: kopia. Until per-app Phase 5 cutovers flip the
+# engine label, no PVC matches → policy is dormant. Phase 3e validates
+# this via a scratch namespace + scratch PVC before any production PVC
+# touches the new policy.
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: volsync-pvc-backup-restore
+  name: volsync-pvc-backup-restore-kopia
   annotations:
-    policies.kyverno.io/title: VolSync PVC backup/restore admission
+    policies.kyverno.io/title: VolSync Kopia PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: PersistentVolumeClaim
     policies.kyverno.io/description: >-
       Backup-existence-aware PVC admission validation + mutation +
-      generation. Calls pvc-plumber-restic to inject dataSourceRef on
-      restore, validates the answer is authoritative, and generates
-      the per-PVC Secret/RS/RD trio that drives the VolSync mover.
+      generation for Kopia-backed apps. Calls pvc-plumber to inject
+      dataSourceRef on restore, validates the answer is authoritative,
+      and generates the per-PVC Secret/RS/RD trio with spec.kopia
+      that drives the VolSync Kopia mover.
 spec:
   validationFailureAction: Audit
   background: false
   failurePolicy: Fail
-  webhookTimeoutSeconds: 10
+  # v8 Codex v5 finding [5]: kopia HTTP_TIMEOUT=15s (Garage HTTPS via
+  # Traefik). Webhook timeout must exceed it. Restic policy still uses
+  # 10s because pvc-plumber-restic's HTTP_TIMEOUT is shorter.
+  webhookTimeoutSeconds: 20
   rules:
     # ─────────────────────────────────────────────────────────────────
     # Rule 1: require-authoritative-backup-decision  (validate, Audit)
@@ -52,18 +75,12 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
+          # Namespace excludes (mirror of Restic policy).
           - resources:
               namespaces:
                 - flux-system
@@ -79,12 +96,25 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          # CNPG label excludes (v6 finding [3]: by label, NOT namespace —
+          # CNPG dbs share namespaces with app PVCs we DO want to migrate).
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       context:
         - name: existsResponse
           apiCall:
             method: GET
             service:
-              url: "http://pvc-plumber-restic.volsync-system.svc.cluster.local:8080/exists/{{request.namespace}}/{{request.object.metadata.name}}"
+              url: "http://pvc-plumber.volsync-system.svc.cluster.local:80/exists/{{request.namespace}}/{{request.object.metadata.name}}"
             jmesPath: "@"
       preconditions:
         all:
@@ -94,8 +124,9 @@ spec:
       validate:
         message: >-
           PVC {{request.namespace}}/{{request.object.metadata.name}}
-          admission requires an authoritative backup-existence decision.
-          Oracle returned authoritative={{existsResponse.authoritative}},
+          admission requires an authoritative backup-existence decision
+          (Kopia oracle). Oracle returned
+          authoritative={{existsResponse.authoritative}},
           decision={{existsResponse.decision}},
           error={{existsResponse.error || 'none'}}.
         deny:
@@ -111,20 +142,6 @@ spec:
     # ─────────────────────────────────────────────────────────────────
     # Rule 2: add-datasource-if-backup-exists  (mutate)
     # ─────────────────────────────────────────────────────────────────
-    # When the oracle says decision=restore AND the PVC doesn't already
-    # carry a dataSourceRef, patch in a ReplicationDestination ref so
-    # the CSI populator pulls the source data from the shared repo.
-    # Skips when skip-restore=true (escape hatch) or when the PVC's
-    # dataSourceRef is already set (don't clobber).
-    #
-    # operations: [CREATE] — mutate is ONLY meaningful at PVC create
-    # time (before bind, so the CSI populator can act on it). PVC spec
-    # is immutable post-bind, so firing on UPDATE events (e.g. when
-    # Phase 5 adds the backup label to an existing PVC with no
-    # dataSourceRef) causes K8s admission to reject the entire change.
-    # First surfaced on mealie cutover: its PVC had dataSourceRef=null
-    # so the precondition matched, mutate fired on label-add, K8s
-    # rejected the patch.
     - name: add-datasource-if-backup-exists
       match:
         any:
@@ -138,16 +155,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -165,12 +175,23 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       context:
         - name: existsResponse
           apiCall:
             method: GET
             service:
-              url: "http://pvc-plumber-restic.volsync-system.svc.cluster.local:8080/exists/{{request.namespace}}/{{request.object.metadata.name}}"
+              url: "http://pvc-plumber.volsync-system.svc.cluster.local:80/exists/{{request.namespace}}/{{request.object.metadata.name}}"
             jmesPath: "@"
       preconditions:
         all:
@@ -183,7 +204,6 @@ spec:
           - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
             operator: NotEquals
             value: "true"
-          # Don't clobber a dataSourceRef the user explicitly set.
           - key: "{{ request.object.spec.dataSourceRef.name || '' }}"
             operator: Equals
             value: ""
@@ -198,14 +218,6 @@ spec:
     # ─────────────────────────────────────────────────────────────────
     # Rule 3: require-datasource-when-restore  (validate post-mutate)
     # ─────────────────────────────────────────────────────────────────
-    # Closes the validate/mutate race: if rule 2's apiCall returned
-    # non-authoritative on the mutate webhook BUT this validate
-    # webhook's call succeeded, the PVC would otherwise be created
-    # without dataSourceRef but oracle says restore — empty PVC over
-    # historical data. Catch that here.
-    #
-    # operations: [CREATE] — pairs with rule 2; only meaningful at
-    # create time when rule 2 had a chance to fire.
     - name: require-datasource-when-restore
       match:
         any:
@@ -219,16 +231,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -246,12 +251,23 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       context:
         - name: existsResponse
           apiCall:
             method: GET
             service:
-              url: "http://pvc-plumber-restic.volsync-system.svc.cluster.local:8080/exists/{{request.namespace}}/{{request.object.metadata.name}}"
+              url: "http://pvc-plumber.volsync-system.svc.cluster.local:80/exists/{{request.namespace}}/{{request.object.metadata.name}}"
             jmesPath: "@"
       preconditions:
         all:
@@ -268,9 +284,9 @@ spec:
         message: >-
           PVC {{request.namespace}}/{{request.object.metadata.name}}:
           oracle says decision=restore but spec.dataSourceRef.name is
-          empty. The mutate rule (rule 2) should have patched it in;
-          if you see this, the mutate rule's apiCall returned
-          non-authoritative on a webhook that succeeded here. Retry.
+          empty. Rule 2 should have patched it in; if you see this,
+          the mutate rule's apiCall returned non-authoritative on a
+          webhook that succeeded here. Retry.
         deny:
           conditions:
             any:
@@ -292,16 +308,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -319,6 +328,17 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       preconditions:
         all:
           - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
@@ -338,17 +358,14 @@ spec:
                 value: ""
 
     # ─────────────────────────────────────────────────────────────────
-    # Rule 5: generate-restic-secret  (generate, synchronize: true)
+    # Rule 5: generate-kopia-secret  (generate, synchronize: true)
     # ─────────────────────────────────────────────────────────────────
     # Creates per-PVC `volsync-<pvc>` Secret in the PVC's namespace.
-    # Pulls shared password + S3 creds from Secret/flux-system/volsync-
-    # shared-base; adds RESTIC_REPOSITORY (hardcoded shared repo URL)
-    # and RESTIC_HOSTNAME=<ns>/<pvc> for tag enforcement on backup.
-    #
-    # Skipped via precondition when skip-restore=true; the design
-    # doc §2.6 specifies that skip-restore suppresses backup generation
-    # entirely, not just the restore path.
-    - name: generate-restic-secret
+    # Sources KOPIA_PASSWORD + AWS_* from Secret/flux-system/volsync-
+    # kopia-shared-base. Hardcodes KOPIA_S3_ENDPOINT, KOPIA_S3_BUCKET,
+    # KOPIA_S3_DISABLE_TLS to match the values pvc-plumber-kopia uses
+    # (single source of truth: same Garage endpoint + bucket).
+    - name: generate-kopia-secret
       match:
         any:
           - resources:
@@ -359,16 +376,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -386,6 +396,17 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       preconditions:
         all:
           - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
@@ -395,16 +416,10 @@ spec:
         - name: sharedSecret
           apiCall:
             method: GET
-            urlPath: "/api/v1/namespaces/flux-system/secrets/volsync-shared-base"
+            urlPath: "/api/v1/namespaces/flux-system/secrets/volsync-kopia-shared-base"
             jmesPath: "@"
       generate:
         synchronize: true
-        # Fire on existing matching PVCs at policy load, not just on
-        # PVC CREATE/UPDATE events. Without this, force-recreating the
-        # policy (e.g. to change generate.data values via [[feedback_
-        # kyverno_generate_rules_immutable]]) leaves all matching PVCs
-        # without their generated children until each PVC is manually
-        # touched. Verified 2026-05-16 on the cacheCapacity v2 rollout.
         generateExisting: true
         apiVersion: v1
         kind: Secret
@@ -413,32 +428,29 @@ spec:
         data:
           type: Opaque
           stringData:
-            # Hardcoded shared repo URL — single point of truth, single
-            # password unlocks all backups. Acknowledged in design §2.1.
-            RESTIC_REPOSITORY: "s3:https://garage.lab.mainertoo.com/volsync-shared/restic"
-            RESTIC_PASSWORD: "{{ base64_decode(sharedSecret.data.RESTIC_PASSWORD) }}"
+            KOPIA_PASSWORD: "{{ base64_decode(sharedSecret.data.KOPIA_PASSWORD) }}"
             AWS_ACCESS_KEY_ID: "{{ base64_decode(sharedSecret.data.AWS_ACCESS_KEY_ID) }}"
             AWS_SECRET_ACCESS_KEY: "{{ base64_decode(sharedSecret.data.AWS_SECRET_ACCESS_KEY) }}"
-            # Tag enforcement on backup: the mover's restic invocation
-            # carries this hostname; VolSync auto-tags snapshots with
-            # the hostname for downstream filtering.
-            RESTIC_HOSTNAME: "{{request.object.metadata.namespace}}/{{request.object.metadata.name}}"
+            # Hardcoded Garage endpoint + bucket — single source of truth,
+            # matches pvc-plumber-kopia's deployment env. Bare host (kopia
+            # rejects fully-qualified URLs). HTTPS implied via
+            # KOPIA_S3_DISABLE_TLS=false.
+            KOPIA_S3_ENDPOINT: "garage.lab.mainertoo.com"
+            KOPIA_S3_BUCKET: "volsync-kopia"
+            KOPIA_S3_DISABLE_TLS: "false"
+            AWS_DEFAULT_REGION: "us-west-1"
+            AWS_REGION: "us-west-1"
             AWS_EC2_METADATA_DISABLED: "true"
 
     # ─────────────────────────────────────────────────────────────────
-    # Rule 6: generate-replication-source-v2  (generate, synchronize: true)
+    # Rule 6: generate-replication-source  (generate, synchronize: true)
     # ─────────────────────────────────────────────────────────────────
     # Creates `<pvc>-backup` RS in the PVC's namespace. Schedule + cron
-    # minute derived from label and namespace length per design §2.4.
-    # Storage class and snapshot class are derived from the source PVC's
-    # own spec so the generated RS handles cephfs and ceph-rbd uniformly.
-    #
-    # Renamed from `generate-replication-source` to bypass Kyverno's
-    # admission block on in-place generate.data edits (PRs #373/#376
-    # round-tripped that path). The old rule is removed; Kyverno's
-    # synchronize: true cleanup GCs its RSes and this rule regenerates
-    # them with the new cacheCapacity semantics.
-    - name: generate-replication-source-v2
+    # minute derived from label and namespace length (mirror of Restic
+    # policy rule 6). spec.kopia uses hostname=<ns> + username=<pvc>-
+    # backup + sourcePathOverride=/data to match the source-path
+    # convention pvc-plumber-kopia returns from /exists.
+    - name: generate-replication-source
       match:
         any:
           - resources:
@@ -449,16 +461,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -476,47 +481,43 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       preconditions:
         all:
           - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
             operator: NotEquals
             value: "true"
       context:
-        # Minute is `length(namespace) % 60` — gives each namespace a
-        # distinct minute spread across the hour.
         - name: scheduleMinute
           variable:
             jmesPath: "to_string(modulo(length(request.namespace), `60`))"
-        # Hour is '*' for hourly schedules, '2' for daily (02:MM local).
         - name: scheduleHour
           variable:
             jmesPath: "request.object.metadata.labels.backup == 'hourly' && '*' || '2'"
-        # Snapshot class matches storage class — closed set in cluster:
-        # cephfs → cephfs-snapclass; everything else → ceph-rbd-snapclass.
         - name: snapClass
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'cephfs-snapclass' || 'ceph-rbd-snapclass'"
-        # accessModes is a list; derive from storage class type.
-        # cephfs is RWX; ceph-rbd is RWO. Matches what `kubectl get rs
-        # -A` shows on the existing 70 RSes.
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
-        # Cache PVC size. Default 5Gi (was hardcoded 1Gi in the v1 rule —
-        # too small for the shared-repo design where the cache holds
-        # restic index/pack metadata for ALL apps' snapshots in the
-        # shared repo, not just this app's). Per-PVC override via
-        # annotation `volsync.backup/cache-capacity: 10Gi`. Apps with
-        # >50Gi sources or large file counts (dumb, plex, jellyfin,
-        # large media libraries, esphome/platformio toolchains) should
-        # set explicit values.
+        # Cache PVC size. Default 5Gi; v8 plan calls for 10Gi default
+        # on PVCs >100Gi (Phase 5 batch-4 big-data apps set explicit
+        # 10Gi via the existing `volsync.backup/cache-capacity` annotation).
         - name: cacheCap
           variable:
             jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
-        # See rule 5 comment — fires on existing matching PVCs at policy
-        # load so future force-recreates self-heal.
         generateExisting: true
         apiVersion: volsync.backube/v1alpha1
         kind: ReplicationSource
@@ -527,7 +528,7 @@ spec:
             sourcePVC: "{{request.object.metadata.name}}"
             trigger:
               schedule: "{{scheduleMinute}} {{scheduleHour}} * * *"
-            restic:
+            kopia:
               repository: "volsync-{{request.object.metadata.name}}"
               copyMethod: Snapshot
               storageClassName: "{{request.object.spec.storageClassName}}"
@@ -542,29 +543,28 @@ spec:
                 fsGroup: 1000
                 runAsUser: 1000
                 runAsGroup: 1000
-              # `retain:` intentionally omitted. With `retain` present,
-              # the volsync mover runs `restic forget --retry-lock=0s`
-              # after each backup — that's an exclusive lock on the
-              # shared repo and N concurrent movers collide. Without
-              # `retain` the mover script skips forget entirely. The
-              # 24h/7d/4w/3m retention policy is now applied centrally
-              # by the `volsync-restic-forget` CronJob (volsync-system),
-              # which is the sole writer holding the exclusive lock.
-              # pruneIntervalDays is also omitted — repack/prune runs
-              # under the central CronJob's --prune flag instead.
+              # Kopia source-identity overrides — matches the convention
+              # pvc-plumber-kopia returns from /exists/<ns>/<pvc>:
+              # source=<pvc>-backup@<ns>:/data (verified Phase 2 smoketest).
+              hostname: "{{request.object.metadata.namespace}}"
+              username: "{{request.object.metadata.name}}-backup"
+              sourcePathOverride: "/data"
+              # retain: intentionally omitted (same reasoning as Restic
+              # policy v7 onward). Kopia's controller passes empty env
+              # vars when retainPolicy is nil → mover does no retention.
+              # Maintenance happens via the KopiaMaintenance CRD shipped
+              # by perfectra1n's chart + reconciled by mitchross's
+              # pvc-plumber operator (when we flip OPERATOR_MODE=true
+              # in a future PR; for now HTTP-only oracle, manual
+              # KopiaMaintenance CR creation if needed).
 
     # ─────────────────────────────────────────────────────────────────
-    # Rule 7: generate-replication-destination-v2  (generate, synchronize: true)
+    # Rule 7: generate-replication-destination  (generate, synchronize: true)
     # ─────────────────────────────────────────────────────────────────
-    # Creates `<pvc>-backup` RD in the PVC's namespace. The mutate rule
-    # patches the PVC's dataSourceRef to point here, and the CSI
-    # populator triggers the RD to populate fresh PVCs from restic.
-    # `trigger.manual` is constant — the RD fires once on first
-    # restore, then idles.
-    #
-    # Renamed from `generate-replication-destination` alongside rule 6
-    # so the RD's cache PVC sizing tracks the same annotation override.
-    - name: generate-replication-destination-v2
+    # Creates `<pvc>-backup` RD in the PVC's namespace. Same hostname/
+    # username/sourcePathOverride identity as RS so the populator can
+    # find snapshots saved by the mover.
+    - name: generate-replication-destination
       match:
         any:
           - resources:
@@ -575,16 +575,9 @@ spec:
                   - key: backup
                     operator: In
                     values: [hourly, daily]
-                  # Engine-gate added Phase 3c (docs/volsync-kopia-transition.md).
-                  # Phase 3a backfilled this label on all 42 currently-managed PVCs
-                  # (parity gate verified before this commit landed).
-                  # Phase 3d adds volsync-pvc-backup-restore-kopia for backup-engine=kopia.
-                  # See docs/volsync-kopia-transition.md §10 v6 finding [3] for the
-                  # in-place-vs-rename rationale (rename would have force-recreated
-                  # all 42 Secret/RS/RD via synchronize:true GC).
                   - key: backup-engine
                     operator: In
-                    values: [restic]
+                    values: [kopia]
       exclude:
         any:
           - resources:
@@ -602,6 +595,17 @@ spec:
                 - cloudflared
                 - newt
                 - intel-gpu
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: cnpg.io/cluster
+                    operator: Exists
+          - resources:
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values: [cnpg, cloudnative-pg]
       preconditions:
         all:
           - key: "{{ request.object.metadata.annotations.\"volsync.backup/skip-restore\" || '' }}"
@@ -614,14 +618,11 @@ spec:
         - name: rwMode
           variable:
             jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadWriteMany' || 'ReadWriteOnce'"
-        # Cache PVC size; mirrors rule 6's logic. See rule 6 comment.
         - name: cacheCap
           variable:
             jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
       generate:
         synchronize: true
-        # See rule 5 comment — fires on existing matching PVCs at policy
-        # load so future force-recreates self-heal.
         generateExisting: true
         apiVersion: volsync.backube/v1alpha1
         kind: ReplicationDestination
@@ -631,7 +632,7 @@ spec:
           spec:
             trigger:
               manual: restore-once
-            restic:
+            kopia:
               repository: "volsync-{{request.object.metadata.name}}"
               copyMethod: Snapshot
               capacity: "{{request.object.spec.resources.requests.storage}}"
@@ -647,3 +648,6 @@ spec:
                 fsGroup: 1000
                 runAsUser: 1000
                 runAsGroup: 1000
+              hostname: "{{request.object.metadata.namespace}}"
+              username: "{{request.object.metadata.name}}-backup"
+              sourcePathOverride: "/data"

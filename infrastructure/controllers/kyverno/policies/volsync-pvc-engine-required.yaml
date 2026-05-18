@@ -1,0 +1,97 @@
+# volsync-pvc-engine-required — Phase 3b of docs/volsync-kopia-transition.md.
+#
+# Deny-on-missing-engine validate-only policy. Closes Codex v1 finding [3]
+# / [6] (originally) and v2 finding [3] / [6]: the engine label MUST be
+# mandatory on any backup-labeled PVC, NEVER inferred at admission time
+# by some downstream webhook. Without this policy, a PVC with
+# `backup: hourly|daily` but no `backup-engine` label would match both
+# engine-gated policies' selectors as "neither" — depending on policy
+# order it would either get no generated Secret/RS/RD (silent backup
+# loss) or both at once (collision on same-name Secret).
+#
+# v8 allowed set: {restic, kopia, migrating}.
+#   - restic: ~42 apps currently on the shared Restic repo, gated by
+#     volsync-pvc-backup-restore (Phase 3c adds the selector tightening).
+#   - kopia: cut-over apps post-Phase-5, gated by volsync-pvc-backup-
+#     restore-kopia (Phase 3d new policy).
+#   - migrating: NOT used by v3+ cutover protocol (v3 parallel-probe-RS
+#     handoff abandoned the transient label). Enumerated explicitly to
+#     keep the schema future-proof if a Phase 5 protocol revision ever
+#     needs an intermediate state.
+#
+# Mode: validationFailureAction=Audit through Phase 5. Per v8 §6
+# open-question #4: flip to Enforce in Phase 6 alongside the Restic
+# stack decom, NOT before Phase 5. Pre-Phase-5 Enforce would block any
+# accidental engine-label typo on a real PVC create with no safety net;
+# Audit catches the same mistake via ephemeralreport without denying.
+#
+# Coexists with volsync-pvc-backup-restore (the existing Restic policy,
+# Phase 3c gated to backup-engine: restic) and volsync-pvc-backup-
+# restore-kopia (Phase 3d new). All three policies share the same
+# namespace exclude list. Aggregated RBAC is in volsync-policy-rbac.yaml.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: volsync-pvc-engine-required
+  annotations:
+    policies.kyverno.io/title: VolSync engine-label admission gate
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+    policies.kyverno.io/description: >-
+      Requires every backup-labeled PVC to carry a `backup-engine` label
+      whose value is one of {restic, kopia, migrating}. Without it, the
+      engine-gated generate policies for restic/kopia would either
+      miss the PVC (silent backup loss) or both match it (Secret/RS/RD
+      name collision).
+spec:
+  validationFailureAction: Audit
+  background: false
+  failurePolicy: Fail
+  webhookTimeoutSeconds: 10
+  rules:
+    - name: require-backup-engine-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - PersistentVolumeClaim
+              selector:
+                matchExpressions:
+                  - key: backup
+                    operator: In
+                    values: [hourly, daily]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - flux-system
+                - kube-system
+                - kyverno
+                - volsync-system
+                - cert-manager
+                - traefik
+                - ceph-csi-rbd
+                - ceph-csi-cephfs
+                - monitoring
+                - tailscale
+                - cloudflared
+                - newt
+                - intel-gpu
+      validate:
+        message: >-
+          PVC {{request.namespace}}/{{request.object.metadata.name}}
+          has `backup: {{request.object.metadata.labels.backup}}` but
+          no valid `backup-engine` label. Add one of: restic, kopia,
+          migrating. See docs/volsync-kopia-transition.md §3 Phase 3b.
+        deny:
+          conditions:
+            any:
+              # Missing label entirely → deny.
+              - key: "{{ request.object.metadata.labels.\"backup-engine\" || '' }}"
+                operator: Equals
+                value: ""
+              # Present but not in allow set → deny.
+              - key: "{{ request.object.metadata.labels.\"backup-engine\" || '' }}"
+                operator: NotIn
+                value: [restic, kopia, migrating]
