@@ -1,3 +1,9 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5 of Kopia transition — media on production with label-driven
+# Kopia backup. components/volsync-v2 + volsync/remote removed; PVC
+# owned by apps/base/sym-sonarr/sym-sonarr-pvc.yaml with `backup: daily` +
+# `backup-engine: kopia`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -5,51 +11,28 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/media/sym-sonarr
+  path: "./apps/base/media/sym-sonarr"
   targetNamespace: media
-
   prune: true
   retryInterval: 2m
   timeout: 15m
   wait: false
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../../components/volsync-v2
-    - ../../../../components/volsync/remote
-    - ../../../../components/gatus/internal
-    - ../../../../components/gatus/external
-
+  - "../../../../components/gatus/internal"
+  - "../../../../components/gatus/external"
   postBuild:
     substitute:
       APP: sym-sonarr
       APP_NAMESPACE: media
-
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      CAPACITY: 20Gi
-
-      VOLSYNC_REPO_PATH: media/sym-sonarr
-
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-
       SUBDOMAIN: sym-sonarr
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PATH: /
-      GATUS_PORT: "8989"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_PATH: "/"
+      GATUS_PORT: '8989'
