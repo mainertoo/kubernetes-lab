@@ -1,0 +1,40 @@
+# pvc-plumber-kopia — operator-side mount of the Kopia repo creds.
+# Mirrors the 3 cred keys from volsync-kopia-shared-base (in flux-system),
+# but lives in volsync-system because k8s Secret mounts must be same-ns.
+#
+# Consumed by infrastructure/controllers/pvc-plumber/deployment.yaml at
+# /var/secret/pvc-plumber-kopia (each key becomes a file at mode 0440).
+# The operator reads creds from disk on each kopia subprocess invocation
+# (v3.1.0 lazy-credentials pattern — see deployment.yaml header comment
+# for the v3.0.0 ES-race rationale).
+#
+# Rotation: change KOPIA_PASSWORD here AND in volsync-kopia-shared-base
+# (flux-system) — same value, two encrypted blobs. The per-PVC
+# volsync-<pvc> Secrets Kyverno generates for mover Jobs source from
+# volsync-kopia-shared-base, not from this Secret. Drift between the
+# two = the oracle and movers disagree on the password = bad.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: pvc-plumber-kopia
+    namespace: volsync-system
+type: Opaque
+stringData:
+    KOPIA_PASSWORD: ENC[AES256_GCM,data:CTD/Oblo/1pIroUJw0/w8eSYvafLEHtUK/vbhOEN6WK03FmdTvBCPYNXQfQ=,iv:/LsIkJoaUB7TsxlfZb91MPpqhc+b1DGuUeBgMRi98J4=,tag:ipeTg9CRXCXYpSbuzuH+VA==,type:str]
+    AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:WF12UfAyHrguYCB+2cz0He0mGv4+t/FxYLw=,iv:HMYaJ++mNqwiXkx8RhUWsnzKrgIg5FdcoR+BvNXSlCw=,tag:6IbY3v7fasfiq48K0obVdg==,type:str]
+    AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:RyDzY1k4fgMVxysVhV/1TPW7uG+vsn8u7+AdbszsqMfUOqEvwxbJrrPcZmZKrMIkDAnO9v0w9LMmgExMfESArA==,iv:TpB3Y+COvn1pY0yi1uMQ9nPu/B0uM2ZsJ3y/UAmTu7A=,tag:ZwnO/SIxXtC34//QoPfQdA==,type:str]
+sops:
+    age:
+        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBkUEdjaTBLZUhnK3BOZGsz
+            cWJ2N2Q1R2YzQXR0blh3MUdmWW83MCswMlFjCmErZ212RVJVZGgvUzV1aDcvdlRM
+            bDZOMFMvUkZHZmVjdzdzRXUxYUdOcHMKLS0tIGlrYjBYQzlkVTlTM2RnSmRhMFdm
+            NjduWVpZd2VuekxFdGFqV2pkOEhIdXMKuD1rH7A0f6l8yNQx/wrRACT7k9jdzqsM
+            ZmoHSAroqjnIlloBjYuw0b5143u2aiK7+48rPOH7EE1W4w22mzF5gg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-18T03:20:40Z"
+    mac: ENC[AES256_GCM,data:vp3q1vABOoUlpNCoQH82xD9FBZ+82ou1l2vghfFErpj59yOM/KagcwtVslH/D9sg80hVmVlOD4HyCyUNtCOKhzzxWI/+FGxGB9WHhtNHHlmkAbBC9A5jW0hE8fR2ejojVdPuLWaq2dXpJJ4wdOWznGLvq/o8qo0oa2bFQRoDExw=,iv:rVDF1dGGCyXHGSoO5GooAvs2kZX0OMltG0ZvU7dmE1E=,tag:xpApnEM4aPtLvXEVXYqI3Q==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

@@ -1,0 +1,190 @@
+---
+# pvc-plumber-kopia — HTTP-only Kopia oracle for the volsync label-driven
+# backup project. Phase 2 of docs/volsync-kopia-transition.md.
+#
+# Mode: HTTP oracle ONLY (OPERATOR_MODE=false). No webhooks, no controller-
+# runtime manager. Kyverno owns admission decisions via three ClusterPolicies
+# deployed in Phase 3 (deny-validate, restic-gated, kopia-gated). The
+# Kopia policy will apiCall this Deployment's Service at
+# http://pvc-plumber.volsync-system.svc.cluster.local/exists/<ns>/<pvc> to
+# learn whether a Kopia-side backup exists for any PVC carrying both
+# `backup` and `backup-engine: kopia` labels.
+#
+# Coexists with infrastructure/controllers/pvc-plumber-restic/ — same ns,
+# different Deployment + Service names. Each engine has its own oracle.
+# Phase 6 deletes the pvc-plumber-restic stack.
+#
+# Image pin: digest sha256:456f062a884bce71557c28b241e1b342426d885afd
+# 30b3172924f1a6d3e0cf1a corresponds to tag 3.1.0 at 2026-05-18. Renovate
+# will surface new tags on this image; bump explicitly per quarterly fork
+# review per docs/volsync-kopia-transition.md §6.1.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvc-plumber
+  namespace: volsync-system
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+    app.kubernetes.io/component: kopia-oracle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pvc-plumber
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pvc-plumber
+        app.kubernetes.io/component: kopia-oracle
+    spec:
+      serviceAccountName: pvc-plumber
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: pvc-plumber
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 568
+        runAsGroup: 568
+        fsGroup: 568
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pvc-plumber
+          # ghcr.io/mitchross/pvc-plumber:3.1.0 pinned by digest 2026-05-18.
+          image: ghcr.io/mitchross/pvc-plumber:3.1.0@sha256:456f062a884bce71557c28b241e1b342426d885afd30b3172924f1a6d3e0cf1a
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            # Webhook port (9443) intentionally omitted — OPERATOR_MODE=false
+            # means the binary doesn't open it.
+          env:
+            - name: BACKEND_TYPE
+              value: "kopia-s3"
+            # Bare host — kopia's S3 backend rejects fully-qualified URLs
+            # ("Endpoint url cannot have fully qualified paths"). HTTPS
+            # implied via KOPIA_S3_DISABLE_TLS=false below.
+            - name: KOPIA_S3_ENDPOINT
+              value: "garage.lab.mainertoo.com"
+            - name: KOPIA_S3_BUCKET
+              value: "volsync-kopia"
+            # Our Garage is HTTPS via Traefik (not in-cluster RustFS like
+            # mitchross). See docs/volsync-kopia-transition.md §10 v7
+            # finding [3]: verified 2026-05-18 against backup-architecture
+            # + Phase 1b smoketest.
+            - name: KOPIA_S3_DISABLE_TLS
+              value: "false"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: CACHE_TTL
+              value: "5m"
+            # Bumped 7s → 15s in v7 (Codex v5 finding [5]) — our path goes
+            # HTTPS through Traefik (extra TLS handshake + ingress hop).
+            # mitchross uses 7s for low-latency in-cluster RustFS.
+            - name: HTTP_TIMEOUT
+              value: "15s"
+            - name: RE_WARM_INTERVAL
+              value: "90s"
+            - name: KOPIA_CONFIG_PATH
+              value: "/tmp/kopia/config/repository.config"
+            - name: KOPIA_LOG_DIR
+              value: "/tmp/kopia/logs"
+            - name: KOPIA_CACHE_DIRECTORY
+              value: "/tmp/kopia/cache"
+            - name: HOME
+              value: "/tmp"
+            - name: USER
+              value: "plumber"
+            # HTTP-only mode — no admission webhooks, no PVC reconciler.
+            # Flip to "true" in a future PR if/when we decide to consolidate
+            # admission on pvc-plumber's webhooks (would also require
+            # SYSTEM_NAMESPACES env + cert-manager Certificate + webhook
+            # configs — see docs/volsync-kopia-transition.md §11
+            # if/when we revisit).
+            - name: OPERATOR_MODE
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
+          volumeMounts:
+            - name: kopia-tmp
+              mountPath: /tmp/kopia
+            # v3.1.0 lazy-credentials mount. The pvc-plumber-kopia Secret's
+            # three keys (KOPIA_PASSWORD, AWS_ACCESS_KEY_ID,
+            # AWS_SECRET_ACCESS_KEY) are exposed as files at this path.
+            # Operator reads them on each kopia subprocess invocation and
+            # retries with backoff if any file is missing/empty.
+            - name: kopia-credentials
+              mountPath: /var/secret/pvc-plumber-kopia
+              readOnly: true
+      volumes:
+        - name: kopia-tmp
+          emptyDir: {}
+        - name: kopia-credentials
+          secret:
+            secretName: pvc-plumber-kopia
+            # 0440 = readable by the pvc-plumber container's UID/GID (568)
+            # and the runtime's group; nothing else.
+            defaultMode: 0440
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pvc-plumber
+  namespace: volsync-system
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+    app.kubernetes.io/component: kopia-oracle
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: pvc-plumber
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    # Webhook port intentionally omitted — see Deployment ports comment.
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pvc-plumber
+  namespace: volsync-system
+  labels:
+    app.kubernetes.io/name: pvc-plumber
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pvc-plumber
