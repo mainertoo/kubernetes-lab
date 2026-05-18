@@ -1,8 +1,10 @@
 # VolSync Kopia Transition — Plan
 
-**Status:** DRAFT v7 — Codex's fifth adversarial pass against v6 caught 2 HIGH bugs (the CRD diff gate was a false-pass; the connect/create_repository audit gate was scheduled too late). v7 closes both plus 4 minor findings. Ready for user sign-off before Phase 1 starts.
+**Status:** DRAFT v8 — Codex's sixth adversarial pass (against v7) confirmed two v7 sections were CLEAN, surfaced 1 HIGH gate-timing bug (the §3a "BEFORE Phase 3 step 3e" gate should be "DURING"), and 3 MED polish items (kind prereq check, kustomize-build verification needs `yq` not anchored grep, stale references survive from earlier revs). v8 closes them all. This is the final pre-execution rev.
 **Goal:** Replace the Restic-based data path of the label-driven backup system with Kopia, matching the **mitchross/talos-argocd-proxmox** reference design as it is *actually implemented* (not as v1–v4 imagined it).
 **Trigger:** 2026-05-17 cluster incident — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §10 and the project memory `project_volsync_label_driven_restore.md`.
+
+> **What changed v7 → v8 (Codex v6 review):** Two findings confirmed CLEAN (kubeconform script path exists; Restic/Kopia webhook timeout split is fine — separate Services). Four actionable: (a) **HIGH #5** — §3a gate-timing said "BEFORE Phase 3 step 3e scratch validation", but step 3e IS the scratch test where these functions should be exercised. v8 flips to "DURING Phase 3 step 3e: include deliberate wrong-password + existing-repo test cases". (b) Phase 1a kind validation needed prerequisite check that `kind`/`k3d` AND container runtime are available. (c) Phase 1a `kustomize build | grep -E "^(kind|name|sourceRef)" -A1` check doesn't work — kustomize indents `metadata.name` and `sourceRef` under YAML hierarchy; anchored `^` misses them. Replaced with `yq` filter. (d) Stale references cleaned: Phase 0 step 3 activities flipped from 🔜 to ✅; "CNPG namespaces" wording (3 places) → "CNPG data PVCs by label" matching v6's actual policy approach; obsolete `migrating` risk register entry removed.
 
 > **What changed v6 → v7 (Codex v5 review):** Six findings, two of them HIGH. (a) The Phase 1a CRD diff gate was a **false-pass** — `kubectl apply --dry-run=server` validates against CRDs INSTALLED in the live cluster (backube v0.15), NOT against the v0.18 CRDs we pulled to `/tmp`. v7 replaces the gate with a scratch-cluster validation (kind/k3d) or offline `kubeconform`. (b) The §3a `connect_repository` / `create_repository` audit items were scheduled for "before Phase 5 batch 1" — meaning we'd discover password-mismatch or retry-loop bugs against the high-value apps (authentik-media, vaultwarden, home-assistant). v7 moves them BEFORE Phase 3 step 3e scratch validation so discovery is on a throwaway PVC. Plus: (c) HTTP_TIMEOUT bumped 7s → 15s (we hit Garage through Traefik, not in-cluster RustFS); Kyverno webhook timeout 10s → 20s to coordinate. (d) `KOPIA_S3_DISABLE_TLS=false` wording tightened (correct value, but reasoning clarified — Garage is external HTTPS, no in-cluster Service). (e) Pre-merge `rg` check added that no cluster-wide cosign policy exists (which would deny the unsigned perfectra1n HelmRepository). (f) Phase 1a swap explicitly requires atomic single-PR commit and HelmRepository name `perfectra1n-volsync` (not `volsync`) to avoid transient SourceNotReady.
 
@@ -104,8 +106,8 @@ Each phase leaves the cluster in a working state. No phase combines unrelated ch
 2. ✅ v1 → v2 → v3 → v4 applied iteratively — done
 3. ✅ **Phase 0 audit step 1 (upstream Kopia check)** — done 2026-05-18 AM. Result: **upstream volsync has NO Kopia mover.** Triggered v5 reframe.
 4. ✅ **Phase 0 audit step 2 (perfectra1n fork existence + activity)** — done. Result: fork is active (last commit 2026-03-22), used by mitchross in production, image `ghcr.io/perfectra1n/volsync:v0.17.11` available.
-5. **🔜 Phase 0 audit step 3: read perfectra1n's `mover-kopia/entry.sh`** at `v0.17.11` — see "Phase 0 mandatory audit" below. BLOCKER/WORKAROUND criteria evaluated against THAT, not upstream.
-6. **🔜 User sign-off** on the v5 plan
+5. ✅ **Phase 0 audit step 3: read perfectra1n's `mover-kopia/entry.sh`** at `v0.17.11` — done 2026-05-18 AM. NO BLOCKERS. See "Phase 0 mandatory audit" below + full findings in §10.
+6. **🔜 User sign-off** on the v8 plan
 7. **🔜 Out of band:** stabilize the live cluster by re-adding the original `retain:` to live rule 6 via a one-line PR (prevents accidental `--keep-last 1` destruction if volsync is ever re-enabled before Phase 5 starts). Lower priority — volsync controller is at 0 replicas; the mitigation is a safety net not a fix.
 
 **Exit criteria:** Phase 0 audit step 3 complete. No BLOCKER hit, OR if a BLOCKER hits, decision logged on whether to (a) pause project, (b) carry workaround into Phase 3, or (c) escalate to a deeper fork analysis.
@@ -195,6 +197,14 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
    
    **Correct gate — scratch cluster validation:**
    ```bash
+   # 0. Prerequisite checks (Codex v6 finding [1])
+   command -v kind >/dev/null || command -v k3d >/dev/null || \
+     { echo "ERROR: neither kind nor k3d on PATH — install one OR use the kubeconform alternative below"; exit 1; }
+   docker info >/dev/null 2>&1 || podman info >/dev/null 2>&1 || \
+     { echo "ERROR: no container runtime running — Docker Desktop / Colima / Podman must be up before kind can create a cluster"; exit 1; }
+   command -v helm >/dev/null || { echo "ERROR: helm not on PATH"; exit 1; }
+   command -v yq >/dev/null || { echo "ERROR: yq not on PATH"; exit 1; }
+   
    # 1. Pull both charts' CRDs
    helm pull volsync --version 0.18.5 --repo https://perfectra1n.github.io/volsync/charts --untar -d /tmp/perfectra1n-chart
    
@@ -239,7 +249,23 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
    
    **Smoke test post-merge:** after Flux reconciles, `kubectl -n volsync-system get deploy volsync-system-volsync -o jsonpath='{.spec.template.spec.containers[0].image}'` returns `ghcr.io/perfectra1n/volsync:v0.17.11`. Existing Restic ReplicationSources continue to function — perfectra1n's `mover-restic` is the same upstream code.
    
-   **Atomic-PR requirement (Codex v5 finding [6]):** all four file changes (DELETE `volsync-repository.yaml`, CREATE `volsync-helmrepo.yaml`, EDIT `volsync-release.yaml`, EDIT `kustomization.yaml`) must be in **one PR / one commit**. Splitting them across PRs creates a window where the HelmRelease still references the old `OCIRepository` name while the new `HelmRepository` is added (or vice versa), leading to either Flux `SourceNotReady` errors OR continued reconciliation on the old chart longer than expected. Pre-merge: `kustomize build infrastructure/controllers/volsync | grep -E "^(kind|name|sourceRef)" -A1` must show exactly one `kind: HelmRepository` with `name: perfectra1n-volsync`, zero `kind: OCIRepository`. Note the deliberately distinct name `perfectra1n-volsync` (not `volsync` as the OCIRepository was) — different GVK + different name keeps the diff unambiguous in Flux's event log.
+   **Atomic-PR requirement (Codex v5 finding [6]):** all four file changes (DELETE `volsync-repository.yaml`, CREATE `volsync-helmrepo.yaml`, EDIT `volsync-release.yaml`, EDIT `kustomization.yaml`) must be in **one PR / one commit**. Splitting them across PRs creates a window where the HelmRelease still references the old `OCIRepository` name while the new `HelmRepository` is added (or vice versa), leading to either Flux `SourceNotReady` errors OR continued reconciliation on the old chart longer than expected.
+   
+   **Pre-merge verification (Codex v6 finding [4] — `yq` filter, NOT anchored grep):**
+   ```bash
+   kustomize build infrastructure/controllers/volsync | yq '
+     select(.kind == "HelmRepository" or .kind == "OCIRepository" or .kind == "HelmRelease")
+     | { kind, name: .metadata.name, chartRef: .spec.chartRef, sourceRef: .spec.chart.spec.sourceRef }
+   '
+   ```
+   Expected output (exact shape):
+   - One `kind: HelmRepository` with `name: perfectra1n-volsync` (no `chartRef`, no `sourceRef` — repositories don't have those).
+   - One `kind: HelmRelease` with `sourceRef.{kind: HelmRepository, name: perfectra1n-volsync}` and `chartRef: null` (we removed the OCI chartRef).
+   - Zero `kind: OCIRepository`.
+   
+   Why the v7 `grep -E "^(kind|name|sourceRef)" -A1` recipe was wrong: kustomize emits standard YAML where `metadata.name` and `spec.chart.spec.sourceRef` are indented under their parent keys. An anchored-at-column-zero regex misses them entirely and silently passes — same false-pass class of bug as v6's CRD dry-run.
+   
+   Note the deliberately distinct HelmRepository name `perfectra1n-volsync` (not `volsync` as the OCIRepository was) — different GVK + different name keeps the diff unambiguous in Flux's event log.
    
    **Rollback:** revert the single PR (all four file changes). Flux re-installs backube/volsync 0.15.0 via the OCI mirror. Existing Kyverno-managed RSes continue to operate.
 
@@ -374,7 +400,7 @@ The pvc-plumber:3.1.0 deployment expects a Secret named `pvc-plumber-kopia` in n
 
 5. **Step 3e — validate on a scratch PVC** in a one-off test namespace. Label it `backup: daily, backup-engine: kopia`. Verify Kyverno generates the Kopia Secret/RS/RD trio. Manually trigger a backup via `manual:` trigger to confirm Kopia mover writes to the shared repo. **Do NOT validate on a real Phase 5 candidate yet — Phase 5 handles cutover protocol separately.**
 
-**Exit criteria:** Three policies live in Audit mode. Existing 42 Restic-backed apps continue to operate unchanged (Restic policy still gates them via their `backup-engine: restic` label from step 3a). A scratch test PVC successfully generates a Kopia trio. CNPG namespaces are excluded from both engine policies.
+**Exit criteria:** Three policies live in Audit mode. Existing 42 Restic-backed apps continue to operate unchanged (Restic policy still gates them via their `backup-engine: restic` label from step 3a). A scratch test PVC successfully generates a Kopia trio. CNPG data PVCs (label-selected via `cnpg.io/cluster Exists`) are excluded from both engine policies.
 
 **Rollback:** Three independent policies, three independent rollbacks. Delete the Kopia policy alone, or delete the deny-validate policy alone, or revert the Restic-policy selector PR. No big-bang rollback required.
 
@@ -426,7 +452,7 @@ kubectl -n "$NS" wait --for=jsonpath='{.status.lastSyncTime}' --timeout=30m \
 
 **High-value app cutover-window discipline:** Cut over in the window IMMEDIATELY after the last successful Restic backup. This minimizes data drift between final Restic snapshot and first Kopia snapshot — both for restore depth and for the emergency runbook fallback.
 
-**CNPG data PVCs are out of scope (Codex v2 finding [5] + [6] Q5/CNPG):** PVCs owned by CloudNativePG `Cluster` resources are NOT migrated through this Phase 5 protocol. CNPG handles its own application-consistent backup/restore via WAL streaming + base backups + `Cluster.bootstrap.recovery` (see [`backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery"). Phase 3 step 3d adds an explicit exclude for CNPG namespaces. The current Phase 5 candidates list below has CNPG db PVCs scrubbed.
+**CNPG data PVCs are out of scope (Codex v2 finding [5] + [6] Q5/CNPG):** PVCs owned by CloudNativePG `Cluster` resources are NOT migrated through this Phase 5 protocol. CNPG handles its own application-consistent backup/restore via WAL streaming + base backups + `Cluster.bootstrap.recovery` (see [`backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery"). Phase 3 step 3d adds an explicit **label-based** exclude (`cnpg.io/cluster Exists` OR `app.kubernetes.io/managed-by ∈ {cnpg, cloudnative-pg}`) for CNPG data PVCs — NOT a namespace-based exclude, since CNPG dbs share namespaces with app PVCs we DO want to migrate. The current Phase 5 candidates list below has CNPG db PVCs scrubbed.
 
 **Phase 5 candidates (CNPG-scrubbed):** Apps in the high-value bucket are now their non-db PVCs only:
 - `authentik/authentik-media` (the auth metadata PVC — `authentik-db` is CNPG, excluded)
@@ -565,13 +591,13 @@ Phase 0 audit step 3 covered the BLOCKER criteria and verified `do_backup`, `do_
 
 | Function / path | What to verify | Gate (corrected v7 per Codex v5 finding [4]) |
 |---|---|---|
-| `connect_repository` (line 1398) | Password-mismatch behavior. If the per-PVC Secret has a stale `KOPIA_PASSWORD` (e.g., during password rotation), does the script error out clearly, or retry indefinitely? | **BEFORE Phase 3 step 3e scratch validation.** Discovery on a throwaway PVC, not against authentik/vaultwarden in Phase 5 batch 1. |
-| `create_repository` (line 1705) | First-time repo creation. We init the Kopia repo manually in Phase 1b — confirm the mover script doesn't try to re-init or overwrite the existing repo on first backup against it. | **BEFORE Phase 3 step 3e scratch validation.** Same reason — discovery on throwaway PVC. |
+| `connect_repository` (line 1398) | Password-mismatch behavior. If the per-PVC Secret has a stale `KOPIA_PASSWORD` (e.g., during password rotation), does the script error out clearly, or retry indefinitely? | **DURING Phase 3 step 3e scratch validation** — include a deliberate wrong-password test case (apply a scratch PVC with a Secret containing a garbage `KOPIA_PASSWORD`, confirm the mover Job fails with a clear error within 1 minute, not infinite retry). |
+| `create_repository` (line 1705) | First-time repo creation. We init the Kopia repo manually in Phase 1b — confirm the mover script doesn't try to re-init or overwrite the existing repo on first backup against it. | **DURING Phase 3 step 3e scratch validation** — the scratch test IS first-backup-against-existing-repo. Confirm the mover's `connect_repository` succeeds (existing repo found) AND `create_repository` is skipped (not invoked because repo already exists). Inspect Job logs to verify no "creating new repository" output. |
 | Garage S3 retry/timeout | Network-transient handling. Garage occasionally returns 503s under load (we saw this with restic). Does the Kopia mover retry with backoff, or fail-fast? Look for `--retries`, `--retry-interval`, timeout flags. | **DURING Phase 1b** smoke test (50 calls, record p50/p95). **RE-CHECK before Phase 5 batch 2** under load. |
 | `do_restore` (line ~2291) | Restore mode error handling. Does a failed restore leave the target PVC half-populated? Does the script abort cleanly so the volsync controller marks the RD failed? | Before Phase 7 DR drill (lower urgency — failed restores are recoverable from S3 historical archive). |
 | `ensure_maintenance_ownership` (line 2000) | Already audited 2026-05-18 — uses `kopia maintenance set --owner=` with `KOPIA_OVERRIDE_MAINTENANCE_USERNAME` env var (default `maintenance@volsync`). Confirmed safe. | ✅ done |
 
-**v6 → v7 fix:** v6 had `connect_repository` and `create_repository` gated at "Phase 5 batch 1" which would have meant discovering password-mismatch or retry-loop bugs against the high-value apps (authentik-media, vaultwarden, home-assistant). v7 moves them to **before Phase 3 step 3e scratch validation** so any pathology is found on a throwaway PVC.
+**v6 → v7 → v8 evolution:** v6 had `connect_repository` and `create_repository` gated at "Phase 5 batch 1" which would have meant discovering password-mismatch or retry-loop bugs against the high-value apps. v7 moved them to "BEFORE Phase 3 step 3e scratch validation" — but Codex v6 review pointed out step 3e IS the scratch test, so we'd be auditing a function we couldn't actually exercise without running the test we're gating. **v8 fix: gate is now "DURING Phase 3 step 3e"** — the scratch test deliberately includes the wrong-password + existing-repo-reconnect test cases. Discovery on throwaway PVC, AND we use the scratch test itself to exercise the functions instead of trying to audit them in isolation.
 
 Each checklist item logs findings as comments in this section. Items don't gate Phase 1, but each gates the specific phase noted.
 
@@ -657,7 +683,7 @@ Still open, for the user to decide before Phase 1:
 | **Dual-policy collision** during Phase 5 — both Restic + Kopia rules attempt to generate same-named Secret/RS/RD (Codex [1]) | **HIGH** | Phase 3 step 3c gates the Restic policy with `backup-engine: restic` selector BEFORE the Kopia policy is deployed. Verified via `kubectl diff` before merge. |
 | **Force-recreate UR herd** if Phase 3 Restic policy edit is done as delete+recreate (Codex [2]) | **HIGH** | Phase 3 step 3c is a label-selector tightening, NOT a `generate.data` mutation — should patch in-place. Pre-merge `kubectl diff` confirms no immutable-field error. If immutable-field error appears, abort the merge and reconsider. |
 | **Cold-start 0–24h restore gap** for an app post-cutover (Codex [4]) | **HIGH** | Phase 5 Stage B includes a mandatory cutover-probe Kopia snapshot, verified before Restic authority is released. No app is "migrated" until probe succeeds. |
-| **`synchronize:true` makes mid-flight engine switching destructive** (Codex [7]) | **HIGH** | Phase 5 uses transient `backup-engine: migrating` label, excluded from both engine policies. Engine swap is never atomic. |
+| **`synchronize:true` makes mid-flight engine switching destructive** (Codex v2 [7]) | **HIGH (mitigated)** | v3 onward: parallel-probe-RS handoff. Kopia probe RS spawned DIRECTLY via `kubectl apply` (not Kyverno) while the Restic RS stays active. Engine label flips only after probe commits. The earlier `backup-engine: migrating` intermediate state was abandoned in v3 — see Phase 5 cutover protocol. |
 | **Admission ordering fires wrong engine** if `backup-engine` label is missing or arrives late (Codex [3], [6]) | **HIGH** | Phase 3 step 3b deploys a deny-on-missing-engine validate policy FIRST (Audit mode initially, flippable to Enforce later). Label is required on the PVC manifest — never set by webhook. |
 | Volsync mover restore path uses different PVC populator semantics than Restic | **MED** | Phase 7 DR drill catches this. Worst case: the 10-min target slips slightly. |
 | Per-app cutover strands a snapshot mid-window | LOW | Same hazard as Restic Phase 5 had; same mitigation (Stage B/C protocol, Flux suspend during cutover). |
@@ -740,6 +766,19 @@ EOF
 ---
 
 ## 10. Audits + Codex adversarial reviews — addressed findings
+
+### v8 — Codex v6 review of v7 (2026-05-18 late-morning)
+
+6 findings: 1 HIGH, 3 MED, 2 confirmed CLEAN. Diminishing-returns signal — first review with explicit CLEAN findings on previous fixes. v8 is the final pre-execution rev.
+
+| # | Severity | Finding | Resolution in v8 |
+|---|---|---|---|
+| 1 | MED | Phase 1a kind-validation script had no prerequisite check that `kind`/`k3d` AND a container runtime are available | Added prerequisite block at top of the validation script: `command -v kind`, `docker info` (or podman fallback), `helm`, `yq` checks all gate execution. Falls through to the kubeconform alternative path if missing. |
+| 2 | LOW | **CLEAN** | Confirmed kubeconform `scripts/openapi2jsonschema.py` exists at the cited path. No issue. |
+| 3 | LOW | **CLEAN** | Confirmed Restic 10s / Kopia 20s webhook timeout split is safe — separate pvc-plumber Services, no shared admission. No issue. |
+| 4 | MED | Phase 1a `kustomize build | grep -E "^(kind|name|sourceRef)" -A1` check doesn't catch what it claims — kustomize indents `metadata.name` and `sourceRef` under YAML parent keys; the anchored `^` regex never matches them. Same false-pass class as v6's CRD dry-run. | Replaced with `yq` filter that explicitly selects HelmRepository/OCIRepository/HelmRelease kinds and projects `{kind, name, chartRef, sourceRef}`. Verifies exact shape, no anchored-regex false-pass. |
+| 5 | **HIGH** | §3a `connect_repository` / `create_repository` audit gated "BEFORE Phase 3 step 3e scratch validation" — but step 3e IS the scratch test. Gate "BEFORE" the test means we can't actually exercise the functions. | Gate moved to "**DURING** Phase 3 step 3e": the scratch test deliberately includes a wrong-password test case (Secret with garbage password, expect clear failure in <1 min) AND an existing-repo-reconnect test case (verify mover's connect succeeds, create is skipped). |
+| 6 | MED | Stale references survived earlier revs: Phase 0 step 3 still marked 🔜 despite audit verdict at line 11; "CNPG namespaces" wording in 3 places vs. v6's label-based exclude; obsolete risk-register entry referenced `migrating` as the live mitigation | Phase 0 step 3 flipped ✅; "CNPG namespaces" → "CNPG data PVCs by label" in §3 step 3d exit criteria + §4 Phase 4 OOS section; risk-register `synchronize:true mid-flight switching` row rewritten to reflect v3+ parallel-probe-RS approach. |
 
 ### v7 — Codex v5 review of v6 (2026-05-18 mid-morning)
 
@@ -862,5 +901,7 @@ What v2 did NOT change (acknowledged but accepted):
 | 2026-05-18 | v6 applied — Phase 1a rewritten for HelmRepository, Phase 2 enumerates Secret schema + 8 env vars + source pin, Phase 1a CRD diff gate added, Phase 6 deletion target made explicit, §3a deeper-audit checklist for Phase 5/7 gating items | Claude |
 | 2026-05-18 | Codex v5 adversarial review of v6 — 6 findings (2 HIGH: CRD gate was false-pass, connect/create audit gate misplaced; 1 MED HTTP_TIMEOUT; 3 LOW cosign-policy check, TLS wording, atomic PR) | Codex |
 | 2026-05-18 | v7 applied — CRD gate switched to scratch-cluster validation (no false-pass), §3a connect/create audit moved before Phase 3 step 3e, HTTP_TIMEOUT 7s→15s + Kyverno webhook 10s→20s, cosign-policy pre-merge check, atomic-PR requirement for Phase 1a | Claude |
-| TBD | Phase 0 sign-off (user reads v7, confirms commit to perfectra1n fork dependency) | User |
+| 2026-05-18 | Codex v6 adversarial review of v7 — 6 findings (1 HIGH §3a gate timing should be DURING not BEFORE, 3 MED kind prereq + grep→yq + stale references, 2 CLEAN findings — first diminishing-returns signal) | Codex |
+| 2026-05-18 | v8 applied — §3a gate flipped BEFORE→DURING Phase 3 step 3e (with wrong-password + existing-repo test cases), kind/docker prereq block, `kustomize build` verification rewritten with `yq`, stale Phase 0 🔜→✅, CNPG namespace wording → label, risk register `migrating` row rewritten for parallel-probe-RS reality | Claude |
+| TBD | Phase 0 sign-off (user reads v8, confirms commit to perfectra1n fork dependency) | User |
 | TBD | Phase 1 start (HelmRelease swap + Kopia bucket) | User |
