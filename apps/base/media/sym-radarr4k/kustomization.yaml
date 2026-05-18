@@ -4,3 +4,4 @@ namespace: media
 resources:
   - sym-radarr4k-release.yaml
   - sym-radarr4k-ingressroute.yaml
+  - sym-radarr4k-pvc.yaml
