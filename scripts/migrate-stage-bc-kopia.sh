@@ -52,6 +52,7 @@ BACKUP_LABEL="daily"
 SKIP_PR=0
 NO_CONFIRM=0
 AUTO_MERGE=0
+CACHE_CAPACITY=""    # empty → use policy default (5Gi); set for big-data apps
 NS=""
 RS=""
 
@@ -62,11 +63,12 @@ usage() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --label)       BACKUP_LABEL="$2"; shift 2 ;;
-    --skip-pr)     SKIP_PR=1; shift ;;
-    --no-confirm)  NO_CONFIRM=1; shift ;;
-    --auto-merge)  AUTO_MERGE=1; shift ;;
-    -h|--help)     usage ;;
+    --label)            BACKUP_LABEL="$2"; shift 2 ;;
+    --skip-pr)          SKIP_PR=1; shift ;;
+    --no-confirm)       NO_CONFIRM=1; shift ;;
+    --auto-merge)       AUTO_MERGE=1; shift ;;
+    --cache-capacity)   CACHE_CAPACITY="$2"; shift 2 ;;
+    -h|--help)          usage ;;
     *)
       if [ -z "$NS" ]; then NS="$1"
       elif [ -z "$RS" ]; then RS="$1"
@@ -173,6 +175,16 @@ run_stage_b() {
 
   STAGE_B_DONE=0; PAUSED=0; FLUX_SUSPENDED=0
   trap trap_state EXIT
+
+  # 1. (Pre-step) Annotate PVC with cache-capacity if --cache-capacity
+  #    was passed. Must happen BEFORE the label triggers Kyverno's
+  #    generate so the policy's jmesPath reads the annotation when
+  #    rendering cacheCapacity into the new RS/RD.
+  if [ -n "$CACHE_CAPACITY" ]; then
+    echo "  [1/5] Annotating PVC volsync.backup/cache-capacity=$CACHE_CAPACITY"
+    kubectl -n "$NS" annotate pvc "$PVC" \
+      "volsync.backup/cache-capacity=$CACHE_CAPACITY" --overwrite >/dev/null
+  fi
 
   # 1. Label PVC with BOTH backup + backup-engine. Triggers Kyverno-
   #    kopia generate; mutate is scoped to CREATE-only so this is safe
@@ -289,6 +301,17 @@ metadata:
     # spec.kopia in this ns.
     backup: $BACKUP_LABEL
     backup-engine: kopia
+EOF
+  if [ -n "$CACHE_CAPACITY" ]; then
+    cat >> "$pvc_file" <<EOF
+  annotations:
+    # Override mover cache PVC size (policy default 5Gi). Big-data
+    # sources benefit from a larger cache to reduce repeat-fetch from
+    # the Kopia repo during the initial scan.
+    volsync.backup/cache-capacity: "$CACHE_CAPACITY"
+EOF
+  fi
+  cat >> "$pvc_file" <<EOF
 spec:
   accessModes:
     - $ACCESS
