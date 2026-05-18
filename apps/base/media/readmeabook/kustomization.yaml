@@ -4,3 +4,4 @@ namespace: media
 resources:
   - readmeabook-release.yaml
   - readmeabook-ingressroute.yaml
+  - readmeabook-pvc.yaml
