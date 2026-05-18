@@ -1,67 +1,41 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 5 of Kopia transition — scrypted on production with label-driven
+# Kopia backup. components/volsync-v2 + volsync/remote removed; PVC
+# owned by apps/base/scrypted/scrypted-pvc.yaml with `backup: daily` +
+# `backup-engine: kopia`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app scrypted
+  name: scrypted
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/scrypted
-  targetNamespace: *app
-
+  path: "./apps/base/scrypted"
+  targetNamespace: scrypted
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/volsync-v2
-    - ../../../components/volsync/remote
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
-
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
   postBuild:
     substitute:
-      APP: *app
-      APP_NAMESPACE: *app
-
-      # --- volsync (rbd) ---
-      VOLSYNC_STORAGECLASS: ceph-rbd
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_SNAPSHOTCLASS: ceph-rbd-snapclass
-      VOLSYNC_SNAP_ACCESSMODES: ReadWriteOnce
-      CAPACITY: 20Gi
-
-      VOLSYNC_REPO_PATH: scrypted/data
-
-      VOLSYNC_CACHE_STORAGECLASS: ceph-rbd
-      VOLSYNC_CACHE_ACCESSMODES: ReadWriteOnce
-      VOLSYNC_CACHE_CAPACITY: 1Gi
-
-      # app runs as root
-      VOLSYNC_PUID: "0"
-      VOLSYNC_PGID: "0"
-
-      # --- gatus health checks ---
-      SUBDOMAIN: *app
+      APP: scrypted
+      APP_NAMESPACE: scrypted
+      SUBDOMAIN: scrypted
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PATH: /
-      GATUS_PORT: "10443"
+      GATUS_PATH: "/"
+      GATUS_PORT: '10443'
       GATUS_SCHEME: https
-      GATUS_STATUS_INTERNAL: "200"
-      GATUS_INSECURE: "true"
-
-    substituteFrom:
-      - kind: Secret
-        name: volsync-garage-base
+      GATUS_STATUS_INTERNAL: '200'
+      GATUS_INSECURE: 'true'
