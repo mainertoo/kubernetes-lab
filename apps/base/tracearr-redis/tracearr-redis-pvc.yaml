@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tracearr-redis
+  labels:
+    # Phase 5 of the Kopia transition (docs/volsync-kopia-transition.md).
+    # ClusterPolicy volsync-pvc-backup-restore-kopia matches both labels
+    # and generates volsync-tracearr-redis Secret + tracearr-redis-backup RS + RD with
+    # spec.kopia in this ns.
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  # Stale ref left over from the volsync-v2/bootstrap variant's
+  # one-time populator (the bootstrap RD itself is long gone).
+  # dataSourceRef is immutable on a bound PVC, so we mirror it here
+  # to keep Flux's dry-run happy. On a fresh cluster rebuild,
+  # Kyverno's mutate rule (CREATE-only) swaps it for tracearr-redis-backup
+  # at admission before bind.
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: tracearr-redis-bootstrap
+  resources:
+    requests:
+      storage: 2Gi
