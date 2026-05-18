@@ -23,25 +23,6 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore
   annotations:
-    # One-shot force-recreate for Phase 3c selector tightening (2026-05-18).
-    # PR #453 hit Kyverno's immutability check: "changes of immutable fields
-    # of a rule spec in a generate rule is disallowed". v6 Codex finding [2]
-    # said the in-place selector edit on rules 5-7 SHOULD be allowed because
-    # it's not a generate.data change — Kyverno enforces a broader
-    # immutability than that, catching predicate changes (match/exclude)
-    # that could cause synchronize:true GC of existing generated children.
-    #
-    # Safe to force-recreate now (unlike the 2026-05-17 incident's hazard):
-    # volsync controller is at replicas=0, so no mover Jobs exist to be
-    # disrupted during the brief Secret/RS/RD GC + regen window. 42 PVCs
-    # all carry backup-engine: restic (Phase 3a parity verified PR #452),
-    # so generateExisting: true emits 42 identical children right back.
-    #
-    # SAFE TO REMOVE in a follow-up commit after Flux reconciles + all 42
-    # children regenerated. Per feedback_kyverno_generate_rules_immutable:
-    # leaving this annotation in place sets up future policy edits to
-    # silently force-recreate again.
-    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
