@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sym-radarr
+  labels:
+    # Phase 5 of the Kopia transition (docs/volsync-kopia-transition.md).
+    # ClusterPolicy volsync-pvc-backup-restore-kopia matches both labels
+    # and generates volsync-sym-radarr Secret + sym-radarr-backup RS + RD with
+    # spec.kopia in this ns.
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 20Gi
