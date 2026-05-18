@@ -4,3 +4,4 @@ namespace: media
 resources:
   - sym-prowlarr-release.yaml
   - sym-prowlarr-ingressroute.yaml
+  - sym-prowlarr-pvc.yaml
