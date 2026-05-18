@@ -9,3 +9,4 @@ resources:
   # - qnap-media-pvc.yaml
   - plex-lb-service.yaml
   # - plex-config-pvc-restore.yaml
+  - plex-pvc.yaml
