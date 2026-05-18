@@ -6,3 +6,4 @@ resources:
   #- jellyfin-config-pvc.yaml
   - jellyfin-release.yaml
   - jellyfin-ingressroute.yaml
+  - jellyfin-pvc.yaml
