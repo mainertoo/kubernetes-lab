@@ -111,7 +111,7 @@ spec:
             - sh
             - -c
             - |
-              set -euo pipefail
+              set -eu  # busybox sh in kopia/kopia image — no `pipefail` support
 
               echo "=== Phase 1b: Kopia repo init + smoketest ==="
               kopia --version
