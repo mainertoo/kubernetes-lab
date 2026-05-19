@@ -13,6 +13,6 @@ spec:
       bucketName: volsync
       folder: rancher-backup
       region: us-west-1
-      endpoint: https://garage.lab.mainertoo.com
+      endpoint: garage.lab.mainertoo.com
       credentialSecretName: rancher-s3-backup-creds
       credentialSecretNamespace: cattle-system
