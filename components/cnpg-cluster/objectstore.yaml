@@ -1,0 +1,31 @@
+---
+# ObjectStore for plugin-barman-cloud — replaces the in-tree
+# spec.backup.barmanObjectStore field that CNPG 1.30 will remove.
+#
+# NOTE on `serverName`: it is FORBIDDEN in `spec.configuration` and must be
+# set instead on the Cluster's `spec.plugins[].parameters.serverName`.
+# Validation rule enforced by the ObjectStore CRD.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: ${APP}-store
+spec:
+  retentionPolicy: "${CNPG_RETENTION:=30d}"
+  configuration:
+    destinationPath: s3://${S3_BUCKET}/cnpg/${APP}
+    endpointURL: ${S3_ENDPOINT}
+    s3Credentials:
+      accessKeyId:
+        name: ${APP}-cnpg-s3
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: ${APP}-cnpg-s3
+        key: AWS_SECRET_ACCESS_KEY
+      region:
+        name: ${APP}-cnpg-s3
+        key: AWS_DEFAULT_REGION
+    wal:
+      compression: gzip
+      maxParallel: 4
+    data:
+      compression: gzip

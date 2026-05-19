@@ -19,8 +19,9 @@ Before starting recovery, confirm:
 $ ssh pve-ugreen 'curl -sf https://garage.lab.mainertoo.com/ -o /dev/null && echo ok'
 $ ssh pve-ugreen 'docker exec garage garage bucket list | grep volsync'
 
-# 2. CNPG operator running
+# 2. CNPG operator AND barman-cloud plugin running
 $ kubectl -n cnpg-system get pods -l app.kubernetes.io/name=cloudnative-pg
+$ kubectl -n cnpg-system get deploy barman-cloud      # must be 1/1 Ready
 
 # 3. Source backups exist for the target app(s)
 $ APP=joplin-db   # or any of the 8
@@ -279,28 +280,36 @@ state (initdb is no-op on initialized clusters).
 
 ### "no target backup found" error
 
-Symptom: full-recovery pod logs `"error":"no target backup found"`. CNPG looked
-at the S3 path but found nothing.
+Symptom: full-recovery pod logs `"error":"no target backup found"`. The plugin
+read the S3 path but found nothing.
 
 Causes:
-- **Wrong `externalClusters[].name` (or missing `serverName`).** CNPG defaults the
-  barman server name to `externalClusters[].name`. The recovery Component sets both
-  to `${APP_RESTORE_FROM}` so the actual S3 path resolves to
-  `<destinationPath>/<serverName>/base/...`. If you customize, keep them aligned.
-- **Wrong `destinationPath`.** Must point at the bucket prefix that contains the
-  source cluster's `base/` and `wals/` subdirs.
-- **Source backups don't exist yet.** New cluster < 24h old hasn't taken its first
-  ScheduledBackup; only WAL is present. CNPG needs at least one base backup.
+- **Wrong `serverName` on the plugin parameters.** The plugin uses
+  `spec.plugins[].parameters.serverName` (and the symmetric value in
+  `externalClusters[].plugin.parameters.serverName`) as the S3 sub-path. The
+  recovery Component sets both to `${APP_RESTORE_FROM}` by default. If you
+  customize, both must match the source cluster's actual barman server name.
+- **Wrong `barmanObjectName`.** Must match an existing ObjectStore in the
+  namespace whose `spec.configuration.destinationPath` points at the source
+  cluster's S3 prefix.
+- **Source ObjectStore missing.** In a side-by-side restore, the source app's
+  ObjectStore must exist in the namespace before the recovery cluster starts.
+  Cluster-nuke restore is fine because the recovery Component creates the same
+  ObjectStore the source app would.
+- **Source backups don't exist yet.** New cluster < 24h old hasn't taken its
+  first ScheduledBackup; only WAL is present. The plugin needs at least one
+  base backup to start recovery.
 
-Diagnostic:
+Diagnostic — list backups via barman-cloud-backup-list from any pod with creds:
 ```bash
-# Run this from any pod with barman + the S3 creds
-barman-cloud-backup-list \
+kubectl -n <ns> exec <any-cnpg-pod> -c postgres -- \
+    env AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=... \
+    barman-cloud-backup-list \
     --endpoint-url https://garage.lab.mainertoo.com \
     s3://volsync/cnpg/<source-app> <source-app>
 ```
 
-If this returns nothing, the source path or server-name is wrong.
+If this returns nothing, the destinationPath or serverName is wrong.
 
 ### Existing PVC conflict during cluster-nuke restore
 
@@ -343,12 +352,24 @@ Apps with extensions need:
 Custom images must match between source and recovery clusters or the WAL replay
 will fail on unknown extension functions.
 
-### `barmanObjectStore` deprecation warning
+### Plugin operator not Ready
 
-CNPG 1.30+ will remove native barman support in favor of the Barman Cloud Plugin.
-Both the base and recovery Components use the deprecated `spec.backup.barmanObjectStore`
-+ `spec.externalClusters[].barmanObjectStore`. Migration to the plugin is a
-separate project — not gating on this runbook.
+The plugin-barman-cloud Deployment lives in `cnpg-system`. If the plugin pod
+is down, any Cluster spec referencing it via `spec.plugins[]` fails to
+reconcile. Symptom: Cluster sits in `Setting up primary` indefinitely, plugin
+sidecar container CrashLoops, or the Cluster's `status.conditions` complain
+about an unknown plugin name.
+
+Check + remediate:
+```bash
+kubectl -n cnpg-system get deploy barman-cloud
+kubectl -n cnpg-system rollout status deploy/barman-cloud --timeout=2m
+kubectl -n cnpg-system logs deploy/barman-cloud --tail=50
+```
+
+If the plugin is gone entirely (Flux suspended? infra Kustomization NotReady?),
+recover by reconciling `flux-system/infra-controllers`. Cluster-nuke recovery
+requires the plugin to be Ready before any Cluster spec applies.
 
 ---
 
@@ -369,5 +390,17 @@ externalCluster name used a `-source` suffix that diverged from the actual barma
 both equal to `${APP_RESTORE_FROM}`. The recovery Component does this by default;
 captured in §3 as a pitfall for anyone who customizes.
 
-The test artifacts were torn down post-verification — no production state was
+Also validated 2026-05-19: the PITR codepath. Drilled with two timestamped
+inserts T1 (before) and T2 (after) into a sentinel database; recovery with
+`recoveryTarget.targetTime` set between them yielded the T1 row only and not
+T2 — proving the plugin honors WAL stop points correctly.
+
+Plugin-migration validation 2026-05-19: same joplin-db recovery, this time
+through the plugin-barman-cloud spec (`spec.plugins[]` + ObjectStore) against
+the SAME source S3 data originally written by the in-tree barman. Recovery
+succeeded in 2m18s; subsequent `kubectl create backup --method=plugin`
+completed in 45s. Confirms the plugin reads existing in-tree-barman data and
+writes new backups in a wire-compatible format.
+
+All test artifacts were torn down post-verification — no production state was
 modified.

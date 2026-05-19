@@ -15,9 +15,16 @@ recovery runbook.
 
 ## What it renders
 
-- `Cluster` — the postgres cluster (1+ instances)
+- `Cluster` — the postgres cluster (1+ instances), backup wired via the
+  `barman-cloud.cloudnative-pg.io` plugin
+- `${APP}-store` ObjectStore — plugin-barman-cloud destination config (S3
+  path, credentials, compression, retention). Replaced the deprecated in-tree
+  `spec.backup.barmanObjectStore` field.
 - `${APP}-cnpg-s3` Secret — S3 credentials for backup (populated from `volsync-garage-base`)
-- `ScheduledBackup` — daily base backup (default 04:00 UTC)
+- `ScheduledBackup` — daily base backup using `method: plugin` (default 04:00 UTC)
+
+Requires `infrastructure/controllers/cnpg-barman-plugin` to be installed and the
+`barman-cloud` plugin pod Ready.
 
 ## Companion Services CNPG creates automatically
 
