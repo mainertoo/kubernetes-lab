@@ -63,6 +63,17 @@
         "url:\\s+oci://(?<depName>[^\\s]+)\\s[\\s\\S]*?tag:\\s+(?<currentValue>[^\\s]+)"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track vendored GitHub-release manifests via a manifest-version sentinel comment (e.g. cnpg-barman-plugin)",
+      "managerFilePatterns": [
+        "/infrastructure/.+/kustomization\\.ya?ml$/"
+      ],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*#\\s*manifest-version:\\s+(?<currentValue>[^\\s]+)"
+      ]
     }
   ],
 
@@ -109,6 +120,12 @@
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "media apps",
       "groupSlug": "media-apps"
+    },
+    {
+      "description": "plugin-barman-cloud is tracked via the manifest-version sentinel in its kustomization.yaml. Suppress the image-tag-only PR that Renovate's default kubernetes manager would otherwise raise from the vendored manifest.yaml.",
+      "matchPackageNames": ["ghcr.io/cloudnative-pg/plugin-barman-cloud"],
+      "matchManagers": ["kubernetes"],
+      "enabled": false
     }
   ]
 }

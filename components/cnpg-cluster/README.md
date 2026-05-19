@@ -15,6 +15,8 @@ recovery runbook.
 
 ## What it renders
 
+Both variants render:
+
 - `Cluster` — the postgres cluster (1+ instances), backup wired via the
   `barman-cloud.cloudnative-pg.io` plugin
 - `${APP}-store` ObjectStore — plugin-barman-cloud destination config (S3
@@ -22,6 +24,10 @@ recovery runbook.
   `spec.backup.barmanObjectStore` field.
 - `${APP}-cnpg-s3` Secret — S3 credentials for backup (populated from `volsync-garage-base`)
 - `ScheduledBackup` — daily base backup using `method: plugin` (default 04:00 UTC)
+
+The base variant adds `spec.bootstrap.initdb` (fresh empty database). The
+recovery variant swaps that for `spec.bootstrap.recovery` + an
+`externalClusters[].plugin` entry pointing at the source cluster's ObjectStore.
 
 Requires `infrastructure/controllers/cnpg-barman-plugin` to be installed and the
 `barman-cloud` plugin pod Ready.
@@ -76,9 +82,40 @@ postgres-secret. Standard kubernetes.io/basic-auth keys.
 
 ## Restore (point-in-time or full DR)
 
-Use the [`recovery/`](recovery/) variant — same substitutions as this base, plus
-optional `APP_RESTORE_FROM` (defaults to `${APP}`) and a Kustomize patch for
-PITR `targetTime`. Walked through end-to-end in
-[`docs/cnpg-disaster-recovery.md`](../../docs/cnpg-disaster-recovery.md).
+Use the [`recovery/`](recovery/) variant. Same substitutions as the base
+Component, plus:
 
-Reference: https://cloudnative-pg.io/documentation/current/recovery/
+| Variable | Default | Notes |
+|---|---|---|
+| `APP_RESTORE_FROM` | `${APP}` | Name of the source cluster in S3. Override only for side-by-side restore (e.g. `APP=joplin-db-restored APP_RESTORE_FROM=joplin-db`). |
+
+Two scenarios are walked through end-to-end in
+[`docs/cnpg-disaster-recovery.md`](../../docs/cnpg-disaster-recovery.md):
+single-cluster PITR (with a Kustomize patch adding `recoveryTarget.targetTime`)
+and 8-cluster cluster-nuke recovery.
+
+### Pre-conditions for the recovery variant
+
+- **Source ObjectStore must exist in the namespace.** Cluster-nuke restore is
+  fine (`APP == APP_RESTORE_FROM`; the recovery Component creates the same
+  ObjectStore the source app would). For side-by-side restore, the source
+  app's base Component must already be deployed.
+- **Plugin operator must be Ready.** `kubectl -n cnpg-system get deploy
+  barman-cloud` should be `1/1` before applying.
+- **`serverName` lives in plugin parameters, NOT in the ObjectStore.** The
+  ObjectStore CRD forbids `spec.configuration.serverName`. The Component sets
+  serverName on both `spec.plugins[].parameters.serverName` (own backup path)
+  and `externalClusters[].plugin.parameters.serverName` (source restore path)
+  to `${APP_RESTORE_FROM}`. Don't customize this without reading the
+  runbook's pitfalls section.
+
+### Validated 2026-05-19
+
+- Vanilla postgres 16 (joplin-db) — recovery to latest WAL: 2m18s; data identical
+- PITR drill (joplin-db) — target between two timestamped sentinel rows; the
+  later row was correctly excluded from the restored cluster
+- Custom-image postgis 17 (dawarich-db, 5 GiB) — recovery: 91s; all 5
+  extensions restored; row counts identical across 5 sample tables;
+  `SELECT PostGIS_Version()` callable
+
+Reference: https://cloudnative-pg.io/plugin-barman-cloud/
