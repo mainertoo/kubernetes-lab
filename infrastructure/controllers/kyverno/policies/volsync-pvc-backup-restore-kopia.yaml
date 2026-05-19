@@ -42,13 +42,6 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore-kopia
   annotations:
-    # One-shot force-recreate at Phase 6 turn-up 2026-05-18: added
-    # KOPIA_REPOSITORY to rule 5's Secret data (volsync 0.15.0 controller
-    # validation requires it). Kyverno rejects in-place edits to
-    # spec.rules[].generate.data — see [[feedback_kyverno_generate_rules_immutable]].
-    # REMOVE THIS ANNOTATION in a follow-up PR after this one merges so
-    # the cluster's reconciliation state stays clean.
-    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync Kopia PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
