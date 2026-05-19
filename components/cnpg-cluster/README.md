@@ -3,6 +3,16 @@
 Reusable Component that wires an app into a CloudNativePG-managed PostgreSQL cluster
 with WAL streaming + base backups to Garage S3.
 
+## TL;DR — pick a variant
+
+| Variant | When to use |
+|---|---|
+| `cnpg-cluster` (this dir) | New app deployment OR existing CNPG-managed app. `bootstrap.initdb` creates a fresh empty database. |
+| [`cnpg-cluster/recovery`](recovery/) | Disaster recovery: cluster nuke, accidental DB drop, side-by-side PITR test. `bootstrap.recovery` restores from a barman-cloud S3 base backup + WAL chain. Flip back to the base variant after the Cluster reaches `Ready`. |
+
+See [`docs/cnpg-disaster-recovery.md`](../../docs/cnpg-disaster-recovery.md) for the full
+recovery runbook.
+
 ## What it renders
 
 - `Cluster` — the postgres cluster (1+ instances)
@@ -57,20 +67,11 @@ postgres-secret. Standard kubernetes.io/basic-auth keys.
 - WAL + base backups: `s3://${S3_BUCKET}/cnpg/${APP}/`
 - One CNPG-managed prefix per app, isolated from volsync's per-app restic repos.
 
-## Restore (point-in-time)
+## Restore (point-in-time or full DR)
 
-```yaml
-spec:
-  bootstrap:
-    recovery:
-      source: <name-of-source-cluster>
-      recoveryTarget:
-        targetTime: "2026-05-08 14:23:51"
-  externalClusters:
-    - name: <name-of-source-cluster>
-      barmanObjectStore:
-        destinationPath: s3://${S3_BUCKET}/cnpg/<source-app>
-        # ... credentials etc.
-```
+Use the [`recovery/`](recovery/) variant — same substitutions as this base, plus
+optional `APP_RESTORE_FROM` (defaults to `${APP}`) and a Kustomize patch for
+PITR `targetTime`. Walked through end-to-end in
+[`docs/cnpg-disaster-recovery.md`](../../docs/cnpg-disaster-recovery.md).
 
-See https://cloudnative-pg.io/documentation/current/recovery/ for the full procedure.
+Reference: https://cloudnative-pg.io/documentation/current/recovery/
