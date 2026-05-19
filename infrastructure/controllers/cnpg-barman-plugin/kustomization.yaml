@@ -1,0 +1,19 @@
+---
+# plugin-barman-cloud — CNPG operator extension that replaces the deprecated
+# spec.backup.barmanObjectStore + spec.externalClusters[].barmanObjectStore
+# fields with a CNPG-I plugin reference.
+#
+# Required by: components/cnpg-cluster (base + recovery variants) once they
+# migrate from in-tree barman to the plugin spec. CNPG 1.30 will remove the
+# in-tree fields entirely.
+#
+# Install manifest is vendored verbatim from upstream release. To bump:
+#   curl -sL https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/<vX.Y.Z>/manifest.yaml \
+#     -o infrastructure/controllers/cnpg-barman-plugin/manifest.yaml
+#
+# Compatibility: requires CNPG 1.26+, recommends 1.27+. Cluster is on 1.29.1.
+# Requires cert-manager (already deployed via infrastructure/controllers/cert-manager).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - manifest.yaml
