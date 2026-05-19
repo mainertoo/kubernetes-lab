@@ -38,7 +38,7 @@ spec:
           app:
             image:
               repository: homeassistant/home-assistant
-              tag: 2026.5.2
+              tag: 2026.5.3
             env:
               TZ: America/Los_Angeles
 
