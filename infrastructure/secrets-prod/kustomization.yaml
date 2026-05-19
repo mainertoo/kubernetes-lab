@@ -5,6 +5,5 @@ resources:
   - gatus-secret.sops.yaml
   - alertmanager-secret.sops.yaml
   - volsync-garage.sops.yaml
-  - volsync-shared-base.sops.yaml
   - volsync-kopia-shared-base.sops.yaml
   - pvc-plumber-kopia.sops.yaml
