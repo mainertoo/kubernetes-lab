@@ -61,7 +61,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/plex
-              tag: 1.43.1.10611-1e34174b1-ls306
+              tag: 1.43.2.10687-563d026ea-ls307
               pullPolicy: Always
             env:
               - name: TZ
