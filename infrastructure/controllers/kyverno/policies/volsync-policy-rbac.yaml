@@ -50,7 +50,7 @@ metadata:
     rbac.kyverno.io/aggregate-to-background-controller: "true"
     app.kubernetes.io/part-of: volsync-pvc-backup-restore
 rules:
-  # Generate rule 5 reads flux-system/volsync-shared-base and creates
+  # Generate rule 5 reads flux-system/volsync-kopia-shared-base and creates
   # the per-PVC `volsync-<pvc>` Secret in the app's namespace.
   - apiGroups: [""]
     resources: ["secrets"]
