@@ -104,57 +104,19 @@ k8s$ kubectl -n <ns> delete pod <cluster>-1
 
 ### Restore to a SPECIFIC point in time (within 30-day retention)
 
-Use `bootstrap.recovery` against the S3 base backup + WAL chain. This **creates a fresh Cluster** with a different name, restores into it, then you cut the app over.
+Use the [`components/cnpg-cluster/recovery`](../components/cnpg-cluster/recovery/)
+Component. It creates a fresh Cluster restored from the S3 base backup + WAL
+chain. Full walk-through (per-app and cluster-nuke variants, plus PITR target
+patching) lives in [`cnpg-disaster-recovery.md`](cnpg-disaster-recovery.md).
 
-```yaml
-# apps/production/<app>/db-cnpg-restore.yaml (temporary, delete after restore)
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: <app>-db-restored
-  namespace: <ns>
-spec:
-  instances: 1
-  imageName: <same as original>
-  storage:
-    size: <same as original>
-    storageClass: ceph-rbd
-  bootstrap:
-    recovery:
-      source: <app>-db-backup-source
-      recoveryTarget:
-        targetTime: "2026-05-09 14:00:00"     # the moment you want
-  externalClusters:
-    - name: <app>-db-backup-source
-      barmanObjectStore:
-        destinationPath: s3://volsync/cnpg/<original-cluster-name>
-        endpointURL: https://garage.lab.mainertoo.com
-        s3Credentials:
-          accessKeyId:
-            name: <app>-cnpg-db-cnpg-s3
-            key: AWS_ACCESS_KEY_ID
-          secretAccessKey:
-            name: <app>-cnpg-db-cnpg-s3
-            key: AWS_SECRET_ACCESS_KEY
-          region:
-            name: <app>-cnpg-db-cnpg-s3
-            key: AWS_DEFAULT_REGION
-```
-
-Apply, watch `kubectl -n <ns> get cluster.postgresql.cnpg.io <app>-db-restored -w` until Ready, then verify the restored data:
-
-```bash
-k8s$ kubectl -n <ns> exec <app>-db-restored-1 -c postgres -- \
-       psql -U postgres -d <db> -c "SELECT count(*) FROM <some_table>"
-```
-
-If happy, cut the app over by editing the HelmRelease `DATABASE_HOST` (or equivalent) to point at `<app>-db-restored-rw`. After the app is stable on the new cluster, delete the original.
+Tested 2026-05-19 against joplin-db: 26 tables / row counts identical / ~2.5 min
+recovery time for a 10 GiB cluster.
 
 ### Restore the entire 8-app fleet (cluster-nuke scenario)
 
-This belongs in §4 (cluster-nuke recovery) but the per-app pattern is the same: every CNPG cluster's `db-cnpg.yaml` Flux Kustomization just needs a `bootstrap.recovery` patch (instead of the default `bootstrap.initdb`). The `components/cnpg-cluster/recovery/` Component variant (pending — see project memory `project_cnpg_recovery_component.md`) will templatize this.
-
-For now, to recover 8 clusters by hand, repeat the per-cluster pattern above. Each runs in parallel; the slowest is dawarich-db (~2.3 GiB).
+See [`cnpg-disaster-recovery.md`](cnpg-disaster-recovery.md) §2. Each app's
+`db-cnpg.yaml` flips its `components:` reference from `cnpg-cluster` to
+`cnpg-cluster/recovery`; Flux reconciles all 8 in parallel.
 
 ### Operator-only recovery
 
@@ -315,8 +277,8 @@ Order of operations: provision infra → bootstrap → restore PVCs.
    ```
 5. **For each app needing restore**, switch its kustomization to `components/volsync-v2/bootstrap` and commit. Flux reconciles, volsync pulls each PVC's latest snapshot from Garage.
    - You can switch them all at once if the volsync controller is healthy — they parallelize.
-6. **For each CNPG cluster** (8 postgres apps), patch the cluster's Flux Kustomization at `apps/production/<app>/db-cnpg.yaml` to add a `bootstrap.recovery` block instead of the default `bootstrap.initdb` (see §1b above). Once the `components/cnpg-cluster/recovery/` Component variant lands, this becomes a one-line opt-in.
-7. **Settle**: once all bootstraps complete, switch each kustomization back to plain `volsync-v2` (and drop the `bootstrap.recovery` patch from CNPG db-cnpg.yaml files) in a follow-up commit.
+6. **For each CNPG cluster** (8 postgres apps), edit `apps/production/<app>/db-cnpg.yaml` to swap the `components:` reference from `cnpg-cluster` → `cnpg-cluster/recovery`. Full procedure in [`cnpg-disaster-recovery.md`](cnpg-disaster-recovery.md) §2. Flux reconciles all 8 in parallel.
+7. **Settle**: once all bootstraps complete, switch each kustomization back to plain `volsync-v2` (and flip each CNPG `components:` reference back to plain `cnpg-cluster`) in a follow-up commit.
 
 ### Concrete PR for a mass-restore
 
