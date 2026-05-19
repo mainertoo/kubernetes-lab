@@ -1,34 +1,24 @@
-# volsync-pvc-engine-required — Phase 3b of docs/volsync-kopia-transition.md.
+# volsync-pvc-engine-required — Phase 3b of docs/volsync-kopia-transition.md,
+# tightened in Phase 7.3 (2026-05-19) post-Restic-decom.
 #
-# Deny-on-missing-engine validate-only policy. Closes Codex v1 finding [3]
-# / [6] (originally) and v2 finding [3] / [6]: the engine label MUST be
-# mandatory on any backup-labeled PVC, NEVER inferred at admission time
+# Deny-on-missing-engine validate-only policy. The engine label MUST be
+# explicit on any backup-labeled PVC, NEVER inferred at admission time
 # by some downstream webhook. Without this policy, a PVC with
-# `backup: hourly|daily` but no `backup-engine` label would match both
-# engine-gated policies' selectors as "neither" — depending on policy
-# order it would either get no generated Secret/RS/RD (silent backup
-# loss) or both at once (collision on same-name Secret).
+# `backup: hourly|daily` but no `backup-engine` label could match no
+# engine-gated generate rule (silent backup loss) or pass through to
+# whichever default landed last.
 #
-# v8 allowed set: {restic, kopia, migrating}.
-#   - restic: ~42 apps currently on the shared Restic repo, gated by
-#     volsync-pvc-backup-restore (Phase 3c adds the selector tightening).
-#   - kopia: cut-over apps post-Phase-5, gated by volsync-pvc-backup-
-#     restore-kopia (Phase 3d new policy).
-#   - migrating: NOT used by v3+ cutover protocol (v3 parallel-probe-RS
-#     handoff abandoned the transient label). Enumerated explicitly to
-#     keep the schema future-proof if a Phase 5 protocol revision ever
-#     needs an intermediate state.
+# Allowed set: {kopia} only.
+#   - restic was the original allow value through Phase 5; removed in
+#     Phase 7.3 once all 70 PVCs cut over and the Restic ClusterPolicy +
+#     pvc-plumber-restic stack were decommissioned.
+#   - migrating was reserved for an intermediate cutover state that
+#     v3+ protocol never used; dropped in Phase 7.3 for the same reason.
 #
-# Mode: validationFailureAction=Audit through Phase 5. Per v8 §6
-# open-question #4: flip to Enforce in Phase 6 alongside the Restic
-# stack decom, NOT before Phase 5. Pre-Phase-5 Enforce would block any
-# accidental engine-label typo on a real PVC create with no safety net;
-# Audit catches the same mistake via ephemeralreport without denying.
-#
-# Coexists with volsync-pvc-backup-restore (the existing Restic policy,
-# Phase 3c gated to backup-engine: restic) and volsync-pvc-backup-
-# restore-kopia (Phase 3d new). All three policies share the same
-# namespace exclude list. Aggregated RBAC is in volsync-policy-rbac.yaml.
+# Mode: validationFailureAction=Enforce (flipped from Audit in Phase 7.3).
+# Now that Phase 6 is closed and the cluster has 70 PVCs steady-state on
+# Kopia, Enforce blocks any accidental engine-label typo at admission
+# rather than just audit-logging the mistake.
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -39,13 +29,11 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: PersistentVolumeClaim
     policies.kyverno.io/description: >-
-      Requires every backup-labeled PVC to carry a `backup-engine` label
-      whose value is one of {restic, kopia, migrating}. Without it, the
-      engine-gated generate policies for restic/kopia would either
-      miss the PVC (silent backup loss) or both match it (Secret/RS/RD
-      name collision).
+      Requires every backup-labeled PVC to carry `backup-engine: kopia`.
+      Without it, the kopia-gated generate policy would not match and the
+      PVC would have no backups configured.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: false
   failurePolicy: Fail
   webhookTimeoutSeconds: 10
@@ -82,8 +70,8 @@ spec:
         message: >-
           PVC {{request.namespace}}/{{request.object.metadata.name}}
           has `backup: {{request.object.metadata.labels.backup}}` but
-          no valid `backup-engine` label. Add one of: restic, kopia,
-          migrating. See docs/volsync-kopia-transition.md §3 Phase 3b.
+          no valid `backup-engine` label. Add `backup-engine: kopia`.
+          See docs/volsync-kopia-transition.md.
         deny:
           conditions:
             any:
@@ -94,4 +82,4 @@ spec:
               # Present but not in allow set → deny.
               - key: "{{ request.object.metadata.labels.\"backup-engine\" || '' }}"
                 operator: NotIn
-                value: [restic, kopia, migrating]
+                value: [kopia]
