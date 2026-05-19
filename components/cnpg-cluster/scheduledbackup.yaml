@@ -13,3 +13,11 @@ spec:
     name: ${APP}
   backupOwnerReference: self
   immediate: false
+  # Plugin-based backup (replaces the deprecated default `barmanObjectStore`
+  # method). The pluginConfiguration name must match the plugin's CNPG-I
+  # registration name; barmanObjectName references the sibling ObjectStore.
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: ${APP}-store

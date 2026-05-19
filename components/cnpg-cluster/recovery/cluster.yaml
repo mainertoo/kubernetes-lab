@@ -69,53 +69,27 @@ spec:
       source: ${APP_RESTORE_FROM:=${APP}}
 
   externalClusters:
-    # NOTE on `name` and `serverName`: in CNPG, `externalClusters[].name` is
-    # only a logical identifier referenced by `bootstrap.recovery.source`.
-    # The actual S3 path uses `barmanObjectStore.serverName` (which defaults
-    # to externalClusters[].name when omitted). We set both explicitly to
-    # the source cluster name so the path resolves to:
-    #   <destinationPath>/<serverName>/{base,wals}/...
+    # The plugin's barmanObjectName references the SOURCE cluster's ObjectStore
+    # (already exists in the namespace, owned by the source app's Flux
+    # Kustomization). In a cluster-nuke restore where APP==APP_RESTORE_FROM,
+    # the ObjectStore is the same resource the new cluster creates for itself
+    # (sibling objectstore.yaml).
     - name: ${APP_RESTORE_FROM:=${APP}}
-      barmanObjectStore:
-        serverName: ${APP_RESTORE_FROM:=${APP}}
-        destinationPath: s3://${S3_BUCKET}/cnpg/${APP_RESTORE_FROM:=${APP}}
-        endpointURL: ${S3_ENDPOINT}
-        s3Credentials:
-          accessKeyId:
-            name: ${APP}-cnpg-s3
-            key: AWS_ACCESS_KEY_ID
-          secretAccessKey:
-            name: ${APP}-cnpg-s3
-            key: AWS_SECRET_ACCESS_KEY
-          region:
-            name: ${APP}-cnpg-s3
-            key: AWS_DEFAULT_REGION
-        wal:
-          compression: gzip
-          maxParallel: 4
-        data:
-          compression: gzip
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}
 
-  backup:
-    retentionPolicy: "${CNPG_RETENTION:=30d}"
-    barmanObjectStore:
-      destinationPath: s3://${S3_BUCKET}/cnpg/${APP}
-      endpointURL: ${S3_ENDPOINT}
-      s3Credentials:
-        accessKeyId:
-          name: ${APP}-cnpg-s3
-          key: AWS_ACCESS_KEY_ID
-        secretAccessKey:
-          name: ${APP}-cnpg-s3
-          key: AWS_SECRET_ACCESS_KEY
-        region:
-          name: ${APP}-cnpg-s3
-          key: AWS_DEFAULT_REGION
-      wal:
-        compression: gzip
-        maxParallel: 4
-      data:
-        compression: gzip
+  # Ongoing WAL archive + base backups for the recovered cluster. References
+  # the sibling ObjectStore ${APP}-store. For cluster-nuke restore this is
+  # the same object as the externalCluster source (single source of truth).
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: ${APP}-store
+        serverName: ${APP}
 
   resources:
     requests:
