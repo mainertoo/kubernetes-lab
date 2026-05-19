@@ -3,12 +3,8 @@ kind: Kustomization
 resources:
   - kyverno-volsync-jitter.yaml
   - volsync-policy-rbac.yaml
-  # Phase 3b — engine-label admission gate. MUST load BEFORE the engine-
-  # gated generate policies so admission rejects PVCs missing the label
-  # before either policy can match.
+  # Engine-label admission gate (validate, Enforce). Allowed values: [kopia].
   - volsync-pvc-engine-required.yaml
-  # Phase 3c — Restic policy (existing), now gated by backup-engine=restic
-  - volsync-pvc-backup-restore.yaml
-  # Phase 3d — Kopia policy (new). Activates when PVCs flip to
-  # backup-engine=kopia in Phase 5 cutover.
+  # Kopia policy — generates Secret/RS/RD trio with spec.kopia for any
+  # PVC carrying both `backup: hourly|daily` and `backup-engine: kopia`.
   - volsync-pvc-backup-restore-kopia.yaml
