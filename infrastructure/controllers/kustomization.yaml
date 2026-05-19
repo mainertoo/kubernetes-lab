@@ -40,6 +40,11 @@ resources:
   # CloudNativePG operator — manages postgres Clusters with WAL streaming to S3
   - cnpg
 
+  # plugin-barman-cloud — CNPG-I plugin that replaces the deprecated
+  # spec.backup.barmanObjectStore (removed in CNPG 1.30). Additive on install;
+  # Cluster spec migration to spec.plugins[] is a separate PR.
+  - cnpg-barman-plugin
+
   # pvc-plumber (Kopia oracle) — HTTP-only mode, mitchross/pvc-plumber:3.1.0.
   # Phase 2 of docs/volsync-kopia-transition.md. The restic-side oracle
   # (pvc-plumber-restic) was decommissioned in Phase 7.2 (2026-05-19)
