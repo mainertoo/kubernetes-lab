@@ -44,26 +44,16 @@ spec:
       database: ${CNPG_DB_NAME}
       owner: ${CNPG_DB_OWNER}
 
-  backup:
-    retentionPolicy: "${CNPG_RETENTION:=30d}"
-    barmanObjectStore:
-      destinationPath: s3://${S3_BUCKET}/cnpg/${APP}
-      endpointURL: ${S3_ENDPOINT}
-      s3Credentials:
-        accessKeyId:
-          name: ${APP}-cnpg-s3
-          key: AWS_ACCESS_KEY_ID
-        secretAccessKey:
-          name: ${APP}-cnpg-s3
-          key: AWS_SECRET_ACCESS_KEY
-        region:
-          name: ${APP}-cnpg-s3
-          key: AWS_DEFAULT_REGION
-      wal:
-        compression: gzip
-        maxParallel: 4
-      data:
-        compression: gzip
+  # WAL archive + base backups handled by the barman-cloud CNPG-I plugin.
+  # The plugin watches the sibling ObjectStore resource (${APP}-store) for
+  # destination + credentials. CNPG 1.30 will remove the in-tree
+  # spec.backup.barmanObjectStore field — this is the forward-compatible path.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: ${APP}-store
+        serverName: ${APP}
 
   resources:
     requests:
