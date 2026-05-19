@@ -5,4 +5,3 @@ resources:
   - volsync-release.yaml
   - volsync-namespace.yaml
   - volsync-servicemonitor.yaml
-  - volsync-restic-forget-cronjob.yaml
