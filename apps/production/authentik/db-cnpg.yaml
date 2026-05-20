@@ -32,12 +32,10 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: authentik
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   # Health-check the CNPG Cluster so the cutover PR (which will set
   # `dependsOn: authentik-db-cnpg` on the authentik app Kustomization)
   # properly waits for the new postgres to be Ready during a from-scratch
@@ -47,50 +45,41 @@ spec:
       kind: Cluster
       name: authentik-db
       namespace: authentik
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: authentik-db
       APP_NAMESPACE: authentik
-
       CNPG_DB_NAME: authentik
       CNPG_DB_OWNER: authentik
-
       # Default CNPG image — vanilla postgres 17.5, no postgis.
       # CNPG_IMAGE omitted → defaults to ghcr.io/cloudnative-pg/postgresql:17.5-bookworm
-
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 06:30 UTC — clear of joplin (04:30), qnap_pbs
       # (04:45), zilean (05:15), qnap_garage (05:30), riven (05:45),
       # dawarich (06:00).
       # CNPG cron format: <s> <m> <h> <dom> <mon> <dow>
       CNPG_BACKUP_SCHEDULE: "0 30 6 * * *"
-
       CNPG_RETENTION: "30d"
-
       # Authentik is moderately busy (Django session writes, task queue
       # churn). Slightly above default to handle peak login load.
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "384Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

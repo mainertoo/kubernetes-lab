@@ -40,34 +40,29 @@ spec:
   # would reference a Secret that doesn't yet exist.
   path: ./apps/base/sparky-fitness/db-cnpg
   targetNamespace: sparky-fitness
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   healthChecks:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       name: sparky-fitness-cnpg-db
       namespace: sparky-fitness
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   # Note: components paths are relative to spec.path (./apps/base/sparky-fitness/db-cnpg),
   # which is 4 directory levels deep, so we need 4 `..` segments to reach the
   # repo root before descending into components/.
   components:
-    - ../../../../components/cnpg-cluster
-
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
   # Patch the Cluster (rendered by the cnpg-cluster Component) to add
   # CNPG-managed roles and post-init application SQL. This captures the
   # sparky_app role + its grants in GitOps so a fresh `bootstrap.initdb`
@@ -111,34 +106,27 @@ spec:
               postInitApplicationSQL:
                 - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sparky_app;"
                 - "ALTER DEFAULT PRIVILEGES FOR ROLE sparky GRANT USAGE, SELECT ON SEQUENCES TO sparky_app;"
-
   postBuild:
     substitute:
       APP: sparky-fitness-cnpg-db
       APP_NAMESPACE: sparky-fitness
-
       # Source DB name has an underscore (sparkyfitness_db, not sparky-fitness)
       # — verified by `psql -l` on the legacy postgres pod.
       CNPG_DB_NAME: sparkyfitness_db
       CNPG_DB_OWNER: sparky
-
       # Postgres 15 — match the legacy postgres:15.15-alpine major.
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.14-bookworm
-
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 07:30 UTC — clear of the others.
       CNPG_BACKUP_SCHEDULE: "0 30 7 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

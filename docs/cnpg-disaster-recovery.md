@@ -24,12 +24,17 @@ $ kubectl -n cnpg-system get pods -l app.kubernetes.io/name=cloudnative-pg
 $ kubectl -n cnpg-system get deploy barman-cloud      # must be 1/1 Ready
 
 # 3. Source backups exist for the target app(s)
+# Brittle `${APP%-db}` shell-expansion bug from prior versions is fixed; use yq lookup
+# that handles all DB naming patterns (e.g. opencut-cnpg-db, media/* nested paths).
 $ APP=joplin-db   # or any of the 8
-$ kubectl -n $(yq '.spec.postBuild.substitute.APP_NAMESPACE' apps/production/${APP%-db}/db-cnpg.yaml) \
-    exec ${APP}-1 -c postgres -- barman-cloud-backup-list \
+$ F=$(rg --files apps/production | rg 'db-cnpg.yaml$' | xargs -I{} sh -c "yq -e \".spec.postBuild.substitute.APP == \\\"$APP\\\"\" {} >/dev/null 2>&1 && echo {}" | head -1)
+$ NS=$(yq -r '.spec.postBuild.substitute.APP_NAMESPACE' "$F")
+$ LINEAGE=$(yq -r '.spec.postBuild.substitute.CNPG_LINEAGE // "v1"' "$F")
+$ kubectl -n "$NS" exec "${APP}-1" -c postgres -- barman-cloud-backup-list \
     --endpoint-url https://garage.lab.mainertoo.com \
-    s3://volsync/cnpg/${APP} ${APP} | tail -5
+    "s3://volsync/cnpg/${APP}" "${APP}-${LINEAGE}" | tail -5
 # expect: at least one base backup, most recent within last 24h
+# For pre-refactor v0 backups, use serverName=${APP} (no -vN suffix).
 ```
 
 If the **live** cluster is gone (cluster-nuke scenario), step 3 can't run inside it.
@@ -39,19 +44,130 @@ in `kubectl get backup -A` history are the inventory.
 
 ---
 
-## 1. Single-cluster restore (PITR or fresh restore)
+## 1. Single-cluster restore (in-place)
 
-Two sub-scenarios with the same Component:
+**Updated 2026-05-20 to use the overlay refactor + `scripts/dr-flip.sh`.** This
+in-place flow is the common case: an existing DB has bad data and you want it
+restored from its own S3 backup history into the same cluster name. (For a
+side-by-side restore that keeps the original live, see §1c.)
 
-| Need | What to do |
-|---|---|
-| Restore to latest WAL (e.g. accidental DROP TABLE that was just committed) | Side-by-side: deploy a NEW Cluster (`<app>-restored`) using the recovery Component pointing at the original's S3 path. Cut the app over once verified. |
-| Restore to a specific timestamp within 30-day retention | Same as above + a Kustomize patch adding `recoveryTarget.targetTime`. |
+### Step 1 — Flip the DB to recovery mode
 
-### Step 1 — Add a temporary Flux Kustomization for the restored cluster
+```bash
+# Optional: restore from the v0 (pre-refactor unversioned) lineage instead of
+# the default v(current-1). The migration-window escape hatch.
+./scripts/dr-flip.sh enable joplin-db
+# or for v0:
+./scripts/dr-flip.sh enable --restore-from-lineage v0 joplin-db
 
-Create `apps/production/<app>/db-cnpg-restore.yaml` (temporary — delete after cutover
-is complete):
+# Review changes:
+git diff apps/production/joplin/db-cnpg.yaml
+# Expected:
+#  - components[] entry flipped from /initdb to /recovery
+#  - CNPG_LINEAGE: v1 → v2  (bumped)
+#  - CNPG_RESTORE_FROM_LINEAGE: v0 → v1  (set to the prior lineage)
+
+git add apps/production/joplin/db-cnpg.yaml
+git commit -m "dr(joplin-db): flip to recovery, restore from v1, write to v2"
+git push
+```
+
+### Step 2 — Force CNPG to re-evaluate bootstrap
+
+CNPG evaluates `spec.bootstrap` ONLY at Cluster CREATION, never on update.
+To force a fresh bootstrap evaluation we MUST delete + recreate the live
+Cluster. Wait for Flux to reconcile the spec change first (~2 min), then:
+
+```bash
+kubectl -n <ns> delete cluster.postgresql.cnpg.io <db>
+kubectl -n <ns> delete pvc -l cnpg.io/cluster=<db>
+# Wait for PVCs to fully terminate (~30-90s)
+kubectl -n <ns> get pvc -l cnpg.io/cluster=<db>
+# Trigger Flux to recreate the Cluster (now in recovery mode)
+flux reconcile kustomization <db>-cnpg --with-source
+```
+
+### Step 3 — Watch the recovery
+
+```bash
+kubectl -n <ns> get cluster.postgresql.cnpg.io <db> -w
+kubectl -n <ns> get pods | grep <db>
+
+# Once <db>-1-full-recovery-* pod is Running, tail its logs
+kubectl -n <ns> logs <db>-1-full-recovery-XXXXX -f
+```
+
+Look for `"restored log file ..."` (WAL pulling) → `"consistent recovery state
+reached"` → Cluster status `Cluster in healthy state`.
+
+### Step 4 — Verify data + restart consumer apps
+
+```bash
+kubectl -n <ns> exec <db>-1 -c postgres -- psql -U postgres -d <dbname> -c "\dt"
+kubectl -n <ns> rollout restart deployment/<app>
+```
+
+### Step 5 — Post-recovery settle gate (MANDATORY before disable)
+
+**Skipping this step puts the next DR at risk of an unrecoverable hollow
+lineage.** See §1b below for the full checklist.
+
+### Step 6 — Settle: flip back to initdb mode
+
+```bash
+# Run the 3 evidence commands in §1b first. Then:
+./scripts/dr-flip.sh disable --i-verified-post-recovery-base-backup joplin-db
+git add apps/production/joplin/db-cnpg.yaml
+git commit -m "settle: joplin-db back to initdb mode at v2"
+git push
+```
+
+Lineage values stay at `v2 / v1` — the live cluster IS on v2, the spec MUST
+reflect that. `bootstrap.initdb` is a no-op on an existing cluster.
+
+---
+
+## 1b. Post-recovery settle checklist (MANDATORY)
+
+After every DR (in-place OR side-by-side) and BEFORE `dr-flip.sh disable`:
+
+```bash
+# 1. Trigger an immediate base backup on the recovered cluster
+kubectl -n <ns> create -f - <<EOF
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: post-recovery-base-$(date +%s)
+  namespace: <ns>
+spec:
+  cluster: { name: <db> }
+  method: plugin
+  pluginConfiguration: { name: barman-cloud.cloudnative-pg.io }
+EOF
+
+# 2. Wait for it to complete
+kubectl -n <ns> get backup -l cnpg.io/cluster=<db> --sort-by=.status.startedAt
+
+# 3. Verify the base backup exists at the new lineage in S3
+LINEAGE=$(yq -r '.spec.postBuild.substitute.CNPG_LINEAGE' apps/production/.../<db>/db-cnpg.yaml)
+kubectl -n <ns> exec <db>-1 -c postgres -- barman-cloud-backup-list \
+  --endpoint-url https://garage.lab.mainertoo.com \
+  s3://volsync/cnpg/<db> <db>-${LINEAGE} | tail -3
+```
+
+**Why this matters:** if the current lineage's S3 prefix has no base backup
+when the NEXT DR happens, the recovery cluster will fail with "no target
+backup found." The dr-flip.sh `disable` banner prints this same checklist
+before each invocation (skippable only with `--i-verified-post-recovery-base-backup`
+or, for CI, `--no-settle-warning` gated on `CI=true`/`BATS_TEST=1`).
+
+---
+
+## 1c. Side-by-side restore (don't disturb live)
+
+Rare but useful (verifying a backup is good, testing a recovery procedure).
+Manual today; deploy a temporary Flux Kustomization with `APP_RESTORE_FROM`
+pointing at the source cluster and a different `APP` name:
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -220,34 +336,31 @@ This section covers the CNPG step. The other steps live in
 - `infrastructure` Kustomization Ready (CNPG operator, Garage, networking)
 - All 8 app namespaces created (Flux will create these as the apps reconcile)
 
-### Step 1 — Switch all 8 db-cnpg.yaml files to the recovery Component
+### Step 1 — Flip all 8 to recovery mode with one script invocation
 
-For each of:
-- `apps/production/joplin/db-cnpg.yaml`
-- `apps/production/authentik/db-cnpg.yaml`
-- `apps/production/dawarich/db-cnpg.yaml`
-- `apps/production/opencut/db-cnpg.yaml`
-- `apps/production/sparky-fitness/db-cnpg.yaml`
-- `apps/production/wiki-js/db-cnpg.yaml`
-- `apps/production/media/riven/db-cnpg.yaml`
-- `apps/production/media/zilean/db-cnpg.yaml`
+```bash
+# During the migration window when no v1 base backups exist yet, pass v0:
+./scripts/dr-flip.sh enable --restore-from-lineage v0 --all
+# After v1 base backups exist (post-cluster-restored steady state), default
+# (no flag) works — auto-computes restore-from from current lineage:
+./scripts/dr-flip.sh enable --all
 
-Edit the `components:` list and substitution block:
-
-```yaml
-spec:
-  components:
-    - ../../../components/cnpg-cluster/recovery   # was: cnpg-cluster
-
-  postBuild:
-    substitute:
-      APP: <unchanged>           # SAME name as before — restores into the original
-      # APP_RESTORE_FROM defaults to APP, so it points at the same S3 path.
-      # CNPG_DB_NAME and CNPG_DB_OWNER are no-ops in recovery mode but harmless to keep.
-      # ... all other substitutions unchanged ...
+git add apps/production/
+git commit -m "dr(cnpg-cluster-nuke): flip all 8 DBs to recovery mode"
+git push
 ```
 
-Commit + push as one PR (`dr/cnpg-cluster-nuke-restore`).
+That's the entire spec change. The script handles:
+
+- Component swap on all 8 files (`initdb` → `recovery`, depth-agnostic)
+- Lineage bump on all 8 (`v(N)` → `v(N+1)`)
+- `CNPG_RESTORE_FROM_LINEAGE` setting per-file
+- Atomic transaction-dir staging (all 8 succeed or none change)
+
+Verify with `./scripts/dr-flip.sh status` before pushing.
+
+**Operator goal:** one PR, one git operation. Matches the volsync/Kopia
+cluster-nuke ergonomics on the PVC side.
 
 ### Step 2 — Reconcile and watch all 8 in parallel
 
@@ -267,12 +380,24 @@ Apps connect via their `-rw` Service. As soon as each restored cluster reaches
 the cluster nuke) succeeds at connecting. No manual cutover needed because the
 cluster name is preserved (`APP` unchanged).
 
-### Step 4 — Settle (flip back to base Component)
+### Step 4 — Post-recovery settle gate (MANDATORY before disable)
 
-After all 8 clusters are healthy and apps are running, open a settle PR that flips
-each `db-cnpg.yaml` back to `components/cnpg-cluster`. This is purely hygiene —
-the recovery Component would continue to work, but the spec describes ongoing
-state (initdb is no-op on initialized clusters).
+For EACH of the 8 clusters, complete the §1b checklist (trigger immediate
+base backup + verify it landed at the new lineage's S3 prefix). Failure to
+do this puts the NEXT DR at risk of an unrecoverable hollow lineage.
+
+### Step 5 — Settle: flip back to initdb mode
+
+```bash
+./scripts/dr-flip.sh disable --i-verified-post-recovery-base-backup --all
+git add apps/production/
+git commit -m "settle: cnpg-cluster-nuke recovery complete"
+git push
+```
+
+Lineage values stay at their bumped state (the live clusters ARE on those
+lineages; spec MUST reflect that). `bootstrap.initdb` is a no-op on existing
+clusters.
 
 ---
 

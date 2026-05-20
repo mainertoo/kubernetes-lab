@@ -270,15 +270,17 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
         ▼
 [CloudNativePG Cluster CRDs, one per app]
    apps/production/<app>/db-cnpg.yaml (Flux Kustomization)
-   components/cnpg-cluster/cluster.yaml (template + substitutions)
+   components/cnpg-cluster/{base,initdb,recovery}/ (overlay pattern post-2026-05-20)
    - 1 instance, ceph-rbd PVC (5–50 GiB)
-   - barman-cloud sidecar streams WAL continuously
+   - plugin-barman-cloud (barman-cloud.cloudnative-pg.io) streams WAL continuously
    - ScheduledBackup runs base backup daily (staggered slots 04:30–08:00 UTC)
+   - serverName lineage-suffixed (<app>-v1, <app>-v2, ...); bumped on every DR
         │
         ▼ (continuous WAL + daily base)
-[Garage S3 — same Docker container on QNAP as Layer 2]
+[Garage S3 — Docker container on QNAP]
    bucket: volsync (re-used)
-   prefix:  cnpg/<cluster>/{base,wals,server-status}/
+   prefix:  cnpg/<app>/<app>-v<N>/{base,wals,server-status}/   (post-refactor)
+   prefix:  cnpg/<app>/<app>/{base,wals,server-status}/        (v0, pre-refactor, escape hatch)
    retention: 30 days per cluster (CNPG-managed prune)
 ```
 
@@ -308,7 +310,24 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
 - **sparky-fitness**: two-role pattern (`sparky` owner + `sparky_app` least-privilege). The `sparky_app` role + grants are captured in GitOps via `apps/base/sparky-fitness/db-cnpg/` SOPS secret + Cluster `managed.roles` patch + `bootstrap.initdb.postInitApplicationSQL` (PRs #296 #297 #298).
 - **riven**: cached `settings.json` in PVC after cutover required a one-shot fixup Job. See `feedback_apps_cache_db_config_in_pvc.md`.
 
-**Recovery**: see `docs/backup-recovery.md` §1b for the `bootstrap.recovery` pattern. The pending `components/cnpg-cluster/recovery/` Component variant (referenced in `project_cnpg_recovery_component.md`) will templatize cluster-nuke restoration.
+**Recovery**: see [`docs/cnpg-disaster-recovery.md`](cnpg-disaster-recovery.md) for the full runbook. Cluster-nuke restoration is a single operator action with `./scripts/dr-flip.sh enable --all`. See also `docs/backup-recovery.md` §1b for the broader context.
+
+### Cluster-nuke recovery recipe (cheat sheet)
+
+```bash
+# 1. Restore SOPS-age key from 1Password (manual)
+# 2. flux bootstrap (rebuilds infrastructure incl. CNPG operator + barman plugin)
+# 3. PVCs auto-restore from Kopia via label-driven Kyverno admission (Layer 2)
+# 4. Flip all 8 CNPG DBs to recovery mode in one command:
+./scripts/dr-flip.sh enable --restore-from-lineage v0 --all
+git add apps/production/ && git commit -m "dr(cnpg-cluster-nuke): all 8 → recovery" && git push
+# 5. Wait ~5-15 min for all 8 to reach `Cluster in healthy state`
+# 6. Per-cluster: run §1b settle checklist in docs/cnpg-disaster-recovery.md
+# 7. Settle: ./scripts/dr-flip.sh disable --i-verified-post-recovery-base-backup --all
+```
+
+Total operator effort: 2 PRs (flip + settle). Matches the volsync/Kopia
+cluster-nuke ergonomics on the PVC side.
 
 ---
 

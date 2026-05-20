@@ -30,12 +30,10 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: dawarich
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   # Health-check the CNPG Cluster so the cutover PR (which will set
   # `dependsOn: dawarich-db` on the dawarich app Kustomization) properly waits
   # for the new postgres to be Ready during a from-scratch GitOps restore.
@@ -44,53 +42,44 @@ spec:
       kind: Cluster
       name: dawarich-db
       namespace: dawarich
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: dawarich-db
       APP_NAMESPACE: dawarich
-
       CNPG_DB_NAME: dawarich
       CNPG_DB_OWNER: dawarich
-
       # Postgis 17.x / 3.5 — matches the legacy postgis/postgis:17-3.5-alpine
       # image used by dawarich-dawarich-db, so dump/restore is same-version.
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgis:17-3.5
-
       # 50Gi: ~10x current DB size (4.9 GB), comfortable headroom for WAL/temp
       # and several years of point ingestion. Expandable via CNPG later.
       CNPG_STORAGE_SIZE: 50Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 06:00 UTC — clear of joplin (04:30), qnap_pbs
       # (04:45), zilean (05:15), qnap_garage (05:30), riven (05:45).
       # CNPG cron format: <s> <m> <h> <dom> <mon> <dow>
       CNPG_BACKUP_SCHEDULE: "0 0 6 * * *"
-
       CNPG_RETENTION: "30d"
-
       # Slightly higher resource request than other CNPG clusters: dawarich
       # is the largest of the migrating DBs (~5 GB) and runs heavy postgis
       # geometry queries (point clustering, distance calcs).
       CNPG_CPU_REQUEST: "200m"
       CNPG_MEMORY_REQUEST: "512Mi"
       CNPG_MEMORY_LIMIT: "2Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

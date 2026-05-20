@@ -33,57 +33,46 @@ spec:
   # repo root before descending into components/. Lesson learned from PR #297.
   path: ./apps/base/wiki-js/db-cnpg
   targetNamespace: wiki-js
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   healthChecks:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       name: wiki-js-cnpg-db
       namespace: wiki-js
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../../components/cnpg-cluster
-
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: wiki-js-cnpg-db
       APP_NAMESPACE: wiki-js
-
       CNPG_DB_NAME: wiki
       CNPG_DB_OWNER: wikijs
-
       # Postgres 15 — match the legacy postgres:15-alpine.
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:15.14-bookworm
-
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 08:00 UTC — the last open slot in the morning
       # window after the others.
       CNPG_BACKUP_SCHEDULE: "0 0 8 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base
