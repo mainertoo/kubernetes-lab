@@ -43,7 +43,7 @@ spec:
   interval: 10m
   dependsOn:
     - name: infra-controllers
-  path: ./infrastructure/configs/cert-manager
+  path: ./infrastructure/configs/cert-manager/staging
   prune: true
   sourceRef:
     kind: GitRepository
