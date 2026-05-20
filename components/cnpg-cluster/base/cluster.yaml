@@ -1,11 +1,12 @@
 ---
-# Reusable CNPG Cluster definition.
+# Reusable CNPG Cluster spec WITHOUT spec.bootstrap.
+# Bootstrap is layered via an overlay Component (initdb/ or recovery/).
+# This file is the single source of truth for image, storage, plugins,
+# resources — everything except the bootstrap mode.
 #
 # Required substitutions:
 #   APP                 cluster name (also used as Service prefix: <APP>-rw, <APP>-ro)
 #   APP_NAMESPACE       deployment namespace
-#   CNPG_DB_NAME        initial database to create
-#   CNPG_DB_OWNER       owner role for the initial database
 #
 # Required substituteFrom Secret (in flux-system):
 #   volsync-garage-base — must provide AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
@@ -16,10 +17,13 @@
 #   CNPG_IMAGE             ghcr.io/cloudnative-pg/postgresql:17.5-bookworm
 #   CNPG_STORAGE_SIZE      2Gi
 #   CNPG_STORAGECLASS      ceph-rbd
-#   CNPG_RETENTION         30d
+#   CNPG_LINEAGE           v1   (lineage suffix appended to serverName; bumped on every DR)
 #   CNPG_CPU_REQUEST       100m
 #   CNPG_MEMORY_REQUEST    256Mi
 #   CNPG_MEMORY_LIMIT      1Gi
+#
+# initdb-only substitutions (consumed by the initdb overlay):
+#   CNPG_DB_NAME, CNPG_DB_OWNER
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -39,21 +43,22 @@ spec:
     size: ${CNPG_STORAGE_SIZE:=2Gi}
     storageClass: ${CNPG_STORAGECLASS:=ceph-rbd}
 
-  bootstrap:
-    initdb:
-      database: ${CNPG_DB_NAME}
-      owner: ${CNPG_DB_OWNER}
+  # spec.bootstrap is layered via an initdb/ or recovery/ overlay Component.
+  # CNPG webhook requires exactly one bootstrap method; the CI gate at
+  # .github/workflows/cnpg-overlay-guard.yml rejects any db-cnpg.yaml that
+  # references base/ without exactly one of initdb/ or recovery/.
 
   # WAL archive + base backups handled by the barman-cloud CNPG-I plugin.
-  # The plugin watches the sibling ObjectStore resource (${APP}-store) for
-  # destination + credentials. CNPG 1.30 will remove the in-tree
-  # spec.backup.barmanObjectStore field — this is the forward-compatible path.
+  # Plugin watches the sibling ObjectStore ${APP}-store for destination + creds.
+  # serverName is lineage-suffixed so post-DR WAL writes go to a fresh S3 prefix
+  # instead of co-mingling with pre-DR WAL. CNPG handles timeline IDs anyway,
+  # but the prefix separation is defense-in-depth + makes lineage history obvious.
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       isWALArchiver: true
       parameters:
         barmanObjectName: ${APP}-store
-        serverName: ${APP}
+        serverName: ${APP}-${CNPG_LINEAGE:=v1}
 
   resources:
     requests:

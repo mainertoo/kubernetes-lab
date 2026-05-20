@@ -24,12 +24,10 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: media
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   # Wait for the CNPG Cluster to reach Ready before the cutover PR's
   # `dependsOn: riven-db` allows the riven app HelmRelease to apply.
   healthChecks:
@@ -37,49 +35,40 @@ spec:
       kind: Cluster
       name: riven-db
       namespace: media
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: riven-db
       APP_NAMESPACE: media
-
       CNPG_DB_NAME: riven
       CNPG_DB_OWNER: riven
-
       # Match the existing postgres sidecar version (17.5)
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.5-bookworm
-
       # Existing DB is 12 MB; bumping to 2Gi for headroom (legacy was 1Gi
       # for the entire backend PVC including OS overhead)
       CNPG_STORAGE_SIZE: 2Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # 05:45 UTC slot: between zilean-db (05:15) and qnap_garage (05:30 +
       # ~5 min runtime) — clear of the contention window
       # CNPG cron format: <s> <m> <h> <dom> <mon> <dow>
       CNPG_BACKUP_SCHEDULE: "0 45 5 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

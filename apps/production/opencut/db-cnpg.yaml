@@ -28,58 +28,47 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: opencut
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   healthChecks:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       name: opencut-cnpg-db
       namespace: opencut
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: opencut-cnpg-db
       APP_NAMESPACE: opencut
-
       CNPG_DB_NAME: opencut
       CNPG_DB_OWNER: opencut
-
       # Default CNPG image — postgres 17.5-bookworm, matches the existing
       # postgres:17 image used by the legacy opencut-db Deployment.
-
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 07:00 UTC — clear of the others (joplin 04:30,
       # qnap_pbs 04:45, zilean 05:15, qnap_garage 05:30, riven 05:45,
       # dawarich 06:00, authentik 06:30).
       CNPG_BACKUP_SCHEDULE: "0 0 7 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

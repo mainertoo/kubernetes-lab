@@ -18,12 +18,10 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: media
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   # Health-check the CNPG Cluster so the cutover PR (which will set
   # `dependsOn: zilean-db` on the zilean app Kustomization) properly waits
   # for the new postgres to be Ready during a from-scratch GitOps restore.
@@ -32,50 +30,41 @@ spec:
       kind: Cluster
       name: zilean-db
       namespace: media
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: zilean-db
       APP_NAMESPACE: media
-
       CNPG_DB_NAME: zilean
       CNPG_DB_OWNER: zilean
-
       # Match the existing zilean-postgres image (postgres 16) so dump/restore
       # is same-version
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:16.10-bookworm
-
       # Storage matches the existing zilean-postgres-data PVC (5Gi)
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 05:00 UTC (after joplin-db at 04:30, before
       # qnap_pbs at 04:45 UTC — wait that overlaps. Move to 05:15 to avoid
       # qnap_garage at 05:30)
       # CNPG cron format: <s> <m> <h> <dom> <mon> <dow>
       CNPG_BACKUP_SCHEDULE: "0 15 5 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

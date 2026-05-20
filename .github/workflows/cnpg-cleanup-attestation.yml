@@ -1,0 +1,57 @@
+---
+# Attestation freshness check for the CNPG v0 escape-hatch cleanup PR.
+# Plan: docs/plans/cnpg-overlay-refactor.md §6.
+#
+# IMPORTANT: this CI check does NOT enforce merge-time freshness — GitHub's
+# required-check model satisfies branch protection with the LAST PASSED check,
+# not a re-run on merge. A check that passed at hour 23.5 will satisfy
+# protection at hour 25+. The check is an AUTOMATION AID for the human gate;
+# the merge-time enforcement is the PR template's reviewer obligations
+# (manually re-trigger this workflow + re-run local evidence commands within
+# 1h of merge). See docs/cnpg-disaster-recovery.md for the reviewer checklist.
+name: CNPG v0 cleanup attestation
+
+on:
+  pull_request:
+    paths:
+      - 'components/cnpg-cluster/recovery/bootstrap-patch.yaml'
+  workflow_dispatch:
+
+jobs:
+  attestation-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify v0 cleanup PR carries fresh evidence attestation
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+          # Only enforce if the PR body matches the cnpg-v0-cleanup template
+          # (looks for the marker `<!-- cnpg-v0-cleanup-template -->`).
+          if ! echo "$PR_BODY" | grep -q 'cnpg-v0-cleanup-template'; then
+            echo "PR body doesn't use cnpg-v0-cleanup template; skipping attestation check."
+            exit 0
+          fi
+          ts=$(echo "$PR_BODY" | grep -oE 'evidence-window-attested-at: \S+ \S+ UTC' | head -1 | cut -d' ' -f2-)
+          if [ -z "$ts" ]; then
+            echo "ERROR: PR body uses cnpg-v0-cleanup template but missing evidence-window-attested-at marker."
+            echo "       Expected: 'evidence-window-attested-at: YYYY-MM-DD HH:MM UTC'"
+            exit 1
+          fi
+          now_epoch=$(date -u +%s)
+          ts_epoch=$(date -u -d "$ts" +%s 2>/dev/null) || {
+            echo "ERROR: could not parse timestamp '$ts'"; exit 1;
+          }
+          age=$(( now_epoch - ts_epoch ))
+          if [ "$age" -gt 86400 ]; then
+            echo "ERROR: evidence-window-attested-at is ${age}s old (>24h)."
+            echo "       Re-verify the 3 evidence checks locally + update the timestamp."
+            exit 1
+          fi
+          echo "✓ Attestation fresh (${age}s old)"
+          echo ""
+          echo "REMINDER: this check does NOT enforce merge-time freshness."
+          echo "Reviewer obligation per PR template:"
+          echo "  1. Manually re-trigger this workflow via GitHub UI before merge"
+          echo "  2. Re-run the 3 local evidence commands within 1h of merge"
+          echo "  3. Update the timestamp if approaching 24h"
