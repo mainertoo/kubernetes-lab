@@ -3,7 +3,7 @@ name: Flux Local
 on:
   pull_request:
     branches: ["master"]
-    paths: ["apps/**", "infrastructure/**", "components/**"]
+    paths: ["apps/**", "infrastructure/**", "components/**", "clusters/**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
