@@ -1,0 +1,122 @@
+---
+# Strategic-merge patch — adds spec.bootstrap.recovery + externalClusters[]
+# to the base Cluster. Consumed via the recovery Component for DR.
+#
+# Substitutions:
+#   APP                       cluster name (same as base)
+#   APP_RESTORE_FROM          source app (defaults to ${APP}; override for side-by-side)
+#   CNPG_RESTORE_FROM_LINEAGE source lineage to restore FROM. v0 = pre-refactor
+#                             unversioned barman prefix; v1, v2, ... = post-refactor
+#                             lineages. dr-flip.sh keeps this aligned with the
+#                             current CNPG_LINEAGE in base via --restore-from-lineage
+#                             or auto-compute from prior lineage.
+#
+# NOTE: bootstrap.recovery.source NAMES one of the externalClusters[] entries
+# below. The name is a logical identifier WITHIN the Cluster spec — it does NOT
+# encode the barman serverName. The actual S3 lookup uses each entry's
+# plugin.parameters.serverName, which is what differentiates v0 from vN.
+#
+# CRITICAL on v0: v0 is the conventional alias for the pre-refactor unversioned
+# barman prefix at s3://volsync/cnpg/<app>/<app>/. The v0 externalCluster entry
+# uses serverName WITHOUT the -vN suffix to match that path. After all clusters
+# have ≥1 base backup at v1+ AND the evidence-gated cleanup PR lands, the v0
+# entry + default may be removed.
+#
+# Lineage entries pre-created v0..v10 per Codex pass-2 + pass-3 review. CNPG
+# admission accepts multiple externalClusters[] entries even when only one is
+# referenced; unreferenced entries are inert. Pre-creating avoids the need for
+# dr-flip.sh to mutate this shared file on every DR. At v11+ extend in a small
+# PR; for homelab ~1×/year DR cadence per cluster, v10 = ~10 years of safety.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ${APP}
+spec:
+  bootstrap:
+    recovery:
+      source: ${APP_RESTORE_FROM:=${APP}}-restore-${CNPG_RESTORE_FROM_LINEAGE:=v0}
+
+  externalClusters:
+    # ---- v0 = pre-refactor unversioned prefix ----
+    # Used during the migration window OR as the emergency escape hatch.
+    # Operator MUST invoke explicitly via `dr-flip.sh enable --restore-from-lineage v0 <db>`
+    # because the script's auto-compute defaults to v(current_lineage - 1).
+    # S3 path: s3://volsync/cnpg/<app>/<app>/{base,wals}/  (NO -vN suffix)
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v0
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}
+
+    # ---- v1..v10 = post-refactor lineages ----
+    # S3 path: s3://volsync/cnpg/<app>/<app>-vN/{base,wals}/
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v1
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v2
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v2
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v3
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v3
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v4
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v4
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v5
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v5
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v6
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v6
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v7
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v7
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v8
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v8
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v9
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v9
+
+    - name: ${APP_RESTORE_FROM:=${APP}}-restore-v10
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: ${APP_RESTORE_FROM:=${APP}}-store
+          serverName: ${APP_RESTORE_FROM:=${APP}}-v10

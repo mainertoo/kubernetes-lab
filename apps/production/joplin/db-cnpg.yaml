@@ -17,52 +17,42 @@ spec:
   interval: 1h
   path: ./apps/base/empty
   targetNamespace: joplin
-
   prune: true
   retryInterval: 2m
   timeout: 10m
   wait: false
-
   decryption:
     provider: sops
     secretRef:
       name: sops-age
-
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-
   components:
-    - ../../../components/cnpg-cluster
-
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: joplin-db
       APP_NAMESPACE: joplin
-
       CNPG_DB_NAME: joplin
       CNPG_DB_OWNER: joplin
-
       # Match the existing joplin postgres version (16) so dump/restore is same-version
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:16.10-bookworm
-
       # Storage matches the existing joplin postgres PVC (10Gi)
       CNPG_STORAGE_SIZE: 10Gi
       CNPG_STORAGECLASS: ceph-rbd
-
       CNPG_INSTANCES: "1"
-
       # Daily base backup at 04:30 UTC (avoids the 02:45-06:30 backup window)
       # CNPG cron format: <s> <m> <h> <dom> <mon> <dow>
       CNPG_BACKUP_SCHEDULE: "0 30 4 * * *"
-
       CNPG_RETENTION: "30d"
-
       CNPG_CPU_REQUEST: "100m"
       CNPG_MEMORY_REQUEST: "256Mi"
       CNPG_MEMORY_LIMIT: "1Gi"
-
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
         name: volsync-garage-base

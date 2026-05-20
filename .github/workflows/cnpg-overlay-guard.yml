@@ -1,0 +1,88 @@
+---
+# CI gates for the CNPG overlay refactor.
+# Plan: docs/plans/cnpg-overlay-refactor.md §8 steps 10 + 11.
+#
+# Two checks:
+#   1. base-without-overlay rejection — every db-cnpg.yaml that references
+#      components/cnpg-cluster/base MUST also reference exactly one of
+#      components/cnpg-cluster/initdb or components/cnpg-cluster/recovery.
+#      Catches the scenario where a half-applied refactor leaves a Cluster
+#      with no bootstrap method (CNPG defaults to initdb with wrong defaults).
+#   2. new-app recovery-mode guard — a NEW db-cnpg.yaml (one not present on
+#      the base branch) committed in `recovery` mode is rejected unless it
+#      sets DR_MODE_ALLOWED: "true" in the substitute block. Prevents the
+#      common "cloned the wrong template" mistake.
+name: CNPG overlay guard
+
+on:
+  pull_request:
+    paths:
+      - 'apps/production/**/db-cnpg.yaml'
+      - 'components/cnpg-cluster/**'
+
+jobs:
+  base-without-overlay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Reject base-without-overlay
+        run: |
+          set -e
+          fail=0
+          for f in $(find apps/production -name 'db-cnpg.yaml' -type f); do
+            has_base=$(yq -r '.spec.components[] // "" | select(. | test("/cnpg-cluster/base$"))' "$f")
+            has_initdb=$(yq -r '.spec.components[] // "" | select(. | test("/cnpg-cluster/initdb$"))' "$f")
+            has_recovery=$(yq -r '.spec.components[] // "" | select(. | test("/cnpg-cluster/recovery$"))' "$f")
+            if [ -n "$has_base" ]; then
+              # Must have exactly one of initdb/recovery, not both, not neither.
+              if [ -n "$has_initdb" ] && [ -n "$has_recovery" ]; then
+                echo "✗ $f references BOTH initdb and recovery overlays — pick one"
+                fail=1
+              elif [ -z "$has_initdb" ] && [ -z "$has_recovery" ]; then
+                echo "✗ $f references base but neither initdb nor recovery overlay"
+                fail=1
+              else
+                echo "✓ $f"
+              fi
+            fi
+          done
+          exit $fail
+
+  new-app-recovery-mode-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Reject new-file recovery mode without DR_MODE_ALLOWED
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -e
+          fail=0
+          # diff-filter A = Added only (new files). Renames (R) handled separately
+          # below using awk that selects the new-path column ($3) for R-rows.
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            [[ "$path" == */db-cnpg.yaml ]] || continue
+            mode=$(yq -r '.spec.components[] // "" | select(. | test("/cnpg-cluster/recovery$"))' "$path")
+            if [ -n "$mode" ]; then
+              override=$(yq -r '.spec.postBuild.substitute.DR_MODE_ALLOWED // ""' "$path")
+              if [ "$override" != "true" ]; then
+                echo "✗ NEW file $path uses recovery mode without DR_MODE_ALLOWED: true override"
+                fail=1
+              fi
+            fi
+          done < <(git diff --name-status --diff-filter=AMR "origin/${BASE_REF}...HEAD" \
+                     | awk '$1 ~ /^R/ {print $3} $1 !~ /^R/ {print $2}')
+          exit $fail

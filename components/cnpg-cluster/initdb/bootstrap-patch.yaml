@@ -1,0 +1,13 @@
+---
+# Strategic-merge patch — adds spec.bootstrap.initdb to the base Cluster.
+# Consumed via the initdb Component.
+# Required substitutions: CNPG_DB_NAME, CNPG_DB_OWNER.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ${APP}
+spec:
+  bootstrap:
+    initdb:
+      database: ${CNPG_DB_NAME}
+      owner: ${CNPG_DB_OWNER}
