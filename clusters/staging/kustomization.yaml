@@ -5,10 +5,4 @@ resources:
   - infrastructure.yaml
   - apps.yaml
   - infra-repositories.yaml
-
-  # ✅ production overlays (same cluster)
-  - infra-secrets-prod.yaml
-  - apps-production.yaml
-
-  # ✅ volsync controller install (Flux Kustomization object)
-  - ../production/volsync.yaml
+  - volsync.yaml
