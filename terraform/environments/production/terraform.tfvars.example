@@ -1,0 +1,21 @@
+# Per-environment terraform.tfvars. Copy this file to terraform.tfvars and
+# fill in real values. terraform.tfvars itself is gitignored (`*.tfvars` rule).
+
+# Proxmox API endpoint (e.g. https://192.168.1.107:8006/)
+pm_url = "https://192.168.1.107:8006/"
+
+# Proxmox API token. The provider builds the full token as
+# "${pm_token_id}=${pm_token_secret}", so set the two halves separately.
+pm_token_id     = "USER@REALM!TOKENID"
+pm_token_secret = "REPLACE_ME"
+
+# SSH credentials for the Proxmox host (used by the bpg provider for a few
+# operations that go over SSH rather than the HTTP API).
+pm_ssh_username = "root"
+pm_ssh_password = "REPLACE_ME"
+
+# Initial password for the cloud-init `ubuntu` user.
+ubuntu_password = "REPLACE_ME"
+
+# Optional: relax TLS verification on the Proxmox API (homelab default true).
+# pm_tls_insecure = true

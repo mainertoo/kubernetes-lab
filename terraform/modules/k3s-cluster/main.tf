@@ -1,8 +1,15 @@
+locals {
+  master_node_names = length(var.pm_master_node_names) > 0 ? var.pm_master_node_names : [for _ in range(var.k3s_master_count) : var.pm_node_name]
+  worker_node_names = length(var.pm_worker_node_names) > 0 ? var.pm_worker_node_names : [for _ in range(var.k3s_worker_count) : var.pm_node_name]
+}
+
 data "local_file" "ssh_public_key" {
-  filename = "./ssh_host_ed25519.pub"
+  filename = var.ssh_public_key_path
 }
 
 resource "proxmox_virtual_environment_hardware_mapping_usb" "usb_device" {
+  count = var.usb_mapping_enabled ? 1 : 0
+
   comment = "USB Device"
   name    = "usb_passthrough"
 
@@ -19,6 +26,13 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   content_type = var.pm_snippet_content_type
   datastore_id = var.pm_datastore_id
   node_name    = var.pm_node_name
+
+  # source_raw.data is consumed by cloud-init at first VM boot; updating
+  # it post-deploy doesn't re-trigger cloud-init on existing VMs and
+  # causes the file_id to change, cascading into VM replacement.
+  lifecycle {
+    ignore_changes = [source_raw]
+  }
 
   source_raw {
     data = <<-EOF
@@ -59,6 +73,7 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
     file_name = "user-data-cloud-config.yaml"
   }
 }
+
 resource "proxmox_virtual_environment_file" "metadata_cloud_config_master" {
   content_type = var.pm_snippet_content_type
   datastore_id = var.pm_datastore_id
@@ -96,7 +111,7 @@ resource "proxmox_virtual_environment_file" "metadata_cloud_config_worker" {
 resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
   count     = var.k3s_master_count
   name      = join("", [var.cluster_name, var.k3s_master_name_prefix, count.index + 1])
-  node_name = var.pm_node_name
+  node_name = local.master_node_names[count.index]
   vm_id     = var.k3s_master_vmids[count.index]
 
   initialization {
@@ -117,8 +132,9 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
   }
 
   cpu {
-    cores = var.k3s_master_cores
-    type  = var.k3s_cpu_type
+    cores   = var.k3s_master_cores
+    sockets = var.k3s_master_sockets
+    type    = var.k3s_cpu_type
   }
 
   memory {
@@ -132,6 +148,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
     iothread     = var.disk_iothread
     discard      = var.disk_discard
     size         = var.k3s_master_disk_size
+    file_format  = var.disk_file_format
   }
 
   network_device {
@@ -139,22 +156,28 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
     vlan_id = var.network_vlan_id
   }
 
-  #  usb {
-  #    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
-  #  }
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      boot_order,
+      delete_unreferenced_disks_on_destroy,
+      purge_on_destroy,
+      tags,
+      disk[0].file_id,
+    ]
+  }
 }
 
 resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   count     = var.k3s_worker_count
   name      = join("", [var.cluster_name, var.k3s_worker_name_prefix, count.index + 1])
-  node_name = var.pm_node_name
+  node_name = local.worker_node_names[count.index]
   vm_id     = var.k3s_worker_vmids[count.index]
 
   initialization {
     datastore_id = var.pm_datastore_id
     ip_config {
       ipv4 {
-        # one address per worker, matched by index
         address = var.k3s_worker_ips[count.index]
         gateway = var.gateway
       }
@@ -169,8 +192,9 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   }
 
   cpu {
-    cores = var.k3s_worker_cores
-    type  = var.k3s_cpu_type
+    cores   = var.k3s_worker_cores
+    sockets = var.k3s_worker_sockets
+    type    = var.k3s_cpu_type
   }
 
   memory {
@@ -184,6 +208,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
     iothread     = var.disk_iothread
     discard      = var.disk_discard
     size         = var.k3s_worker_disk_size
+    file_format  = var.disk_file_format
   }
 
   network_device {
@@ -191,9 +216,35 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
     vlan_id = var.network_vlan_id
   }
 
-  #  usb {
-  #    mapping = proxmox_virtual_environment_hardware_mapping_usb.usb_device.id
-  #  }
+  dynamic "network_device" {
+    for_each = var.worker_extra_nic_enabled ? [1] : []
+    content {
+      bridge  = var.worker_extra_nic_bridge
+      vlan_id = var.worker_extra_nic_vlan_id
+    }
+  }
+
+  dynamic "hostpci" {
+    for_each = (length(var.worker_hostpci_ids) > count.index && var.worker_hostpci_ids[count.index] != "") ? [var.worker_hostpci_ids[count.index]] : []
+    content {
+      device = "hostpci0"
+      id     = hostpci.value
+      pcie   = false
+      rombar = true
+      xvga   = false
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      boot_order,
+      delete_unreferenced_disks_on_destroy,
+      purge_on_destroy,
+      tags,
+      disk[0].file_id,
+    ]
+  }
 }
 
 resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
@@ -202,18 +253,11 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
   node_name    = var.pm_node_name
 
   url = var.pm_cloud_image_url
-}
 
-
-output "vm_info" {
-  value = [
-    for vm in concat(
-      proxmox_virtual_environment_vm.proxmox_vm_master,
-      proxmox_virtual_environment_vm.proxmox_vm_worker
-    ) :
-    {
-      vm_name    = vm.name
-      ip_address = vm.ipv4_addresses[1][0]
-    }
-  ]
+  # The Ubuntu "current" URL is republished periodically (a few MB
+  # between stable builds). Without overwrite=false, the provider sees
+  # the size mismatch and replaces this resource, which would cascade
+  # into every VM via disk.file_id. To pull a newer image, bump the
+  # URL to a specific dated build (e.g. ".../20260520/...") and apply.
+  overwrite = false
 }
