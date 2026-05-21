@@ -1,19 +1,18 @@
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
-  name: mainertoo-l2-pool
+  name: {{ cluster_name }}-l2-pool
   namespace: metallb-system
 spec:
   addresses:
-    # Your VLAN 90 LoadBalancer range
-    - 192.168.90.180-192.168.90.199
+    - {{ metallb_pool_range }}
 
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
-  name: mainertoo-l2-adv
+  name: {{ cluster_name }}-l2-adv
   namespace: metallb-system
 spec:
   ipAddressPools:
-    - mainertoo-l2-pool
+    - {{ cluster_name }}-l2-pool

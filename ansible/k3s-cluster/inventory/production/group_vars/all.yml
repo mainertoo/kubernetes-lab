@@ -1,0 +1,32 @@
+---
+# Per-cluster Ansible variables for the PRODUCTION K3s cluster.
+# Auto-loaded for all hosts in inventory/production/.
+
+cluster_name: mainertoo
+
+# K3s version pinned for both install and upgrade. Currently on
+# v1.34.5+k3s1. Phase 5 of the two-cluster restoration will bump
+# this to v1.35.<latest>+k3s1 — first on staging, then here.
+k3s_version: "v1.34.5+k3s1"
+
+# K3s built-ins to disable. We run Traefik via Helm and MetalLB
+# for service LoadBalancers.
+k3s_disable:
+  - traefik
+  - servicelb
+
+# Control-plane HA virtual IP (kube-vip).
+kube_vip_ip: "192.168.90.160"
+kubevip_image: "ghcr.io/kube-vip/kube-vip:v0.8.4"
+kubevip_interface: "eth0"
+
+# MetalLB L2 advertisement pool. The IPAddressPool / L2Advertisement
+# names are derived in the template from cluster_name (mainertoo-l2-pool
+# / mainertoo-l2-adv) — matches what's currently live in production.
+metallb_pool_range: "192.168.90.180-192.168.90.199"
+
+# Extra apiserver args that were active when the cluster was last
+# upgraded (MutatingAdmissionPolicy alpha feature).
+k3s_apiserver_extra_args:
+  - "--kube-apiserver-arg=feature-gates=MutatingAdmissionPolicy=true"
+  - "--kube-apiserver-arg=runtime-config=admissionregistration.k8s.io/v1alpha1=true"
