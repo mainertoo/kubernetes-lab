@@ -27,6 +27,13 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   datastore_id = var.pm_datastore_id
   node_name    = var.pm_node_name
 
+  # source_raw.data is consumed by cloud-init at first VM boot; updating
+  # it post-deploy doesn't re-trigger cloud-init on existing VMs and
+  # causes the file_id to change, cascading into VM replacement.
+  lifecycle {
+    ignore_changes = [source_raw]
+  }
+
   source_raw {
     data = <<-EOF
     #cloud-config
@@ -125,8 +132,9 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
   }
 
   cpu {
-    cores = var.k3s_master_cores
-    type  = var.k3s_cpu_type
+    cores   = var.k3s_master_cores
+    sockets = var.k3s_master_sockets
+    type    = var.k3s_cpu_type
   }
 
   memory {
@@ -140,11 +148,23 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
     iothread     = var.disk_iothread
     discard      = var.disk_discard
     size         = var.k3s_master_disk_size
+    file_format  = var.disk_file_format
   }
 
   network_device {
     bridge  = var.network_bridge
     vlan_id = var.network_vlan_id
+  }
+
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      boot_order,
+      delete_unreferenced_disks_on_destroy,
+      purge_on_destroy,
+      tags,
+      disk[0].file_id,
+    ]
   }
 }
 
@@ -172,8 +192,9 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   }
 
   cpu {
-    cores = var.k3s_worker_cores
-    type  = var.k3s_cpu_type
+    cores   = var.k3s_worker_cores
+    sockets = var.k3s_worker_sockets
+    type    = var.k3s_cpu_type
   }
 
   memory {
@@ -187,11 +208,42 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
     iothread     = var.disk_iothread
     discard      = var.disk_discard
     size         = var.k3s_worker_disk_size
+    file_format  = var.disk_file_format
   }
 
   network_device {
     bridge  = var.network_bridge
     vlan_id = var.network_vlan_id
+  }
+
+  dynamic "network_device" {
+    for_each = var.worker_extra_nic_enabled ? [1] : []
+    content {
+      bridge  = var.worker_extra_nic_bridge
+      vlan_id = var.worker_extra_nic_vlan_id
+    }
+  }
+
+  dynamic "hostpci" {
+    for_each = (length(var.worker_hostpci_ids) > count.index && var.worker_hostpci_ids[count.index] != "") ? [var.worker_hostpci_ids[count.index]] : []
+    content {
+      device = "hostpci0"
+      id     = hostpci.value
+      pcie   = false
+      rombar = true
+      xvga   = false
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      initialization,
+      boot_order,
+      delete_unreferenced_disks_on_destroy,
+      purge_on_destroy,
+      tags,
+      disk[0].file_id,
+    ]
   }
 }
 
@@ -201,4 +253,11 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
   node_name    = var.pm_node_name
 
   url = var.pm_cloud_image_url
+
+  # The Ubuntu "current" URL is republished periodically (a few MB
+  # between stable builds). Without overwrite=false, the provider sees
+  # the size mismatch and replaces this resource, which would cascade
+  # into every VM via disk.file_id. To pull a newer image, bump the
+  # URL to a specific dated build (e.g. ".../20260520/...") and apply.
+  overwrite = false
 }

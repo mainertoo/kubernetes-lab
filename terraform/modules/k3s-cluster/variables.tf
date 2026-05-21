@@ -141,6 +141,12 @@ variable "k3s_master_memory" {
   default     = "8192"
 }
 
+variable "k3s_master_sockets" {
+  description = "Number of CPU sockets per master VM (Proxmox cpu { sockets = ... })"
+  type        = number
+  default     = 1
+}
+
 variable "k3s_master_name_prefix" {
   description = "Prefix for the controlplane node name"
   type        = string
@@ -182,6 +188,42 @@ variable "k3s_worker_memory" {
   description = "Memory for each worker node (MB)"
   type        = string
   default     = "16384"
+}
+
+variable "k3s_worker_sockets" {
+  description = "Number of CPU sockets per worker VM (Proxmox cpu { sockets = ... })"
+  type        = number
+  default     = 1
+}
+
+variable "worker_hostpci_ids" {
+  description = "Optional per-worker Proxmox hostpci device ID (e.g. \"0000:00:02.4\" for an Intel vGPU partition). Empty string at index = no passthrough on that worker. Empty list (default) = no passthrough on any worker."
+  type        = list(string)
+  default     = []
+}
+
+variable "worker_extra_nic_enabled" {
+  description = "When true, add a second virtio network_device to every worker VM on worker_extra_nic_bridge with worker_extra_nic_vlan_id (typically untagged vmbr0 for L2 access to the host network / mDNS)."
+  type        = bool
+  default     = false
+}
+
+variable "worker_extra_nic_bridge" {
+  description = "Bridge for the optional worker extra NIC (only used when worker_extra_nic_enabled = true)."
+  type        = string
+  default     = "vmbr0"
+}
+
+variable "worker_extra_nic_vlan_id" {
+  description = "VLAN ID for the optional worker extra NIC (only used when worker_extra_nic_enabled = true). Use 0 for untagged."
+  type        = number
+  default     = 0
+}
+
+variable "disk_file_format" {
+  description = "Disk file_format for VM root disks. \"qcow2\" for local Proxmox storage; \"raw\" for Ceph RBD."
+  type        = string
+  default     = "qcow2"
 }
 
 variable "k3s_worker_name_prefix" {
