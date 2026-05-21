@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Path to your Terraform state file on your Mac
-STATE_FILE="$HOME/kubernetes-lab/terraform/terraform.tfstate"
+# Path to your Terraform state file on your Mac.
+# Moved 2026-05-21 (Phase 2 of the two-cluster restoration) — the state
+# now lives under the per-environment root. Phase 3 will replace this
+# script with per-cluster inventories under inventory/{production,staging}/.
+STATE_FILE="$HOME/kubernetes-lab/terraform/environments/production/terraform.tfstate"
 
 # Run Terraform output -json with the specified state file to get the Terraform output
 INPUT_JSON=$(terraform output -json -state="$STATE_FILE")
