@@ -2,10 +2,12 @@
 - name: Install and configure kube-vip for HA control-plane endpoint
   hosts: master
   become: yes
+  # kube_vip_ip / kubevip_image / kubevip_interface come from
+  # inventory/<cluster>/group_vars/all.yml. The template (see
+  # templates/kubevip_daemonset.yml.j2) references the variable
+  # name `kubevip_vip` for backwards compat.
   vars:
-    kubevip_vip: "192.168.90.160"
-    kubevip_image: "ghcr.io/kube-vip/kube-vip:v0.8.4"
-    kubevip_interface: "eth0"
+    kubevip_vip: "{{ kube_vip_ip }}"
 
   tasks:
     - name: Apply kube-vip RBAC

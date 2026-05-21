@@ -1,4 +1,8 @@
 ---
+# Cluster-agnostic K3s installer. Per-cluster values
+# (k3s_version, kube_vip_ip, k3s_disable, k3s_apiserver_extra_args)
+# come from inventory/<cluster>/group_vars/all.yml.
+
 # Play 1: Common prep on all nodes (masters + workers)
 - name: Prepare nodes for K3s
   hosts: k3s_cluster
@@ -25,7 +29,7 @@
           - net-tools
         state: present
         update_cache: yes
-    
+
     - name: Install ceph-common and load ceph kernel module
       block:
         - name: Install ceph-common
@@ -38,7 +42,7 @@
           ansible.builtin.command: modprobe ceph
           register: ceph_modprobe
           changed_when: ceph_modprobe.rc == 0
-          failed_when: false   # If ceph is already loaded, don't fail
+          failed_when: false
 
         - name: Persist ceph kernel module across reboots
           copy:
@@ -47,19 +51,17 @@
             owner: root
             group: root
             mode: "0644"
-    
+
 
 # Play 2: Install K3s HA control-plane on all masters
 - name: Install K3s servers (embedded etcd HA)
   hosts: master
   become: yes
   vars:
-    # You already saw v1.33.5+k3s1 running; keep that unless you want another version
-    k3s_version: "v1.33.5+k3s1"
-    # First master is our "bootstrap" node
     first_master: "{{ groups['master'][0] }}"
-    # You can later use kube-vip on this IP; for now this is just a SAN for the cert
-    kube_vip_ip: "192.168.90.160"
+    # Render the disable list into repeated --disable args
+    k3s_disable_args: "{{ k3s_disable | map('regex_replace', '^(.+)$', '--disable=\\1') | join(' ') }}"
+    k3s_apiserver_args: "{{ k3s_apiserver_extra_args | join(' ') }}"
   tasks:
     - name: Install K3s server on first master (cluster-init)
       shell: |
@@ -69,8 +71,8 @@
           --cluster-init \
           --tls-san {{ kube_vip_ip }} \
           --write-kubeconfig-mode=644 \
-          --disable servicelb \
-          --disable traefik" \
+          {{ k3s_disable_args }} \
+          {{ k3s_apiserver_args }}" \
         sh -
       args:
         creates: /usr/local/bin/k3s
@@ -108,8 +110,8 @@
         INSTALL_K3S_EXEC="server \
           --tls-san {{ kube_vip_ip }} \
           --write-kubeconfig-mode=644 \
-          --disable servicelb \
-          --disable traefik" \
+          {{ k3s_disable_args }} \
+          {{ k3s_apiserver_args }}" \
         sh -
       args:
         creates: /usr/local/bin/k3s
@@ -129,13 +131,14 @@
       wait_for:
         host: "{{ first_master }}"
         port: 6443
-        delay: 5         # wait 5 seconds before first check
-        timeout: 300     # give it up to 5 minutes
+        delay: 5
+        timeout: 300
         state: started
 
     - name: Install K3s agent on worker nodes
       shell: |
         curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION={{ k3s_version }} \
         K3S_URL="https://{{ first_master }}:6443" \
         K3S_TOKEN="{{ hostvars[first_master].k3s_token }}" \
         sh -
