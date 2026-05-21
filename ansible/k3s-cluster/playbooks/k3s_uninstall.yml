@@ -1,16 +1,24 @@
-- hosts: master
-  become: yes  # Ensure root privileges for all tasks
+---
+# Cluster-agnostic K3s uninstall. Tears down via the official K3s
+# uninstall scripts so service units, data dirs, and CNI state get
+# cleaned up — not just the binary.
+
+- name: Uninstall K3s servers
+  hosts: master
+  become: yes
   tasks:
-    - name: Uninstall K3s on master
-      shell: |
+    - name: Run k3s-uninstall.sh
+      ansible.builtin.shell: |
         k3s-uninstall.sh
       args:
-        removes: /usr/local/bin/k3s
+        removes: /usr/local/bin/k3s-uninstall.sh
 
-- hosts: worker
-  become: yes  # Ensure root privileges for all tasks
+- name: Uninstall K3s agents
+  hosts: worker
+  become: yes
   tasks:
-    - name: Uninstall K3s on worker
-      ansible.builtin.file:
-        state: absent
-        path: /usr/local/bin/k3s
+    - name: Run k3s-agent-uninstall.sh
+      ansible.builtin.shell: |
+        k3s-agent-uninstall.sh
+      args:
+        removes: /usr/local/bin/k3s-agent-uninstall.sh

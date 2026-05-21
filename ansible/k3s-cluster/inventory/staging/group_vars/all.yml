@@ -1,0 +1,33 @@
+---
+# Per-cluster Ansible variables for the STAGING K3s cluster.
+# Auto-loaded for all hosts in inventory/staging/.
+
+cluster_name: staging
+
+# K3s version pinned for both install and upgrade. Initially matches
+# production to keep the test surface narrow; Phase 5 will bump
+# staging to v1.35.<latest>+k3s1 first as the canary upgrade.
+k3s_version: "v1.34.5+k3s1"
+
+# Match production's disabled built-ins.
+k3s_disable:
+  - traefik
+  - servicelb
+
+# Control-plane HA virtual IP. Production uses .160 + MetalLB pool
+# .180-.199, so staging takes .170 as VIP and a non-overlapping
+# MetalLB pool .200-.219.
+kube_vip_ip: "192.168.90.170"
+kubevip_image: "ghcr.io/kube-vip/kube-vip:v0.8.4"
+kubevip_interface: "eth0"
+
+# MetalLB L2 advertisement pool. The IPAddressPool / L2Advertisement
+# names are derived in the template from cluster_name (staging-l2-pool
+# / staging-l2-adv).
+metallb_pool_range: "192.168.90.200-192.168.90.219"
+
+# Matches production's apiserver flags. Drop these if a feature
+# you're testing on staging needs the alpha gates off.
+k3s_apiserver_extra_args:
+  - "--kube-apiserver-arg=feature-gates=MutatingAdmissionPolicy=true"
+  - "--kube-apiserver-arg=runtime-config=admissionregistration.k8s.io/v1alpha1=true"

@@ -1,79 +1,139 @@
-- hosts: master
-  become: yes  # Ensure root privileges for all tasks
-  tasks:
-    - name: Ensure ceph-common installed and ceph module loaded
-      block:
-        - name: Install ceph-common
-          apt:
-            name: ceph-common
-            state: present
-            update_cache: yes
+---
+# Cluster-agnostic K3s upgrade. Per-cluster k3s_version comes from
+# inventory/<cluster>/group_vars/all.yml. Upgrades one node at a
+# time (serial: 1), draining the node first and uncordoning after
+# K3s restarts.
+#
+# Pre-flight checklist (do these manually before invoking):
+#   - All volsync ReplicationSources show recent successful sync
+#   - kubectl get pods -A --field-selector=status.phase!=Running shows nothing
+#   - You've reviewed the Rancher support matrix for the target k3s_version
 
-        - name: Load ceph module now
-          ansible.builtin.command: modprobe ceph
-          register: ceph_modprobe
-          changed_when: ceph_modprobe.rc == 0
-          failed_when: false
-
-        - name: Persist ceph kernel module across reboots
-          copy:
-            dest: /etc/modules-load.d/ceph.conf
-            content: "ceph\n"
-            owner: root
-            group: root
-            mode: "0644"
-    - name: Upgrade K3s on master
-      shell: |
-        curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644 --disable=servicelb --disable=traefik  --kube-apiserver-arg="feature-gates=MutatingAdmissionPolicy=true" --kube-apiserver-arg="runtime-config=admissionregistration.k8s.io/v1alpha1=true"
-    - name: Wait for K3s to initialize node token
-      wait_for:
-        path: /var/lib/rancher/k3s/server/node-token
-
-    - name: Read the node-token file
-      slurp:
-        src: /var/lib/rancher/k3s/server/node-token
-      register: node_token_content
-
-    - name: Save the node-token as a fact
-      set_fact:
-        global_node_token: "{{ node_token_content['content'] | b64decode | trim }}"
-
-    - name: Allow token sharing by fixing directory permissions
-      file:
-        path: /var/lib/rancher/k3s/server
-        mode: "0755"
-        recurse: yes
-
-- hosts: worker
+- name: Upgrade K3s masters (one at a time, drain then upgrade)
+  hosts: master
   become: yes
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    first_master: "{{ groups['master'][0] }}"
+    k3s_disable_args: "{{ k3s_disable | map('regex_replace', '^(.+)$', '--disable=\\1') | join(' ') }}"
+    k3s_apiserver_args: "{{ k3s_apiserver_extra_args | join(' ') }}"
+    k3s_node_name: "{{ ansible_hostname | default(inventory_hostname) }}"
   tasks:
-    - name: Ensure ceph-common installed and ceph module loaded
-      block:
-        - name: Install ceph-common
-          apt:
-            name: ceph-common
-            state: present
-            update_cache: yes
+    - name: Cordon the K3s node so new pods don't schedule here
+      ansible.builtin.shell: |
+        k3s kubectl cordon {{ k3s_node_name }}
+      register: cordon
+      changed_when: "'cordoned' in cordon.stdout"
+      delegate_to: "{{ first_master }}"
 
-        - name: Load ceph module now
-          ansible.builtin.command: modprobe ceph
-          register: ceph_modprobe
-          changed_when: ceph_modprobe.rc == 0
-          failed_when: false
+    - name: Drain the K3s node (ignore daemonsets, delete emptyDir, force, 5 min timeout)
+      ansible.builtin.shell: |
+        k3s kubectl drain {{ k3s_node_name }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --force \
+          --timeout=300s
+      register: drain
+      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout"
+      delegate_to: "{{ first_master }}"
 
-        - name: Persist ceph kernel module across reboots
-          copy:
-            dest: /etc/modules-load.d/ceph.conf
-            content: "ceph\n"
-            owner: root
-            group: root
-            mode: "0644"
-    - name: Debug K3S_URL and K3S_TOKEN on worker nodes
-      debug:
-        msg:
-          - "K3S_URL=https://{{ hostvars[groups['master'][0]].inventory_hostname }}:6443"
-          - "K3S_TOKEN={{ hostvars[groups['master'][0]]['global_node_token'] }}"
+    - name: Upgrade K3s on master (pinned to k3s_version)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        INSTALL_K3S_EXEC="server \
+          --tls-san {{ kube_vip_ip }} \
+          --write-kubeconfig-mode=644 \
+          {{ k3s_disable_args }} \
+          {{ k3s_apiserver_args }}" \
+        sh -
 
-    - name: Upgrade K3s on worker nodes
-      shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]].inventory_hostname }}:6443 K3S_TOKEN={{ hostvars[groups['master'][0]]['global_node_token'] }} sh -
+    - name: Wait for k3s service to be active after upgrade
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+      register: k3s_svc
+      retries: 30
+      delay: 4
+      until: k3s_svc is success
+
+    - name: Wait for this node to report Ready against the API
+      ansible.builtin.shell: |
+        k3s kubectl get node {{ k3s_node_name }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: node_ready
+      retries: 60
+      delay: 5
+      until: node_ready.stdout == "True"
+      changed_when: false
+      delegate_to: "{{ first_master }}"
+
+    - name: Uncordon the K3s node
+      ansible.builtin.shell: |
+        k3s kubectl uncordon {{ k3s_node_name }}
+      register: uncordon
+      changed_when: "'uncordoned' in uncordon.stdout"
+      delegate_to: "{{ first_master }}"
+
+
+- name: Upgrade K3s workers (one at a time, drain then upgrade)
+  hosts: worker
+  become: yes
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    first_master: "{{ groups['master'][0] }}"
+    k3s_node_name: "{{ ansible_hostname | default(inventory_hostname) }}"
+  tasks:
+    - name: Cordon the K3s worker
+      ansible.builtin.shell: |
+        k3s kubectl cordon {{ k3s_node_name }}
+      register: cordon
+      changed_when: "'cordoned' in cordon.stdout"
+      delegate_to: "{{ first_master }}"
+
+    - name: Drain the K3s worker (ignore daemonsets, delete emptyDir, force, 5 min timeout)
+      ansible.builtin.shell: |
+        k3s kubectl drain {{ k3s_node_name }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --force \
+          --timeout=300s
+      register: drain
+      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout"
+      delegate_to: "{{ first_master }}"
+
+    - name: Upgrade K3s agent on worker (pinned to k3s_version)
+      # K3S_URL + K3S_TOKEN are already persisted in /etc/systemd/system/
+      # k3s-agent.service.env from the original install; the installer
+      # re-uses them automatically when re-run with INSTALL_K3S_VERSION.
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        sh -
+
+    - name: Wait for k3s-agent service to be active after upgrade
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+      register: k3s_agent_svc
+      retries: 30
+      delay: 4
+      until: k3s_agent_svc is success
+
+    - name: Wait for this worker to report Ready against the API
+      ansible.builtin.shell: |
+        k3s kubectl get node {{ k3s_node_name }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: node_ready
+      retries: 60
+      delay: 5
+      until: node_ready.stdout == "True"
+      changed_when: false
+      delegate_to: "{{ first_master }}"
+
+    - name: Uncordon the K3s worker
+      ansible.builtin.shell: |
+        k3s kubectl uncordon {{ k3s_node_name }}
+      register: uncordon
+      changed_when: "'uncordoned' in uncordon.stdout"
+      delegate_to: "{{ first_master }}"
