@@ -1,0 +1,20 @@
+# Per-environment terraform.tfvars for the staging cluster. Copy to
+# terraform.tfvars and fill in real values. terraform.tfvars itself
+# is gitignored (`*.tfvars` rule).
+#
+# Most values are shared with production — the simplest workflow is to
+# re-use the same Proxmox API token and SSH credentials.
+
+pm_url = "https://192.168.1.107:8006/"
+
+pm_token_id     = "USER@REALM!TOKENID"
+pm_token_secret = "REPLACE_ME"
+
+pm_ssh_username = "root"
+pm_ssh_password = "REPLACE_ME"
+
+# Initial password for the cloud-init `ubuntu` user on staging VMs.
+# Can be the same as production.
+ubuntu_password = "REPLACE_ME"
+
+# pm_tls_insecure = true
