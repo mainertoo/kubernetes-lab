@@ -103,31 +103,27 @@
       changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout"
       delegate_to: "{{ first_master }}"
 
-    - name: Read existing K3S_URL + K3S_TOKEN from the worker's agent service env
-      ansible.builtin.slurp:
-        src: /etc/systemd/system/k3s-agent.service.env
-      register: k3s_agent_env_raw
-
-    - name: Parse existing K3S_URL + K3S_TOKEN into facts
-      ansible.builtin.set_fact:
-        k3s_agent_url: "{{ (k3s_agent_env_raw.content | b64decode).splitlines() | select('match', '^K3S_URL=') | first | regex_replace('^K3S_URL=', '') }}"
-        k3s_agent_token: "{{ (k3s_agent_env_raw.content | b64decode).splitlines() | select('match', '^K3S_TOKEN=') | first | regex_replace('^K3S_TOKEN=', '') }}"
-
     - name: Upgrade K3s agent on worker (pinned to k3s_version)
       # The K3s install script ALWAYS installs as server when K3S_URL is
       # unset — re-running without it on an existing agent installs a
       # broken k3s.service (server unit) alongside the running
-      # k3s-agent.service and exits non-zero. So we re-source the URL +
-      # token from the existing /etc/systemd/system/k3s-agent.service.env
-      # and re-pass them to keep agent mode. (Lesson from the staging
-      # Phase 5 first run on 2026-05-21.)
+      # k3s-agent.service and exits non-zero. Source the existing
+      # /etc/systemd/system/k3s-agent.service.env into the remote shell
+      # so K3S_URL + K3S_TOKEN are present in the installer's env. We
+      # use `set -a` + `.` rather than parsing the file in Ansible
+      # because the env file's values are single-quoted (systemd
+      # convention) and re-emitting them through Jinja interpolation
+      # corrupts the URL ("'https://…'" round-trips as a literal-
+      # quoted string the K3s installer rejects → falls back to
+      # server mode all over again). Sourcing inside the remote shell
+      # also keeps the token off Ansible's variable tape.
+      # (Lessons from the staging Phase 5 first + second runs on
+      # 2026-05-21.)
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_VERSION={{ k3s_version }} \
-        K3S_URL="{{ k3s_agent_url }}" \
-        K3S_TOKEN="{{ k3s_agent_token }}" \
-        sh -
-      no_log: true   # k3s_agent_token is sensitive
+        set -a
+        . /etc/systemd/system/k3s-agent.service.env
+        set +a
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -
 
     - name: Wait for k3s-agent service to be active after upgrade
       ansible.builtin.systemd:
