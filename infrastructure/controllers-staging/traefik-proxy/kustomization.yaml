@@ -5,7 +5,13 @@ resources:
   - repository.yaml
   - release.yaml
   - traefik-namespace.yaml
-  - tlsstore-default.yaml
+  # tlsstore-default.yaml intentionally NOT here. Traefik's TLSStore CRD
+  # ships with the Helm chart, but kustomize-controller's server-side
+  # dry-run for THIS Kustomization runs before helm-controller installs
+  # the chart, so a TLSStore CR colocated here deadlocks the
+  # Kustomization with "no matches for kind TLSStore". The TLSStore
+  # lives in infrastructure/configs/cert-manager/staging/ alongside the
+  # wildcard Certificate, whose Flux Kustomization dependsOn this one.
 configMapGenerator:
   - name: traefik-values
     files:
