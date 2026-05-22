@@ -5,3 +5,5 @@ resources:
   - volsync-release.yaml
   - volsync-namespace.yaml
   - volsync-servicemonitor.yaml
+  - volsync-kopia-maintenance-secret.sops.yaml
+  - volsync-kopia-maintenance.yaml

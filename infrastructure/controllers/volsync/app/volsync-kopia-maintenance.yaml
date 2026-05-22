@@ -1,0 +1,25 @@
+# Periodic maintenance for the shared Kopia repo (`s3://garage.lab.mainertoo.com/volsync-kopia`).
+#
+# WHY: every backup adds index entries; over time the index fragments into
+# many small blobs. Without `kopia maintenance run`, snapshot operations
+# scan more and more index blobs and slow down. Healthy is ~10–100 blobs;
+# the mover log warned at 1128. Maintenance is repo-wide, so one CR
+# covers the whole fleet.
+#
+# Schedule: daily 09:00 UTC — clear of the 01:30–08:00 backup/kopia/CNPG
+# band (see docs/backup-architecture.md §8). Maintenance jobs run a few
+# minutes and then exit.
+#
+# The job uses Secret `volsync-kopia-maintenance` in this namespace for
+# the repo connection (same shared creds as every per-PVC `volsync-<pvc>`
+# Secret — KOPIA_REPOSITORY / KOPIA_PASSWORD / KOPIA_S3_* / AWS_*).
+apiVersion: volsync.backube/v1alpha1
+kind: KopiaMaintenance
+metadata:
+  name: volsync-kopia-shared
+  namespace: volsync-system
+spec:
+  repository:
+    repository: volsync-kopia-maintenance
+  trigger:
+    schedule: "0 9 * * *"
