@@ -19,24 +19,36 @@ Secrets are SOPS-encrypted — VS Code auto-encrypts any file matching *.sops.ya
 
 ## What this repo is
 
-**Hephaestus** — a GitOps mono-repo for a Kubernetes homelab. Infrastructure is provisioned on Proxmox via Terraform, nodes are bootstrapped with Ansible, and all cluster state is reconciled by Flux CD. The cluster name used throughout is `production`; there is also a `staging` cluster definition used for CI.
+**Hephaestus** — a GitOps mono-repo for a Kubernetes homelab. Infrastructure is provisioned on Proxmox via Terraform, nodes are bootstrapped with Ansible, and all cluster state is reconciled by Flux CD.
+
+Two real clusters: `production` (3 master + 3 worker, the live homelab serving `*.lab.mainertoo.com` internally and `*.mainertoo.com` externally) and `staging` (1 master + 2 worker testbed for app promotion + K3s upgrade canary, serving `*.staging.mainertoo.com`). Both clusters reconcile their own entrypoint under `clusters/<name>/`. Local kubeconfig: `~/.kube/config` with contexts `production` (default) and `staging` — switch via `kubectl config use-context <name>`.
 
 ## Directory layout
 
 ```
-terraform/        # Proxmox VM provisioning (masters + workers)
-ansible/          # Node prep and K3s install/upgrade/uninstall
-clusters/         # Flux entrypoint Kustomizations (production & staging)
-infrastructure/   # Cluster-level controllers, storage classes, secrets
-  controllers/    # HelmReleases: Traefik, cert-manager, Ceph CSI, volsync, etc.
-  repositories/   # HelmRepository / OCIRepository CRDs
-  secrets-prod/   # SOPS-encrypted Kubernetes Secrets
+terraform/
+  modules/k3s-cluster/         # Reusable Proxmox VM + cloud-init module
+  environments/{production,staging}/   # Per-cluster module call + tfstate (gitignored)
+ansible/
+  k3s-cluster/
+    inventory/{production,staging}/    # Per-cluster dynamic inventory + group_vars
+    playbooks/                          # K3s install/upgrade/uninstall, kube-vip, MetalLB
+clusters/{production,staging}/         # Flux entrypoint Kustomizations
+infrastructure/
+  controllers/                          # Production-side controllers (full set)
+  controllers-staging/                  # Staging-side controllers (minimal opt-in)
+  configs/cert-manager/{production,staging}/   # Per-cluster issuers + wildcard certs
+  repositories/                         # HelmRepository / OCIRepository CRDs
+  secrets-prod/                         # SOPS-encrypted Kubernetes Secrets
+  secrets-staging/                      # SOPS-encrypted Kubernetes Secrets
 apps/
-  base/           # All app definitions (HelmRelease, IngressRoute, PVC, etc.)
-  production/     # kustomization.yaml listing which base apps are active
-  archive/        # Disabled/old app manifests (not reconciled)
+  base/                                 # All app definitions (HelmRelease, IngressRoute, PVC, etc.)
+  production/                           # kustomization.yaml listing apps active on production
+  staging/                              # kustomization.yaml listing apps active on staging (currently empty)
+  archive/                              # Disabled/old app manifests (not reconciled)
 components/
-  volsync/        # Reusable Kustomize Component for backup/restore PVCs
+  volsync/                              # Reusable Kustomize Component for backup/restore PVCs
+docs/                                   # Architecture, recovery runbooks, plans
 ```
 
 ## Flux reconciliation flow

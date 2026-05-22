@@ -47,11 +47,20 @@ This project is a learning playground, a passion project, hopefully—a way to a
 
 - ✅ Proxmox environment running
 - ✅ Terraform/Ansible bootstrapping complete
-- ✅ K3s cluster deployed
-- ✅ Flux desired state deployments
-- ✅ Automatic backup and restore of Persitent Volumes ([volsync](https://volsync.readthedocs.io/en/stable/))
-- ✅ Migrate all LXC applications 
+- ✅ Two K3s clusters deployed: **production** (3M + 3W, the live homelab) and **staging** (1M + 2W testbed)
+- ✅ Flux desired state deployments — both clusters reconcile their own `clusters/<name>/` entrypoint
+- ✅ Automatic backup and restore of Persistent Volumes ([volsync](https://volsync.readthedocs.io/en/stable/))
+- ✅ Migrate all LXC applications
 - ⏳ Setup observability/monitoring
+
+### Cluster overview
+
+| Cluster | Nodes | VIPs / Pools | Public hostname | Internal hostname |
+| --- | --- | --- | --- | --- |
+| production | 3 masters (`192.168.90.161-163`) + 3 workers (`.164-.166`) | kube-vip `.160`, MetalLB `.180-.199` | `*.mainertoo.com` (via pangolin + newt) | `*.lab.mainertoo.com` (via AdGuard) |
+| staging | 1 master (`.167`) + 2 workers (`.168-.169`) | kube-vip `.170`, MetalLB `.200-.219` | `*.staging.mainertoo.com` (LAN-only until newt registered) | — |
+
+Local kubeconfig: `~/.kube/config` with contexts `production` and `staging`. Switch via `kubectl config use-context <name>`.
 
 ---
 
@@ -59,11 +68,27 @@ This project is a learning playground, a passion project, hopefully—a way to a
 
 ```
 Hephaestus/
-├── ansible/            # Node end configuration and K3s installation
-├── apps/            # Application base definitions and cluster overlays.
-├── clusters/          # Cluster resources (Flux, sops, etc.)
-├── infrastructure/     # Kubernetes cluster infrastructure code
-├── terraform/          # Infrastructure provisioning
+├── ansible/                # Per-cluster inventory + K3s lifecycle playbooks (see ansible/README.md)
+├── apps/
+│   ├── base/               # All app definitions
+│   ├── production/         # Apps active on production cluster
+│   ├── staging/            # Apps active on staging cluster (opt-in, currently empty)
+│   └── archive/            # Disabled/old manifests
+├── clusters/
+│   ├── production/         # Flux entrypoint for production
+│   └── staging/            # Flux entrypoint for staging
+├── components/             # Reusable Kustomize Components (volsync, cnpg-cluster, ...)
+├── docs/                   # Architecture, runbooks, plans
+├── infrastructure/
+│   ├── controllers/                # Production-side controllers (full set)
+│   ├── controllers-staging/        # Staging-side controllers (minimal opt-in)
+│   ├── configs/cert-manager/{production,staging}/   # Per-cluster issuers + wildcard certs
+│   ├── repositories/               # HelmRepository / OCIRepository CRDs
+│   ├── secrets-prod/               # SOPS-encrypted Secrets for production
+│   └── secrets-staging/            # SOPS-encrypted Secrets for staging
+├── terraform/
+│   ├── modules/k3s-cluster/        # Reusable Proxmox VM module (see terraform/README.md)
+│   └── environments/{production,staging}/   # Per-cluster module call + tfstate
 └── README.md
 ```
 
