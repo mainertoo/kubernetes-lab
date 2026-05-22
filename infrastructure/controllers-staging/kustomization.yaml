@@ -2,21 +2,27 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # Bare-minimum controller set for the staging cluster. Staging is a
 # testbed, not a clone — add specific controllers from
-# ../controllers/<name> as the apps you opt into staging actually need
+# ../controllers/<name> (shared) or ./controllers-staging/<name>/
+# (staging-specific) as the apps you opt into staging actually need
 # them.
 #
 # Currently shipping:
-#   - cert-manager  — required for the staging LE issuer + any cert
-#                     resources apps bring along
+#   - cert-manager   — shared with production (../controllers/cert-manager).
+#                      Pairs with infrastructure/configs/cert-manager/staging/
+#                      which adds the LE-staging ClusterIssuer + the
+#                      *.staging.mainertoo.com wildcard Certificate.
+#   - traefik-proxy  — staging-specific (./traefik-proxy/). Uses
+#                      the staging wildcard cert; no Authentik
+#                      middleware, no PVE file provider.
 #
 # Deliberately NOT in staging yet (add later when needed):
-#   - traefik-proxy / snapshot-controller / volsync / kyverno / cnpg /
-#     ceph-csi-* / cloudflared / newt / tailscale-operator / intel-gpu /
-#     pvc-plumber / kube-prometheus-stack / etc.
-#
-# Most omitted controllers either bring CRDs whose CRs are referenced
-# elsewhere in the same Kustomization (chicken-and-egg dry-run failure
-# on first reconcile) or are production-singletons (one tunnel/oauth
-# per homelab).
+#   - newt           — pangolin tunnel client for external access at
+#                      *.staging.mainertoo.com. Needs a fresh pangolin
+#                      client registration; follow-up PR once you have
+#                      the secret.
+#   - snapshot-controller / volsync / kyverno / cnpg / ceph-csi-* /
+#     cloudflared / tailscale-operator / intel-gpu / pvc-plumber /
+#     kube-prometheus-stack / etc.
 resources:
   - ../controllers/cert-manager
+  - ./traefik-proxy

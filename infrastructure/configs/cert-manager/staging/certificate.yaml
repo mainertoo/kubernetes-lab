@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-staging-mainertoo-com
+  namespace: traefik-system
+spec:
+  secretName: wildcard-staging-mainertoo-com-tls
+  dnsNames:
+    - '*.staging.mainertoo.com'
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
