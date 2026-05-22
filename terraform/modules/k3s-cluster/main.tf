@@ -1,6 +1,16 @@
 locals {
   master_node_names = length(var.pm_master_node_names) > 0 ? var.pm_master_node_names : [for _ in range(var.k3s_master_count) : var.pm_node_name]
   worker_node_names = length(var.pm_worker_node_names) > 0 ? var.pm_worker_node_names : [for _ in range(var.k3s_worker_count) : var.pm_node_name]
+
+  # Padded per-worker hostpci list — empty string at an index = no
+  # passthrough on that worker. Padding guarantees a defined entry for
+  # every worker count.index so the dynamic block below can index
+  # safely without terraform's eager evaluation tripping on
+  # out-of-bounds reads when worker_hostpci_ids is shorter (or empty).
+  worker_hostpci_per_vm = [
+    for i in range(var.k3s_worker_count) :
+    try(var.worker_hostpci_ids[i], "")
+  ]
 }
 
 data "local_file" "ssh_public_key" {
@@ -225,7 +235,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   }
 
   dynamic "hostpci" {
-    for_each = (length(var.worker_hostpci_ids) > count.index && var.worker_hostpci_ids[count.index] != "") ? [var.worker_hostpci_ids[count.index]] : []
+    for_each = local.worker_hostpci_per_vm[count.index] != "" ? [local.worker_hostpci_per_vm[count.index]] : []
     content {
       device = "hostpci0"
       id     = hostpci.value

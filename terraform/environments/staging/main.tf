@@ -22,10 +22,24 @@ module "cluster" {
   k3s_worker_disk_size = "50"
 
   # Snippets / USB mapping / image download land on pve-mammoth.
-  # Per-VM placement spreads master + workers across all 3 hosts.
+  #
+  # All 3 staging VMs land on pve-mammoth at terraform creation time
+  # because Proxmox snippets are stored in per-host `local` storage —
+  # creating a VM on a different host whose local doesn't have the
+  # snippet file either fails at VM start (zermatt) or silently reads
+  # whatever same-named snippet that host happens to have, which on
+  # pve-whistler is production's snippet, and the staging worker booted
+  # with hostname `mainertoo-k3s-worker-1` (verified 2026-05-21).
+  #
+  # Post-Phase-4 workflow: bring the cluster up here, install K3s, then
+  # live-migrate worker-1 → pve-whistler and worker-2 → pve-zermatt via
+  # the Proxmox UI. Cloud-init has already been consumed at first boot
+  # so the migration is safe. Then `terraform apply -refresh-only` to
+  # update state and update this file to record the post-migration
+  # placement.
   pm_node_name         = "pve-mammoth"
   pm_master_node_names = ["pve-mammoth"]
-  pm_worker_node_names = ["pve-whistler", "pve-zermatt"]
+  pm_worker_node_names = ["pve-mammoth", "pve-mammoth"]
 
   # Staging has no Zigbee dongle — skip the USB hardware mapping.
   # Also avoids name collision with production's usb_passthrough mapping

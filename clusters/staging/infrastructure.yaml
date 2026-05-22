@@ -5,7 +5,11 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infrastructure/controllers
+  # Staging uses a curated minimum of upstream controllers — see
+  # infrastructure/controllers-staging/kustomization.yaml for what's
+  # in vs out. Production reconciles the full infrastructure/controllers/
+  # tree.
+  path: ./infrastructure/controllers-staging
   prune: true
   sourceRef:
     kind: GitRepository
@@ -50,20 +54,8 @@ spec:
     name: flux-system
 
 ---
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: kyverno-policies
-  namespace: flux-system
-spec:
-  dependsOn:
-    - name: infra-controllers
-  interval: 1h
-  retryInterval: 1m
-  timeout: 5m
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-  path: ./infrastructure/controllers/kyverno/policies
-  prune: true
-  wait: true
+# kyverno-policies intentionally omitted from staging — controllers-staging
+# doesn't ship the kyverno controller, so the ClusterPolicy CRs in
+# ./infrastructure/controllers/kyverno/policies would fail dry-run
+# (no matching CRD). Add this Kustomization back if/when kyverno gets
+# opted into infrastructure/controllers-staging/kustomization.yaml.
