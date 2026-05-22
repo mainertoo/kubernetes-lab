@@ -27,6 +27,10 @@ crash.*.log
 *.tfvars.json
 *.tfvars.bak
 
+# SOPS plaintext temp files (VS Code SOPS extension / `sops` editing)
+.decrypted~*
+*.decrypted.yaml
+
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in
 override.tf
