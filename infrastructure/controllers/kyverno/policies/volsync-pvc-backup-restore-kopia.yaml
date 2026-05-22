@@ -42,6 +42,11 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore-kopia
   annotations:
+    # Phase 2 (cephfs backingSnapshot rollout): force Flux to
+    # delete+recreate this policy — Kyverno rejects in-place edits to a
+    # generate rule's `data` block. Remove this annotation once Phase 2
+    # has settled so future reconciles don't needlessly recreate it.
+    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync Kopia PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium
@@ -524,6 +529,18 @@ spec:
         - name: cacheCap
           variable:
             jmesPath: "request.object.metadata.annotations.\"volsync.backup/cache-capacity\" || '5Gi'"
+        # Point-in-time copy storage class + access mode. cephfs PVCs
+        # copy via the backingSnapshot StorageClass + ReadOnlyMany so
+        # ceph-csi serves a zero-copy shallow snapshot mount instead of
+        # a full subvolume clone (clone cost scales with file count and
+        # wedged high-file-count PVCs — see apps/base/dumb). rbd PVCs
+        # fall through to their own class + ReadWriteOnce, unchanged.
+        - name: pitStorageClass
+          variable:
+            jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'cephfs-backingsnapshot' || request.object.spec.storageClassName"
+        - name: pitAccessMode
+          variable:
+            jmesPath: "request.object.spec.storageClassName == 'cephfs' && 'ReadOnlyMany' || 'ReadWriteOnce'"
       generate:
         synchronize: true
         generateExisting: true
@@ -539,10 +556,12 @@ spec:
             kopia:
               repository: "volsync-{{request.object.metadata.name}}"
               copyMethod: Snapshot
-              storageClassName: "{{request.object.spec.storageClassName}}"
+              # cephfs → cephfs-backingsnapshot + ReadOnlyMany (shallow,
+              # zero-copy); rbd → unchanged. See pit* context vars above.
+              storageClassName: "{{pitStorageClass}}"
               volumeSnapshotClassName: "{{snapClass}}"
               accessModes:
-                - "{{rwMode}}"
+                - "{{pitAccessMode}}"
               cacheCapacity: "{{cacheCap}}"
               cacheStorageClassName: ceph-rbd
               cacheAccessModes:
