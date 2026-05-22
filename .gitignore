@@ -81,9 +81,8 @@ Downloads/
 *.tar.gz
 *.tgz
 .DS_Store
-.DS_Store
 .claude/scheduled_tasks.lock
-.DS_Store
+*.backup
 
 # dr-flip.sh transaction dir (Codex pass-4 fix; in repo so mv is same-fs atomic)
 /.dr-flip-txn.*
