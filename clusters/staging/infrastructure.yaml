@@ -27,7 +27,8 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infrastructure/secrets-staging
+  # Cross-cluster shared secrets — see infrastructure/secrets-shared/.
+  path: ./infrastructure/secrets-shared
   prune: true
   sourceRef:
     kind: GitRepository
