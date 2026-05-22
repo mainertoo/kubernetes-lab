@@ -34,7 +34,7 @@ Nine independent backup layers (5 original + F1/F2 + Container/appdata gap-fill)
 | # | What | Tool | Source → Target |
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
-| 2 | K8s app PVCs (live) | volsync (Restic) | PVC snapshot → Garage S3 (Docker container on QNAP) |
+| 2 | K8s app PVCs (live) | volsync (Kopia), label-driven | PVC snapshot → shared Kopia repo in Garage S3 (Docker container on QNAP) |
 | 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
 | 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
 | 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
@@ -163,33 +163,56 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 - Verify job `v-e00654e0-3168` runs monthly with `ignore-verified: true`
 - No `sync.cfg` (no peer PBS to push to)
 
-### Layer 2 — K8s app PVCs (volsync → Garage S3)
+### Layer 2 — K8s app PVCs (volsync, label-driven Kopia → Garage S3)
+
+**Label-driven, Kopia engine.** No per-app Kustomize Components (the old `components/volsync-v2/*` were removed in PR #558; Restic was fully removed earlier). An app opts in by labelling its PVC; a Kyverno ClusterPolicy generates everything else.
 
 ```
 [K8s PVC, e.g. media/jellyfin]
+  metadata.labels:
+    backup: daily              # or hourly
+    backup-engine: kopia
         │
-        │ ReplicationSource ${APP}
-        │   trigger.schedule: ${VOLSYNC_SCHEDULE:=05 00/12 * * *}   ── every 12h at :05
-        │   restic.copyMethod: Snapshot
-        │   restic.repository: ${APP}-volsync                       ── per-app Secret
-        │   retain: { hourly: 24, daily: 7, weekly: 5, monthly: 3 }
+        │ Kyverno ClusterPolicy/volsync-pvc-backup-restore-kopia
+        │   (synchronize: true, generateExisting: true)
         ▼
-[volsync mover Job]   creates CSI VolumeSnapshot → mounts as PVC clone
-        │             + ${APP}-volsync cache PVC (10Gi on ceph-rbd)
+  - Secret/volsync-<pvc>             (KOPIA_REPOSITORY + KOPIA_PASSWORD +
+                                      KOPIA_S3_* + AWS_*)
+  - ReplicationSource/<pvc>-backup
+      trigger.schedule:  <min> 2 * * *  (daily)  or  <min> * * * *  (hourly)
+                         <min> = length(namespace) % 60
+      kopia.copyMethod:  Snapshot
+      kopia.repository:  volsync-<pvc>   (in-cluster Secret name, NOT a
+                                          per-app bucket — see below)
+      kopia.{hostname, username, sourcePathOverride}:
+                         <ns> / <pvc>-backup / /data    (Kopia source identity)
+      kopia.storageClassName / accessModes — point-in-time copy:
+        ceph-rbd PVC → ceph-rbd + ReadWriteOnce       (RBD copy-on-write clone)
+        cephfs   PVC → cephfs-backingsnapshot + ReadOnlyMany
+                       (ceph-csi shallow snapshot mount; Phase 2,
+                        2026-05-22 — zero-copy, no subvolume clone)
+  - ReplicationDestination/<pvc>-backup
+      consumed by the dataSourceRef populator on a fresh PVC create
+        │
         ▼
-   restic push to:  s3:https://<garage-endpoint>/<bucket>/${APP}-volsync
+  kopia push to:  s3://garage.lab.mainertoo.com/volsync-kopia/   (ONE shared bucket)
+        │   each app = distinct Kopia source identity <pvc>-backup@<ns>:/data
+        │   Kopia (concurrent multi-writer) deduplicates blobs across every app
         ▼
 [Garage S3 — Docker container running natively on QNAP]
    ingress: garage.lab.mainertoo.com + garageui.lab.mainertoo.com → 192.168.90.180
-   data on local QNAP filesystem: /share/CACHEDEV1_DATA/garage/{data,meta,config}   (~168 GB)
+   data on local QNAP filesystem: /share/CACHEDEV1_DATA/garage/{data,meta,config}
 ```
 
-- Component sources: `components/volsync-v2/{,backup-only,bootstrap,restore}`
-- Master credential: SOPS-encrypted Secret `volsync-garage-base` in `flux-system`
-- Per-app secrets derived via Flux `postBuild.substituteFrom`
-- Helm chart: `oci://ghcr.io/home-operations/charts-mirror/volsync` tag `0.15.0`
-- ~70 ReplicationSources active (heaviest namespace: `media` with 39 after the postgres decommission).
-- **All 8 postgres apps now excluded from this layer** — they have CNPG (Layer 10) instead. Their legacy raw-PVC volsync sources + 88 GiB of data PVCs were removed during the Phase 5 decommission (PRs #305–#313, 2026-05-09–10).
+- **Generator policy**: `infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml`. Companion `volsync-pvc-engine-required.yaml` rejects a PVC with `backup:` but no `backup-engine: kopia`. Jitter policy `kyverno-volsync-jitter.yaml` adds a random sleep initContainer to mover Jobs (180s normal, widened during fleet operations).
+- **Restore is automatic** on a fresh PVC: the mutate rule injects `spec.dataSourceRef → ReplicationDestination/<pvc>-backup`, the populator pulls the latest Kopia snapshot as the PVC binds. Escape hatch annotation `volsync.backup/skip-restore: "true"` (+ `volsync.backup/skip-restore-reason`) keeps the PVC empty.
+- **Shared cluster credential**: `Secret/flux-system/volsync-kopia-shared-base` holds `KOPIA_PASSWORD` + AWS keys. The per-PVC `Secret/volsync-<pvc>` is a scoped copy plus the hardcoded `KOPIA_REPOSITORY` / `KOPIA_S3_*`.
+- **Retention** is central Kopia repo policy + the `KopiaMaintenance` CRD, not per-RS `retain` blocks.
+- Helm chart: `oci://ghcr.io/home-operations/charts-mirror/volsync` 0.15.0. Restore oracle: `pvc-plumber` (Kopia, HTTP) in `volsync-system`.
+- ~70 ReplicationSources active across the fleet (heaviest namespace: `media`).
+- **In-cluster Postgres apps are excluded** — they use CNPG (Layer 10). CNPG-managed PVCs (`cnpg.io/cluster` label or `app.kubernetes.io/managed-by: cnpg|cloudnative-pg`) are skipped by the policy. Their legacy raw-PVC volsync sources + 88 GiB of data PVCs were removed during the Phase 5 decommission (PRs #305–#313, 2026-05-09–10).
+- App-author how-to: `docs/label-driven-backups.md`. Operator view of the policies: `infrastructure/controllers/kyverno/policies/README.md`.
+- One app, `dumb`, has `backup: paused` and a hand-written RS/RD in `apps/base/dumb/` — it was the canary for the cephfs `backingSnapshot` Phase-2 fix and can be folded back onto the label now that the policy does that path.
 
 ### Layer 3 — Ceph RBD nightly export
 
@@ -303,7 +326,7 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
 - Operator HelmRelease: `infrastructure/controllers/cnpg/`
 - Reusable Component: `components/cnpg-cluster/`
 - Component substitutes: `APP`, `APP_NAMESPACE`, `CNPG_DB_NAME`, `CNPG_DB_OWNER`, `CNPG_IMAGE`, `CNPG_STORAGE_SIZE`, `CNPG_BACKUP_SCHEDULE`, etc. — see `components/cnpg-cluster/README.md`.
-- S3 credentials: per-app `<APP>-cnpg-s3` Secret derived from the master `volsync-garage-base` SOPS Secret in flux-system.
+- S3 credentials: per-app `<APP>-cnpg-s3` Secret derived from the master `volsync-kopia-shared-base` SOPS Secret in flux-system.
 
 **Special apps with extra GitOps capture**:
 - **dawarich**: postgis 17/3.5 + `tiger`+`topology` schemas. Migration required pre-installing extensions as superuser (peer-auth via kubectl exec) and `pg_dump --extension=plpgsql --exclude-schema=tiger,topology`. See `feedback_cnpg_postgis_migration.md`.
@@ -334,7 +357,6 @@ cluster-nuke ergonomics on the PVC side.
 ## 5. Schedule timeline (24 h)
 
 ```
-00:05 UTC ──── volsync ReplicationSource sweep (12-hourly default)
 01:05/07/09 ── k3s-pv-index.sh on master-1/2/3  → /var/backups/*.csv
 01:30 ──────── rbd-nightly-backup.sh on pve-ugreen  → /mnt/pve/cephfs-swarm/rbd-backup/
 02:00 ──────── PVE vzdump (all guests except 299)  → PBS → QNAP
@@ -354,7 +376,8 @@ cluster-nuke ergonomics on the PVC side.
 07:00 ──────── CNPG ScheduledBackup: opencut-cnpg-db          → Garage S3 (added 2026-05-09)
 07:30 ──────── CNPG ScheduledBackup: sparky-fitness-cnpg-db   → Garage S3 (added 2026-05-09)
 08:00 ──────── CNPG ScheduledBackup: wiki-js-cnpg-db          → Garage S3 (added 2026-05-09)
-12:05 UTC ──── volsync ReplicationSource sweep (second daily run)
+02:MM UTC ──── volsync (Layer 2) — daily backup RSes fire across 02:00–02:59 UTC, spread by `length(ns) % 60`
+hourly ─────── volsync (Layer 2) — top of each hour for PVCs labelled `backup: hourly` (same minute-spread)
 continuous ──  CNPG WAL streaming (all 8 clusters)            → Garage S3 (Layer 10)
 daily ──────── PBS GC + prune (keep 17/7/8/2 last/daily/weekly/monthly)
 monthly ────── PBS verify job v-e00654e0-3168 (ignore-verified=true)
@@ -923,36 +946,40 @@ vzdump: backup-f4e795e8-28be
 	storage pbs-backups
 ```
 
-### Volsync ReplicationSource template — `components/volsync-v2/backup/volsync-replicationsource.yaml`
+### Volsync ReplicationSource — generated by Kyverno
+
+The `volsync-pvc-backup-restore-kopia` ClusterPolicy generates this shape for every backup-labelled PVC (per-PVC values come from jmesPath context vars over the source PVC):
 
 ```yaml
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: "${APP}"
+  name: <pvc>-backup
+  namespace: <pvc-namespace>
 spec:
-  sourcePVC: "${APP}"
+  sourcePVC: <pvc>
   trigger:
-    schedule: "${VOLSYNC_SCHEDULE:=05 00/12 * * *}"
-  restic:
+    schedule: "<len(ns)%60> 2 * * *"   # daily — or "<len(ns)%60> * * * *" for hourly
+  kopia:
+    repository: volsync-<pvc>          # Secret name (also Kyverno-generated)
     copyMethod: Snapshot
-    pruneIntervalDays: 14
-    repository: "${APP}-volsync"
-    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:=ceph-rbd-snapclass}"
-    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:=10Gi}"
-    cacheStorageClassName: "${VOLSYNC_CACHE_STORAGECLASS:=ceph-rbd}"
-    cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}"]
-    storageClassName: "${VOLSYNC_STORAGECLASS:=ceph-rbd}"
-    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}"]
-    moverSecurityContext:
-      runAsUser: ${VOLSYNC_PUID:=1000}
-      runAsGroup: ${VOLSYNC_PGID:=1000}
-      fsGroup: ${VOLSYNC_PGID:=1000}
-    retain:
-      hourly: 24
-      daily: 7
-      weekly: 5
-      monthly: 3
+    # Point-in-time copy:
+    #   ceph-rbd PVC → ceph-rbd + ReadWriteOnce (RBD copy-on-write clone)
+    #   cephfs   PVC → cephfs-backingsnapshot + ReadOnlyMany
+    #                  (ceph-csi shallow snapshot mount, Phase 2 2026-05-22)
+    storageClassName: <pitStorageClass>
+    volumeSnapshotClassName: <snapClass>
+    accessModes: [<pitAccessMode>]
+    cacheCapacity: <volsync.backup/cache-capacity annotation || 5Gi>
+    cacheStorageClassName: ceph-rbd
+    cacheAccessModes: [ReadWriteOnce]
+    moverSecurityContext: { fsGroup: 1000, runAsUser: 1000, runAsGroup: 1000 }
+    # Kopia source identity — shared bucket, each app is one identity
+    hostname: <namespace>
+    username: <pvc>-backup
+    sourcePathOverride: /data
+    # NOTE: no `retain:` block — retention is central Kopia repo policy +
+    # the KopiaMaintenance CRD, not per-RS.
 ```
 
 ### QNAP NFS exports (relevant ones)
@@ -1009,7 +1036,7 @@ PBS writes ~2.0 TB to `/share/CACHEDEV1_DATA/proxmox/proxmox-backup-server/` on 
    ```
 5. Validation snapshot of `garage/config` (1 file, 756 B, 0 s). Initial seed kicked off in background 2026-05-08 03:19 UTC.
 
-**Consistency note**: Garage may write objects during the snapshot. Restic data on top is content-addressed (each blob lives at a deterministic hashed path), so half-written objects produce a missing-blob symptom rather than a corrupt-blob one. Recoverability remains high. If Garage growth becomes high-churn, consider adding `rclone sync` from the S3 endpoint to a staging dir as a future improvement (cleanly consistent at the S3 object level).
+**Consistency note**: Garage may write objects during the snapshot. Kopia data on top is content-addressed (each blob lives at a deterministic hashed path), so half-written objects produce a missing-blob symptom rather than a corrupt-blob one. Recoverability remains high. If Garage growth becomes high-churn, consider adding `rclone sync` from the S3 endpoint to a staging dir as a future improvement (cleanly consistent at the S3 object level).
 
 ### F3 — Single failure domain on QNAP — partially mitigated
 
@@ -1105,7 +1132,7 @@ Three serious paths. Differences:
 | Pro | Con |
 |---|---|
 | Native to volsync's S3 backend | Only covers Layer 2; PBS/Kopia layers still local |
-| Restic data is end-to-end encrypted (offsite host can be untrusted) | Requires running a second Garage cluster (operational complexity) |
+| Kopia data is end-to-end encrypted (offsite host can be untrusted) | Requires running a second Garage cluster (operational complexity) |
 | Replication is delta-only (chunks) | If volsync produces broken backups, this faithfully replicates them |
 | | Recovery: re-point volsync at offsite endpoint |
 
@@ -1123,7 +1150,7 @@ Three serious paths. Differences:
 |---|---|
 | Covers Layers 3+4+5 already; AND once F1+F2 are fixed, it covers ALL layers | Same compromise risk: corrupt local repo → corrupt offsite repo (mitigated by `kopia maintenance run --full --safety=full` weekly + monthly verify) |
 | Lowest operational complexity (`kopia repository sync-to` over SFTP) | Bandwidth dominated by content-addressed deltas — small after first seed |
-| End-to-end encryption with restic-equivalent password (offsite host untrusted) | Initial seed of 658 GB → 1+ TB (after F1+F2) takes time over residential upload |
+| End-to-end encryption with the Kopia password (offsite host untrusted) | Initial seed of 658 GB → 1+ TB (after F1+F2) takes time over residential upload |
 | Recovery: `kopia repository connect sftp ...` from anywhere | |
 
 ### Recommendation: **Option C, after fixing F1 + F2**
@@ -1159,28 +1186,33 @@ $ ssh ubuntu@192.168.90.161 'sudo head -20 /var/backups/pv-index-k3s.csv'
 $ ssh pve-ugreen 'ls /mnt/pve/cephfs-swarm/rbd-backup/ | head -1'
 ```
 
-### 12.1 Restore a single PVC — preferred: volsync bootstrap (Layer 2)
+### 12.1 Restore a single PVC — preferred: label-driven Kopia (Layer 2)
 
-```yaml
-# apps/base/<app>/kustomization.yaml
-components:
-  - ../../../../components/volsync-v2/bootstrap   # was: components/volsync-v2
-
-# apps/production/<app>/kustomization.yaml: bump to force re-restore
-postBuild:
-  substitute:
-    APP: <app>
-    VOLSYNC_RESTORE_TOKEN: "2026-05-07-restore-1"
-```
+Restore is **automatic**. On a fresh PVC create, the Kyverno mutate rule
+injects `spec.dataSourceRef → ReplicationDestination/<pvc>-backup` and the
+populator pulls the latest Kopia snapshot from the shared `volsync-kopia` repo
+as the PVC binds. There is no Component to switch, no `VOLSYNC_RESTORE_TOKEN`.
 
 Steps:
 
-1. `flux suspend hr -n <ns> <app>` and scale Deployment/StatefulSet to 0
-2. `kubectl -n <ns> delete pvc <app>`
-3. Switch the kustomization to `volsync-v2/bootstrap`, commit, push
-4. Watch: `kubectl -n <ns> get replicationdestination -w` then `kubectl -n <ns> get pvc -w`
-5. Once PVC is `Bound` and RD is `Synchronized`, scale the app back up / resume the HelmRelease
-6. **Settle**: switch the kustomization back to plain `volsync-v2`
+1. `flux suspend hr -n <ns> <app>` and scale Deployment/StatefulSet to 0.
+2. `kubectl -n <ns> delete pvc <pvc>` — Flux will recreate it.
+3. `flux resume hr -n <ns> <app>` (or wait for the next reconcile). Watch:
+   ```bash
+   kubectl -n <ns> get pvc <pvc> -w
+   kubectl -n <ns> get replicationdestination <pvc>-backup -w
+   ```
+4. Once the PVC is `Bound` (populator finished), scale the app back up.
+
+**Restore the PVC EMPTY** (skip auto-restore): add
+`volsync.backup/skip-restore: "true"` (+ `volsync.backup/skip-restore-reason`)
+to the PVC manifest before recreation. Alerting fires at T+1h (info) /
+T+24h (warn) while that annotation is on.
+
+**Restore an OLDER snapshot** (not latest): patch the `ReplicationDestination`
+to select an earlier snapshot via Kopia's `restoreAsOf` / `previous` and
+trigger it. Verify the exact field names against the volsync Kopia
+`ReplicationDestination` spec before patching.
 
 ### 12.2 Restore a single PVC — fallback: Kopia (Layer 3 or 4)
 
@@ -1256,8 +1288,8 @@ pbs# proxmox-backup-client unmount /mnt/pbs-extract
         --branch=master --path=./clusters/production
    ```
 4. Wait for `infrastructure` and `flux-system` Kustomizations to be Ready
-5. For each app needing restore, switch kustomization to `components/volsync-v2/bootstrap` and commit. Flux reconciles, volsync pulls each PVC's latest snapshot from Garage.
-6. Settle: switch each kustomization back to plain `volsync-v2` in a follow-up commit.
+5. Apps' PVCs **auto-restore** on first reconcile — the Kyverno mutate rule injects `dataSourceRef → ReplicationDestination/<pvc>-backup` and the populator pulls each app's latest Kopia snapshot from the shared `volsync-kopia` bucket. No per-app Component to switch.
+6. Per-CNPG-cluster: flip to recovery via `./scripts/dr-flip.sh enable --all`; once base backups land and clusters are healthy, settle with `./scripts/dr-flip.sh disable --i-verified-post-recovery-base-backup --all`.
 
 ### 12.5 Total Ceph loss recovery
 
@@ -1313,7 +1345,7 @@ $ ssh qnas 'ls /share/CACHEDEV1_DATA/garage/'
 k8s$ # Run a temporary mover Job pointing at the existing Secret
 
 # 4. Trigger a re-sync
-k8s$ kubectl annotate replicationsource <app> -n <ns> volsync.backube/triggered=manual
+k8s$ kubectl annotate replicationsource <pvc>-backup -n <ns> volsync.backube/triggered=manual
 ```
 
 ### 12.9 Quarterly verification
@@ -1321,8 +1353,16 @@ k8s$ kubectl annotate replicationsource <app> -n <ns> volsync.backube/triggered=
 The only test of a backup is a restore. Each quarter, run:
 
 ```bash
-# Volsync side-by-side: pick a small app like "dumb"
-# Switch kustomization to volsync-v2/restore, bump VOLSYNC_RESTORE_TOKEN, watch <app>-restore PVC
+# Volsync label-driven restore drill — pick a small backup-labelled app
+# (NOT `dumb` — it has a hand-written setup; pick any app with `backup: daily`)
+ns=<namespace>; app=<app>; pvc=<pvc>
+flux suspend hr -n "$ns" "$app"
+kubectl -n "$ns" scale deploy/"$app" --replicas=0
+kubectl -n "$ns" delete pvc "$pvc"
+flux resume hr -n "$ns" "$app"
+kubectl -n "$ns" get pvc "$pvc" -w           # populator restores from Kopia
+kubectl -n "$ns" scale deploy/"$app" --replicas=1
+# Then exec into the pod and verify the restored data.
 
 # PBS test restore
 pve-mac# pct restore 999 pbs-backups:backup/ct/104/<timestamp> --storage local-zfs
@@ -1359,7 +1399,9 @@ The CSV path survives if Ceph is gone; the `.meta.txt` path survives if PBS is g
 ## 14. Common pitfalls
 
 - **Forgetting to `flux suspend hr`** before deleting a PVC for restore — Flux re-creates the resources before volsync can stage the dataSource.
-- **Switching to `volsync-v2/bootstrap` without bumping `VOLSYNC_RESTORE_TOKEN`** — RD doesn't re-fire if the spec is unchanged.
+- **Forgetting `backup-engine: kopia` alongside `backup: daily|hourly`** — the companion `volsync-pvc-engine-required` policy denies the PVC. Both labels must be present.
+- **Deleting a PVC that still carries `volsync.backup/skip-restore: "true"`** — Flux will recreate it EMPTY, no auto-restore. Remove the annotation first.
+- **Editing the `volsync-pvc-backup-restore-kopia` policy's `generate.data` in place** — Kyverno rejects the update. The change requires `kustomize.toolkit.fluxcd.io/force: "Enabled"` to delete+recreate the policy (which cold-starts ~140 movers fleet-wide — widen the jitter first).
 - **Restoring an RBD image into the wrong pool** — `k3s-rbd` is the live pool; importing to `kube-rbd` (legacy, empty) won't be usable.
 - **PBS file-level extract requires the encryption keyfile** if the backup was encrypted. PBS backups here are unencrypted today.
 - **Kopia mount on a privileged LXC** is fine; on an unprivileged LXC, FUSE may not work — use `kopia restore` to a target dir instead.
