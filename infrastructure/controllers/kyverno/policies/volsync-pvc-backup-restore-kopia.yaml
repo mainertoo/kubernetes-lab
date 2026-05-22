@@ -42,11 +42,6 @@ kind: ClusterPolicy
 metadata:
   name: volsync-pvc-backup-restore-kopia
   annotations:
-    # Phase 2 (cephfs backingSnapshot rollout): force Flux to
-    # delete+recreate this policy — Kyverno rejects in-place edits to a
-    # generate rule's `data` block. Remove this annotation once Phase 2
-    # has settled so future reconciles don't needlessly recreate it.
-    kustomize.toolkit.fluxcd.io/force: "Enabled"
     policies.kyverno.io/title: VolSync Kopia PVC backup/restore admission
     policies.kyverno.io/category: VolSync
     policies.kyverno.io/severity: medium

@@ -31,11 +31,12 @@ spec:
                   - name: jitter
                     image: busybox:latest
                     imagePullPolicy: IfNotPresent
-                    # TEMPORARILY 30 min (was 180s) to spread the
-                    # fleet-wide cold-start when the volsync Kyverno
-                    # policy is force-recreated for Phase 2 (cephfs
-                    # backingSnapshot rollout). Revert to `% 180` once
-                    # Phase 2 has settled — Kopia's concurrent
-                    # multi-writer access means 3 min is normally
-                    # plenty (no Restic-era lock contention).
-                    command: ["sh", "-c", "sleep $((RANDOM % 1800))"]
+                    # 3-min spread (RANDOM % 180). Kopia's concurrent
+                    # multi-writer access means this is plenty in
+                    # steady state — there is no Restic-era
+                    # mover-vs-mover lock contention to avoid.
+                    # Widen temporarily (e.g. `% 1800`) before
+                    # force-recreating the volsync generate policy,
+                    # to spread the resulting cold-start wave; revert
+                    # once the wave drains.
+                    command: ["sh", "-c", "sleep $((RANDOM % 180))"]
