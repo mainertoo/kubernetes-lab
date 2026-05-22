@@ -82,7 +82,7 @@ Because everything is one Flux Kustomization, resources can be moved between sub
 
 ## Image versions
 
-Driver image: `quay.io/cephcsi/cephcsi:v3.16-canary` (moving tag, not Renovate-managed).
+Driver image: `quay.io/cephcsi/cephcsi:v3.16.2` — a pinned stable release, Renovate-managed.
 
 Sidecar versions (Renovate-managed):
 
