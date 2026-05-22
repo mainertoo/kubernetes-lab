@@ -1,5 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# This Kustomization is reconciled by Flux's `infra-cert-manager-config`
+# Kustomization, which `dependsOn` `infra-controllers`. That ordering
+# guarantees the cert-manager + traefik chart CRDs exist before any of
+# the CRs below get applied, so TLSStore + Certificate + ClusterIssuer
+# all pass server-side dry-run.
 resources:
   - issuer.yaml
   - certificate.yaml
+  - tlsstore-default.yaml
