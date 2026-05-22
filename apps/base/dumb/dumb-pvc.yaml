@@ -3,17 +3,14 @@ kind: PersistentVolumeClaim
 metadata:
   name: dumb
   labels:
-    # PAUSED 2026-05-22 — dumb's cephfs snapshot+clone wedges Ceph CSI
-    # repeatedly (recurring "clone from snapshot is already in progress"
-    # lock; user has had to manually rescue wedged backup pods multiple
-    # times). Setting backup=paused (a non-matching value for the
-    # Kyverno generator policy) tears down the volsync RS/RD/Secret
-    # while leaving the rest of the dumb app running normally.
-    #
-    # To re-enable backups: flip back to `backup: daily`. Don't do
-    # this until the underlying Ceph subvolume-clone issue is fixed
-    # — otherwise the wedge returns immediately.
-    backup: paused
+    # Re-enabled 2026-05-22 after the cephfs subvolume-clone wedge was
+    # addressed: ceph-csi pinned off the moving `canary` tag to v3.16.2
+    # (PR #559), the stuck canceled-clone subvolume + orphan snapshots
+    # cleared, and k3s-fs given a hot standby MDS (allow_standby_replay)
+    # to speed up clone tasks. If the "clone from snapshot is already
+    # in progress" wedge recurs, set `backup: paused` and switch the
+    # volsync RS to copyMethod: Direct.
+    backup: daily
     backup-engine: kopia
   annotations:
     # Override the policy's default 5Gi cache. Dumb's 100Gi cephfs
