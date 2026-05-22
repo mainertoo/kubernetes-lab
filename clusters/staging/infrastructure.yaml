@@ -5,7 +5,11 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infrastructure/controllers
+  # Staging uses a curated minimum of upstream controllers — see
+  # infrastructure/controllers-staging/kustomization.yaml for what's
+  # in vs out. Production reconciles the full infrastructure/controllers/
+  # tree.
+  path: ./infrastructure/controllers-staging
   prune: true
   sourceRef:
     kind: GitRepository

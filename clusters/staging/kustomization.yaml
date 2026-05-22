@@ -5,4 +5,7 @@ resources:
   - infrastructure.yaml
   - apps.yaml
   - infra-repositories.yaml
-  - volsync.yaml
+  # volsync intentionally omitted from staging — depends on
+  # kube-prometheus-stack's ServiceMonitor CRD which staging doesn't
+  # ship, and staging has no app data worth backing up yet. Add when
+  # the first stateful app gets opted into apps/staging.
