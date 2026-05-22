@@ -4,10 +4,12 @@
 
 cluster_name: staging
 
-# K3s version pinned for both install and upgrade. Initially matches
-# production to keep the test surface narrow; Phase 5 will bump
-# staging to v1.35.<latest>+k3s1 first as the canary upgrade.
-k3s_version: "v1.34.5+k3s1"
+# K3s version pinned for both install and upgrade. Phase 5 upgrade
+# from v1.34.5+k3s1 → v1.35.5+k3s1 on 2026-05-22 as the canary
+# before production. Rancher 2.14.1 supports K3s 1.33 through 1.35;
+# 1.36 is out but breaks Rancher's matrix until the next Rancher
+# release lands.
+k3s_version: "v1.35.5+k3s1"
 
 # Match production's disabled built-ins.
 k3s_disable:
