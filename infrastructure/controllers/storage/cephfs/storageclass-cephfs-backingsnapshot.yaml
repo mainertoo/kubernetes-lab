@@ -1,0 +1,29 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs-backingsnapshot
+  # CephFS shallow / snapshot-backed volumes.
+  #
+  # A PVC created from a cephfs VolumeSnapshot, when its access mode is
+  # ReadOnlyMany AND its StorageClass sets `backingSnapshot: "true"`, is
+  # served by ceph-csi as a ZERO-COPY read-only mount of the snapshot's
+  # `.snap` directory — no subvolume clone, no ceph-mgr file-by-file
+  # copy. This exists so VolSync ReplicationSources can back up
+  # high-file-count cephfs PVCs (e.g. dumb) without the clone that
+  # stalls when clone duration exceeds the CSI provisioner timeout.
+  #
+  # `pool` MUST be omitted — a backingSnapshot volume creates no
+  # subvolume, so there is no data placement to specify.
+  # See: ceph-csi docs/design/proposals/cephfs-snapshot-shallow-ro-vol.md
+provisioner: cephfs.csi.ceph.com
+parameters:
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+  csi.storage.k8s.io/node-stage-secret-name: cephfs-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/provisioner-secret-name: cephfs-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
+  fsName: k3s-fs
+  monitors: 192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789
+  backingSnapshot: "true"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
