@@ -29,4 +29,3 @@ spec:
       runAsGroup: 1000
     hostname: dumb
     username: dumb-backup
-    sourcePathOverride: /data
