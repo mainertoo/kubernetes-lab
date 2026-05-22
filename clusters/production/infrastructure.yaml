@@ -23,7 +23,10 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infrastructure/secrets-staging
+  # Cross-cluster shared secrets — owns the cert-manager namespace and the
+  # Cloudflare DNS01 token consumed by BOTH clusters' cert-manager issuers.
+  # Production-only secrets live in ./infrastructure/secrets-prod (infra-secrets-prod).
+  path: ./infrastructure/secrets-shared
   prune: true
   sourceRef:
     kind: GitRepository

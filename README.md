@@ -84,8 +84,8 @@ Hephaestus/
 │   ├── controllers-staging/        # Staging-side controllers (minimal opt-in)
 │   ├── configs/cert-manager/{production,staging}/   # Per-cluster issuers + wildcard certs
 │   ├── repositories/               # HelmRepository / OCIRepository CRDs
-│   ├── secrets-prod/               # SOPS-encrypted Secrets for production
-│   └── secrets-staging/            # SOPS-encrypted Secrets for staging
+│   ├── secrets-prod/               # SOPS-encrypted Secrets — production only
+│   └── secrets-shared/             # SOPS-encrypted Secrets — both clusters (cert-manager ns + Cloudflare DNS01 token)
 ├── terraform/
 │   ├── modules/k3s-cluster/        # Reusable Proxmox VM module (see terraform/README.md)
 │   └── environments/{production,staging}/   # Per-cluster module call + tfstate
