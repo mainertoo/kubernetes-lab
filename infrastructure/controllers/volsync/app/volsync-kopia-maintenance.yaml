@@ -21,5 +21,12 @@ metadata:
 spec:
   repository:
     repository: volsync-kopia-maintenance
-  trigger:
-    schedule: "0 9 * * *"
+  # NOTE: the cron must be set on the TOP-LEVEL `spec.schedule`, NOT on
+  # `spec.trigger.schedule`. The CRD's defaulting webhook fills
+  # `spec.schedule` with `0 2 * * *` when absent — and the controller
+  # treats the top-level schedule and `spec.trigger` as mutually
+  # exclusive (PR #572 hit this: `spec.trigger.schedule` was set, the
+  # defaulter still wrote `spec.schedule: "0 2 * * *"`, and the live
+  # cron used the defaulted one). Set top-level here so the value is
+  # authoritative.
+  schedule: "0 9 * * *"
