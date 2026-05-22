@@ -27,15 +27,27 @@
       changed_when: "'cordoned' in cordon.stdout"
       delegate_to: "{{ first_master }}"
 
-    - name: Drain the K3s node (ignore daemonsets, delete emptyDir, force, 5 min timeout)
+    - name: Drain the K3s node (ignore daemonsets, delete emptyDir, force, disable eviction, 10 min timeout)
+      # --disable-eviction=true uses the delete API instead of the
+      # eviction API, which bypasses PodDisruptionBudgets. Required
+      # for single-replica workloads with PDBs that would otherwise
+      # block drain forever (e.g. CloudNativePG single-instance
+      # clusters create a `<app>-db-primary` PDB with minAvailable=1
+      # — uneviictable because there's no standby to keep the count
+      # at 1 during eviction). On HA-replicated workloads (Traefik,
+      # Flux controllers, MetalLB), drain still proceeds pod-by-pod
+      # via delete; PDB bypass is moot because remaining replicas
+      # are on other nodes. Discovered during Phase 5b production
+      # upgrade 2026-05-22.
       ansible.builtin.shell: |
         k3s kubectl drain {{ k3s_node_name }} \
           --ignore-daemonsets \
           --delete-emptydir-data \
           --force \
-          --timeout=300s
+          --disable-eviction=true \
+          --timeout=600s
       register: drain
-      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout"
+      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout or 'deleted' in drain.stdout"
       delegate_to: "{{ first_master }}"
 
     - name: Upgrade K3s on master (pinned to k3s_version)
