@@ -11,6 +11,20 @@ locals {
     for i in range(var.k3s_worker_count) :
     try(var.worker_hostpci_ids[i], "")
   ]
+
+  # Snippet filename prefix — auto-derived from cluster_name when
+  # snippets_per_host is true, so two clusters writing snippets to the
+  # same Proxmox host don't collide on file_name. Empty string when
+  # snippets_per_host is false to preserve the legacy single-host
+  # behavior (matters for production whose existing state predates
+  # the per-host model).
+  snippet_file_prefix = var.snippets_per_host ? "${var.cluster_name}-" : ""
+
+  # Set of Proxmox hosts that actually run at least one VM in this
+  # cluster — drives the per-host snippet upload when
+  # snippets_per_host = true. Empty when false (the legacy
+  # user_data_cloud_config resource handles that case).
+  snippet_hosts = var.snippets_per_host ? toset(concat(local.master_node_names, local.worker_node_names)) : toset([])
 }
 
 data "local_file" "ssh_public_key" {
@@ -84,10 +98,68 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   }
 }
 
+# Per-host user_data snippet — only created when snippets_per_host = true.
+# Uploads the same cloud-init user-data file to every Proxmox host that has
+# at least one VM in this cluster, so a VM landing on a non-default host
+# can find its cicustom user_data locally.
+resource "proxmox_virtual_environment_file" "user_data_cloud_config_per_host" {
+  for_each = local.snippet_hosts
+
+  content_type = var.pm_snippet_content_type
+  datastore_id = var.pm_datastore_id
+  node_name    = each.value
+
+  lifecycle {
+    ignore_changes = [source_raw]
+  }
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    users:
+      - default
+      - name: ubuntu
+        groups:
+          - sudo
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${trimspace(data.local_file.ssh_public_key.content)}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        lock_passwd: false
+
+    chpasswd:
+      list: |
+        ubuntu:${var.ubuntu_password}
+      expire: False
+
+    ssh_pwauth: True
+
+    package_update: true
+    package_upgrade: true
+
+    runcmd:
+      - apt update
+      - apt install -y qemu-guest-agent net-tools nfs-common
+      - apt install -y linux-modules-extra-$(uname -r) || true
+      - apt install -y unattended-upgrades
+      - dpkg-reconfigure -f noninteractive unattended-upgrades
+      - timedatectl set-timezone America/Los_Angeles
+      - systemctl enable qemu-guest-agent
+      - systemctl restart qemu-guest-agent || systemctl start qemu-guest-agent
+      - echo "cloud-init complete" > /var/log/cloud-init-custom.log
+    EOF
+
+    file_name = "${local.snippet_file_prefix}user-data-cloud-config.yaml"
+  }
+}
+
 resource "proxmox_virtual_environment_file" "metadata_cloud_config_master" {
   content_type = var.pm_snippet_content_type
   datastore_id = var.pm_datastore_id
-  node_name    = var.pm_node_name
+  # When snippets_per_host is on, the metadata file lives on the host
+  # that runs this specific master VM. When off (legacy / production),
+  # all metadata files live on pm_node_name.
+  node_name = var.snippets_per_host ? local.master_node_names[count.index] : var.pm_node_name
 
   count = var.k3s_master_count
 
@@ -97,14 +169,14 @@ resource "proxmox_virtual_environment_file" "metadata_cloud_config_master" {
     local-hostname: ${join("", [var.cluster_name, var.k3s_master_name_prefix, count.index + 1])}
     EOF
 
-    file_name = "metadata-cloud-config-k3s-master-${count.index + 1}.yaml"
+    file_name = "${local.snippet_file_prefix}metadata-cloud-config-k3s-master-${count.index + 1}.yaml"
   }
 }
 
 resource "proxmox_virtual_environment_file" "metadata_cloud_config_worker" {
   content_type = var.pm_snippet_content_type
   datastore_id = var.pm_datastore_id
-  node_name    = var.pm_node_name
+  node_name    = var.snippets_per_host ? local.worker_node_names[count.index] : var.pm_node_name
 
   count = var.k3s_worker_count
 
@@ -114,7 +186,7 @@ resource "proxmox_virtual_environment_file" "metadata_cloud_config_worker" {
     local-hostname: ${join("", [var.cluster_name, var.k3s_worker_name_prefix, count.index + 1])}
     EOF
 
-    file_name = "metadata-cloud-config-k3s-worker-${count.index + 1}.yaml"
+    file_name = "${local.snippet_file_prefix}metadata-cloud-config-k3s-worker-${count.index + 1}.yaml"
   }
 }
 
@@ -133,7 +205,11 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
       }
     }
 
-    user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
+    # user_data picks the same-host per-cluster snippet when
+    # snippets_per_host is on, else the legacy single-host file.
+    # In either case lifecycle.ignore_changes = [initialization]
+    # below means a flip between the two only affects new VM creates.
+    user_data_file_id = var.snippets_per_host ? proxmox_virtual_environment_file.user_data_cloud_config_per_host[local.master_node_names[count.index]].id : proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.metadata_cloud_config_master[count.index].id
   }
 
@@ -193,7 +269,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
       }
     }
 
-    user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
+    user_data_file_id = var.snippets_per_host ? proxmox_virtual_environment_file.user_data_cloud_config_per_host[local.worker_node_names[count.index]].id : proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.metadata_cloud_config_worker[count.index].id
   }
 
