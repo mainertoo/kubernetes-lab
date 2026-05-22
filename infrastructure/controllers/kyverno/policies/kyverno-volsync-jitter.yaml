@@ -16,7 +16,9 @@ spec:
           - resources:
               kinds:
                 - Job
-              name: "volsync-src-*"
+              # Covers both backup (volsync-src-*) and restore
+              # (volsync-dst-*) movers.
+              name: "volsync-*"
               selector:
                 matchLabels:
                   app.kubernetes.io/created-by: volsync
@@ -29,9 +31,11 @@ spec:
                   - name: jitter
                     image: busybox:latest
                     imagePullPolicy: IfNotPresent
-                    # 3-min spread. Kopia supports concurrent multi-writer
-                    # access to a shared repo, so the mover-vs-mover lock
-                    # contention that forced the 30-min window during the
-                    # Restic era (commit a61cb51f, 2026-05-16) no longer
-                    # applies post-Kopia migration.
-                    command: ["sh", "-c", "sleep $((RANDOM % 180))"]
+                    # TEMPORARILY 30 min (was 180s) to spread the
+                    # fleet-wide cold-start when the volsync Kyverno
+                    # policy is force-recreated for Phase 2 (cephfs
+                    # backingSnapshot rollout). Revert to `% 180` once
+                    # Phase 2 has settled — Kopia's concurrent
+                    # multi-writer access means 3 min is normally
+                    # plenty (no Restic-era lock contention).
+                    command: ["sh", "-c", "sleep $((RANDOM % 1800))"]
