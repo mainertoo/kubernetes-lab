@@ -26,8 +26,14 @@ kubevip_interface: "eth0"
 # / staging-l2-adv).
 metallb_pool_range: "192.168.90.200-192.168.90.219"
 
-# Matches production's apiserver flags. Drop these if a feature
-# you're testing on staging needs the alpha gates off.
-k3s_apiserver_extra_args:
-  - "--kube-apiserver-arg=feature-gates=MutatingAdmissionPolicy=true"
-  - "--kube-apiserver-arg=runtime-config=admissionregistration.k8s.io/v1alpha1=true"
+# No extra apiserver flags by default for staging.
+#
+# Production carries `feature-gates=MutatingAdmissionPolicy=true` plus
+# `runtime-config=admissionregistration.k8s.io/v1alpha1=true` only
+# because the cluster was upgraded in place from K3s 1.33 (where the
+# v1alpha1 surface still existed). A fresh 1.34.5 install rejects the
+# v1alpha1 runtime-config because the resource has moved to v1beta1;
+# the apiserver fails to start. Leave this empty for staging unless
+# you're explicitly testing an alpha feature gate. See the bug found
+# 2026-05-21 during the staging cluster bootstrap.
+k3s_apiserver_extra_args: []

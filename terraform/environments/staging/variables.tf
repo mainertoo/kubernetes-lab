@@ -4,6 +4,7 @@
 variable "pm_url" {
   description = "The url for the proxmox api on the host"
   type        = string
+  default     = "https://192.168.1.107:8006/"
 }
 
 variable "pm_token_secret" {
@@ -26,6 +27,7 @@ variable "pm_tls_insecure" {
 variable "pm_ssh_username" {
   description = "The user used by proxmox provider to access proxmox node"
   type        = string
+  default     = "terraform-prov"
 }
 
 variable "pm_ssh_password" {
