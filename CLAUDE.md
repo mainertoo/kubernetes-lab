@@ -39,8 +39,8 @@ infrastructure/
   controllers-staging/                  # Staging-side controllers (minimal opt-in)
   configs/cert-manager/{production,staging}/   # Per-cluster issuers + wildcard certs
   repositories/                         # HelmRepository / OCIRepository CRDs
-  secrets-prod/                         # SOPS-encrypted Kubernetes Secrets
-  secrets-staging/                      # SOPS-encrypted Kubernetes Secrets
+  secrets-prod/                         # SOPS-encrypted Secrets — production only
+  secrets-shared/                       # SOPS-encrypted Secrets — both clusters (cert-manager ns + Cloudflare DNS01 token)
 apps/
   base/                                 # All app definitions (HelmRelease, IngressRoute, PVC, etc.)
   production/                           # kustomization.yaml listing apps active on production
