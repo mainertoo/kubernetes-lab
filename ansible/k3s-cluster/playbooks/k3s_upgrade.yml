@@ -104,15 +104,19 @@
       changed_when: "'cordoned' in cordon.stdout"
       delegate_to: "{{ first_master }}"
 
-    - name: Drain the K3s worker (ignore daemonsets, delete emptyDir, force, 5 min timeout)
+    - name: Drain the K3s worker (ignore daemonsets, delete emptyDir, force, disable eviction, 10 min timeout)
+      # See the master-side drain task above for the rationale on
+      # --disable-eviction. Same reasoning applies here, and the
+      # worker plays are where the CNPG primary PDBs actually live.
       ansible.builtin.shell: |
         k3s kubectl drain {{ k3s_node_name }} \
           --ignore-daemonsets \
           --delete-emptydir-data \
           --force \
-          --timeout=300s
+          --disable-eviction=true \
+          --timeout=600s
       register: drain
-      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout"
+      changed_when: "'drained' in drain.stdout or 'evicted' in drain.stdout or 'deleted' in drain.stdout"
       delegate_to: "{{ first_master }}"
 
     - name: Upgrade K3s agent on worker (pinned to k3s_version)
