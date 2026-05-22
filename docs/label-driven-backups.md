@@ -1,10 +1,15 @@
 # Label-driven volsync backups — how to set up backups for an app
 
-Phase 5+ of the [volsync label-driven restore project](./volsync-storage-recovery.md). Replaces the older `components/volsync-v2` Component pattern. **Use this for any new app, or any existing app you migrate.**
+This is the current pattern for backing up an app's PersistentVolumeClaim. It
+replaced the retired `components/volsync-v2` Kustomize Components (removed in
+PR #558) — there is nothing per-app to wire up beyond two labels.
+
+Engine: **Kopia**. (The cluster ran Restic through early 2026; that is fully
+removed — single engine, single repo, single policy.)
 
 ## TL;DR
 
-Put `backup: daily` (or `hourly`) on your PVC. Done.
+Put two labels on the PVC:
 
 ```yaml
 apiVersion: v1
@@ -12,7 +17,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: my-app
   labels:
-    backup: daily   # → daily at <ns-name-length-mod-60>:02 UTC
+    backup: daily          # daily | hourly  → schedule
+    backup-engine: kopia    # required — the only supported engine
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: ceph-rbd
@@ -21,28 +27,61 @@ spec:
       storage: 5Gi
 ```
 
-[`ClusterPolicy/volsync-pvc-backup-restore`](../infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore.yaml) sees the label and generates:
+[`ClusterPolicy/volsync-pvc-backup-restore-kopia`](../infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml)
+sees the labels and generates three resources, all owned by Kyverno's
+background controller with `synchronize: true` — remove the labels and they are
+garbage-collected:
 
 | Resource | Name | Purpose |
 |---|---|---|
-| `Secret` | `volsync-<pvc>` | Shared restic repo URL + master password + AWS creds + `RESTIC_HOSTNAME=<ns>/<pvc>` |
-| `ReplicationSource` | `<pvc>-backup` | VolSync RS that runs the backup on the labeled schedule |
-| `ReplicationDestination` | `<pvc>-backup` | VolSync RD used as `dataSourceRef` populator on fresh PVC creates |
+| `Secret` | `volsync-<pvc>` | Kopia repo connection — `KOPIA_REPOSITORY` + `KOPIA_PASSWORD` + `KOPIA_S3_*` + AWS creds |
+| `ReplicationSource` | `<pvc>-backup` | VolSync RS — runs the backup on the labelled schedule |
+| `ReplicationDestination` | `<pvc>-backup` | VolSync RD — `dataSourceRef` populator for restore-on-fresh-PVC |
 
-All three are owned by Kyverno's BG controller with `synchronize: true`. Removing the label garbage-collects them.
+A companion policy,
+[`volsync-pvc-engine-required`](../infrastructure/controllers/kyverno/policies/volsync-pvc-engine-required.yaml),
+rejects a PVC that has a `backup` label but no `backup-engine: kopia` — you
+cannot half-configure it.
 
 ## Choose `daily` or `hourly`
 
-| Label | Schedule | Retain | Use when |
-|---|---|---|---|
-| `daily` | `<minute> 2 * * *` (daily at 02:MM UTC) | 24h / 7d / 4w / 3m | Config-only or low-churn data. **Default.** |
-| `hourly` | `<minute> * * * *` (every hour) | 24h / 7d / 4w / 3m | High-churn data — databases, password vaults, frequently-edited content |
+| Label | Schedule | Use when |
+|---|---|---|
+| `backup: daily` | `<min> 2 * * *` (daily, 02:MM UTC) | Config-only / low-churn data. **Default.** |
+| `backup: hourly` | `<min> * * * *` (top of every hour) | High-churn data — non-CNPG databases, password vaults, frequently-edited content |
 
-`<minute>` = `length(namespace) % 60`. Spreads schedules across the hour so all backups don't fire at once.
+`<min> = length(namespace) % 60` — spreads schedules so backups don't all fire
+at once. Retention is handled centrally by Kopia repo policy (and the
+`KopiaMaintenance` CRD), not per-ReplicationSource.
+
+Note: in-cluster Postgres is **not** backed up this way — those apps use
+CloudNativePG (Layer 10, WAL streaming + base backups). CNPG-managed PVCs are
+explicitly excluded from this policy.
+
+## How the point-in-time copy is taken (storage classes)
+
+`copyMethod: Snapshot` — VolSync takes a crash-consistent `VolumeSnapshot`, then
+provisions a point-in-time (PiT) copy PVC from it, and the mover backs up the
+copy. How the PiT copy is provisioned depends on the source PVC's storage class:
+
+| Source storage class | PiT copy StorageClass | PiT access mode | Mechanism |
+|---|---|---|---|
+| `ceph-rbd` (default) | `ceph-rbd` | `ReadWriteOnce` | RBD copy-on-write clone — cheap, near-instant |
+| `cephfs` | `cephfs-backingsnapshot` | `ReadOnlyMany` | **Shallow snapshot mount** — ceph-csi serves the snapshot's `.snap` directory read-only; zero-copy, no subvolume clone |
+
+The cephfs `backingSnapshot` path (Phase 2, 2026-05-22) exists because a full
+CephFS subvolume clone copies the tree file-by-file inside ceph-mgr — its cost
+scales with **inode count**, not bytes. High-file-count PVCs (e.g. `dumb`,
+~290k files) overran the CSI provisioner's `CreateVolume` timeout and wedged in
+a retry loop. The shallow mount eliminates the clone entirely while keeping the
+backup point-in-time correct. The policy picks the class/access-mode via its
+`pitStorageClass` / `pitAccessMode` context variables; see
+`infrastructure/controllers/storage/cephfs/storageclass-cephfs-backingsnapshot.yaml`.
 
 ## Optional escape hatch — skip the restore
 
-If you need to bring up a fresh empty PVC (e.g., recovering from corruption rather than restoring from backup), set both annotations:
+To bring up a fresh empty PVC (recovering from corruption rather than restoring
+from backup), set both annotations:
 
 ```yaml
 metadata:
@@ -52,82 +91,93 @@ metadata:
 ```
 
 While `skip-restore=true` is on the PVC:
-- Kyverno's mutate rule does NOT inject `dataSourceRef` → PVC binds empty.
-- **Kyverno's generate rules SKIP** — no Secret, no RS, no RD. The PVC is unprotected until you remove the annotation.
+- the mutate rule does NOT inject `dataSourceRef` → the PVC binds empty;
+- the generate rules **skip** — no Secret, no RS, no RD. The PVC is unprotected
+  until the annotation is removed.
 
-This diverges from the upstream pattern intentionally — see [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) §2.6. The reasoning: an "empty-PVC-but-still-backing-up" PVC ages historical snapshots out by churn, silently destroying the recoverable history. Better to require an explicit decision to resume protection.
+This is intentional: an "empty-PVC-but-still-backing-up" PVC would age good
+historical snapshots out by churn. Resuming protection should be a deliberate
+act. Alerting fires at T+1h (info) and T+24h (warn) for any PVC still carrying
+`skip-restore=true`.
 
-Alerting fires at T+1h (info) and T+24h (warn) for any PVC with `skip-restore=true`.
+## Optional — larger mover cache
 
-## Storage classes supported
+The mover cache PVC defaults to 5 GiB. For large sources, override:
 
-The policy derives access mode + snapshot class from the source PVC's storage class:
-
-| Storage class | accessModes | volumeSnapshotClassName |
-|---|---|---|
-| `cephfs` | `ReadWriteMany` | `cephfs-snapclass` |
-| `ceph-rbd` (and anything else) | `ReadWriteOnce` | `ceph-rbd-snapclass` |
-
-If you need different combinations (e.g., a cephfs PVC mounted RWO), extend the policy's `rwMode` jmesPath conditional.
+```yaml
+metadata:
+  annotations:
+    volsync.backup/cache-capacity: 10Gi
+```
 
 ## Excluded namespaces
 
-Adding `backup: daily|hourly` in any of these namespaces is a **no-op** — the policy explicitly excludes them to prevent admission deadlocks during bootstrap:
+Adding the backup labels in any of these namespaces is a **no-op** — the policy
+excludes them to avoid admission deadlocks during bootstrap:
 
-`flux-system`, `kube-system`, `kyverno`, `volsync-system`, `cert-manager`, `traefik`, `ceph-csi-rbd`, `ceph-csi-cephfs`, `monitoring`, `tailscale`, `cloudflared`, `newt`, `intel-gpu`
+`flux-system`, `kube-system`, `kyverno`, `volsync-system`, `cert-manager`,
+`traefik`, `ceph-csi-rbd`, `ceph-csi-cephfs`, `monitoring`, `tailscale`,
+`cloudflared`, `newt`, `intel-gpu`.
 
-## Sharing one repo, dedup, tags
+## The shared Kopia repo
 
-All backups live in one Garage S3 bucket: `s3://volsync-shared/restic`. Each app's snapshots are tagged `<namespace>/<pvc>`. Restic deduplicates blobs across all apps in the repo — typical savings ~30–50% over the per-app-repo era.
+All apps back up into one Garage S3 bucket: `s3://garage.lab.mainertoo.com/volsync-kopia`
+(`KOPIA_S3_BUCKET=volsync-kopia`). Each app is a distinct Kopia **source
+identity** — `<pvc>-backup@<namespace>:/data` (the RS's `username` / `hostname`
+/ `sourcePathOverride`). Kopia is a concurrent multi-writer repo and
+deduplicates blobs across every app.
 
-Cluster credentials for the shared repo live in `Secret/flux-system/volsync-shared-base` (password + AWS keys). Per-PVC Secrets generated by the policy are scoped copies of those fields plus `RESTIC_HOSTNAME=<ns>/<pvc>`.
+Cluster credentials live in `Secret/flux-system/volsync-kopia-shared-base`
+(`KOPIA_PASSWORD` + AWS keys). The per-PVC `volsync-<pvc>` Secret the policy
+generates is a scoped copy of those plus the hardcoded `KOPIA_REPOSITORY` /
+`KOPIA_S3_*` values.
 
 ## Troubleshooting
 
-### "I added the label but nothing happened"
+### "I added the labels but nothing happened"
 
 ```bash
-# Check Kyverno reports
 kubectl -n <ns> get policyreport
-kubectl -n <ns> get ephemeralreports.reports.kyverno.io
-
-# Verify the generated trio
 kubectl -n <ns> get secret volsync-<pvc>
 kubectl -n <ns> get replicationsource.volsync.backube <pvc>-backup
 kubectl -n <ns> get replicationdestination.volsync.backube <pvc>-backup
 ```
 
-If the trio is missing: check that the namespace isn't in the excluded list, and that the PVC's spec.storageClassName is one the policy understands. Kyverno's BG controller logs are in `kyverno` namespace.
+If the trio is missing: confirm the namespace isn't excluded, both labels are
+present, and `spec.storageClassName` is `cephfs` or `ceph-rbd`. Kyverno's
+background-controller logs are in the `kyverno` namespace.
 
-### "Oracle says exists=false but I know we have a backup"
+### "Backup runs but the oracle says exists=false"
+
+The restore oracle is `pvc-plumber` (Kopia, HTTP-only) in `volsync-system`:
 
 ```bash
-kubectl -n volsync-system port-forward svc/pvc-plumber-restic 18080:8080 &
+kubectl -n volsync-system port-forward svc/pvc-plumber 18080:80 &
 curl -s http://localhost:18080/exists/<ns>/<pvc> | jq .
 ```
 
-If `authoritative: false`: pvc-plumber-restic can't reach the shared repo. Check that the operator pod is `Ready` and that Garage is reachable. The repo URL is in `Secret/volsync-system/pvc-plumber-restic-creds`.
+`authoritative: false` → pvc-plumber can't reach the Kopia repo (check the pod
+is Ready and Garage is reachable). `authoritative: true, exists: false` → no
+snapshots for that source identity yet (check the RS `status`).
 
-If `authoritative: true, exists: false`: no snapshots are tagged `<ns>/<pvc>` in the shared repo. Either the backup never ran (check the RS status), or the legacy snapshots weren't migrated (Phase 3 — `apps/archive/PHASE3-STAGE-A-LOG.md`).
+### Validation mode
 
-### "My app's PVC won't admit because of the policy"
+The kopia policy runs `validationFailureAction: Audit` — it never blocks PVC
+admission; violations are `PolicyReport` entries only. The
+`volsync-pvc-engine-required` policy does deny a PVC carrying `backup` without
+`backup-engine: kopia`.
 
-Phase 5 keeps `validationFailureAction: Audit` so the policy never denies admission. Phase 6 flips to `Enforce`. Until then, any violation is a ClusterPolicyReport / EphemeralReport entry only.
+## Retiring an app's backups
 
-If Phase 6 has flipped and admission denies your PVC: usually means the oracle is unreachable. Same triage as above. As a last resort, the skip-restore annotation bypasses the validation.
+Remove the `backup` label — Kyverno garbage-collects the Secret/RS/RD. **Old
+Kopia snapshots stay in the shared repo** until pruned manually
+(`kopia snapshot list --all` then `kopia snapshot delete` against the
+`<pvc>-backup@<ns>` identity, using the shared key + password).
 
-## How to retire an app's backups
+## Special case — `dumb`
 
-Either:
-1. Remove the `backup` label from the PVC. Kyverno GCs the trio. **Old snapshots stay in the shared repo** until manually pruned.
-2. To delete the snapshots too: `restic snapshots --tag <ns>/<pvc>` then `restic forget --tag <ns>/<pvc> --prune` against the shared repo. (Requires the shared key + master password.)
-
-## Migrating an existing app from `components/volsync-v2`
-
-See [`scripts/migrate-stage-bc.sh`](../scripts/migrate-stage-bc.sh) — the per-app cutover driver. One command:
-
-```bash
-./scripts/migrate-stage-bc.sh <namespace> <legacy-rs-name> [--label hourly] [--auto-merge]
-```
-
-It runs Stage B (suspend Flux, pause + drain legacy RS, final restic copy, delete legacy RS), generates the 5b PR (static PVC manifest + Component removal), and runs Stage C (resume Flux, verify Ready).
+`dumb` does not use this policy: its PVC carries `backup: paused` and a
+hand-written ReplicationSource/Destination live in `apps/base/dumb/`. This was
+the canary for the cephfs `backingSnapshot` fix. Now that the policy itself
+does `backingSnapshot` for cephfs (Phase 2), `dumb` can be folded back onto the
+label — tracked as a follow-up.
