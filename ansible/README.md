@@ -143,6 +143,46 @@ and `metallb_pool_range`. Also scales the controller to 2 replicas with
 a topology spread + adds a PodDisruptionBudget for HA (matches the cluster-wide
 HA architecture).
 
+## Bootstrapping Flux on a new cluster (after `k3s_install.yml`)
+
+Two manual prerequisites the playbooks don't handle (yet):
+
+1. **SOPS age key** — the same age key that decrypts production's
+   secrets must be in the new cluster's `flux-system` namespace as the
+   `sops-age` Secret, or any encrypted manifest fails to apply.
+   ```bash
+   kubectl --kubeconfig ~/.kube/<cluster> create namespace flux-system
+   kubectl --kubeconfig ~/.kube/<cluster> create secret generic sops-age \
+     -n flux-system --from-file=age.agekey=$HOME/.config/sops/age/keys.txt
+   ```
+
+2. **GitHub deploy-key Secret** — the `flux-system` GitRepository
+   references a Secret named `flux-system` containing an SSH deploy key
+   authorized on the repo. For a homelab a single deploy key shared
+   between clusters is fine; copy from production:
+   ```bash
+   kubectl get secret flux-system -n flux-system -o json \
+     | jq 'del(.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.uid,.metadata.managedFields,.metadata.annotations,.metadata.labels)' \
+     | kubectl --kubeconfig ~/.kube/<cluster> apply -f -
+   ```
+
+3. **Bootstrap Flux** itself by applying the cluster's flux-system
+   manifests with one caveat — the SOPS-encrypted `cluster-secrets.sops.yaml`
+   trips kustomize's parser (it has no SOPS plugin), so skip it on
+   the bootstrap apply and let Flux's kustomize-controller reconcile
+   it after start-up:
+   ```bash
+   # Local edit (revert immediately after) to skip the SOPS file
+   sed -i.bak '/cluster-secrets\.sops\.yaml/d' clusters/<cluster>/flux-system/kustomization.yaml
+   kubectl --kubeconfig ~/.kube/<cluster> apply -k clusters/<cluster>/flux-system/
+   mv clusters/<cluster>/flux-system/kustomization.yaml.bak clusters/<cluster>/flux-system/kustomization.yaml
+   ```
+
+   Flux comes up, pulls the repo, reconciles `clusters/<cluster>/`
+   (which still includes the SOPS file in git), decrypts via the
+   `sops-age` secret, and applies the encrypted manifests. The
+   parent `flux-system` Kustomization gets self-managed thereafter.
+
 ## Pre-flight checklist before running `k3s_upgrade.yml`
 
 Mandatory before bumping the live cluster — running the upgrade against

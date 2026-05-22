@@ -64,6 +64,7 @@ Everything important is in `modules/k3s-cluster/variables.tf`. Highlights:
 | `k3s_*_cores` / `_sockets` / `_memory` / `_disk_size` | VM sizing. |
 | `disk_file_format` | `qcow2` (default) for local Proxmox storage, `raw` for Ceph RBD. |
 | `usb_mapping_enabled` | The Sonoff Zigbee USB hardware mapping is cluster-wide in Proxmox, so only one cluster can own it — production has it, staging skips it. |
+| `snippets_per_host` | **Set this `true` when building a new cluster from scratch with VMs spread across multiple Proxmox hosts.** Uploads cloud-init snippets (user-data + per-VM metadata) to every host that runs a VM, and auto-prefixes filenames with `cluster_name` so two clusters writing to the same host don't collide. When `false` (default), all snippets live on `pm_node_name` only — fine for an existing cluster whose VMs were created on the snippet host and live-migrated afterwards (production's case). |
 | `ubuntu_password` (sensitive) | Set in tfvars only. |
 
 ## Gotchas / considerations for future updates
@@ -144,7 +145,32 @@ or the env's `main.tf` and run `terraform plan` until it shows
 zero changes. Otherwise the next `apply` will silently revert your
 manual change.
 
-### 7. Sensitive files
+### 7. Fresh-cluster rebuild: snippet placement
+
+Proxmox stores cloud-init snippets in per-host `local` storage, not on
+shared/cluster-wide storage. If you `terraform apply` a brand-new
+cluster whose VMs land on hosts other than `pm_node_name`, the VM-start
+either fails (snippet missing) or — worse — silently reads a same-named
+snippet from a different cluster that lives on that host (hostname
+collision: a staging VM came up with production's hostname during the
+Phase 4 bootstrap on 2026-05-21).
+
+Two ways out:
+
+- **Build-from-scratch (new cluster):** set `snippets_per_host = true`
+  on the module call. Snippets get uploaded to every host that hosts a
+  VM, with filenames auto-prefixed by `cluster_name` to avoid
+  collisions. VMs can spread across hosts on the very first
+  `terraform apply`.
+- **Existing cluster (production, current staging):** keep the default
+  `snippets_per_host = false`. Initial apply lands every VM on
+  `pm_node_name`; live-migrate workers to their target hosts via the
+  Proxmox UI afterwards; then `terraform apply -refresh-only` to sync
+  state. Cloud-init has been consumed by then, so the migration is
+  safe even though the VMs' `cicustom` references still point at the
+  original host's snippet path.
+
+### 8. Sensitive files
 
 - `terraform/environments/*/terraform.tfvars` — has the Proxmox API
   token, SSH password, ubuntu user password. Gitignored. Don't commit.
