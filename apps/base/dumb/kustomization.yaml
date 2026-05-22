@@ -10,6 +10,3 @@ resources:
   - dumb-lb-service.yaml
   - dumb-service-ingressroutes.yaml
   - dumb-pvc.yaml
-  - dumb-volsync-secret.sops.yaml
-  - dumb-replicationsource.yaml
-  - dumb-replicationdestination.yaml
