@@ -1,8 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component
-resources:
-  # S3 repo secret (Garage)
-  - ../remote/volsync-secret.yaml
-
-  # ONE ReplicationSource that uses that repo secret
-  - ../remote/volsync-replicationsource.yaml

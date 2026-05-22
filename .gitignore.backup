@@ -1,4 +1,0 @@
-terraform.tfvars
-*.tfvars
-.kube/
-.DS_Store
