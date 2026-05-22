@@ -3,14 +3,17 @@ kind: PersistentVolumeClaim
 metadata:
   name: dumb
   labels:
-    # Re-enabled 2026-05-22 after the cephfs subvolume-clone wedge was
-    # addressed: ceph-csi pinned off the moving `canary` tag to v3.16.2
-    # (PR #559), the stuck canceled-clone subvolume + orphan snapshots
-    # cleared, and k3s-fs given a hot standby MDS (allow_standby_replay)
-    # to speed up clone tasks. If the "clone from snapshot is already
-    # in progress" wedge recurs, set `backup: paused` and switch the
-    # volsync RS to copyMethod: Direct.
-    backup: daily
+    # PAUSED AGAIN 2026-05-22 — the cephfs snapshot+clone wedge recurred
+    # on the first re-enabled backup even after the ceph-csi v3.16.2 pin
+    # (#559), debris cleanup, and the k3s-fs hot-standby MDS. The clone
+    # PVC stuck on "clone from snapshot is already in progress" with no
+    # actual Ceph clone running — a ceph-csi clone-tracking wedge, not a
+    # live operation. `copyMethod: Snapshot` is not viable for this
+    # 100Gi cephfs PVC. Next: a dedicated hand-written ReplicationSource
+    # with `copyMethod: Direct` (the Kyverno policy hardcodes Snapshot
+    # and can't be safely overridden — changing it needs a force-recreate
+    # that thunders all ~70 generated children).
+    backup: paused
     backup-engine: kopia
   annotations:
     # Override the policy's default 5Gi cache. Dumb's 100Gi cephfs
