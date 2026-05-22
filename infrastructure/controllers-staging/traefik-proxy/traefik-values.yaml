@@ -1,0 +1,52 @@
+image:
+  tag: "v3.6.7"
+
+# Staging has 2 workers — 2 replicas gives one per worker without
+# leaving a topology-skew remainder. Production runs 3 replicas
+# (3 workers).
+deployment:
+  replicas: 2
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
+        app.kubernetes.io/instance: traefik-proxy-traefik-system
+
+# Persistence unused: TLS comes from cert-manager Secrets referenced
+# via IngressRoute `tls.secretName`, not an in-Traefik ACME resolver.
+persistence:
+  enabled: false
+
+# Skip the prod-style dashboard IngressRoute on staging — no DNS yet
+# for traefik.staging.mainertoo.com. Re-enable with the staging
+# wildcard cert (wildcard-staging-mainertoo-com-tls) if/when wanted.
+ingressRoute:
+  dashboard:
+    enabled: false
+
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true
+
+ports:
+  web:
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+# No file provider on staging — production's file-provider-pve-config.yaml
+# routes pve/pbs/qnap/etc. through Traefik and isn't relevant to a
+# testbed. No Authentik middleware either (Authentik isn't installed on
+# staging). If a staging app needs SSO, install Authentik via
+# infrastructure/controllers-staging/ first, then add the middleware.
