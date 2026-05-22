@@ -1,0 +1,32 @@
+# Hand-written VolSync ReplicationDestination for dumb (restore path).
+# Pairs with dumb-replicationsource.yaml. Manual trigger — only runs
+# when restore-once is requested. Restore provisions a fresh writable
+# PVC and the mover writes into it, so the destination uses the normal
+# `cephfs` StorageClass (RWX) — the backingSnapshot shallow path is a
+# backup-source-only optimisation and does not apply here.
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: dumb-backup
+spec:
+  trigger:
+    manual: restore-once
+  kopia:
+    repository: volsync-dumb
+    copyMethod: Snapshot
+    capacity: 100Gi
+    accessModes:
+      - ReadWriteMany
+    storageClassName: cephfs
+    volumeSnapshotClassName: cephfs-snapclass
+    cacheCapacity: 10Gi
+    cacheStorageClassName: ceph-rbd
+    cacheAccessModes:
+      - ReadWriteOnce
+    moverSecurityContext:
+      fsGroup: 1000
+      runAsUser: 1000
+      runAsGroup: 1000
+    hostname: dumb
+    username: dumb-backup
+    sourcePathOverride: /data

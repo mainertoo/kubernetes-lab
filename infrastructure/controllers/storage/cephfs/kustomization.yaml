@@ -4,3 +4,4 @@ namespace: ceph-csi
 resources:
   - secret-cephfs.sops.yaml
   - storageclass-cephfs.yaml
+  - storageclass-cephfs-backingsnapshot.yaml

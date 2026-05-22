@@ -3,16 +3,16 @@ kind: PersistentVolumeClaim
 metadata:
   name: dumb
   labels:
-    # PAUSED AGAIN 2026-05-22 — the cephfs snapshot+clone wedge recurred
-    # on the first re-enabled backup even after the ceph-csi v3.16.2 pin
-    # (#559), debris cleanup, and the k3s-fs hot-standby MDS. The clone
-    # PVC stuck on "clone from snapshot is already in progress" with no
-    # actual Ceph clone running — a ceph-csi clone-tracking wedge, not a
-    # live operation. `copyMethod: Snapshot` is not viable for this
-    # 100Gi cephfs PVC. Next: a dedicated hand-written ReplicationSource
-    # with `copyMethod: Direct` (the Kyverno policy hardcodes Snapshot
-    # and can't be safely overridden — changing it needs a force-recreate
-    # that thunders all ~70 generated children).
+    # `backup: paused` keeps the Kyverno volsync policy OFF for this PVC
+    # ON PURPOSE — dumb's backup is hand-written instead. See
+    # dumb-replicationsource.yaml: the policy's `copyMethod: Snapshot`
+    # triggers a full cephfs subvolume clone that wedged repeatedly on
+    # this high-file-count 100Gi PVC. The hand-written RS keeps Snapshot
+    # (crash-consistent — dumb has Postgres on this volume) but copies
+    # via the `cephfs-backingsnapshot` StorageClass + ReadOnlyMany, so
+    # ceph-csi serves a zero-copy shallow snapshot mount — no clone.
+    # Do NOT flip this back to `daily`; that would make Kyverno generate
+    # a competing RS that collides with the hand-written one.
     backup: paused
     backup-engine: kopia
   annotations:
