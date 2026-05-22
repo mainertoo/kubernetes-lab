@@ -4,10 +4,12 @@
 
 cluster_name: mainertoo
 
-# K3s version pinned for both install and upgrade. Currently on
-# v1.34.5+k3s1. Phase 5 of the two-cluster restoration will bump
-# this to v1.35.<latest>+k3s1 — first on staging, then here.
-k3s_version: "v1.34.5+k3s1"
+# K3s version pinned for both install and upgrade. Phase 5b of the
+# two-cluster restoration bumps production from v1.34.5+k3s1 →
+# v1.35.5+k3s1 on 2026-05-22, after staging successfully ran the
+# same upgrade and soaked. Rancher 2.14.1 still tops at 1.35; 1.36
+# is out but breaks Rancher's matrix.
+k3s_version: "v1.35.5+k3s1"
 
 # K3s built-ins to disable. We run Traefik via Helm and MetalLB
 # for service LoadBalancers.
