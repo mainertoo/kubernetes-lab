@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - flux-system
   - infrastructure.yaml
-  - apps.yaml
   - infra-repositories.yaml
   - infra-secrets-prod.yaml
   - apps-production.yaml
