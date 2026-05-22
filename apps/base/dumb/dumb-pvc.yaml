@@ -3,17 +3,13 @@ kind: PersistentVolumeClaim
 metadata:
   name: dumb
   labels:
-    # `backup: paused` keeps the Kyverno volsync policy OFF for this PVC
-    # ON PURPOSE — dumb's backup is hand-written instead. See
-    # dumb-replicationsource.yaml: the policy's `copyMethod: Snapshot`
-    # triggers a full cephfs subvolume clone that wedged repeatedly on
-    # this high-file-count 100Gi PVC. The hand-written RS keeps Snapshot
-    # (crash-consistent — dumb has Postgres on this volume) but copies
-    # via the `cephfs-backingsnapshot` StorageClass + ReadOnlyMany, so
-    # ceph-csi serves a zero-copy shallow snapshot mount — no clone.
-    # Do NOT flip this back to `daily`; that would make Kyverno generate
-    # a competing RS that collides with the hand-written one.
-    backup: paused
+    # Folded back onto the label-driven Kyverno policy after Phase 2
+    # made cephfs backups use the `cephfs-backingsnapshot` shallow-mount
+    # path (zero-copy, no clone) — the same path dumb's hand-written
+    # RS used during Phase 1. See:
+    #   docs/label-driven-backups.md
+    #   infrastructure/controllers/kyverno/policies/README.md
+    backup: daily
     backup-engine: kopia
   annotations:
     # Override the policy's default 5Gi cache. Dumb's 100Gi cephfs
