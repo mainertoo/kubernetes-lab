@@ -12,3 +12,4 @@ resources:
   - helm-rancher-backup.yaml
   - helm-intel.yaml
   - helm-kyverno.yaml
+  - helm-descheduler.yaml

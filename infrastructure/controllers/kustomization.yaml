@@ -50,3 +50,10 @@ resources:
   # (pvc-plumber-restic) was decommissioned in Phase 7.2 (2026-05-19)
   # once all 70 PVCs migrated to backup-engine=kopia.
   - pvc-plumber
+
+  # Kubernetes Descheduler — CronJob that rebalances pod count across
+  # workers every 15 min. Fixes the post-drain imbalance that the default
+  # scheduler can't (it scores at create time on CPU/memory, not pod
+  # count, so rolling drains pile pods on whichever node uncordoned
+  # first). See [[project_install_descheduler]].
+  - descheduler
