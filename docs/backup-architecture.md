@@ -442,6 +442,42 @@ CNPG base backups are interleaved 04:30–08:00 UTC (30-min slots) so they don't
 
 ---
 
+## 8b. Operator-laptop secrets (off-cluster prerequisites)
+
+Every backup layer above assumes you can still **decrypt the repo** and **drive Terraform/Ansible against Proxmox**. Both depend on a handful of files that are gitignored and therefore have no in-repo backup. None of them live on any cluster host — losing the operator's Mac without an off-device copy means cluster-nuke recovery is blocked at step 0.
+
+**System of record: 1Password.** Time Machine on the Mac is at best a same-device second copy and is not the documented restore path; treat 1Password as authoritative.
+
+### Inventory
+
+| Local file | 1Password item | Item type | Notes |
+|---|---|---|---|
+| `~/.config/sops/age/keys.txt` | (existing SOPS-age item) | Secure note | Already canonical; referenced from `backup-recovery.md` §4 step 3 and `backup-system-wiki.md` §3 |
+| `~/.ssh/id_ed25519_k3s` | `id_ed25519_k3s` | SSH key (private only) | Public key is **not** stored — regenerate after restore with `ssh-keygen -y -f ~/.ssh/id_ed25519_k3s > ~/.ssh/id_ed25519_k3s.pub` |
+| `terraform/environments/production/terraform.tfvars` | `CLAUDE.md` (attachment) | Secure note attachment | Proxmox API token + cluster sizing |
+| `terraform/environments/staging/terraform.tfvars` | `CLAUDE.md` (attachment) | Secure note attachment | Same shape as production |
+| `terraform/environments/production/terraform.tfstate` | `CLAUDE.md` (attachment) | Secure note attachment | Required so `terraform apply` knows it owns VMs 661-666 — without this, a re-apply against an existing Proxmox triggers cascade-replacement (see [`feedback_bpg_proxmox_cascade_replacement`]) |
+| `terraform/environments/staging/terraform.tfstate` | `CLAUDE.md` (attachment) | Secure note attachment | Same risk as production |
+| `volsync-kopia` repo master password + Garage IAM keys | (existing items) | 1Password | Already canonical; see `volsync-kopia-transition.md` §"Secret material" |
+| `~/.kube/config` | — | — | **Not** backed up; regenerate with `scp ubuntu@master-1:/etc/rancher/k3s/k3s.yaml ~/.kube/config` post-K3s-install |
+
+The `CLAUDE.md` 1Password secure note is the verbatim copy-paste of this repo's top-level [`CLAUDE.md`](../CLAUDE.md) (so the working-rules doc is preserved off-GitHub as well), with the four Terraform files attached to that same note. The SSH private key is a separate `SSH Key` item — public key not stored, regenerable via `ssh-keygen -y`.
+
+### What's intentionally *not* in 1Password
+
+- `terraform.tfstate.backup` (auto-generated alongside state — recreated on next apply)
+- `terraform/ssh_host_ed25519.pub` (rebuilt by cloud-init at VM creation)
+- `~/.kube/config` (regenerable from any K3s master)
+- `*.tar` / `.DS_Store` / `.claude/` / `.dr-flip-txn.*` (scratch / per-machine)
+
+### Refresh discipline
+
+`terraform.tfstate` mutates on every `terraform apply`. Re-upload the affected env's `terraform.tfstate` attachment to the `CLAUDE.md` 1Password note **after any successful apply** (i.e. whenever VMs are added, removed, resized, or migrated). The tfvars files change rarely; refresh them whenever you edit them. The age key and SSH key are effectively immutable — no ongoing refresh.
+
+> **Why a password manager and not an external secret store** — already settled in `volsync-storage-recovery.md` §"Decisions": an external store (Vault, 1Password Connect, ESO) just moves the bootstrap secret one level — its credentials become the new manual paste. 1Password is the one external dependency we already pay for, so the laptop-side files ride alongside.
+
+---
+
 ## 9. Critical findings
 
 > All audit-day P0 findings (F1, F2) and the same-day follow-up (Container/appdata gap, rbd-backup rename, cephfs cleanup, ignore rules) closed on 2026-05-08. Detailed change-log lives in `docs/backup-system-wiki.md` §9. The findings remain documented below for context — and so future audits can verify the decisions still hold.
