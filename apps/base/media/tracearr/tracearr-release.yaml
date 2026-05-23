@@ -37,7 +37,7 @@ spec:
           wait-for-deps:
             image:
               repository: busybox
-              tag: "1.37"
+              tag: "1.38"
               pullPolicy: IfNotPresent
             command:
               - /bin/sh
@@ -114,7 +114,7 @@ spec:
           init-timescale-pgdata:
             image:
               repository: busybox
-              tag: "1.37"
+              tag: "1.38"
               pullPolicy: IfNotPresent
             command:
               - /bin/sh
