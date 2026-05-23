@@ -42,6 +42,17 @@ spec:
 
     deschedulerPolicyAPIVersion: descheduler/v1alpha2
     deschedulerPolicy:
+      # Restrict descheduler's view to worker nodes. Masters in this
+      # K3s cluster carry `node-role.kubernetes.io/control-plane=true`
+      # and a NoSchedule taint — they run only a fixed set of system
+      # pods, and workload pods can never land there. Without this
+      # filter the three masters (~4-7 pods each, well under threshold)
+      # get classified as "underutilized" and consume the entire under-
+      # node budget; every eviction attempt then bounces with "doesn't
+      # tolerate node taint" because the worker pod can't tolerate the
+      # control-plane taint to land on a master. First-run evidence:
+      # 78 removable pods on worker-3 (over), all skipped, 0 evictions.
+      nodeSelector: "!node-role.kubernetes.io/control-plane"
       profiles:
         - name: pod-balance
           pluginConfig:
@@ -69,19 +80,20 @@ spec:
                 # Pod-count balancing only. CPU/memory imbalance is rare
                 # and the scheduler already optimizes for those at create
                 # time.
-                # Underutilized: <30% of node max-pods (≈33 of 110)
+                # Underutilized: <40% of node max-pods (≈44 of 110)
                 # Overutilized:  >60% of node max-pods (≈66 of 110)
                 #
-                # Two real distributions this is sized for:
+                # Two real worker distributions this is sized for:
                 #   Phase 5b upgrade (2026-05-22):     105 /  62 /  10
-                #   Post-1.35 baseline (2026-05-22):    79 /  48 /  25
-                # 30/60 catches both: in each case one worker is over the
+                #   First-run observation (17:45):      91 /  57 /  38
+                # 40/60 catches both: in each case one worker is over the
                 # target and at least one is under the threshold, so the
-                # LowNodeUtilization balancer has somewhere to send pods.
-                # The memory's earlier 20/50 numbers were too tight for
-                # the steady-state distribution.
+                # balancer has somewhere to send pods. The first-pass
+                # 30/60 left worker-2 (38 pods, 35%) classified as
+                # "appropriately utilized" — too narrow a window for the
+                # steady-state distribution.
                 thresholds:
-                  pods: 30
+                  pods: 40
                 targetThresholds:
                   pods: 60
                 useDeviationThresholds: false
