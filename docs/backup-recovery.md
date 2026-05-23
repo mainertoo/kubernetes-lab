@@ -312,14 +312,19 @@ pbs# proxmox-backup-client unmount /mnt/pbs-extract
 
 ## 4. Cluster-nuke recovery (no k3s, but Proxmox still up)
 
-Order of operations: provision infra → bootstrap → restore PVCs.
+Order of operations: restore operator-laptop secrets → provision infra → bootstrap → restore PVCs.
 
+0. **Restore operator-laptop secrets from 1Password** — see [`backup-architecture.md` §8b](backup-architecture.md#8b-operator-laptop-secrets-off-cluster-prerequisites) for the full inventory. At minimum, before step 1 you need:
+   - `~/.ssh/id_ed25519_k3s` ← 1Password item `id_ed25519_k3s` (private key only; regenerate the `.pub` with `ssh-keygen -y -f ~/.ssh/id_ed25519_k3s > ~/.ssh/id_ed25519_k3s.pub`)
+   - `terraform/environments/{production,staging}/terraform.tfvars` ← 1Password secure note `CLAUDE.md` attachments
+   - `terraform/environments/{production,staging}/terraform.tfstate` ← 1Password secure note `CLAUDE.md` attachments (skipping this risks cascade-replacement of every VM — see [[feedback_bpg_proxmox_cascade_replacement]])
+   - `~/.config/sops/age/keys.txt` ← 1Password (needed at step 3, but stage it now)
 1. **Re-provision K3s VMs**: `cd terraform && terraform apply` (rebuilds VMs 661-666).
 2. **K3s install**: `ansible-playbook -i ansible/k3s-cluster/inventory/dynamic_terraform_inventory.sh ansible/k3s-cluster/playbooks/k3s_install.yml`.
 3. **Bootstrap Flux**:
    ```bash
    k8s$ kubectl create ns flux-system
-   # Paste age key from your password manager
+   # Paste age key from your password manager (1Password — see §8b in backup-architecture.md)
    k8s$ kubectl -n flux-system create secret generic sops-age --from-file=age.agekey=<your-age-key>
    k8s$ flux bootstrap github --owner=mainertoo --repository=kubernetes-lab \
        --branch=master --path=./clusters/production
