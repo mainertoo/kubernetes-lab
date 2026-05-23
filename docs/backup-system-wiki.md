@@ -207,12 +207,12 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 - **Generator policy**: `infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml`. Companion `volsync-pvc-engine-required.yaml` rejects a PVC with `backup:` but no `backup-engine: kopia`. Jitter policy `kyverno-volsync-jitter.yaml` adds a random sleep initContainer to mover Jobs (180s normal, widened during fleet operations).
 - **Restore is automatic** on a fresh PVC: the mutate rule injects `spec.dataSourceRef → ReplicationDestination/<pvc>-backup`, the populator pulls the latest Kopia snapshot as the PVC binds. Escape hatch annotation `volsync.backup/skip-restore: "true"` (+ `volsync.backup/skip-restore-reason`) keeps the PVC empty.
 - **Shared cluster credential**: `Secret/flux-system/volsync-kopia-shared-base` holds `KOPIA_PASSWORD` + AWS keys. The per-PVC `Secret/volsync-<pvc>` is a scoped copy plus the hardcoded `KOPIA_REPOSITORY` / `KOPIA_S3_*`.
-- **Retention** is central Kopia repo policy + the `KopiaMaintenance` CRD, not per-RS `retain` blocks.
+- **Retention + repo maintenance** is central, not per-RS. A `KopiaMaintenance/volsync-kopia-shared` resource in `volsync-system` schedules `kopia maintenance` (quick + full) against the shared repo daily at **09:00 UTC** — compacts index blobs, GCs unreferenced contents, advances epochs. One CR covers the whole 70-PVC fleet. Manifest: `infrastructure/controllers/volsync/app/volsync-kopia-maintenance.yaml` (+ its own repo Secret). Ad-hoc runs via `kubectl create job <name> --from=cronjob/kopia-maint-<...>` — NOT `spec.trigger.manual`, which collides with the defaulted top-level `spec.schedule`.
 - Helm chart: `oci://ghcr.io/home-operations/charts-mirror/volsync` 0.15.0. Restore oracle: `pvc-plumber` (Kopia, HTTP) in `volsync-system`.
 - ~70 ReplicationSources active across the fleet (heaviest namespace: `media`).
 - **In-cluster Postgres apps are excluded** — they use CNPG (Layer 10). CNPG-managed PVCs (`cnpg.io/cluster` label or `app.kubernetes.io/managed-by: cnpg|cloudnative-pg`) are skipped by the policy. Their legacy raw-PVC volsync sources + 88 GiB of data PVCs were removed during the Phase 5 decommission (PRs #305–#313, 2026-05-09–10).
 - App-author how-to: `docs/label-driven-backups.md`. Operator view of the policies: `infrastructure/controllers/kyverno/policies/README.md`.
-- One app, `dumb`, has `backup: paused` and a hand-written RS/RD in `apps/base/dumb/` — it was the canary for the cephfs `backingSnapshot` Phase-2 fix and can be folded back onto the label now that the policy does that path.
+- `dumb` is now an ordinary label-driven cephfs app — was the canary for the cephfs `backingSnapshot` Phase-2 fix; hand-written setup retired in PR #571 once the Kyverno policy itself does the shallow-mount path. Same Kopia source identity preserved, no history lost.
 
 ### Layer 3 — Ceph RBD nightly export
 
@@ -378,6 +378,7 @@ cluster-nuke ergonomics on the PVC side.
 08:00 ──────── CNPG ScheduledBackup: wiki-js-cnpg-db          → Garage S3 (added 2026-05-09)
 02:MM UTC ──── volsync (Layer 2) — daily backup RSes fire across 02:00–02:59 UTC, spread by `length(ns) % 60`
 hourly ─────── volsync (Layer 2) — top of each hour for PVCs labelled `backup: hourly` (same minute-spread)
+09:00 UTC ──── KopiaMaintenance — `kopia maintenance` (quick + full) against the shared volsync-kopia repo
 continuous ──  CNPG WAL streaming (all 8 clusters)            → Garage S3 (Layer 10)
 daily ──────── PBS GC + prune (keep 17/7/8/2 last/daily/weekly/monthly)
 monthly ────── PBS verify job v-e00654e0-3168 (ignore-verified=true)
