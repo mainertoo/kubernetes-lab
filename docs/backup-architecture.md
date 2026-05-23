@@ -429,6 +429,7 @@ Two parallel inventories, neither alone is sufficient — they cover different d
 08:00 UTC ──── CNPG ScheduledBackup: wiki-js-cnpg-db           → Garage S3
 hourly ─────── volsync ReplicationSource backups for PVCs labelled backup: hourly
                 (<min> * * * *, top of each hour)
+09:00 UTC ──── KopiaMaintenance — `kopia maintenance` (quick + full) against the shared volsync-kopia repo
 continuous ──  CNPG WAL streaming (all 8 clusters)             → Garage S3
 daily ──────── PBS GC (datastore: pbs-backups)
 daily ──────── PBS prune (keep 17/7/8/2 last/daily/weekly/monthly)

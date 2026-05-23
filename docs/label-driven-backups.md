@@ -132,6 +132,12 @@ Cluster credentials live in `Secret/flux-system/volsync-kopia-shared-base`
 generates is a scoped copy of those plus the hardcoded `KOPIA_REPOSITORY` /
 `KOPIA_S3_*` values.
 
+Periodic repo maintenance runs daily at **09:00 UTC** via a `KopiaMaintenance`
+CR (`infrastructure/controllers/volsync/app/volsync-kopia-maintenance.yaml`)
+— compacts index blobs, GCs unreferenced contents. One CR for the whole
+fleet (maintenance is repo-wide). Without it, the index fragments and every
+backup mover prints a "Found too many index blobs" warning.
+
 ## Troubleshooting
 
 ### "I added the labels but nothing happened"
