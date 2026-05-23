@@ -14,4 +14,11 @@ spec:
   storageClassName: ceph-rbd
   resources:
     requests:
-      storage: 5Gi
+      # Expanded 5Gi → 50Gi 2026-05-22. nzbdav's /config/blobs/ is a
+      # content-addressed zstd-compressed cache of parsed NZB metadata
+      # (per upstream backend/Database/BlobStore.cs), with no bounded
+      # retention — entries are only removed when items are pruned from
+      # the library via the BlobCleanupService queue. Observed growth
+      # ≈150 MiB/day (5,714 new files / 7d), so 50 GiB ≈ 11 months
+      # headroom. ceph-rbd supports online expansion, no pod restart.
+      storage: 50Gi
