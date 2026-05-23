@@ -1,0 +1,91 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: descheduler
+  namespace: flux-system
+spec:
+  interval: 1h
+  targetNamespace: descheduler-system
+  releaseName: descheduler
+  chart:
+    spec:
+      chart: descheduler
+      version: 0.36.0
+      sourceRef:
+        kind: HelmRepository
+        name: descheduler
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # CronJob mode — every 15 min. Pod-count imbalance only forms during
+    # rare events (drains, kernel reboots, node replacement), so polling
+    # at 15 min is sufficient and avoids running an idle controller pod.
+    # See [[project_install_descheduler]] for the design rationale.
+    kind: CronJob
+    schedule: "*/15 * * * *"
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+
+    # system-cluster-critical so descheduler itself isn't evicted under
+    # node pressure (chart default; documenting intent).
+    priorityClassName: system-cluster-critical
+
+    cmdOptions:
+      v: 3
+
+    deschedulerPolicyAPIVersion: descheduler/v1alpha2
+    deschedulerPolicy:
+      profiles:
+        - name: pod-balance
+          pluginConfig:
+            - name: DefaultEvictor
+              args:
+                # Respect scheduler constraints (PDB, affinity, taints, resources).
+                # This is the safety belt for CNPG single-instance clusters: each
+                # `<name>-primary` PDB has minAvailable=1, so nodeFit refuses to
+                # evict the only replica. Same logic protects every singleton
+                # listed in [[project_ha_architecture]].
+                nodeFit: true
+                # Override the chart's default PodProtections — by default the
+                # chart sets `extraEnabled: [PodsWithPVC]` which would shield
+                # every stateful app from eviction. The actual pod-count
+                # imbalance lives in PVC-backed apps, so we need them
+                # balanceable. nodeFit + per-app PDBs are the real safety net.
+                # `defaultDisabled: [PodsWithLocalStorage]` lets descheduler
+                # evict pods that only use emptyDir (caches), which are
+                # cheap to reschedule.
+                podProtections:
+                  defaultDisabled:
+                    - PodsWithLocalStorage
+            - name: LowNodeUtilization
+              args:
+                # Pod-count balancing only. CPU/memory imbalance is rare
+                # and the scheduler already optimizes for those at create
+                # time.
+                # Underutilized: <30% of node max-pods (≈33 of 110)
+                # Overutilized:  >60% of node max-pods (≈66 of 110)
+                #
+                # Two real distributions this is sized for:
+                #   Phase 5b upgrade (2026-05-22):     105 /  62 /  10
+                #   Post-1.35 baseline (2026-05-22):    79 /  48 /  25
+                # 30/60 catches both: in each case one worker is over the
+                # target and at least one is under the threshold, so the
+                # LowNodeUtilization balancer has somewhere to send pods.
+                # The memory's earlier 20/50 numbers were too tight for
+                # the steady-state distribution.
+                thresholds:
+                  pods: 30
+                targetThresholds:
+                  pods: 60
+                useDeviationThresholds: false
+          plugins:
+            balance:
+              enabled:
+                - LowNodeUtilization
