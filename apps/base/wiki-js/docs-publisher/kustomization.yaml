@@ -1,0 +1,10 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wiki-js
+# Publisher CronJob that reads /docs/*.md from master and upserts each one
+# as a wiki-js page under the `docs/` section. See docs-publisher/README.md
+# for design + rationale. Script lives in configmap.yaml.
+resources:
+  - configmap.yaml
+  - cronjob.yaml

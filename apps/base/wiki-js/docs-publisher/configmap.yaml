@@ -1,0 +1,240 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wiki-js-docs-publisher
+data:
+  publish.py: |
+    #!/usr/bin/env python3
+    """Publish /docs/*.md from the repo into wiki-js under the /docs section.
+
+    Idempotent: queries existing pages, skips ones whose content is unchanged.
+    Stdlib only — no pip deps so the runtime container can stay minimal.
+
+    Env vars:
+      REPO_DOCS_PATH  — path to the docs directory on disk
+                        (default: /workspace/docs)
+      WIKI_API_URL    — GraphQL endpoint
+                        (default: http://wiki-js.wiki-js.svc.cluster.local:3000/graphql)
+      WIKI_API_KEY    — wiki-js API token (required)
+      DRY_RUN         — if set to "1", print what would happen but make no mutations
+    """
+    import json
+    import os
+    import re
+    import sys
+    import urllib.request
+    from pathlib import Path
+
+    DOCS_PATH = Path(os.environ.get("REPO_DOCS_PATH", "/workspace/docs"))
+    WIKI_API_URL = os.environ.get(
+        "WIKI_API_URL",
+        "http://wiki-js.wiki-js.svc.cluster.local:3000/graphql")
+    WIKI_API_KEY = os.environ.get("WIKI_API_KEY")
+    DRY_RUN = os.environ.get("DRY_RUN") == "1"
+
+    if not WIKI_API_KEY:
+        sys.exit("error: WIKI_API_KEY env var is required")
+    if not DOCS_PATH.is_dir():
+        sys.exit(f"error: REPO_DOCS_PATH does not exist: {DOCS_PATH}")
+
+
+    def gql(query, variables=None):
+        body = json.dumps({"query": query, "variables": variables or {}}).encode()
+        req = urllib.request.Request(
+            WIKI_API_URL, data=body,
+            headers={"Authorization": f"Bearer {WIKI_API_KEY}",
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+        if "errors" in data:
+            raise RuntimeError(f"GraphQL error: {data['errors']}")
+        return data
+
+
+    def list_existing_docs_pages():
+        q = '{ pages { list(locale: "en") { id path } } }'
+        pages = gql(q)["data"]["pages"]["list"]
+        return {p["path"]: p["id"]
+                for p in pages
+                if p["path"] == "docs" or p["path"].startswith("docs/")}
+
+
+    def get_page_content(page_id):
+        q = "query($id: Int!) { pages { single(id: $id) { content } } }"
+        return gql(q, {"id": page_id})["data"]["pages"]["single"]["content"] or ""
+
+
+    def derive_title_and_description(content, fallback_slug):
+        lines = content.splitlines()
+        title = None
+        desc_lines = []
+        found_h1 = False
+        for line in lines:
+            if not found_h1:
+                m = re.match(r"^#\s+(.+?)\s*$", line)
+                if m:
+                    title = m.group(1).strip()
+                    found_h1 = True
+                continue
+            stripped = line.strip()
+            if not stripped:
+                if desc_lines:
+                    break
+                continue
+            if stripped.startswith("#"):
+                break
+            if stripped.startswith(">"):
+                if desc_lines:
+                    break
+                continue
+            desc_lines.append(stripped)
+            if sum(len(s) for s in desc_lines) > 250:
+                break
+
+        if not title:
+            title = fallback_slug.rsplit("/", 1)[-1].replace("-", " ").title()
+        description = " ".join(desc_lines)[:250]
+        if not description:
+            description = f"Repo /docs/{fallback_slug}.md — synced from GitHub."
+        return title, description
+
+
+    def rewrite_md_links(content, current_relpath):
+        def repl(m):
+            text, url = m.group(1), m.group(2)
+            if re.match(r"^(https?:|mailto:|#)", url):
+                return m.group(0)
+            m2 = re.match(r"^(.*?)\.md(#.*)?$", url, re.IGNORECASE)
+            if not m2:
+                return m.group(0)
+            target, anchor = m2.group(1), m2.group(2) or ""
+            current_dir = "/".join(current_relpath.split("/")[:-1])
+            if target.startswith("/"):
+                resolved = target.lstrip("/")
+            else:
+                parts = ((current_dir.split("/") if current_dir else []) +
+                         target.split("/"))
+                stack = []
+                for p in parts:
+                    if p in ("", "."):
+                        continue
+                    if p == "..":
+                        if stack:
+                            stack.pop()
+                        continue
+                    stack.append(p)
+                resolved = "/".join(stack)
+            resolved = resolved.lower()
+            return f"[{text}](/docs/{resolved}{anchor})"
+        return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", repl, content)
+
+
+    def compute_wiki_path(relpath):
+        slug = relpath.lower()
+        if slug.endswith(".md"):
+            slug = slug[:-3]
+        return f"docs/{slug}"
+
+
+    def create_page(path, title, description, content):
+        q = """mutation($content: String!, $description: String!, $editor: String!,
+                        $isPrivate: Boolean!, $isPublished: Boolean!, $locale: String!,
+                        $path: String!, $tags: [String]!, $title: String!) {
+            pages { create(content: $content, description: $description, editor: $editor,
+                           isPrivate: $isPrivate, isPublished: $isPublished, locale: $locale,
+                           path: $path, tags: $tags, title: $title) {
+              responseResult { succeeded errorCode message }
+              page { id } } } }"""
+        return gql(q, {
+            "content": content, "description": description[:255],
+            "editor": "markdown", "isPrivate": False, "isPublished": True,
+            "locale": "en", "path": path,
+            "tags": ["docs", "auto-synced"], "title": title[:255],
+        })
+
+
+    def update_page(page_id, path, title, description, content):
+        q = """mutation($id: Int!, $content: String!, $description: String!,
+                        $editor: String!, $isPrivate: Boolean!, $isPublished: Boolean!,
+                        $locale: String!, $path: String!, $tags: [String]!, $title: String!) {
+            pages { update(id: $id, content: $content, description: $description,
+                           editor: $editor, isPrivate: $isPrivate,
+                           isPublished: $isPublished, locale: $locale,
+                           path: $path, tags: $tags, title: $title) {
+              responseResult { succeeded errorCode message } } } }"""
+        return gql(q, {
+            "id": page_id, "content": content, "description": description[:255],
+            "editor": "markdown", "isPrivate": False, "isPublished": True,
+            "locale": "en", "path": path,
+            "tags": ["docs", "auto-synced"], "title": title[:255],
+        })
+
+
+    def main():
+        print(f"[i] DOCS_PATH={DOCS_PATH} WIKI_API_URL={WIKI_API_URL} "
+              f"DRY_RUN={DRY_RUN}")
+        files = sorted(DOCS_PATH.rglob("*.md"))
+        print(f"[i] discovered {len(files)} markdown files\n")
+
+        existing = list_existing_docs_pages()
+        print(f"[i] wiki already has {len(existing)} pages under docs/*\n")
+
+        created = updated = unchanged = errors = 0
+        for f in files:
+            relpath = f.relative_to(DOCS_PATH).as_posix()
+            wiki_path = compute_wiki_path(relpath)
+            raw = f.read_text(encoding="utf-8")
+            content = rewrite_md_links(raw, relpath)
+            title, description = derive_title_and_description(
+                raw, wiki_path.removeprefix("docs/"))
+
+            existing_id = existing.get(wiki_path)
+            if existing_id:
+                current = get_page_content(existing_id)
+                if current == content:
+                    print(f"= {wiki_path:55s} (unchanged)")
+                    unchanged += 1
+                    continue
+                if DRY_RUN:
+                    print(f"~ {wiki_path:55s} would update (id={existing_id})")
+                    updated += 1
+                    continue
+                try:
+                    r = update_page(existing_id, wiki_path, title, description, content)
+                    rr = r["data"]["pages"]["update"]["responseResult"]
+                    if rr["succeeded"]:
+                        print(f"~ {wiki_path:55s} updated (id={existing_id})")
+                        updated += 1
+                    else:
+                        print(f"x {wiki_path:55s} update failed: {rr['message']}")
+                        errors += 1
+                except Exception as e:
+                    print(f"x {wiki_path:55s} update exception: {e}")
+                    errors += 1
+            else:
+                if DRY_RUN:
+                    print(f"+ {wiki_path:55s} would create")
+                    created += 1
+                    continue
+                try:
+                    r = create_page(wiki_path, title, description, content)
+                    rr = r["data"]["pages"]["create"]["responseResult"]
+                    if rr["succeeded"]:
+                        pid = (r["data"]["pages"]["create"].get("page") or {}).get("id")
+                        print(f"+ {wiki_path:55s} created (id={pid})")
+                        created += 1
+                    else:
+                        print(f"x {wiki_path:55s} create failed: {rr['message']}")
+                        errors += 1
+                except Exception as e:
+                    print(f"x {wiki_path:55s} create exception: {e}")
+                    errors += 1
+
+        print(f"\n[i] summary: created={created} updated={updated} "
+              f"unchanged={unchanged} errors={errors}")
+        return 1 if errors else 0
+
+
+    if __name__ == "__main__":
+        sys.exit(main())
