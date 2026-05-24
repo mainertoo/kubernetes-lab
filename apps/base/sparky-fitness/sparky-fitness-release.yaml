@@ -82,7 +82,7 @@ spec:
           server:
             image:
               repository: codewithcj/sparkyfitness_server
-              tag: v0.16.6.2
+              tag: v0.16.6.3
               pullPolicy: Always
             # CNPG cutover 2026-05-09 (Phase 3f-cutover): SPARKY_FITNESS_DB_HOST
             # now points at the CNPG-managed cluster's read-write Service.
