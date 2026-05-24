@@ -151,8 +151,8 @@ spec:
           - memory-snapshot-on-shutdown
           - new-service-discovery-manager
 
-        retention: 6h
-        retentionSize: 10GB
+        retention: 14d
+        retentionSize: 18GB
         storageSpec:
           volumeClaimTemplate:
             spec:
