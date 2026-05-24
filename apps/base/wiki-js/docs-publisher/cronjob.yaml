@@ -42,13 +42,21 @@ spec:
               # NOTE: `set -eu` deliberately omits `-x` so the URL (containing
               # the PAT) is never echoed into logs. Git's own clone output
               # does not log credentials by default.
+              #
+              # The `$$` is NOT a typo — it escapes Flux's postBuild
+              # substitution (apps/production/wiki-js/app.yaml has a
+              # `postBuild.substitute` block, which consumes any `${VAR}`
+              # in the rendered manifest, replacing unmatched refs with
+              # the empty string). `$${GITHUB_TOKEN}` is rendered by Flux
+              # as the literal `${GITHUB_TOKEN}`, which the shell then
+              # expands at runtime to the env value from the Secret below.
               command:
                 - sh
                 - -c
                 - |
                   set -eu
                   git clone --depth 1 --single-branch --branch master \
-                    "https://x-access-token:${GITHUB_TOKEN}@github.com/mainertoo/kubernetes-lab" \
+                    "https://x-access-token:$${GITHUB_TOKEN}@github.com/mainertoo/kubernetes-lab" \
                     /workspace
                   ls /workspace/docs | head -3
               env:
