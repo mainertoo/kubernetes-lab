@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/name: wiki-js-docs-publisher
     app.kubernetes.io/part-of: wiki-js
 spec:
+  # SAFETY BELT — landed alongside the PAT-auth fix so a fast Flux reconcile
+  # can't replay a known-broken Job. Validate one manual run end-to-end with:
+  #   kubectl -n wiki-js create job --from=cronjob/wiki-js-docs-publisher manual-$(date +%s)
+  # then a follow-up PR removes this line.
+  suspend: true
   schedule: "*/15 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -34,14 +39,24 @@ spec:
           initContainers:
             - name: clone-repo
               image: alpine/git:v2.52.0
+              # NOTE: `set -eu` deliberately omits `-x` so the URL (containing
+              # the PAT) is never echoed into logs. Git's own clone output
+              # does not log credentials by default.
               command:
                 - sh
                 - -c
                 - |
                   set -eu
                   git clone --depth 1 --single-branch --branch master \
-                    https://github.com/mainertoo/kubernetes-lab /workspace
+                    "https://x-access-token:${GITHUB_TOKEN}@github.com/mainertoo/kubernetes-lab" \
+                    /workspace
                   ls /workspace/docs | head -3
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: wiki-js-secret
+                      key: GITHUB_TOKEN
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

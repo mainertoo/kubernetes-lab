@@ -8,7 +8,7 @@ Wiki-js is internal-only behind Authentik SSO and split-DNS — public GitHub Ac
 
 ## What it does each run
 
-1. **Init container** clones `mainertoo/kubernetes-lab` `master` (depth 1) into an emptyDir.
+1. **Init container** clones `mainertoo/kubernetes-lab` `master` (depth 1) into an emptyDir. Authenticates to GitHub via a fine-grained PAT — see [GitHub PAT requirement](#github-pat-requirement) below for setup + rotation.
 2. **Publish container** runs `publish.py` which:
    - Walks `/workspace/docs/*.md` (recursive).
    - For each file:
@@ -24,6 +24,48 @@ Wiki-js is internal-only behind Authentik SSO and split-DNS — public GitHub Ac
 - **No bidirectional sync.** The repo is the source of truth for `docs/*`. Edits made in the wiki UI to those pages will be overwritten on the next 15-min run.
 - **No frontmatter handling.** YAML frontmatter (none currently in `/docs`) would render literally.
 - **No image rewriting.** Relative image refs (none currently in `/docs`) would break.
+
+## GitHub PAT requirement
+
+The repo is private (per the deferred `project_repo_going_public` audit). The init container clones over HTTPS using a fine-grained PAT injected as `GITHUB_TOKEN` from `wiki-js-secret`. The token is only set on the init container — the publish container never sees it.
+
+### Generating the PAT
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal access tokens** → Generate new token.
+2. **Token name**: `wiki-js-docs-publisher`.
+3. **Expiration**: 1 year recommended.
+4. **Repository access** → **Only select repositories** → `mainertoo/kubernetes-lab`.
+5. **Repository permissions** → **Contents** → **Read-only**. Everything else: No access.
+6. Generate. Copy the `github_pat_…` value.
+
+### Storing the PAT
+
+```bash
+sops apps/base/wiki-js/wiki-js-secret.sops.yaml
+# Add under stringData:
+#   GITHUB_TOKEN: github_pat_xxxxxxxxxxxxxxxxxxxxxx
+# Save — VS Code SOPS extension re-encrypts on save.
+
+# Verify encryption per feedback_sops_suffix_not_guarantee_encryption:
+grep -c 'ENC\[' apps/base/wiki-js/wiki-js-secret.sops.yaml
+# Should be one higher than before. If unchanged, the save did NOT re-encrypt
+# and the token is in plaintext on disk.
+```
+
+Then commit + push + open a PR off `master` (not the merged docs-publisher branch — per [[feedback_followup_pr_branch]]).
+
+### Rotation
+
+When the PAT nears expiration:
+
+1. Generate a new PAT with the same scope.
+2. `sops apps/base/wiki-js/wiki-js-secret.sops.yaml` → replace `GITHUB_TOKEN` value → save.
+3. Commit + push. Flux reconciles, next CronJob run picks up the new token.
+4. Revoke the old PAT in GitHub.
+
+### Why not just flip the repo public?
+
+The audit work (`project_repo_going_public`) is complete but the visibility flip was deferred. If/when you flip it, this whole PAT mechanism becomes unnecessary — drop the `GITHUB_TOKEN` env block from the init container, drop the GITHUB_TOKEN key from the Secret, revoke the PAT in GitHub.
 
 ## Schedule
 
