@@ -28,6 +28,14 @@ spec:
   values:
     installCRDs: true
 
+    # Expose controller + webhook metrics via a ServiceMonitor so the
+    # kube-prometheus-stack Prometheus scrapes them. Powers cert-expiry
+    # alerts and the cert-manager Grafana dashboard.
+    prometheus:
+      enabled: true
+      servicemonitor:
+        enabled: true
+
     # Controller (issues certs, talks to ACME)
     replicaCount: 2
     podDisruptionBudget:

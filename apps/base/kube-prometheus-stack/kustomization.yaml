@@ -11,3 +11,6 @@ resources:
   # Ceph metrics + alerts
   - ceph-mgr-servicemonitor.yaml
   - ceph-health-prometheusrule.yaml
+
+  # Flux controller metrics (gotk_*) — picked up by the open podMonitorSelector
+  - flux-podmonitor.yaml
