@@ -126,67 +126,6 @@ spec:
     kubeStateMetrics:
       enabled: true
 
-    # Configure kube-state-metrics's customResourceState extension to expose
-    # Flux HelmRelease / Kustomization status.conditions[type=Ready].status
-    # as kube_customresource_flux_*_status metrics. Powers HelmReleaseNotReady
-    # / KustomizationNotReady alerts. Flux v2.8.x removed gotk_resource_info
-    # upstream, so this is the canonical path for "is X ready" alerts now.
-    kube-state-metrics:
-      rbac:
-        extraRules:
-          - apiGroups: ["helm.toolkit.fluxcd.io"]
-            resources: ["helmreleases"]
-            verbs: ["list", "watch"]
-          - apiGroups: ["kustomize.toolkit.fluxcd.io"]
-            resources: ["kustomizations"]
-            verbs: ["list", "watch"]
-      customResourceState:
-        enabled: true
-        config:
-          kind: CustomResourceStateMetrics
-          spec:
-            resources:
-              - groupVersionKind:
-                  group: helm.toolkit.fluxcd.io
-                  version: v2
-                  kind: HelmRelease
-                metricNamePrefix: flux
-                labelsFromPath:
-                  name: [metadata, name]
-                  exported_namespace: [metadata, namespace]
-                metrics:
-                  - name: helmrelease_condition
-                    help: "HelmRelease status conditions (value = observedGeneration; labels carry type/status/reason)"
-                    each:
-                      type: Gauge
-                      gauge:
-                        path: [status, conditions]
-                        valueFrom: [observedGeneration]
-                        labelsFromPath:
-                          type: [type]
-                          status: [status]
-                          reason: [reason]
-              - groupVersionKind:
-                  group: kustomize.toolkit.fluxcd.io
-                  version: v1
-                  kind: Kustomization
-                metricNamePrefix: flux
-                labelsFromPath:
-                  name: [metadata, name]
-                  exported_namespace: [metadata, namespace]
-                metrics:
-                  - name: kustomization_condition
-                    help: "Kustomization status conditions (value = observedGeneration; labels carry type/status/reason)"
-                    each:
-                      type: Gauge
-                      gauge:
-                        path: [status, conditions]
-                        valueFrom: [observedGeneration]
-                        labelsFromPath:
-                          type: [type]
-                          status: [status]
-                          reason: [reason]
-
     prometheus:
       prometheusSpec:
         replicas: *replicasCount
