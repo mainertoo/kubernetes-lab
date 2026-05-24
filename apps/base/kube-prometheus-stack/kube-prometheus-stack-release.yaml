@@ -155,14 +155,16 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: helmrelease_status
-                    help: "HelmRelease Ready condition (StateSet: True/False/Unknown)"
+                  - name: helmrelease_condition
+                    help: "HelmRelease status conditions (one sample per condition)"
                     each:
-                      type: StateSet
-                      stateSet:
-                        labelName: status
-                        path: [status, conditions, "[type=Ready]", status]
-                        list: ["True", "False", "Unknown"]
+                      type: Info
+                      info:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: [type]
+                          status: [status]
+                          reason: [reason]
               - groupVersionKind:
                   group: kustomize.toolkit.fluxcd.io
                   version: v1
@@ -172,14 +174,16 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: kustomization_status
-                    help: "Kustomization Ready condition (StateSet: True/False/Unknown)"
+                  - name: kustomization_condition
+                    help: "Kustomization status conditions (one sample per condition)"
                     each:
-                      type: StateSet
-                      stateSet:
-                        labelName: status
-                        path: [status, conditions, "[type=Ready]", status]
-                        list: ["True", "False", "Unknown"]
+                      type: Info
+                      info:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: [type]
+                          status: [status]
+                          reason: [reason]
 
     prometheus:
       prometheusSpec:
