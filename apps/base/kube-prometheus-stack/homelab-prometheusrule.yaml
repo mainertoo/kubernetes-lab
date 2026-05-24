@@ -71,6 +71,64 @@ spec:
             description: "Repository connectivity gauge has been 0 for 30 minutes — credentials, S3 endpoint, or Garage backend issue. No new backups can land for this PVC."
 
     # ----------------------------------------------------------------------
+    # CNPG cluster health (per-cluster PodMonitors enabled via
+    # components/cnpg-cluster/base/cluster.yaml monitoring.enablePodMonitor)
+    # ----------------------------------------------------------------------
+    - name: cnpg.health
+      rules:
+        - alert: CNPGCollectorDown
+          # The per-cluster postgres collector sidecar can't reach its
+          # postgres instance — postgres may be down, networking broken,
+          # or the collector itself misconfigured. Distinct from
+          # KubePodNotReady (catches gross pod failure later, at 15m).
+          expr: cnpg_collector_up == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG collector down for {{ $labels.namespace }}/{{ $labels.cluster }}"
+            description: "Pod {{ $labels.pod }} can't be scraped by its CNPG sidecar collector. Postgres may be unavailable. Check `kubectl -n {{ $labels.namespace }} get cluster {{ $labels.cluster }}` and the pod's logs."
+
+        - alert: CNPGBackupFailing
+          # Last failed backup timestamp is more recent than the last
+          # successful one — i.e. the most recent attempt failed and no
+          # successful run has happened since.
+          expr: |
+            cnpg_collector_last_failed_backup_timestamp > 0
+            and cnpg_collector_last_failed_backup_timestamp > cnpg_collector_last_available_backup_timestamp
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG backup failing for {{ $labels.namespace }}/{{ $labels.cluster }}"
+            description: "Latest backup attempt failed and no successful backup since. Inspect the barman-cloud plugin logs on the postgres pod and the ScheduledBackup status."
+
+        - alert: CNPGBackupStale
+          # No successful backup in >30h. Catches the silent-stop failure
+          # mode where barman-cloud stops trying without setting a failure
+          # timestamp. Daily ScheduledBackup cadence + 30h budget = ~1
+          # missed cycle of slack before firing.
+          expr: (time() - cnpg_collector_last_available_backup_timestamp) > (30 * 60 * 60)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "CNPG backup stale for {{ $labels.namespace }}/{{ $labels.cluster }}"
+            description: "No successful backup in >30h. Daily ScheduledBackup may have stopped firing or the barman-cloud plugin is silently broken. Check the ScheduledBackup CR + the postgres pod's plugin container logs."
+
+        - alert: CNPGManualSwitchoverRequired
+          # CNPG only flips this when the operator can't proceed without
+          # human intervention (e.g. stuck primary, no healthy replica
+          # to promote). Rare but high-signal.
+          expr: cnpg_collector_manual_switchover_required == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG manual switchover required for {{ $labels.namespace }}/{{ $labels.cluster }}"
+            description: "The CNPG operator has signaled this cluster needs operator intervention. See `kubectl -n {{ $labels.namespace }} describe cluster {{ $labels.cluster }}` and follow the CNPG cluster-recovery runbook."
+
+    # ----------------------------------------------------------------------
     # Certificates — cert-manager
     # ----------------------------------------------------------------------
     - name: certificates.cert-manager
