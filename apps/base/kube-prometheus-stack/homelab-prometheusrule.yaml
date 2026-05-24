@@ -137,25 +137,25 @@ spec:
     - name: flux.health
       rules:
         - alert: HelmReleaseNotReady
-          # StateSet exposes one time series per possible status label;
-          # the one matching the current state has value=1. Fires when
-          # Ready=False has been the truth for >1h (filters normal
-          # upgrade reconcile windows of a few minutes).
-          expr: kube_customresource_flux_helmrelease_status{status="False"} == 1
+          # KSM CRS Info-pattern: one sample per condition per HR with
+          # type / status / reason labels. We filter to the Ready condition
+          # and alert when its status is False. 1h `for:` filters normal
+          # upgrade reconcile windows.
+          expr: kube_customresource_flux_helmrelease_condition{type="Ready", status="False"} == 1
           for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "HelmRelease {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready"
+            summary: "HelmRelease {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready ({{ $labels.reason }})"
             description: "Ready=False for >1h. Inspect via `flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}` and `kubectl -n {{ $labels.exported_namespace }} describe hr {{ $labels.name }}` for the actual error."
 
         - alert: KustomizationNotReady
-          expr: kube_customresource_flux_kustomization_status{status="False"} == 1
+          expr: kube_customresource_flux_kustomization_condition{type="Ready", status="False"} == 1
           for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready"
+            summary: "Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready ({{ $labels.reason }})"
             description: "Ready=False for >1h. Inspect via `flux get ks -n {{ $labels.exported_namespace }} {{ $labels.name }}` and `kubectl -n {{ $labels.exported_namespace }} describe ks {{ $labels.name }}` for the actual error."
 
     # ----------------------------------------------------------------------
