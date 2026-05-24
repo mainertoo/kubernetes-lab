@@ -141,7 +141,7 @@ spec:
           # type / status / reason labels. We filter to the Ready condition
           # and alert when its status is False. 1h `for:` filters normal
           # upgrade reconcile windows.
-          expr: kube_customresource_flux_helmrelease_info{type="Ready", status="False"} == 1
+          expr: kube_customresource_flux_helmrelease_condition{type="Ready", status="False"} > 0
           for: 1h
           labels:
             severity: warning
@@ -150,7 +150,7 @@ spec:
             description: "Ready=False for >1h. Inspect via `flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}` and `kubectl -n {{ $labels.exported_namespace }} describe hr {{ $labels.name }}` for the actual error."
 
         - alert: KustomizationNotReady
-          expr: kube_customresource_flux_kustomization_info{type="Ready", status="False"} == 1
+          expr: kube_customresource_flux_kustomization_condition{type="Ready", status="False"} > 0
           for: 1h
           labels:
             severity: warning

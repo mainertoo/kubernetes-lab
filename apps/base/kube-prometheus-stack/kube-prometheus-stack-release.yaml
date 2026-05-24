@@ -155,12 +155,13 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: helmrelease_info
-                    help: "HelmRelease status conditions (one sample per condition)"
+                  - name: helmrelease_condition
+                    help: "HelmRelease status conditions (value = observedGeneration; labels carry type/status/reason)"
                     each:
-                      type: Info
-                      info:
+                      type: Gauge
+                      gauge:
                         path: [status, conditions]
+                        valueFrom: [observedGeneration]
                         labelsFromPath:
                           type: [type]
                           status: [status]
@@ -174,12 +175,13 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: kustomization_info
-                    help: "Kustomization status conditions (one sample per condition)"
+                  - name: kustomization_condition
+                    help: "Kustomization status conditions (value = observedGeneration; labels carry type/status/reason)"
                     each:
-                      type: Info
-                      info:
+                      type: Gauge
+                      gauge:
                         path: [status, conditions]
+                        valueFrom: [observedGeneration]
                         labelsFromPath:
                           type: [type]
                           status: [status]
