@@ -71,7 +71,7 @@ Everything in here runs in production on my own hardware, against my own data, w
 - ✅ All Postgres workloads on CloudNativePG with S3 WAL + base backups
 - ✅ Observability stack: kube-prometheus-stack + Loki + Grafana + Alloy
 - ⏳ Offsite DR (waiting on hardware)
-- ⏳ Optional refactor to a full `base/ + production/ + staging/` overlay layout
+- ℹ️ The current `controllers/` + `controllers-staging/` and `secrets-prod/` + `secrets-shared/` layout works and is stable. A future, more idiomatic Kustomize `base/ + production/ + staging/` overlay restructure is a known deferred refactor — not blocking, parked by choice.
 
 ### Cluster overview
 
@@ -124,6 +124,30 @@ Architecture notes and runbooks live in [`docs/`](docs/). A few worth highlighti
 - [`backup-architecture.md`](docs/backup-architecture.md) / [`backup-recovery.md`](docs/backup-recovery.md) — backup layers + restore procedures
 - [`cnpg-disaster-recovery.md`](docs/cnpg-disaster-recovery.md) — CloudNativePG cluster recovery
 - [`ceph-tuning-2026-05-07.md`](docs/ceph-tuning-2026-05-07.md) — the homelab Ceph tuning pass
+
+---
+
+## 💡 Recommendations (if you're building something like this)
+
+A handful of things I wish I had done from day one, paid for the hard way:
+
+- **Lock down `.gitignore` from commit zero.** Decide what *should* be in the repo, then exclude everything else by default. I made the opposite call early on and ended up doing multiple sensitive-content audits plus a `git filter-repo` history scrub to remove tokens, webhook URLs, and `tfvars` files that had snuck in. Far cheaper to keep them out than to scrub them out later.
+
+- **Go public early if you're going to lean on AI + PR-driven workflows.** Private repos cap GitHub Actions at 2,000 free minutes/month, and an LLM-assisted "open small PR → CI runs → merge" loop chews through that ceiling fast (every PR runs `flux-local` test + diff). Public repos get unlimited standard-runner minutes. If your only reason for staying private is "I haven't audited it yet," sequencing the audit and the public flip earlier in the project is the better trade.
+
+- **Design for N clusters from day one.** This repo grew up as a single-cluster setup; bolting on a second cluster (staging) later meant retrofitting per-environment overlay paths, splitting Flux Kustomizations, and figuring out which controllers were truly shared vs production-only after the fact. If you might ever want a staging or dev cluster, set up `clusters/<name>/`, `apps/<name>/`, and per-environment infra paths from the first commit — even if only one of them is wired up at the start.
+
+- **SOPS: decide where the age private key lives *before* you encrypt anything.** Pick a durable home (password manager, hardware-backed keystore, an offline backup that isn't on the same disk as the cluster you're protecting) and document the bootstrap path. Then configure your editor to auto-encrypt on save — the VS Code SOPS extension handles `*.sops.yaml` files cleanly. Critical: before every commit, verify no `.decrypted` or scratch-file artifacts have leaked into the working tree, and confirm encrypted files actually start with `ENC[`. A `*.sops.yaml` filename does **not** guarantee the contents are encrypted.
+
+- **Backups: pick one engine, opt in by label, restore-test on a real schedule.** I burned through Restic → shared-Restic → Kopia before settling. Kopia handles concurrent multi-writer cleanly; Restic needs exclusive locks for `forget`/`prune`, which becomes brutal at fleet scale. If you start fresh, start with Kopia. And whatever engine: drive opt-in via PVC labels + a Kyverno generate policy, not hand-rolled per-app `ReplicationSource` YAML.
+
+- **Use CloudNativePG for *any* Postgres-backed app — even small ones.** Don't bother with a chart's bundled `bitnami/postgresql` or a hand-rolled StatefulSet. CNPG gives you S3 WAL + base backups, PITR, automated failover, and a sane operator path — and migrating later is meaningfully harder than starting there (8 apps × roughly half-a-day each in my case).
+
+- **Home Assistant on Kubernetes works — but with a tax.** Every HA add-on that's "just a checkbox" on HAOS becomes its own Kubernetes Deployment with its own PVC, Service, and ingress in this world. ESPHome, Zigbee2MQTT, Matter Server, AppDaemon, etc. all turn into first-class manifests. If you're heavily addon-dependent, weigh that overhead against running HAOS as a VM and only Kubernetes-ifying the things that actually benefit.
+
+- **Don't rename a Flux `Kustomization`'s `metadata.name` if `prune: true` is set.** Flux treats `name` as identity — a rename is a delete-old + create-new — and `prune` cascades that delete instantly, including PVCs. Rename the `spec.path` directory instead and keep the CR name. Painful enough to deserve its own warning line.
+
+- **Set up Renovate on day one.** A repo this size left to drift becomes terrifying to upgrade later. Renovate-managed Helm chart + image bumps with auto-merge for patch versions = continual small wins instead of one giant scary upgrade weekend.
 
 ---
 
