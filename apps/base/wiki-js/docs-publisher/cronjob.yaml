@@ -7,11 +7,6 @@ metadata:
     app.kubernetes.io/name: wiki-js-docs-publisher
     app.kubernetes.io/part-of: wiki-js
 spec:
-  # SAFETY BELT — landed alongside the PAT-auth fix so a fast Flux reconcile
-  # can't replay a known-broken Job. Validate one manual run end-to-end with:
-  #   kubectl -n wiki-js create job --from=cronjob/wiki-js-docs-publisher manual-$(date +%s)
-  # then a follow-up PR removes this line.
-  suspend: true
   schedule: "*/15 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
