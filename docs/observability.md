@@ -119,20 +119,30 @@ To pin dashboards to your homepage: open one, click the star icon next to its ti
 
 Alloy ships every pod's stdout/stderr to Loki with structured labels. Query in Grafana → Explore → datasource **Loki**.
 
-### Useful starter queries
+### Bookmark query patterns
 
-| Goal | LogQL |
-|---|---|
-| All errors anywhere, last 1h | `{cluster="lab"} \|~ "(?i)(error\|err\|fatal\|panic)"` |
-| Errors in a specific namespace | `{namespace="dawarich"} \|~ "(?i)error"` |
-| Volsync mover output | `{namespace="volsync-system"} \| logfmt` |
-| CNPG cluster lifecycle events | `{namespace="<app>"} \|~ "instance\|switchover\|failover"` |
-| Kubelet evictions cluster-wide | `{job="kubelet"} \|~ "evict\|OOM"` |
-| Single pod, all containers | `{namespace="<ns>", pod="<pod>"}` |
+These aren't queries you run on a schedule or alerts you build — they're **bookmarked query templates** for incident response. The pattern is:
 
-Save these via the Star icon in Grafana's Explore view — they appear under "Query history" → "Starred" thereafter.
+> Something feels off / Discord pings you → open Grafana → Explore → Loki → run one of these to grep all cluster logs at once instead of `kubectl logs` whack-a-mole.
 
-Retention is 14 days (`limits_config.retention_period: 336h` in `apps/base/loki/loki-release.yaml`).
+Save them via Grafana Explore → run the query → click the star next to it in "Query history". Starred queries appear under the "Starred" tab thereafter, one-click recall.
+
+| Pattern | When you'd use it | Query |
+|---|---|---|
+| **Cluster-wide errors, last hour** | "Did anything blow up today?" — broad sweep before bed, or after a worker host hang | `{cluster="lab"} \|~ "(?i)(error\|fatal\|panic)"` |
+| **One namespace's errors** | App is misbehaving, you know which one | `{namespace="dawarich"} \|~ "(?i)error"` ← swap `dawarich` for the affected app |
+| **VolSync mover output** | A `VolSyncBackupStale` or `VolSyncKopiaRepoDisconnected` alert fired — why didn't the backup work? | `{namespace="volsync-system"} \|~ "kopia\|mover\|backup"` |
+| **CNPG lifecycle events** | A `CNPGCollectorDown` / `CNPGBackupFailing` alert fired, or a postgres cluster is acting weird | `{namespace="dawarich"} \|~ "switchover\|failover\|recovery\|promot"` ← swap `dawarich` for the affected CNPG namespace |
+| **Kubelet evictions cluster-wide** | Descheduler did something visible, memory pressure showed up, or a worker is misbehaving | `{job="kubelet"} \|~ "evict\|OOM\|memory pressure"` |
+| **Single pod, all containers** | Drilling into one pod's logs (Alloy ships stdout for all containers including init containers + sidecars) | `{namespace="<ns>", pod="<pod>"}` |
+
+Skip these entirely if you're not the kind of person who'd reach for log search — the dashboards + Discord alerts already cover proactive monitoring. Loki shines specifically for *"why did X happen at 03:42 this morning?"*
+
+### Operational pointers
+
+- **Retention** is 14 days (`limits_config.retention_period: 336h` in `apps/base/loki/loki-release.yaml`). Logs older than that are deleted by the compactor.
+- **Time range** — Grafana Explore defaults to the last hour. For overnight incidents bump it to "Last 24 hours" before running the query.
+- **Rate vs lines** — `|~ "error"` returns matching lines. Wrap with `rate(... [5m])` to get matches/sec for graphing (e.g., to see error spikes during a specific window). The query bar's `Logs` / `Metrics` toggle switches modes.
 
 ## Operational notes
 
