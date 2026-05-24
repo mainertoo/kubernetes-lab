@@ -155,7 +155,7 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: helmrelease_condition
+                  - name: helmrelease_info
                     help: "HelmRelease status conditions (one sample per condition)"
                     each:
                       type: Info
@@ -174,7 +174,7 @@ spec:
                   name: [metadata, name]
                   exported_namespace: [metadata, namespace]
                 metrics:
-                  - name: kustomization_condition
+                  - name: kustomization_info
                     help: "Kustomization status conditions (one sample per condition)"
                     each:
                       type: Info
