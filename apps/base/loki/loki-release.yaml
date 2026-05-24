@@ -88,3 +88,15 @@ spec:
     monitoring:
       serviceMonitor:
         enabled: true
+
+    # Trim chart defaults that don't earn their keep at homelab log volume.
+    # Loki ingestion + queries still work; we just give up cache-warmed
+    # repeat-query speed and Helm-test canary verification.
+    lokiCanary:
+      enabled: false
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    test:
+      enabled: false
