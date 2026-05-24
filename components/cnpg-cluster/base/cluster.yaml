@@ -66,3 +66,13 @@ spec:
       memory: ${CNPG_MEMORY_REQUEST:=256Mi}
     limits:
       memory: ${CNPG_MEMORY_LIMIT:=1Gi}
+
+  # Per-cluster Prometheus PodMonitor. The cloudnative-pg chart's
+  # monitoring.podMonitorEnabled flag only creates a PodMonitor for the
+  # OPERATOR — not for each Cluster. Setting this here on the base spec
+  # makes the operator create a PodMonitor per Cluster CR, surfacing
+  # cnpg_collector_*, cnpg_pg_stat_database_*, and related per-cluster
+  # postgres metrics. Picked up automatically by the open Prometheus
+  # podMonitorSelector (no release label needed).
+  monitoring:
+    enablePodMonitor: true
