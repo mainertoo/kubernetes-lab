@@ -14,3 +14,6 @@ resources:
 
   # Flux controller metrics (gotk_*) — picked up by the open podMonitorSelector
   - flux-podmonitor.yaml
+
+  # Homelab-specific PrometheusRules (PVC fullness, VolSync, cert expiry)
+  - homelab-prometheusrule.yaml

@@ -1,0 +1,94 @@
+---
+# Homelab-specific PrometheusRules layered on top of the kube-prom-stack
+# defaults. Grouped by domain (storage, backups, certificates) so the
+# Alertmanager Discord routing can be tuned per-group later if needed.
+#
+# Severity convention:
+#   warning  — needs attention within a day or so
+#   critical — needs attention now
+#
+# All expressions have been validated against live metric label sets
+# in the production cluster on 2026-05-24 (PR introducing this file).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-custom
+  namespace: kube-prometheus-stack
+  labels:
+    app: homelab-custom
+spec:
+  groups:
+    # ----------------------------------------------------------------------
+    # Storage — PVC fullness
+    # ----------------------------------------------------------------------
+    - name: storage.pvc
+      rules:
+        - alert: PVCNearFull
+          expr: |
+            (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) >= 0.85
+            and (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) < 0.95
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+            description: "Used / capacity has been ≥ 85% for 30 minutes. Resize, prune, or migrate before it crosses 95%."
+
+        - alert: PVCAlmostFull
+          expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) >= 0.95
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full — critical"
+            description: "Used / capacity ≥ 95% for 10 minutes. Imminent ENOSPC risk for the workload backed by this PVC."
+
+    # ----------------------------------------------------------------------
+    # Backups — VolSync / Kopia
+    # ----------------------------------------------------------------------
+    - name: backups.volsync
+      rules:
+        - alert: VolSyncBackupStale
+          # Source-side gauge: 1 if the source PVC hasn't been backed up
+          # within its sync window. 30h covers any daily-cadence backup
+          # that missed a sync cycle; hourly-cadence backups trip far
+          # sooner if they're really wedged.
+          expr: max by (obj_namespace, obj_name, method) (volsync_volume_out_of_sync{role="source"}) == 1
+          for: 30h
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync backup stale: {{ $labels.obj_namespace }}/{{ $labels.obj_name }} ({{ $labels.method }})"
+            description: "ReplicationSource has been out of sync for >30h. Inspect the source pod logs and check the Kopia repo connectivity."
+
+        - alert: VolSyncKopiaRepoDisconnected
+          expr: max by (obj_namespace, obj_name, repository, role) (volsync_kopia_repository_connectivity) == 0
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync cannot reach Kopia repo {{ $labels.repository }} for {{ $labels.obj_namespace }}/{{ $labels.obj_name }}"
+            description: "Repository connectivity gauge has been 0 for 30 minutes — credentials, S3 endpoint, or Garage backend issue. No new backups can land for this PVC."
+
+    # ----------------------------------------------------------------------
+    # Certificates — cert-manager
+    # ----------------------------------------------------------------------
+    - name: certificates.cert-manager
+      rules:
+        - alert: CertExpiringSoon
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < (14 * 24 * 60 * 60)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cert {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            description: "Issuer: {{ $labels.issuer_kind }}/{{ $labels.issuer_name }}. Verify cert-manager is renewing (normal: 2/3 lifetime). DNS-01 / Cloudflare token issues are the usual cause."
+
+        - alert: CertExpiringCritical
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < (3 * 24 * 60 * 60)
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Cert {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }} — critical"
+            description: "Less than 3 days to expiry. Manually inspect cert-manager controller logs and the underlying Certificate / Order resources."
