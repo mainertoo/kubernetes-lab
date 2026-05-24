@@ -128,7 +128,7 @@ These aren't queries you run on a schedule or alerts you build — they're **boo
 Save them via Grafana Explore → run the query → click the star next to it in "Query history". Starred queries appear under the "Starred" tab thereafter, one-click recall.
 
 | Pattern | When you'd use it | Query |
-|---|---|---|
+| --- | --- | --- |
 | **Cluster-wide errors, last hour** | "Did anything blow up today?" — broad sweep before bed, or after a worker host hang | `{cluster="lab"} \|~ "(?i)(error\|fatal\|panic)"` |
 | **One namespace's errors** | App is misbehaving, you know which one | `{namespace="dawarich"} \|~ "(?i)error"` ← swap `dawarich` for the affected app |
 | **VolSync mover output** | A `VolSyncBackupStale` or `VolSyncKopiaRepoDisconnected` alert fired — why didn't the backup work? | `{namespace="volsync-system"} \|~ "kopia\|mover\|backup"` |
@@ -168,7 +168,7 @@ curl -s "$BASE/api/v1/targets?state=active" | jq -r \
 ### Resource budget
 
 | Component | PVC | CPU/RAM (approx) |
-|---|---|---|
+| --- | --- | --- |
 | Prometheus | 20Gi (`ceph-rbd`) | ~50m / ~1.4Gi |
 | Alertmanager | 2Gi | minimal |
 | Grafana | existing claim | ~50m / 200Mi |
