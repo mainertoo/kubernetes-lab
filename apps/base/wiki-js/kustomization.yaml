@@ -11,3 +11,5 @@ resources:
   - wiki-js-secret.sops.yaml
   - wiki-js-release.yaml
   - wiki-js-ingressroute.yaml
+  # CronJob that publishes /docs/*.md → wiki under docs/* every 15 min.
+  - docs-publisher
