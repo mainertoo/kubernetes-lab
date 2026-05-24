@@ -19,6 +19,7 @@ home                                              Mainertoo Homelab Wiki (landin
 │   │   ├── flux                                  reconciliation model, prune=true blast radius
 │   │   ├── ceph                                  pools, storage classes, tuning
 │   │   ├── traefik                               IngressRoute pattern, Authentik middleware
+│   │   ├── observability                         ★ kube-prom-stack + Loki + Alloy + Grafana (mirrors docs/observability.md)
 │   │   └── controllers-index                     one-liner per controller
 │   ├── networking/
 │   │   ├── dns-tailscale-split                   ★ split-DNS architecture (pre-filled)
@@ -176,6 +177,7 @@ These eight pages were created with real content rather than stubs because the u
 | `ai/agents/hermes-agent` | User identified hermes-agent.nousresearch.com as candidate |
 | `backup-and-recovery/operator-laptop-secrets` | Mirrors `docs/backup-architecture.md` §8b (PR #583) |
 | `backup-and-recovery/label-driven-backups` | Summarizes `docs/label-driven-backups.md` + Kyverno policy |
+| `infrastructure/software/observability` | Mirrors `docs/observability.md` (added 2026-05-24 alongside the kube-prom-stack optimization pass — PRs #597/#599/#600/#601) |
 
 ## Conventions
 
@@ -213,3 +215,4 @@ When the wiki tree changes meaningfully (new top-level section, large reorg), up
 - [`backup-architecture.md`](backup-architecture.md) §8b — operator-laptop secrets, mirrored at `/backup-and-recovery/operator-laptop-secrets` in the wiki.
 - [`backup-system-wiki.md`](backup-system-wiki.md) — the 80 KB canonical reference, lives at `/backup-and-recovery/architecture` in the wiki.
 - [`label-driven-backups.md`](label-driven-backups.md) — mirrored at `/backup-and-recovery/label-driven-backups`.
+- [`observability.md`](observability.md) — kube-prom-stack + Loki + Alloy + Grafana reference, mirrored at `/infrastructure/software/observability`.
