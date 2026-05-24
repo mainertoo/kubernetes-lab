@@ -137,12 +137,17 @@ spec:
         scrapeConfigSelectorNilUsesHelmValues: false
         serviceMonitorSelectorNilUsesHelmValues: false
 
-        # IMPORTANT: Let Prometheus discover ServiceMonitors we label for this stack.
-        serviceMonitorSelector:
-          matchLabels:
-            release: kube-prometheus-stack
-        # Allow discovering ServiceMonitors outside kube-prometheus-stack namespace too.
+        # All *SelectorNilUsesHelmValues flags above are false → with no explicit
+        # selector here, the operator matches every ServiceMonitor / PodMonitor /
+        # Probe / Rule / ScrapeConfig in the cluster, regardless of labels.
+        # This is the homelab-standard config: we want Loki, Kyverno, VolSync,
+        # cert-manager, CNPG, Flux, etc. to all be scraped without each one
+        # needing to carry release=kube-prometheus-stack on its monitor.
         serviceMonitorNamespaceSelector: {}
+        podMonitorNamespaceSelector: {}
+        probeNamespaceSelector: {}
+        ruleNamespaceSelector: {}
+        scrapeConfigNamespaceSelector: {}
 
         enableAdminAPI: true
         walCompression: true

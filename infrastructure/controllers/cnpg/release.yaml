@@ -55,8 +55,14 @@ spec:
     crds:
       create: true
 
-    # Disable monitoring for now — no Prometheus operator deployed in cluster.
+    # Expose CNPG operator + per-cluster metrics via a PodMonitor for
+    # kube-prometheus-stack to scrape. Also ship the operator's Grafana
+    # dashboard as a sidecar-discoverable ConfigMap (label-driven by the
+    # grafana sidecar config: grafana_dashboard=1).
     monitoring:
-      podMonitorEnabled: false
+      podMonitorEnabled: true
       grafanaDashboard:
-        create: false
+        create: true
+        configMapName: cnpg-grafana-dashboard
+        sidecarLabel: grafana_dashboard
+        sidecarLabelValue: "1"

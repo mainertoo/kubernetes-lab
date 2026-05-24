@@ -1,0 +1,42 @@
+---
+# Scrape Flux controllers' /metrics endpoints so we get gotk_resource_info,
+# gotk_reconcile_*, and the cardinality of HelmReleases / Kustomizations /
+# GitRepositories that are Ready vs not. Powers the helmrelease-not-ready
+# style alerts and the Flux Cluster Stats Grafana dashboard.
+#
+# Canonical pattern from fluxcd/flux2-monitoring-example. We rely on the
+# kube-prometheus-stack Prometheus picking this up via its open
+# podMonitorSelector (set by removing the explicit selector in
+# kube-prometheus-stack-release.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-system
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: flux
+    app.kubernetes.io/component: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/part-of
+        operator: In
+        values:
+          - flux
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - source-controller
+          - kustomize-controller
+          - helm-controller
+          - notification-controller
+          - image-reflector-controller
+          - image-automation-controller
+  podMetricsEndpoints:
+    - port: http-prom
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
