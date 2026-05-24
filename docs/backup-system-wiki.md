@@ -536,20 +536,13 @@ for IMG in ${IMAGES}; do
       } >> "${META}"
     fi
 
-    # --- OPTIONAL special-case: authentik PostgreSQL DB password ---
-    if [[ "${PVC_NS}" == "authentik" && "${PVC_NAME}" == "data-authentik-postgresql-0" ]]; then
-      DB_PASSWORD=$(
-        ${KCTL} -n authentik get secret authentik-postgresql -o json 2>/dev/null \
-        | jq -r '.data.password // empty' \
-        | base64 -d 2>/dev/null || true
-      )
-
-      if [[ -n "${DB_PASSWORD}" ]]; then
-        echo "db_password=${DB_PASSWORD}" >> "${META}"
-      else
-        echo "# db_password not found or unreadable" >> "${META}"
-      fi
-    fi
+    # --- OPTIONAL app-specific secret-material branch ---
+    # (Snippet redacted for the public version of this doc. The legacy branch
+    #  extracted a postgres password from a Secret and wrote it into ${META} so
+    #  that a future restore could re-bind the data PVC to the live cluster
+    #  without manual lookup. Obsolete now that the relevant apps are on CNPG.
+    #  See P1 task below to replace any remaining branch with a SOPS-encrypted
+    #  backup of the whole Secret rather than a meta-file echo.)
 
     echo "# PV/PVC mapping found for image=${IMG}" >> "${META}"
   else
@@ -1116,7 +1109,7 @@ The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged con
 | P1 | Add monthly `kopia snapshot verify --verify-files-percent=1` per source | 10 min | Catch repo corruption early |
 | P1 | Test-restore a VM and a PVC quarterly (calendar reminder) | 30 min/qtr | Backup is unproven until restored |
 | P2 | Migrate `dawarich-db` and `authentik-postgresql` to CNPG | 2–4 hr each | App-consistent DB backups |
-| P2 | Replace `db_password=` special-case in `rbd-nightly-backup.sh` with SOPS-encrypted backup of the whole Secret | 1 hr | Cleaner secret handling |
+| P1 | Replace `db_password=` special-case in `rbd-nightly-backup.sh` with SOPS-encrypted backup of the whole Secret (was P2 — bumped during the public-repo prep on 2026-05-24; do this before the repo flips public if any apps still hit this branch) | 1 hr | Cleaner secret handling, no plaintext meta-file echo |
 | P2 | Document this audit's findings in CLAUDE.md | 5 min | Continuity for future work |
 | P3 | Drop legacy `kube-rbd` Ceph pool | 5 min | Cleanup |
 | P3 | Garage replication or HA config | half-day | Resilience inside cluster |
