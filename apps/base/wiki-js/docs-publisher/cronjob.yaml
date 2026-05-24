@@ -59,7 +59,7 @@ spec:
                   mountPath: /workspace
           containers:
             - name: publish
-              image: python:3.12-alpine3.21
+              image: python:3.14-alpine3.21
               command: ["python3", "/scripts/publish.py"]
               env:
                 - name: REPO_DOCS_PATH
