@@ -5,7 +5,7 @@
 # Most values are shared with production — the simplest workflow is to
 # re-use the same Proxmox API token and SSH credentials.
 
-pm_url = "https://192.168.1.107:8006/"
+pm_url = "https://192.168.1.x:8006/"
 
 pm_token_id     = "USER@REALM!TOKENID"
 pm_token_secret = "REPLACE_ME"

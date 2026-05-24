@@ -1,8 +1,8 @@
 # Per-environment terraform.tfvars. Copy this file to terraform.tfvars and
 # fill in real values. terraform.tfvars itself is gitignored (`*.tfvars` rule).
 
-# Proxmox API endpoint (e.g. https://192.168.1.107:8006/)
-pm_url = "https://192.168.1.107:8006/"
+# Proxmox API endpoint — use your own host's LAN IP or DNS name.
+pm_url = "https://192.168.1.x:8006/"
 
 # Proxmox API token. The provider builds the full token as
 # "${pm_token_id}=${pm_token_secret}", so set the two halves separately.
