@@ -17,6 +17,18 @@ Sister docs: `ceph-tuning-2026-05-07.md` (config tuning history),
    mClock scheduler improvements. Given this cluster's slow-op history
    on consumer NVMe (see `ceph-tuning-2026-05-07.md`), these *may* help
    — but treat that as a bonus, not a guaranteed fix.
+3. **Scrub scheduler improvements (secondary).** Tentacle introduces an
+   OSD-side overdue-scrub queue that promotes the priority of PGs that
+   have drifted past their warn threshold, plus an mClock `balanced`
+   profile re-tuned to raise the minimum reservation for the scrub QoS
+   class. Together these directly target the "PGs never scrub under
+   steady client IO" starvation pattern that this cluster works around
+   with the `ceph-scrub-queue-cron.md` cron. Also: `ceph pg dump` gains
+   a `scrub_schedule` column and `ceph health detail` for
+   `PG_NOT_DEEP_SCRUBBED` reports *why* a PG missed (load threshold,
+   `osd_max_scrubs` full, reservation denied, …). On Tentacle the cron
+   will likely be redundant — keep it ~30 d post-upgrade to verify,
+   then retire.
 
 There is **no urgency**: Squid is a supported Proxmox Ceph release until
 roughly **September 2026**. Do this deliberately, in its own maintenance
