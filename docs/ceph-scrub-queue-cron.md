@@ -17,8 +17,8 @@ behind:
 
 ```
 osd_deep_scrub_interval × (1 + mon_warn_pg_not_deep_scrubbed_ratio)
-        = 7d × (1 + 0.75)
-        = 12.25 days
+        = 14d × (1 + 1.5)
+        = 35 days        (cluster setting, 2026-05-23)
 ```
 
 …the cluster goes to `HEALTH_WARN` with `PG_NOT_DEEP_SCRUBBED`, and the
@@ -26,6 +26,15 @@ PG stays in that state indefinitely until someone manually issues
 `ceph pg deep-scrub <pgid>`. Empirically observed multiple times on this
 cluster (April–May 2026); confirmed not to self-clear over multi-day
 windows.
+
+**History note (2026-05-23):** the warn ratio was raised from the
+upstream default `0.75` → `1.5` and `osd_deep_scrub_interval` was moved
+from the `osd` section to `global` so the mons and OSDs actually agree
+on the interval. Before that fix, mons evaluated the warn threshold
+against the upstream default 7 d while OSDs scheduled against 14 d,
+so warnings fired at ~12 d for PGs that the OSD scheduler did not
+intend to touch for another 2 days. See
+`docs/ceph-tuning-2026-05-07.md` § "2026-05-23 scrub-warn cleanup".
 
 The underlying scheduler keeps rotating through its normal PG pool on
 the natural interval — it just doesn't *catch up* on overdues. Under
@@ -263,8 +272,9 @@ needs migration.
 
 The actual scrub throttling lives in Ceph config, not here:
 - `osd_max_scrubs` (currently 2) — concurrent scrubs per OSD.
-- `osd_deep_scrub_interval` (currently 7d) — how often Ceph wants each PG deep-scrubbed.
-- `mon_warn_pg_not_deep_scrubbed_ratio` (currently 0.75) — extra fraction of `osd_deep_scrub_interval` before the warning fires (so warn at 12.25d for default settings).
+- `osd_deep_scrub_interval` (currently 14d, set in `global`) — how often Ceph wants each PG deep-scrubbed.
+- `mon_warn_pg_not_deep_scrubbed_ratio` (currently 1.5, set in `global`) — extra fraction of `osd_deep_scrub_interval` before the warning fires (so warn at 14d × 2.5 = 35d for current settings).
+  - Both of the above sit in `global`, not `osd` — mons evaluate the warn threshold from their own config view and the override has to be in a section they read.
 
 Changing those is a Ceph-tuning decision, not a cron-tuning decision —
 see `docs/ceph-tuning-2026-05-07.md`.

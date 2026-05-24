@@ -303,6 +303,57 @@ Side benefit: the restart cycle cleared the `BLUESTORE_SLOW_OP_ALERT` warnings (
   - Slow counters stay at 0 across the 48h window *and* host memory pressure on pve-zermatt is reduced → keep 6 GiB cluster-wide, mark Phase 3b a win, move to Phase 4a (SPCC drive replacement).
   - Slow ops resume at meaningful rates → revert: `ceph config set osd osd_memory_target 8589934592`, restart OSDs sequentially again, treat memory target as non-factor and move to Phase 4a regardless.
 
+## 2026-05-23 scrub-warn cleanup
+
+Recurring `PG_NOT_DEEP_SCRUBBED` warnings (every few days, 1-5 PGs each)
+were finally traced to a **mon vs OSD config split** on
+`osd_deep_scrub_interval`:
+
+| Source                                  | Value                                   | Why                                                                   |
+|-----------------------------------------|-----------------------------------------|-----------------------------------------------------------------------|
+| `ceph config dump` (override)           | `1 209 600 s = 14 d`, section **`osd`** | the override sat in the `osd` section only                            |
+| OSD daemons (`daemon osd.0 config get`) | 14 d ✓                                  | OSDs read the `osd` section                                           |
+| mon daemons (`daemon mon.* config get`) | **7 d**                                 | mons do NOT read the `osd` section, so they kept the upstream default |
+
+`PG_NOT_DEEP_SCRUBBED` is evaluated by the **mon**, so the warning fired
+at `7 d × (1 + 0.75) = 12.25 d` even though OSDs only intended to scrub
+every 14 d. The scrub backlog cron then force-queued those PGs, and the
+cycle repeated.
+
+**Changes applied (2026-05-23):**
+
+```bash
+# Make the interval visible to both mons and OSDs.
+ceph config set global osd_deep_scrub_interval 1209600
+
+# Lift the warn ratio so the threshold reflects reality (35 d).
+ceph config set global mon_warn_pg_not_deep_scrubbed_ratio 1.5
+
+# Remove the now-redundant osd-section override that caused the split.
+ceph config rm osd osd_deep_scrub_interval
+```
+
+Verified post-change:
+
+- `ceph config dump` shows both keys under `global`, no `osd` duplicate.
+- `mon.pve-mammoth` and `osd.0` both report `osd_deep_scrub_interval =
+  1 209 600`.
+- `PG_NOT_DEEP_SCRUBBED` cleared from `ceph health`.
+
+**Effective behavior now:**
+
+- OSD scheduler tries to deep-scrub every PG every 14 d (unchanged).
+- Mon warns at 35 d, so the cron only ever fires for genuine
+  starvation — drift up to 14 → 35 d is silent. The cron stays as a
+  safety net.
+
+**Why not just disable the cron and lift the warn threshold?** Because
+on this hardware (consumer NVMe + `osd_max_scrubs=2`) PGs *do*
+occasionally drift past the natural 14 d window into the 35 d zone;
+the cron is the only mechanism that catches those. Tentacle adds an
+OSD-side overdue queue that should eliminate this need — see
+`ceph-tentacle-upgrade-plan.md` § "Why upgrade".
+
 ## Files
 
 Baseline & post-snapshot perf dumps saved on the workstation:
