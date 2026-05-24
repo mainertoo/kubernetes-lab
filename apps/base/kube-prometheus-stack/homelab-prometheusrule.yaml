@@ -129,36 +129,6 @@ spec:
             description: "The CNPG operator has signaled this cluster needs operator intervention. See `kubectl -n {{ $labels.namespace }} describe cluster {{ $labels.cluster }}` and follow the CNPG cluster-recovery runbook."
 
     # ----------------------------------------------------------------------
-    # Flux — HelmRelease + Kustomization Ready state
-    # Backed by the kube-state-metrics customResourceState config in
-    # kube-prometheus-stack-release.yaml. Flux v2.8.x removed
-    # gotk_resource_info, so KSM-CRS is the canonical "is X ready" source.
-    # ----------------------------------------------------------------------
-    - name: flux.health
-      rules:
-        - alert: HelmReleaseNotReady
-          # KSM CRS Info-pattern: one sample per condition per HR with
-          # type / status / reason labels. We filter to the Ready condition
-          # and alert when its status is False. 1h `for:` filters normal
-          # upgrade reconcile windows.
-          expr: kube_customresource_flux_helmrelease_condition{type="Ready", status="False"} > 0
-          for: 1h
-          labels:
-            severity: warning
-          annotations:
-            summary: "HelmRelease {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready ({{ $labels.reason }})"
-            description: "Ready=False for >1h. Inspect via `flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}` and `kubectl -n {{ $labels.exported_namespace }} describe hr {{ $labels.name }}` for the actual error."
-
-        - alert: KustomizationNotReady
-          expr: kube_customresource_flux_kustomization_condition{type="Ready", status="False"} > 0
-          for: 1h
-          labels:
-            severity: warning
-          annotations:
-            summary: "Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready ({{ $labels.reason }})"
-            description: "Ready=False for >1h. Inspect via `flux get ks -n {{ $labels.exported_namespace }} {{ $labels.name }}` and `kubectl -n {{ $labels.exported_namespace }} describe ks {{ $labels.name }}` for the actual error."
-
-    # ----------------------------------------------------------------------
     # Certificates — cert-manager
     # ----------------------------------------------------------------------
     - name: certificates.cert-manager
