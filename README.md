@@ -1,8 +1,8 @@
 # mainertoo / kubernetes-lab 🏠⚙️
 
-A homelab forged with **Proxmox**, **Terraform**, **Ansible**, **K3s**, **Flux**, **Ceph**, and a lot of GitOps.
+A homelab created with **Proxmox**, **Terraform**, **Ansible**, **K3s**, **Flux**, **Ceph**, and a lot of GitOps.
 
-Originally forked from [willnotcy/Hephaestus](https://github.com/willnotcy/Hephaestus) — full credit and thanks for the bones of this lab. The repo has since diverged significantly: new clusters, new storage backend, new backup engine, new CNPG-managed databases, new observability stack, and a lot of restructuring.
+Originally forked from [willnotcy/Hephaestus](https://github.com/willnotcy/Hephaestus) — full credit and thanks for the bones and skeleton of this lab. The repo has since diverged significantly: new clusters, new storage backend, new backup engine, new CNPG-managed databases, new observability stack, and a lot of restructuring.
 
 ---
 
@@ -50,7 +50,7 @@ Everything in here runs in production on my own hardware, against my own data, w
 
 ## 🛠️ Goals
 
-- Replace the old Proxmox-VM/LXC sprawl with a Kubernetes-first approach
+- Replace the old Proxmox-VM/LXC and docker swarm sprawl with a Kubernetes-first approach
 - Automate everything from bare-metal provisioning to app deployment
 - Maintain a declarative, self-healing, idempotent system
 - Treat backups as a first-class concern — label-driven, single-engine, restore-tested
@@ -60,9 +60,9 @@ Everything in here runs in production on my own hardware, against my own data, w
 
 ## 📊 Current Status
 
-> _"Under active development. Expect chaos, pain, and occasionally fire."_
+> _"Under active development. Expect mistakes, pain, and stupd oversights."_
 
-- ✅ Proxmox environment running across three nodes (`pve-mammoth`, `pve-whistler`, `pve-zermatt`)
+- ✅ Proxmox environment running across three nodes (`pve-mammoth`, `pve-whistler`, `pve-zermatt`) ... a call to great mountains
 - ✅ Terraform + Ansible bootstrap end-to-end
 - ✅ Two K3s clusters: **production** (3 master + 3 worker) and **staging** (1 master + 2 worker)
 - ✅ Flux reconciliation — each cluster owns its own `clusters/<name>/` entrypoint
