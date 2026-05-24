@@ -147,7 +147,7 @@ A handful of things I wish I had done from day one, paid for the hard way:
 
 - **Don't rename a Flux `Kustomization`'s `metadata.name` if `prune: true` is set.** Flux treats `name` as identity — a rename is a delete-old + create-new — and `prune` cascades that delete instantly, including PVCs. Rename the `spec.path` directory instead and keep the CR name. Painful enough to deserve its own warning line.
 
-- **Set up Renovate on day one.** A repo this size left to drift becomes terrifying to upgrade later. Renovate-managed Helm chart + image bumps with auto-merge for patch versions = continual small wins instead of one giant scary upgrade weekend.
+- **Set up Renovate on day one.** A repo this size left to drift becomes difficult to upgrade later. Renovate-managed Helm chart + image bumps with auto-merge for patch versions = continual small wins instead of one giant scary upgrade weekend.
 
 ---
 
