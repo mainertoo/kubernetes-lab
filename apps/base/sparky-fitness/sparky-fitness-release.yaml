@@ -120,7 +120,7 @@ spec:
           app:
             image:
               repository: codewithcj/sparkyfitness
-              tag: v0.16.6.2
+              tag: v0.16.6.3
               pullPolicy: Always
             env:
               SPARKY_FITNESS_SERVER_HOST: "127.0.0.1"
