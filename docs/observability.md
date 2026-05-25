@@ -70,12 +70,21 @@ The chart's defaults provide ~29 more rule groups covering kube control-plane, a
 |---|---|---|---|---|
 | `storage.pvc` | `PVCNearFull` | `used/capacity ≥ 0.85 and < 0.95` | warning | 30m |
 | `storage.pvc` | `PVCAlmostFull` | `used/capacity ≥ 0.95` | critical | 10m |
+| `storage.pvc` | `PVCWillFillSoon` | `predict_linear(available[6h], 7d) < 0 and used/capacity > 0.5` | warning | 6h |
 | `backups.volsync` | `VolSyncBackupStale` | `volsync_volume_out_of_sync{role="source"} == 1` | critical | 30h |
 | `backups.volsync` | `VolSyncKopiaRepoDisconnected` | `volsync_kopia_repository_connectivity == 0` | critical | 30m |
+| `cnpg.health` | `CNPGCollectorDown` | `cnpg_collector_up == 0` | critical | 10m |
+| `cnpg.health` | `CNPGBackupFailing` | `barman_cloud last_failed > last_available` | critical | 30m |
+| `cnpg.health` | `CNPGBackupStale` | `time() - barman_cloud last_available > 30h` | warning | 1h |
+| `cnpg.health` | `CNPGManualSwitchoverRequired` | `cnpg_collector_manual_switchover_required == 1` | critical | 5m |
 | `certificates.cert-manager` | `CertExpiringSoon` | `(cert_expiration - now) < 14d` | warning | 1h |
 | `certificates.cert-manager` | `CertExpiringCritical` | `(cert_expiration - now) < 3d` | critical | 1h |
+| `observability.health` | `LokiDown` | `up{namespace="loki", job=~".*loki.*"} == 0` | critical | 5m |
+| `observability.health` | `AlloyDown` | `up{namespace="alloy", job=~".*alloy.*"} == 0` | warning | 5m |
 
-All severities flow through the existing Alertmanager → Discord bridge with no per-alert routing.
+All severities flow through the existing Alertmanager → Discord bridge with no per-alert routing. The Discord bridge only renders the `description` annotation, so every alert above templates the affected resource into its description (`{{ $labels.namespace }}/{{ $labels.pod }}` or `{{ $labels.persistentvolumeclaim }}`).
+
+**Note on CNPG backup metrics:** the `barman_cloud_cloudnative_pg_io_*` family is served by the plugin-barman-cloud sidecar (the legacy `cnpg_collector_last_*_backup_timestamp` family was deprecated for plugin-method backups in cloudnative-pg PR #8091). These metrics carry `pod` + `namespace` but no `cluster` label, so the alerts template `pod` instead of `cluster`.
 
 ### Adding a new alert
 
@@ -89,7 +98,17 @@ All severities flow through the existing Alertmanager → Discord bridge with no
 
    The dry-run should return either zero matches (alert is silent today) or a known-list of matches (alert is catching real existing state, which is what you want before merging).
 
-3. Verify post-merge: `kubectl -n kube-prometheus-stack get prometheusrule homelab-custom` should show your new rule, and `https://grafana.lab.mainertoo.com/alerting/list` should list it in state `Inactive`.
+3. **For any `up{} == 0` / "X is down" alert: confirm the series actually exists first.** A missing ServiceMonitor/PodMonitor turns the alert into a permanent no-op (vector empty ≠ 0):
+
+   ```bash
+   curl -s -G "$BASE/api/v1/query" --data-urlencode 'query=count by (job, namespace, pod) (up{namespace="<ns>"})' | jq '.data.result'
+   ```
+
+   If empty → check `/api/v1/targets?state=any` for droppedTargets. Two common drop causes:
+   - No SM/PM exists → add one in the same PR.
+   - SM exists but Service has no `metadata.labels` → the operator's auto-generated `keep` relabel matches on `__meta_kubernetes_service_label_*`, so a label-less Service with only a matching `spec.selector` drops every target. Add `metadata.labels` to the Service.
+
+4. Verify post-merge: `kubectl -n kube-prometheus-stack get prometheusrule homelab-custom` should show your new rule, and `https://grafana.lab.mainertoo.com/alerting/list` should list it in state `Inactive`.
 
 ### Severity convention
 
