@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: alloy
   namespace: alloy
+  labels:
+    app.kubernetes.io/name: alloy
 spec:
   selector:
     app.kubernetes.io/name: alloy
