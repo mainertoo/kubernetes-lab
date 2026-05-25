@@ -32,7 +32,7 @@ spec:
             severity: warning
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
-            description: "Used / capacity has been ≥ 85% for 30 minutes. Resize, prune, or migrate before it crosses 95%."
+            description: "PVC `{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}` has been ≥ 85% full for 30 minutes. Resize, prune, or migrate before it crosses 95%."
 
         - alert: PVCAlmostFull
           expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) >= 0.95
@@ -41,7 +41,7 @@ spec:
             severity: critical
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full — critical"
-            description: "Used / capacity ≥ 95% for 10 minutes. Imminent ENOSPC risk for the workload backed by this PVC."
+            description: "PVC `{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}` is ≥ 95% full for 10 minutes. Imminent ENOSPC risk for the workload backed by this PVC."
 
     # ----------------------------------------------------------------------
     # Backups — VolSync / Kopia
@@ -59,7 +59,7 @@ spec:
             severity: critical
           annotations:
             summary: "VolSync backup stale: {{ $labels.obj_namespace }}/{{ $labels.obj_name }} ({{ $labels.method }})"
-            description: "ReplicationSource has been out of sync for >30h. Inspect the source pod logs and check the Kopia repo connectivity."
+            description: "ReplicationSource `{{ $labels.obj_namespace }}/{{ $labels.obj_name }}` ({{ $labels.method }}) has been out of sync for >30h. Inspect the source pod logs and check the Kopia repo connectivity."
 
         - alert: VolSyncKopiaRepoDisconnected
           expr: max by (obj_namespace, obj_name, repository, role) (volsync_kopia_repository_connectivity) == 0
@@ -68,7 +68,7 @@ spec:
             severity: critical
           annotations:
             summary: "VolSync cannot reach Kopia repo {{ $labels.repository }} for {{ $labels.obj_namespace }}/{{ $labels.obj_name }}"
-            description: "Repository connectivity gauge has been 0 for 30 minutes — credentials, S3 endpoint, or Garage backend issue. No new backups can land for this PVC."
+            description: "ReplicationSource `{{ $labels.obj_namespace }}/{{ $labels.obj_name }}` cannot reach Kopia repo `{{ $labels.repository }}` for 30 minutes — credentials, S3 endpoint, or Garage backend issue. No new backups can land for this PVC."
 
     # ----------------------------------------------------------------------
     # CNPG cluster health (per-cluster PodMonitors enabled via
@@ -93,40 +93,50 @@ spec:
           # Last failed backup timestamp is more recent than the last
           # successful one — i.e. the most recent attempt failed and no
           # successful run has happened since.
+          # Metrics come from the barman-cloud plugin sidecar; the
+          # `cnpg_collector_last_*_backup_timestamp` family was deprecated
+          # for plugin-method backups (cloudnative-pg PR #8091, 2025-07).
+          # The new metric carries `pod` + `namespace` but no `cluster`
+          # label — templates use `pod` (uniquely identifies the cluster
+          # in our single-instance homelab clusters).
           expr: |
-            cnpg_collector_last_failed_backup_timestamp > 0
-            and cnpg_collector_last_failed_backup_timestamp > cnpg_collector_last_available_backup_timestamp
+            barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp > 0
+            and barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp > barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
           for: 30m
           labels:
             severity: critical
           annotations:
-            summary: "CNPG backup failing for {{ $labels.namespace }}/{{ $labels.cluster }}"
-            description: "Latest backup attempt failed and no successful backup since. Inspect the barman-cloud plugin logs on the postgres pod and the ScheduledBackup status."
+            summary: "CNPG backup failing for {{ $labels.namespace }}/{{ $labels.pod }}"
+            description: "Latest backup attempt for `{{ $labels.namespace }}/{{ $labels.pod }}` failed and no successful backup since. Inspect the barman-cloud plugin logs on the postgres pod and the ScheduledBackup status."
 
         - alert: CNPGBackupStale
           # No successful backup in >30h. Catches the silent-stop failure
           # mode where barman-cloud stops trying without setting a failure
           # timestamp. Daily ScheduledBackup cadence + 30h budget = ~1
-          # missed cycle of slack before firing.
-          expr: (time() - cnpg_collector_last_available_backup_timestamp) > (30 * 60 * 60)
+          # missed cycle of slack before firing. Same plugin-sidecar
+          # metric source as CNPGBackupFailing above.
+          expr: (time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) > (30 * 60 * 60)
           for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "CNPG backup stale for {{ $labels.namespace }}/{{ $labels.cluster }}"
-            description: "No successful backup in >30h. Daily ScheduledBackup may have stopped firing or the barman-cloud plugin is silently broken. Check the ScheduledBackup CR + the postgres pod's plugin container logs."
+            summary: "CNPG backup stale for {{ $labels.namespace }}/{{ $labels.pod }}"
+            description: "No successful backup for `{{ $labels.namespace }}/{{ $labels.pod }}` in >30h. Daily ScheduledBackup may have stopped firing or the barman-cloud plugin is silently broken. Check the ScheduledBackup CR + the postgres pod's plugin container logs."
 
         - alert: CNPGManualSwitchoverRequired
           # CNPG only flips this when the operator can't proceed without
           # human intervention (e.g. stuck primary, no healthy replica
           # to promote). Rare but high-signal.
+          # NOTE: this metric does not carry a `cluster` label (unlike
+          # `cnpg_collector_up`); identify the cluster via `pod` (strip
+          # `-N` suffix → cluster name).
           expr: cnpg_collector_manual_switchover_required == 1
           for: 5m
           labels:
             severity: critical
           annotations:
-            summary: "CNPG manual switchover required for {{ $labels.namespace }}/{{ $labels.cluster }}"
-            description: "The CNPG operator has signaled this cluster needs operator intervention. See `kubectl -n {{ $labels.namespace }} describe cluster {{ $labels.cluster }}` and follow the CNPG cluster-recovery runbook."
+            summary: "CNPG manual switchover required for {{ $labels.namespace }}/{{ $labels.pod }}"
+            description: "The CNPG operator has signaled cluster `{{ $labels.namespace }}/{{ $labels.pod }}` needs operator intervention. See `kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}` and follow the CNPG cluster-recovery runbook."
 
     # ----------------------------------------------------------------------
     # Certificates — cert-manager
@@ -140,7 +150,7 @@ spec:
             severity: warning
           annotations:
             summary: "Cert {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }}"
-            description: "Issuer: {{ $labels.issuer_kind }}/{{ $labels.issuer_name }}. Verify cert-manager is renewing (normal: 2/3 lifetime). DNS-01 / Cloudflare token issues are the usual cause."
+            description: "Cert `{{ $labels.exported_namespace }}/{{ $labels.name }}` from issuer {{ $labels.issuer_kind }}/{{ $labels.issuer_name }} expires soon. Verify cert-manager is renewing (normal: 2/3 lifetime). DNS-01 / Cloudflare token issues are the usual cause."
 
         - alert: CertExpiringCritical
           expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < (3 * 24 * 60 * 60)
@@ -149,4 +159,4 @@ spec:
             severity: critical
           annotations:
             summary: "Cert {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }} — critical"
-            description: "Less than 3 days to expiry. Manually inspect cert-manager controller logs and the underlying Certificate / Order resources."
+            description: "Cert `{{ $labels.exported_namespace }}/{{ $labels.name }}` has less than 3 days to expiry. Manually inspect cert-manager controller logs and the underlying Certificate / Order resources."
