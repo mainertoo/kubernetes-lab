@@ -84,9 +84,7 @@ resources:
   - grafana/kustomization.yaml
 
   ## old resources list (apps that have been disabled)
-  # - huginn/
   # - spoolman/kustomization.yaml
-  # - n8n/
   # - paperless-ngx/kustomization.yaml
   # - decypharr/kustomization.yaml
   # - notifiarr/kustomization.yaml
