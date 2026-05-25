@@ -6,3 +6,4 @@ resources:
   - alloy-configmap.yaml
   - alloy-daemonset.yaml
   - alloy-service.yaml
+  - alloy-servicemonitor.yaml
