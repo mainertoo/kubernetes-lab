@@ -160,3 +160,30 @@ spec:
           annotations:
             summary: "Cert {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }} — critical"
             description: "Cert `{{ $labels.exported_namespace }}/{{ $labels.name }}` has less than 3 days to expiry. Manually inspect cert-manager controller logs and the underlying Certificate / Order resources."
+
+    # ----------------------------------------------------------------------
+    # Observability pipeline health — Loki + Alloy
+    # ----------------------------------------------------------------------
+    - name: observability.health
+      rules:
+        - alert: LokiDown
+          # Loki scrape job in the loki namespace returned a failed scrape
+          # for 5m. Log queries return stale or no data while this fires.
+          expr: up{namespace="loki", job=~".*loki.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Loki is down ({{ $labels.namespace }}/{{ $labels.pod }})"
+            description: "No successful scrape of Loki pod `{{ $labels.namespace }}/{{ $labels.pod }}` in 5 minutes — log queries will return stale or no data. Check `kubectl -n loki get pods` and recent events."
+
+        - alert: AlloyDown
+          # Per-node DaemonSet log shipper. A single pod down = that node's
+          # logs stop reaching Loki until the pod recovers.
+          expr: up{namespace="alloy", job=~".*alloy.*"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy log-shipper down ({{ $labels.namespace }}/{{ $labels.pod }})"
+            description: "Alloy DaemonSet pod `{{ $labels.namespace }}/{{ $labels.pod }}` has stopped responding to scrapes. That node's logs are not being shipped to Loki until the pod recovers."
