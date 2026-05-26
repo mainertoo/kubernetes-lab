@@ -134,31 +134,6 @@ spec:
             - name: socket-dir
               mountPath: /csi
 
-        # Controller-only cephcsi sidecar: runs the PV controller-runtime
-        # watcher that reconciles cephfs subvolume OMAP/metadata. Mirrors
-        # csi-rbdplugin-controller on the rbd side. --setmetadata is omitted
-        # because it's deprecated/no-op in v3.17 (metadata is always set).
-        - name: csi-cephfsplugin-controller
-          image: quay.io/cephcsi/cephcsi:v3.17.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - "--type=controller"
-            - "--v=5"
-            - "--drivername=cephfs.csi.ceph.com"
-            - "--drivernamespace=$(DRIVER_NAMESPACE)"
-          env:
-            - name: DRIVER_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          volumeMounts:
-            - name: ceph-csi-config
-              mountPath: /etc/ceph-csi-config/
-            - name: keys-tmp-dir
-              mountPath: /tmp/csi/keys
-            - name: ceph-config
-              mountPath: /etc/ceph/
-
       volumes:
         - name: socket-dir
           emptyDir: {}
