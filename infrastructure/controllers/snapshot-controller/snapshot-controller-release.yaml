@@ -26,6 +26,20 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # Chart 5.x moved CRDs into templates (gated on installCRDs). Our existing
+    # cluster CRDs are externally-managed (no Helm ownership labels), and we
+    # want to keep them that way to avoid Helm trying to reconcile the
+    # conversion-webhook clientConfig the chart bakes into CRDs by default.
+    installCRDs: false
+    # The chart also introduces an optional CRD conversion webhook in 5.x.
+    # On K8s 1.27+ (we're on 1.35) v1beta1 VolumeSnapshot is gone, so the
+    # webhook is a no-op — disable to keep the upgrade controller-only.
+    # tls.autogenerate must also be false, otherwise crds.yaml still renders
+    # a self-signed Secret even when the webhook Deployment is off.
+    webhook:
+      enabled: false
+      tls:
+        autogenerate: false
     controller:
       replicaCount: 2
       args:

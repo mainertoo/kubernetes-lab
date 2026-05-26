@@ -9,7 +9,11 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: 4.0.2
-  url: oci://ghcr.io/home-operations/charts-mirror/snapshot-controller
-  verify:
-    provider: cosign
+    tag: 5.0.4
+  url: oci://ghcr.io/piraeusdatastore/helm-charts/snapshot-controller
+  # NOTE: home-operations/charts-mirror only ever shipped 4.0.2 of this chart
+  # (no 4.1+, no 5.x). Switched to the upstream piraeus publisher so we can
+  # ship 5.0.4 (controller v8.5.0). piraeus does not currently cosign-sign
+  # their chart artifacts on GHCR, so the previous `verify: provider: cosign`
+  # block is removed. Verified by checking signature manifest tag
+  # sha256-<chart-digest>.sig (HTTP 404) and OCI referrers (empty).
