@@ -110,7 +110,7 @@ spec:
               mountPath: /tmp/csi/keys
 
         - name: driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0
           imagePullPolicy: IfNotPresent
           args:
             - "--csi-address=$(ADDRESS)"
