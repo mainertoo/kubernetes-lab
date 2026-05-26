@@ -26,20 +26,26 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    # Chart 5.x moved CRDs into templates (gated on installCRDs). Our existing
-    # cluster CRDs are externally-managed (no Helm ownership labels), and we
-    # want to keep them that way to avoid Helm trying to reconcile the
-    # conversion-webhook clientConfig the chart bakes into CRDs by default.
-    installCRDs: false
-    # The chart also introduces an optional CRD conversion webhook in 5.x.
-    # On K8s 1.27+ (we're on 1.35) v1beta1 VolumeSnapshot is gone, so the
-    # webhook is a no-op — disable to keep the upgrade controller-only.
-    # tls.autogenerate must also be false, otherwise crds.yaml still renders
-    # a self-signed Secret even when the webhook Deployment is off.
+    # Chart 5.x moved CRDs into templates (gated on installCRDs). The v8.5.0
+    # controller hard-fails at startup unless VolumeGroupSnapshot CRDs serve
+    # v1beta2, and the only way to update them via this chart is installCRDs.
+    # PR #631 tried installCRDs=false (treating the existing 4.0.2-era CRDs as
+    # external); v8.5.0 controller crash-looped with "Failed to list v1beta2
+    # volumegroupsnapshots: the server could not find the requested resource".
+    # Letting the chart manage CRDs is the correct path.
+    installCRDs: true
+    # Chart 5.x attaches conversion: strategy: Webhook to ONE CRD
+    # (volumegroupsnapshotcontents). Other 5 CRDs use conversion: None.
+    # The webhook is dormant unless v1beta1 ↔ v1beta2 conversion is requested
+    # on volumegroupsnapshotcontents — which never happens here (we don't use
+    # VolumeGroupSnapshot at all). But the CRD spec validates that the webhook
+    # Service exists, so we deploy it. ~30 MB RAM for the dormant pod.
+    # tls.autogenerate=true makes Helm generate a self-signed cert at install
+    # time (no cert-manager dependency).
     webhook:
-      enabled: false
+      enabled: true
       tls:
-        autogenerate: false
+        autogenerate: true
     controller:
       replicaCount: 2
       args:
