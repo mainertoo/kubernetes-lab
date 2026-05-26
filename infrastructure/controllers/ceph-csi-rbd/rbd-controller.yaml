@@ -63,7 +63,6 @@ spec:
             - "--rbdhardmaxclonedepth=8"
             - "--rbdsoftmaxclonedepth=4"
             - "--enableprofiling=false"
-            - "--setmetadata=true"
           env:
             - name: POD_IP
               valueFrom:
@@ -222,7 +221,6 @@ spec:
             - "--v=5"
             - "--drivername=rbd.csi.ceph.com"
             - "--drivernamespace=$(DRIVER_NAMESPACE)"
-            - "--setmetadata=true"
           env:
             - name: DRIVER_NAMESPACE
               valueFrom:
