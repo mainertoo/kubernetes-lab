@@ -41,7 +41,11 @@ window, after the current Ceph/CSI/dumb work has settled.
 | Proxmox VE | `pve-manager/9.1.16` | all 3 hosts (mammoth, whistler, zermatt) |
 | Ceph | `19.2.3-pve4` (Squid) | all daemons; `pveceph`-managed |
 | Kernel | `6.17.13-6-pve` | |
-| ceph-csi | `v3.16.2` | pinned, PR #559 — supports Pacific+ incl. Tentacle |
+| ceph-csi | `v3.17.0` | bumped 2026-05-26 (PR #626) — Tentacle base image + Tentacle CI |
+| snapshot-controller | `v8.5.0` (chart 5.0.4) | bumped 2026-05-26 (PRs #631/#632); upstream piraeus source |
+| csi-snapshotter sidecar (in cephcsi pods) | `v8.5.0` | aligned with controller (PR #625) |
+| csi-attacher sidecar | `v4.12.0` | bumped 2026-05-26 (PR #623) |
+| csi-node-driver-registrar | `v2.17.0` | bumped 2026-05-26 (PR #625) |
 
 **Prerequisites for the Squid → Tentacle Ceph upgrade are already met:**
 the Proxmox `Ceph_Squid_to_Tentacle` procedure requires `pve-manager`
@@ -103,17 +107,22 @@ and `min_size 2` holds (the cluster is `size 3 / min_size 2`).
 
 ## Caveats — must check before/after
 
-- **ceph-csi `readAffinity` + Tentacle data-loss bug.** ceph-csi v3.16.2
-  release notes warn that **Tentacle v20.2.0** could cause CephFS data
-  loss when `readAffinity` is enabled. This cluster does **not** enable
-  `readAffinity` today — keep it that way until confirmed fixed.
-  Target Tentacle **≥ 20.2.1** and re-read the ceph-csi notes before
-  ever turning `readAffinity` on.
-- **ceph-csi compatibility.** v3.16.2 supports Ceph "Pacific and above",
-  so Tentacle 20.2.x is covered — no CSI change needed for the upgrade
-  itself. (Separately, ceph-csi 3.16+ recommends the Ceph-CSI-Operator
-  deployment model over raw manifests; that is its own future migration,
-  unrelated to this upgrade.)
+- **ceph-csi `readAffinity` + Tentacle data-loss bug — RESOLVED in v3.17.**
+  ceph-csi v3.16.2 release notes warned that **Tentacle v20.2.0** could
+  cause CephFS data loss when `readAffinity` is enabled. The underlying
+  issue ([ceph-csi #5772](https://github.com/ceph/ceph-csi/issues/5772))
+  was fixed during the v3.17 dev cycle; this cluster is on v3.17.0 since
+  2026-05-26. As belt-and-suspenders, `readAffinity` is **not** enabled
+  here — keep it that way and target Tentacle **≥ 20.2.1** if ever
+  turning it on.
+- **ceph-csi compatibility — Tentacle-ready since 2026-05-26.** v3.17.0
+  is the first cephcsi release built on the Tentacle base image with
+  Tentacle CI coverage (upstream PRs #5856 base-image switch, #5672
+  Tentacle Rook CI). Squid (the current cluster daemon version) remains
+  fully supported in v3.17 per upstream README. No CSI change needed
+  when the daemons flip. (Separately, ceph-csi 3.17+ recommends the
+  Ceph-CSI-Operator deployment model over raw manifests; that is its
+  own future migration, unrelated to this upgrade.)
 - **mClock / tuning.** The per-OSD `osd_mclock_max_capacity_iops_ssd`
   caps and `osd_memory_target=6 GiB` from the May 2026 tuning pass carry
   forward as plain config — but re-validate slow-op behaviour after the
@@ -140,3 +149,12 @@ anyway), and diagnose before proceeding.
 - **2026-05-22** — Plan written. Prerequisites confirmed already met on
   PVE 9.1.16 / Ceph 19.2.3-pve4. Not scheduled; deferred until the
   Ceph/CSI/dumb work settles. Target: before Squid EOL (~Sept 2026).
+- **2026-05-26** — **CSI client prereq complete.** cephcsi v3.16.2 →
+  v3.17.0 across cephfs/rbd/nfs manifests (PR #626 + `pods` RBAC
+  follow-up #627). Sidecars and snapshot-controller all aligned at
+  v8.5.0 (PRs #623, #625, #631, #632). One side-quest (cephfs PV
+  controller sidecar, PR #628) reverted as incompatible with the
+  label-driven `backingSnapshot` ROX pattern — see saved memory
+  `feedback_cephfs_backingsnapshot_incompatible_with_pv_controller`.
+  Cluster's CSI stack is now Tentacle-aware against the still-Squid
+  daemons; daemon upgrade still unscheduled.
