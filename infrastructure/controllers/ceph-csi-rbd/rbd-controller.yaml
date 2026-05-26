@@ -50,7 +50,7 @@ spec:
         # Main RBD controller service
         - name: csi-rbdplugin
           # keep this aligned with your DaemonSet version
-          image: quay.io/cephcsi/cephcsi:v3.16.2
+          image: quay.io/cephcsi/cephcsi:v3.17.0
           args:
             - "--nodeid=$(NODE_ID)"
             - "--type=rbd"
@@ -216,7 +216,7 @@ spec:
 
         # Controller-only cephcsi sidecar
         - name: csi-rbdplugin-controller
-          image: quay.io/cephcsi/cephcsi:v3.16.2
+          image: quay.io/cephcsi/cephcsi:v3.17.0
           args:
             - "--type=controller"
             - "--v=5"
@@ -239,7 +239,7 @@ spec:
 
         # Liveness metrics
         - name: liveness-prometheus
-          image: quay.io/cephcsi/cephcsi:v3.16.2
+          image: quay.io/cephcsi/cephcsi:v3.17.0
           args:
             - "--type=liveness"
             - "--endpoint=$(CSI_ENDPOINT)"
