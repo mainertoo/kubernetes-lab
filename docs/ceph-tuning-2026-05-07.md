@@ -166,7 +166,7 @@ HEALTH_OK
 
 - 3a: ✅ Completed — `passive` compression on osd.3, reverted 2026-05-12 (see Phase 3a outcome below).
 - 3b: ✅ Applied 2026-05-12 — `osd_memory_target` 8 GiB → 6 GiB cluster-wide (see Phase 3b section below). Pending T+24h / T+48h evaluation.
-- 4a: Replace SPCC drive on zermatt (osd.4). 64-68 °C under load, 8 433 power-on hours, lowest IOPS. Standard `ceph osd out 4` → drain → zap → bootstrap.
+- 4a: **ACTIVE** as of 2026-05-27 — replace SPCC drive on zermatt (osd.4). 64-68 °C under load (75 °C observed 2026-05-27), 8 920 power-on hours, lowest IOPS. Standard `ceph osd out 4` → drain → zap → bootstrap. See "2026-05-27 — new DB_DEVICE_STALLED_READ_ALERT on osd.4" below.
 - 4b: 7-day watch on whistler for new MCE / segfault / osd.2 crash to confirm `isolcpus=4,5` mitigates the Raptor Lake P-core defect.
 
 ## Phase 3a — passive compression test on osd.3 (started 2026-05-10)
@@ -353,6 +353,133 @@ occasionally drift past the natural 14 d window into the 35 d zone;
 the cron is the only mechanism that catches those. Tentacle adds an
 OSD-side overdue queue that should eliminate this need — see
 `ceph-tentacle-upgrade-plan.md` § "Why upgrade".
+
+## 2026-05-27 — new `DB_DEVICE_STALLED_READ_ALERT` on osd.4
+
+### Trigger
+
+`ceph -s` came back `HEALTH_WARN` with two checks, both pinned to **osd.4**:
+
+```
+[WRN] BLUESTORE_SLOW_OP_ALERT: 1 OSD(s) experiencing slow operations in BlueStore
+     osd.4 observed slow operation indications in BlueStore
+[WRN] DB_DEVICE_STALLED_READ_ALERT: 1 OSD(s) experiencing stalled read in db device of BlueFS
+     osd.4 observed stalled read indications in DB device
+```
+
+`DB_DEVICE_STALLED_READ_ALERT` is new in Squid and was not seen on this
+cluster before today. The slow-op alert is the same one we raised the
+threshold for on 2026-05-22 (`bluestore_slow_ops_warn_threshold = 10`),
+re-firing because osd.4 now crosses 10 slow ops in the 24 h window.
+
+### Threshold knobs (for reference)
+
+Both alerts are sliding-window count-vs-threshold checks:
+
+| Alert                          | Threshold knob                              | Default | Window knob                                | Default        |
+|--------------------------------|---------------------------------------------|---------|--------------------------------------------|----------------|
+| `BLUESTORE_SLOW_OP_ALERT`      | `bluestore_slow_ops_warn_threshold`         | 1       | `bluestore_slow_ops_warn_lifetime`         | 86400 s (24 h) |
+| `DB_DEVICE_STALLED_READ_ALERT` | `bdev_stalled_read_warn_threshold`          | 1       | `bdev_stalled_read_warn_lifetime`          | 86400 s (24 h) |
+
+Already overridden: `bluestore_slow_ops_warn_threshold = 10`. The
+`bdev_stalled_read_*` knobs are still at defaults.
+
+### Drive snapshot
+
+`/dev/nvme0n1` on pve-zermatt = `SPCC_M.2_PCIe_SSD_A20250117N302KG00592` (osd.4).
+The 990 EVO Plus 2 TB on `/dev/nvme1n1` on the same host is osd.1 — easy to
+mix up at swap time; don't.
+
+SMART (NVMe Log 0x02, NSID 0xffffffff):
+
+| Field                              | Value                       |
+|------------------------------------|-----------------------------|
+| Critical Warning                   | 0x00                        |
+| Temperature                        | **75 °C** (climbed 73→75 during diagnostics under live load) |
+| Available Spare / Threshold        | 99 % / 32 %                 |
+| Percentage Used                    | 7 %                         |
+| Data Units Read / Written          | 55.4 TB / 51.6 TB           |
+| Power On Hours                     | 8 920                       |
+| Unsafe Shutdowns                   | 31                          |
+| Media and Data Integrity Errors    | 0                           |
+| Error Information Log Entries      | 0                           |
+| Warning Comp. Temperature Time     | 43 min                      |
+| Critical Comp. Temperature Time    | 32 min                      |
+
+Kernel log (`dmesg -T --since "7 days ago"`): **zero** NVMe controller resets,
+I/O errors, or aborts on nvme0. The drive isn't dropping I/O — it's slow under
+load and runs hot, exactly the pattern this drive has shown since Phase 0
+(64-68 °C under sustained load was the earlier observation; 75 °C today is a
+notch worse, mid-diagnostics so the load wasn't even synthetic).
+
+Bluestore perf counters on osd.4 (lifetime, since last restart 2026-05-12):
+
+| Counter                          | Value          |
+|----------------------------------|----------------|
+| `slow_committed_kv_count`        | 74 343         |
+| `slow_aio_wait_count`            | 53             |
+| `slow_read_wait_aio_count`       | 6              |
+| `state_kv_queued_lat avgtime`    | 15.5 ms        |
+| `kv_sync_lat avgtime`            | 1.47 ms        |
+| `read_wait_aio_lat avgtime`      | 1.43 ms        |
+
+The new alert maps to the modest `slow_read_wait_aio_count = 6` over the
+lifetime of the OSD — 6 events is plenty to trip a threshold-1 alert in a
+24 h window. The other five OSDs are silent on all of these counters.
+
+### Interpretation
+
+Same drive, same root cause as every previous BLUESTORE_SLOW_OP_ALERT on this
+OSD — Squid simply added a new alert flavor that catches BlueFS DB-side read
+stalls in addition to the existing BlueStore slow-op alert. SMART is clean
+(0 errors, 99 % spare, 7 % used), but the SPCC is sustained-load-slow and
+thermally marginal. This is not a new failure mode; it's the same drive
+getting incrementally worse.
+
+### Decision
+
+**Do not bump `bdev_stalled_read_warn_threshold`.** Raising the slow-op
+threshold on 2026-05-22 was already a paint-job over the same underlying
+drive problem; doubling down by also raising the stalled-read threshold
+would hide the very signal Phase 4a is supposed to address. The fix is the
+drive swap, not the alert knob.
+
+**Phase 4a priority bumped from "deferred / low" to ACTIVE.** Procure the
+replacement NVMe and execute the standard drain/zap/bootstrap when it
+arrives.
+
+### Mute applied (operational hygiene)
+
+Until the drive lands, both alerts are expected noise. Muted both for 30 d,
+sticky, so the cluster reads `HEALTH_OK` while still showing the mutes for
+transparency:
+
+```bash
+ceph health mute BLUESTORE_SLOW_OP_ALERT 30d --sticky
+ceph health mute DB_DEVICE_STALLED_READ_ALERT 30d --sticky
+```
+
+Verified — `ceph -s` reports:
+
+```
+health: HEALTH_OK
+        (muted: BLUESTORE_SLOW_OP_ALERT(4w) DB_DEVICE_STALLED_READ_ALERT(4w))
+```
+
+**Mute expires ~2026-06-26.** If the drive isn't replaced by then, the
+alerts will reappear and either need to be re-muted (another 30 d max — do
+not extend to 90 d, the mute outlives the rationale) or executed against.
+
+**After the drive swap**, explicitly unmute so the post-swap state is
+genuinely verified rather than letting the mute lapse silently:
+
+```bash
+ceph health unmute BLUESTORE_SLOW_OP_ALERT
+ceph health unmute DB_DEVICE_STALLED_READ_ALERT
+```
+
+If either alert reappears within 24 h of unmute on the *new* drive, that's
+a real problem and not a known-degraded-SPCC artifact.
 
 ## Files
 
