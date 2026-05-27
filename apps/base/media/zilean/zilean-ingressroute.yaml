@@ -18,7 +18,7 @@ spec:
     - match: Host(`zilean.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: zilean          # ⬅️ was media-zilean
+        - name: zilean          # ⬅ was media-zilean
           port: 8282
       # middlewares:
       #   - name: authentik

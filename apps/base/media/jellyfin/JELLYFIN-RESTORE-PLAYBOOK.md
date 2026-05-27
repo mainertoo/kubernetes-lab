@@ -22,7 +22,7 @@ Scale app up
 
 Cleanup restore artifacts
 
-0️⃣ Pre-Checks
+0. Pre-Checks
 List snapshots
 kubectl -n media logs -f job/jellyfin-restic-list
 
@@ -36,7 +36,7 @@ Identify the desired timestamp (example):
 
 2026-02-15T13:00:10Z
 
-1️⃣ Scale Application Down
+1. Scale Application Down
 kubectl -n media scale deploy/jellyfin --replicas=0
 
 
@@ -44,7 +44,7 @@ Confirm pod terminated:
 
 kubectl -n media get pods | grep jellyfin
 
-2️⃣ Patch Restore Target
+2. Patch Restore Target
 kubectl -n media patch replicationdestination jellyfin-restore --type=merge -p '{
   "spec": {
     "trigger": { "manual": "restore-asof-2026-02-15T13:00:10Z" },
@@ -52,7 +52,7 @@ kubectl -n media patch replicationdestination jellyfin-restore --type=merge -p '
   }
 }'
 
-3️⃣ Remove Existing Restore PVC (if present)
+3. Remove Existing Restore PVC (if present)
 kubectl -n media delete pvc jellyfin-restore --ignore-not-found
 
 
@@ -60,7 +60,7 @@ If stuck terminating:
 
 kubectl -n media patch pvc jellyfin-restore --type=merge -p '{"metadata":{"finalizers":[]}}'
 
-4️⃣ Reconcile Restore Kustomization (Flux)
+4. Reconcile Restore Kustomization (Flux)
 flux -n flux-system reconcile kustomization jellyfin-restore --with-source
 
 
@@ -73,7 +73,7 @@ Wait until:
 
 STATUS: Bound
 
-5️⃣ Verify Restored Data Before Overwriting Live PVC
+5. Verify Restored Data Before Overwriting Live PVC
 
 Create inspection pod:
 
@@ -93,7 +93,7 @@ Delete inspection pod:
 
 kubectl -n media delete pod jf-restore-peek
 
-6️⃣ Rsync Restore → Live PVC
+6. Rsync Restore → Live PVC
 
 Apply rsync job:
 
@@ -114,7 +114,7 @@ Look for:
 
 Done.
 
-7️⃣ Scale App Back Up
+7. Scale App Back Up
 kubectl -n media scale deploy/jellyfin --replicas=1
 
 
@@ -131,7 +131,7 @@ Media plays
 
 No DB migration errors
 
-8️⃣ Cleanup Restore Artifacts
+8. Cleanup Restore Artifacts
 
 Delete rsync job:
 

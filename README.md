@@ -1,4 +1,4 @@
-# mainertoo / kubernetes-lab 🏠⚙️
+# mainertoo / kubernetes-lab 🏠⚙
 
 A homelab created with **Proxmox**, **Terraform**, **Ansible**, **K3s**, **Flux**, **Ceph**, and a lot of GitOps.
 
@@ -48,7 +48,7 @@ Everything in here runs in production on my own hardware, against my own data, w
 
 ---
 
-## 🛠️ Goals
+## 🛠 Goals
 
 - Replace the old Proxmox-VM/LXC and docker swarm sprawl with a Kubernetes-first approach
 - Automate everything from bare-metal provisioning to app deployment
@@ -71,7 +71,7 @@ Everything in here runs in production on my own hardware, against my own data, w
 - ✅ All Postgres workloads on CloudNativePG with S3 WAL + base backups
 - ✅ Observability stack: kube-prometheus-stack + Loki + Grafana + Alloy
 - ⏳ Offsite DR (waiting on hardware)
-- ℹ️ The current `controllers/` + `controllers-staging/` and `secrets-prod/` + `secrets-shared/` layout works and is stable. A future, more idiomatic Kustomize `base/ + production/ + staging/` overlay restructure is a known deferred refactor — not blocking, parked by choice.
+- ℹ The current `controllers/` + `controllers-staging/` and `secrets-prod/` + `secrets-shared/` layout works and is stable. A future, more idiomatic Kustomize `base/ + production/ + staging/` overlay restructure is a known deferred refactor — not blocking, parked by choice.
 
 ### Cluster overview
 

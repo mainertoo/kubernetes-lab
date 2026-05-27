@@ -193,7 +193,7 @@ grep -rn "kopia\|maintenance\|timeout\|retry\|server\|connect\|snapshot\|policy"
    
    **CRD compatibility check (Codex v4 finding [3] + v5 finding [2] correction, required pre-merge):**
    
-   ⚠️ **v6's `kubectl apply --dry-run=server` was a FALSE-PASS gate** — server-side dry-run validates against the CRD ALREADY INSTALLED in the live cluster (backube v0.15), not against the chart we pulled to `/tmp`. The live cluster's CRD doesn't change just because we downloaded a chart. To actually catch schema breakage, we need to install perfectra1n's CRD into a DIFFERENT API server (scratch kind/k3d), or do offline validation against the chart's CRD definitions.
+   ⚠ **v6's `kubectl apply --dry-run=server` was a FALSE-PASS gate** — server-side dry-run validates against the CRD ALREADY INSTALLED in the live cluster (backube v0.15), not against the chart we pulled to `/tmp`. The live cluster's CRD doesn't change just because we downloaded a chart. To actually catch schema breakage, we need to install perfectra1n's CRD into a DIFFERENT API server (scratch kind/k3d), or do offline validation against the chart's CRD definitions.
    
    **Correct gate — scratch cluster validation:**
    ```bash
@@ -712,7 +712,7 @@ Still open, for the user to decide before Phase 1:
 
 ## 9. Emergency restore runbook — Restic-side, valid until Phase 6 + 30 days
 
-> **⚠️ DO NOT USE THIS RUNBOOK FOR CNPG-MANAGED DATABASE PVCs** (Codex v2 finding [5]). CNPG owns its data PVCs' lifecycle and reconciles them from the `Cluster` resource. Annotating a CNPG-owned PVC with `volsync.backup/skip-restore: "true"` will get overwritten on the next operator reconcile, and `rsync`ing data into a live Postgres data directory violates CNPG's recovery semantics (WAL replay, base backup restore, etc.). For CNPG apps, restore via `Cluster.bootstrap.recovery` — patch the app's db `Cluster` manifest to add a `bootstrap.recovery:` block, push to git, let Flux reconcile, wait for `Cluster Ready`, reconnect the app. Full procedure in [`docs/backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery".
+> **⚠ DO NOT USE THIS RUNBOOK FOR CNPG-MANAGED DATABASE PVCs** (Codex v2 finding [5]). CNPG owns its data PVCs' lifecycle and reconciles them from the `Cluster` resource. Annotating a CNPG-owned PVC with `volsync.backup/skip-restore: "true"` will get overwritten on the next operator reconcile, and `rsync`ing data into a live Postgres data directory violates CNPG's recovery semantics (WAL replay, base backup restore, etc.). For CNPG apps, restore via `Cluster.bootstrap.recovery` — patch the app's db `Cluster` manifest to add a `bootstrap.recovery:` block, push to git, let Flux reconcile, wait for `Cluster Ready`, reconnect the app. Full procedure in [`docs/backup-recovery.md`](./backup-recovery.md) §"CNPG Recovery".
 >
 > **This runbook applies to NON-CNPG PVCs only.** Examples in scope: vaultwarden, home-assistant, joplin (the notes PVC, not the CNPG db), wiki-js-data (the content PVC, not the CNPG db), media app config PVCs, etc.
 
@@ -814,7 +814,7 @@ EOF
 | Exclusive lock without retry | ✅ PASS | No `kopia repository lock` calls. Concurrent-multi-writer by Kopia design. Maintenance uses ownership model (`maintenance set --owner=`) not locks. |
 | Destructive default retention | ✅ PASS | Controller `mover.go:898`: `if m.retainPolicy == nil { return envVars }` — zero `KOPIA_RETAIN_*` env vars passed when retain unset. Mover's `do_retention` then runs `policy set DATA_DIR` with no flags = no-op. The OPPOSITE of restic's `--keep-last 1` trap. |
 | S3 cred incompat | ✅ PASS | Standard env vars: `KOPIA_PASSWORD`, `KOPIA_S3_ENDPOINT`, `KOPIA_S3_BUCKET`, `KOPIA_S3_DISABLE_TLS`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. |
-| `copyMethod: Snapshot` | ⚠️ Deferred to Phase 2/3 | volsync CRD shape identical between movers; verify in Phase 3 step 3e scratch test. |
+| `copyMethod: Snapshot` | ⚠ Deferred to Phase 2/3 | volsync CRD shape identical between movers; verify in Phase 3 step 3e scratch test. |
 
 **Bonus positive finding:** entry.sh has `# Function removed: do_retention_global is no longer needed / Global retention should be configured through the KopiaMaintenance CRD if needed`. Perfectra1n actively separated per-backup work (light) from maintenance (CRD-driven heavy). Exactly the architecture we wanted.
 
