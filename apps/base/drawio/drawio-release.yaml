@@ -28,7 +28,7 @@ spec:
           app:
             image:
               repository: jgraph/drawio
-              tag: 30.0.2
+              tag: 30.0.4
             env:
               TZ: America/Los_Angeles
 
