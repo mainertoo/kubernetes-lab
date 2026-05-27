@@ -42,7 +42,7 @@ Generated values come from `context` jmesPath variables, e.g.:
 All apps share one Kopia repo (Garage bucket `volsync-kopia`); per-app identity
 is `<pvc>-backup@<ns>:/data`. Shared creds: `Secret/flux-system/volsync-kopia-shared-base`.
 
-## ⚠️ Editing the core policy — the generate-rule trap
+## ⚠ Editing the core policy — the generate-rule trap
 
 Kyverno **rejects in-place edits to a generate rule's `data` block**. To change
 anything under `generate.data`, Flux must delete+recreate the whole policy —

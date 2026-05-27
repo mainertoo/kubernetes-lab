@@ -30,12 +30,12 @@ spec:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
               tag: 2.20.15
-            # 1️⃣ pull secrets (including OIDC client/secret) from SOPS Secret
+            # 1. pull secrets (including OIDC client/secret) from SOPS Secret
             envFrom:
               - secretRef:
                   name: paperless-oidc
 
-            # 2️⃣ non-secret env here
+            # 2. non-secret env here
             env:
               TZ: America/Los_Angeles
               COMPOSE_PROJECT_NAME: paperless-ngx
