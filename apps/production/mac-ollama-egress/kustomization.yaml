@@ -1,8 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Phase 0b1 (pocket-bridge plan). NetworkPolicy intentionally NOT
-# included here — Phase 0b2 lands it once the operator-assigned proxy
-# Pod labels are captured live in `tailscale` ns.
+# Phase 0b2 — adds tailscale-proxy-networkpolicy.yaml. The app now spans
+# two namespaces (Service in ollama-egress, NetPol in tailscale), so
+# targetNamespace is intentionally omitted. Each resource self-namespaces.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -11,7 +11,6 @@ metadata:
 spec:
   interval: 1h
   path: "./apps/base/mac-ollama-egress"
-  targetNamespace: ollama-egress
   prune: true
   retryInterval: 2m
   timeout: 10m
