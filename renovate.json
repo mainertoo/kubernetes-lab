@@ -126,6 +126,12 @@
       "matchPackageNames": ["ghcr.io/cloudnative-pg/plugin-barman-cloud"],
       "matchManagers": ["kubernetes"],
       "enabled": false
+    },
+    {
+      "description": "Hold pvc-plumber on v3.x. v4 collapses Kyverno-admission + oracle into a single operator and drops the HTTP-only /exists endpoint our Kopia ClusterPolicy depends on. See memory project_pvc_plumber_v4_planned_upgrade.md for the migration scope before flipping this off.",
+      "matchPackageNames": ["ghcr.io/mitchross/pvc-plumber"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }
