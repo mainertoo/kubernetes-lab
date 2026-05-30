@@ -1,0 +1,23 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: open-webui
+  namespace: open-webui
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Open WebUI"
+    gethomepage.dev/group: "AI"
+    gethomepage.dev/description: "Chat UI for Mac-Ollama (Qwen3.5 MoE + mxbai-embed-large)"
+    gethomepage.dev/href: "https://chat.lab.mainertoo.com"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/open-webui.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`chat.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: open-webui
+          port: 8080
+  tls: {}
