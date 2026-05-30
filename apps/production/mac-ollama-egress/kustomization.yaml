@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 0b1 (pocket-bridge plan). NetworkPolicy intentionally NOT
+# included here — Phase 0b2 lands it once the operator-assigned proxy
+# Pod labels are captured live in `tailscale` ns.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mac-ollama-egress
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/mac-ollama-egress"
+  targetNamespace: ollama-egress
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
