@@ -55,7 +55,7 @@ spec:
       containers:
         - name: pvc-plumber
           # ghcr.io/mitchross/pvc-plumber:3.1.0 pinned by digest 2026-05-18.
-          image: ghcr.io/mitchross/pvc-plumber:3.1.0@sha256:456f062a884bce71557c28b241e1b342426d885afd30b3172924f1a6d3e0cf1a
+          image: ghcr.io/mitchross/pvc-plumber:4.0.1@sha256:721d770330a535871cae33313d7cd336116697d2a6f9e5d91fc8cd3d21a26305
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
