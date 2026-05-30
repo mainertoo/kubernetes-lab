@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mac-ollama
+  namespace: ollama-egress
+  annotations:
+    tailscale.com/tailnet-fqdn: darcys-macbookpro.tuxedo-halosaur.ts.net
+    tailscale.com/tags: tag:k8s-egress
+spec:
+  type: ExternalName
+  externalName: unused.tailscale-operator-target.invalid
