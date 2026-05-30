@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui
+  labels:
+    # Label-driven volsync backup (ClusterPolicy
+    # volsync-pvc-backup-restore-kopia auto-generates the
+    # per-PVC Kopia Secret + ReplicationSource + ReplicationDestination).
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi

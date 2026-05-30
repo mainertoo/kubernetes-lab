@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 0c (pocket-bridge plan). Chat UI for Mac-Ollama; talks via the
+# OpenAI-compatible /v1 endpoint of the mac-ollama egress Service.
+# Tailnet-only access via Traefik IngressRoute (chat.lab.mainertoo.com).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: open-webui
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/open-webui"
+  targetNamespace: open-webui
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
+  postBuild:
+    substitute:
+      APP: open-webui
+      APP_NAMESPACE: open-webui
+      SUBDOMAIN: chat
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: "/"
+      GATUS_PORT: '8080'
