@@ -64,14 +64,28 @@ spec:
               # be non-empty when OPENAI_API_BASE_URLS is set.
               OPENAI_API_KEYS:
                 value: "ollama-ignores-this-but-openwebui-requires-it"
+              # Route RAG embeddings through the same Mac-Ollama endpoint
+              # (we already have mxbai-embed-large pulled). Skips the
+              # default HuggingFace sentence-transformers download at
+              # startup — that was OOM-killing the Pod inside 1Gi as it
+              # loaded the model into RAM. Side benefit: one less model to
+              # keep updated, consistent embedding for chat + RAG.
+              RAG_EMBEDDING_ENGINE:
+                value: "openai"
+              RAG_OPENAI_API_BASE_URL:
+                value: "http://mac-ollama.ollama-egress.svc.cluster.local:11434/v1"
+              RAG_OPENAI_API_KEY:
+                value: "ollama-ignores-this-but-openwebui-requires-it"
+              RAG_EMBEDDING_MODEL:
+                value: "mxbai-embed-large:latest"
 
             resources:
               requests:
                 cpu: 50m
                 memory: 256Mi
               limits:
-                cpu: 1000m
-                memory: 1Gi
+                cpu: 1500m
+                memory: 2Gi
 
     service:
       main:
