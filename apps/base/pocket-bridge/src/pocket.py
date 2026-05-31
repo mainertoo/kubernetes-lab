@@ -115,26 +115,60 @@ class PocketPayload:
 
 
 def parse_summary_completed(body: dict[str, Any]) -> PocketPayload:
-    """Conservative extraction; relies on _safe_extract for each path."""
+    """Extract from real HeyPocket schema (Phase 3a fixture-pinned 2026-05-31).
+
+    Fixture: apps/base/pocket-bridge/contracts/pocket-test-event-2026-05-31.json
+    Real fields observed on the captured "test" event:
+      recording.id, recording.title
+      summarizations[0].summary.markdown      # primary summary text
+      summarizations[0].summary.bulletPoints  # array of strings
+      summarizations[0].actionItems[].task    # array of dicts; we pull .task
+      transcript[] = [{speaker, text, start, end}, ...]
+      (tags absent in test event; real recordings TBD)
+    """
+    # Transcript: array of segments — concatenate with speaker prefix
+    transcript_segs = _safe_extract(body, "transcript")
+    transcript_text: str | None = None
+    if isinstance(transcript_segs, list) and transcript_segs:
+        lines = []
+        for seg in transcript_segs:
+            if not isinstance(seg, dict):
+                continue
+            spk = seg.get("speaker") or "?"
+            txt = seg.get("text") or ""
+            if txt:
+                lines.append(f"{spk}: {txt}")
+        transcript_text = "\n".join(lines) if lines else None
+
+    # Summary: prefer markdown; fall back to bulletPoints joined
+    summary_text: str | None = _safe_extract(body, "summarizations.0.summary.markdown")
+    if not summary_text:
+        bullets = _safe_extract(body, "summarizations.0.summary.bulletPoints")
+        if isinstance(bullets, list) and bullets:
+            summary_text = "\n".join(f"- {b}" for b in bullets if b)
+
+    # Action items: each is a dict with .task (+ assignee, dueDate, completed)
+    raw_actions = _safe_extract(body, "summarizations.0.actionItems")
+    action_items: list[str] | None = None
+    if isinstance(raw_actions, list) and raw_actions:
+        action_items = []
+        for it in raw_actions:
+            if isinstance(it, dict):
+                task = it.get("task") or ""
+                if task:
+                    assignee = it.get("assignee")
+                    suffix = f" (assigned: {assignee})" if assignee else ""
+                    action_items.append(f"{task}{suffix}")
+            elif isinstance(it, str):
+                action_items.append(it)
+
     return PocketPayload(
         recording_id=_safe_extract(body, "recording.id") or _safe_extract(body, "recording_id") or "",
         event=_safe_extract(body, "event") or _safe_extract(body, "event_type") or "",
         title=_safe_extract(body, "recording.title") or _safe_extract(body, "title"),
-        transcript=(
-            _safe_extract(body, "transcript.text")
-            or _safe_extract(body, "transcript")
-            or _safe_extract(body, "recording.transcript")
-        ),
-        summary=(
-            _safe_extract(body, "summary.text")
-            or _safe_extract(body, "summary")
-            or _safe_extract(body, "summarizations.0.v2.summary")
-        ),
-        action_items=(
-            _safe_extract(body, "action_items")
-            or _safe_extract(body, "summary.action_items")
-            or _safe_extract(body, "summarizations.0.v2.actionItems")
-        ),
+        transcript=transcript_text,
+        summary=summary_text,
+        action_items=action_items,
         tags=_safe_extract(body, "tags", []) or [],
         raw=body,
     )

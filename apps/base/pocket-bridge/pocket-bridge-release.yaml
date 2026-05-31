@@ -83,11 +83,6 @@ spec:
                 value: "300"
               BODY_SIZE_LIMIT_BYTES:
                 value: "1048576"        # 1 MB (F12)
-              # PHASE 3a FIXTURE CAPTURE — set to "true" temporarily so the
-              # bridge dumps incoming headers + writes the raw body to /tmp
-              # instead of processing the webhook. Revert after capture.
-              POCKET_CAPTURE_FIXTURE:
-                value: "true"
               LEASE_TTL_S:
                 value: "60"
               LEASE_REFRESH_S:

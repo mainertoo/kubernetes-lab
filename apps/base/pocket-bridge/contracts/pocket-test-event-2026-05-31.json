@@ -1,0 +1,53 @@
+{
+    "event": "test",
+    "timestamp": "2026-05-31T15:38:14.222Z",
+    "user": {
+        "id": "2NYoapuIBKeSssDNxvpxmnLmViB2",
+        "email": "mainertoo@gmail.com"
+    },
+    "recording": {
+        "id": "test_recording_123",
+        "title": "Test Recording",
+        "description": "This is a test webhook from HeyPocket",
+        "duration": 300,
+        "language": "English",
+        "createdAt": "2026-05-31T15:38:14.222Z"
+    },
+    "summarizations": [
+        {
+            "id": "test_sum_123",
+            "summarizationId": "test_sum_123",
+            "settings": {
+                "modelId": "gpt5",
+                "themeId": "auto_detect",
+                "language": "English"
+            },
+            "summary": {
+                "title": "Test Summary",
+                "emoji": "\ud83e\uddea",
+                "markdown": "## Test Summary\n\nThis is a test webhook payload.",
+                "bulletPoints": [
+                    "Test point 1",
+                    "Test point 2"
+                ]
+            },
+            "actionItems": [
+                {
+                    "task": "Test action item",
+                    "assignee": "Test User",
+                    "dueDate": null,
+                    "completed": false
+                }
+            ],
+            "createdAt": "2026-05-31T15:38:14.222Z"
+        }
+    ],
+    "transcript": [
+        {
+            "speaker": "Speaker 1",
+            "text": "This is a test transcript segment.",
+            "start": 0,
+            "end": 5
+        }
+    ]
+}
