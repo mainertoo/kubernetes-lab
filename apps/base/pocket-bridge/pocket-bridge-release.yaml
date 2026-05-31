@@ -123,6 +123,12 @@ spec:
               startup:
                 enabled: false
             securityContext:
+              # Pod-level runAsNonRoot=true requires either numeric image USER
+              # or an explicit numeric runAsUser at container level. Dockerfile
+              # uses `USER bridge` (named); override here with the matching UID
+              # we created in the Dockerfile (useradd -u 10001).
+              runAsUser: 10001
+              runAsGroup: 10001
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities:
@@ -175,8 +181,16 @@ spec:
               startup:
                 enabled: false
             securityContext:
+              # Official `redis` image defines user/group `redis` = UID/GID 999.
+              # Same runAsNonRoot enforcement as the bridge container: override
+              # to the numeric UID so K8s can verify non-root.
+              runAsUser: 999
+              runAsGroup: 999
               allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
+              # NOT readOnlyRootFilesystem: redis writes a tmp PID and may
+              # touch /tmp during fsync. /data PVC handles AOF persistence;
+              # adding tmp/run emptyDir mounts to satisfy readOnly is more
+              # plumbing than the security gain is worth for a sidecar.
               capabilities:
                 drop: [ALL]
             resources:
