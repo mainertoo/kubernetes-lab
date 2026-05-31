@@ -86,3 +86,7 @@ Downloads/
 
 # dr-flip.sh transaction dir (Codex pass-4 fix; in repo so mv is same-fs atomic)
 /.dr-flip-txn.*
+
+# Python bytecode (from local dev / pocket-bridge tests)
+__pycache__/
+*.pyc
