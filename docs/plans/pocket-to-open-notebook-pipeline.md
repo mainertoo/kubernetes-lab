@@ -1,6 +1,67 @@
 # Pocket AI → Open Notebook Pipeline (planning doc)
 
-> **Status:** v7 — **CONVERGED** at Codex pass 7 (2026-05-28). 0 Critical, 0 High remaining; 1 Medium (F7-001, addressed) + 1 Low (F7-002, addressed) folded in as final pre-implementation patches. Plan is implementation-ready.
+> **Status:** v12 — **RE-CONVERGED** at Codex pass 12 (2026-05-30). 0 Critical, 0 High; 2 Lows (P12-001 cardinality callout, P12-002 wording drift) folded in as pre-implementation patches. Embed-verification subsystem (v8+ additions, post-Phase 0e live findings) is now implementation-ready alongside the original v7-converged plan.
+>
+> Convergence summary: original plan v1→v7 (7 passes), Phase 0e live findings added in v8, embed-verification subsystem re-convergence v8→v12 (5 more passes). Total: 12 passes across two convergence phases.
+>
+> **v12 changes** (Codex pass-11: 2 High + 2 Medium + 1 Low). All editorial follow-through I missed in v11. All accepted.
+>
+> - **P11-001 High**: v11 updated `complete_after_embed.lua` signature to 2 keys but missed updating the §7.7 main success-path caller. v12 fixes the call site. (§7.7)
+> - **P11-002 High**: v11 added `reason` label to all `open_notebook_embed_stalled_total` emit sites but didn't update §8.1's label declaration. v12 adds the label to §8.1 metric table. (§8.1)
+> - **P11-003 Medium**: `skip_intervals_under` filter skips full intervals but doesn't shorten the first remaining interval. After a 5-min restart, the next sleep is still a full 180s/480s. v12 shortens the first retained sleep to `cumulative_target - age_s`. (§7.7)
+> - **P11-004 Medium**: `any_source_with_marker()` 5-page cap means very old stuck recordings (>500 sources back) fall through to `source_missing_unexpected` reason. v12 documents this as known bounded false-positive in the helper's spec; manual recovery via `/admin/replay unbounded_scan=true` covers the gap. (§7.7)
+> - **P11-005 Low**: `complete_after_embed.lua` + `repair_revert_to_received.lua` missing from §4.1 scaffolding tree. v12 adds them. (§4.1)
+>
+> **v11 changes** (Codex pass-10: 2 High + 4 Medium + 3 Low). All 9 accepted; both Highs are editorial/spec consistency fixes, not logic regressions.
+>
+> **v11 changes** (Codex pass-10: 2 High + 4 Medium + 3 Low). All 9 accepted; both Highs are editorial/spec consistency fixes, not logic regressions.
+>
+> - **P10-001 High**: v10's §7.1 step 11 used `monotonic_iso_now()` (nonsensical — monotonic clocks aren't ISO-parseable), §7.8 used `parse_iso(started_at)`. v11 standardizes on **wall-clock UTC ISO**: §7.1 step 11 stores `utc_iso_now()`, §7.8 parses with `datetime.fromisoformat()` — same string format end to end. (§7.1, §7.3a R5, §7.8)
+> - **P10-002 High**: `open_notebook_embed_stalled_total` label set was inconsistent (§7.7 emitted without `reason`, §7.8 emitted with `reason`, §8.1 declared only `recording_id`). v11 standardizes on `{recording_id, reason}` everywhere; §7.7 emits `reason="poll_timeout"`. (§7.7, §7.8, §8.1)
+> - **P10-003 Medium**: `verify_embed(skip_intervals_under=age_s)` parameter wasn't specified in §7.7 signature. v11 adds it as a kwarg with explicit semantics: skip elements of `poll_intervals_s` whose cumulative sum is under `age_s` (preserves total ~12min budget across restarts). (§7.7)
+> - **P10-004 Medium**: `any_source_with_marker()` was called but undefined. v11 defines it via §6's `GET /api/sources` lookup (paginated, 5-page cap, client-side `title contains` filter for the marker). (§7.7, §7.8)
+> - **P10-005 Medium**: `pocket:embed_stalled:` SET in §7.8 Layer B but never DEL'd. v11: `complete_after_embed.lua` DELs the stalled marker on successful transition; Layer B always GETs source first (don't gate the GET on alert state). (§7.6, §7.8)
+> - **P10-006 Medium**: §7.2 still said async embed failure was deferred to v1.5 — contradicted D17/§11. v11 rewrites §7.2 to reference D17/§7.7. (§7.2)
+> - **P10-007 Low**: `replay_total{result="repair_state_drifted"}` was a separate table row. v11 folds into main `replay_total` enum. (§8.1)
+> - **P10-008 Low**: `repair_target_missing`, `repair_delete_fail` missing from §8.1 `replay_total` enum. v11 adds all 3 missing reasons. (§8.1)
+> - **P10-009 Low**: §7.7 prose still mentioned old `source_404` reason. v11 corrects to the split form. (§7.7)
+>
+> **v10 changes** (Codex pass-9: 1 High + 4 Medium + 3 Low). All 8 accepted.
+>
+> - **F9-001 High**: v9's §7.8 startup recovery used `redis.object_encoding_idletime(state_key)` as age — but that's LAST-ACCESS time (resets on every read) not creation time. AND Layer A never GET'd the source's `embedded` field before deciding stall vs re-poll, so a source that embedded successfully while bridge was down would stay stuck forever or generate false stalled alerts. v10 stores an explicit `pocket:embed_pending_at:<recording_id>` timestamp at state transition (set in §7.1 step 11 + §7.3a R8); §7.8 Layer A ALWAYS GETs the source first to check `embedded:true` and calls `complete_after_embed.lua` if so. (§7.1, §7.3a, §7.8)
+> - **F9-002 Medium**: v9's §7.3a R5 direct SET retrograde transition had no CAS guard — concurrent poller could race. v10 wraps R5 in a small Lua CAS that only SETs if current value is still `embed_pending`. (§7.3a R5, §7.6)
+> - **F9-003 Medium**: v9 Layer A `if not source_id: continue` silently skipped corrupt state. v10 emits `embed_recovery_corrupt_state_total{reason="missing_source_id"}` and logs actionable instructions. (§7.8, §8.1)
+> - **F9-004 Medium**: v9 flag matrix omitted single-flag rows (the 3 baseline OK cases). v10 adds explicit rows for each single flag = OK. (§7.3)
+> - **F9-005 Medium**: `embed_poller_aborted_total` was emitted in §7.7 but missing from §8.1 metrics table, AND the single `source_404` reason conflated "repair_embeddings_only replaced source" vs "unexpected UI delete". v10 adds to §8.1 + splits into `repair_replaced_source` / `source_missing_unexpected`. (§7.7, §8.1)
+> - **F9-006 Low**: D17 text said "10 min" but actual cumulative poll is 12m20s. v10 corrects to "~12 minutes". (D17)
+> - **F9-007 Low**: §8.1 `ingest_state_total` state list omitted `embed_pending`. v10 adds it. (§8.1)
+> - **F9-008 Low**: §8.1 `state_cas_rejected_total` reason list omitted `awaiting_embed`. v10 adds it. (§8.1)
+>
+> **v9 changes** (Codex pass-8: 3 High + 5 Medium + 1 Low). All v8's own fixes biting back (the cnpg pattern strikes again on plan extensions). All accepted.
+>
+> - **F8-001 High**: v8's §7.7 poller called `advance_state.lua` to transition `embed_pending → complete`, but advance_state requires a lock owner_uuid match and §7.1 step 13 already released the lock. The transition would be silently rejected and `embed_pending` would be terminal. v9 introduces a dedicated `complete_after_embed.lua` script with no lock requirement — only checks state is `embed_pending` and advances monotonically. (§7.6, §7.7)
+> - **F8-002 High**: v8 claimed Pocket retries during `embed_pending` would return "in_progress"; actually they'd hit `acquire_and_dispatch.lua` and get "resume" + re-dispatch a (mostly no-op) ingest. v9 extends `acquire_and_dispatch.lua` to recognize `embed_pending` state explicitly and return a new action `"embed_pending"`. Handler step 7 gets a new branch returning 200 `{"deferred":"awaiting_embed_verify"}`. (§7.1 step 7, §7.6, §5 Phase 1 Lua snippet)
+> - **F8-003 High**: v8's "external observer catches stalled embeds via alert" was wrong — bridge crash mid-poll means no metric increment, no alert. v9 adds **startup recovery**: on bridge start, scan Redis for all `pocket:state:*` with value `embed_pending`, check source's `embedded` field, either advance to complete OR re-dispatch §7.7 poller for remaining window OR emit stalled-metric + alert. Plus periodic background stale-scanner that runs every 5 min as defense in depth. (§7.7 expanded, §7.8 NEW)
+> - **F8-004 Medium**: `[5, 15, 60, 300, 600]` sums to 980s ≈ 16m20s not the stated 10min. v9 corrects to `[5, 15, 60, 180, 480]` = 738s ≈ 12m20s (split between recent-detection and Mac-wake tolerance) and updates D17 wording. (§7.7)
+> - **F8-005 Medium**: §7.3 step 12d said "Run steps 7-11" — ambiguous since the same step numbers exist earlier in §7.3. v9 renames repair-flow as §7.3a with its own numbering. (§7.3, §7.3a NEW)
+> - **F8-006 Medium**: §7.3 repair race with §7.7 poller — DELETE + re-ingest while the poller is mid-poll on the same source = poller's GET 404s. v9 specifies poller treats 404 as "source replaced; quit silently" + transitions state to `complete` if it was the only consumer. (§7.7)
+> - **F8-007 Medium**: Validation matrix for `/admin/replay` flag combos undefined. v9 adds explicit table: `repair_embeddings_only=true` is mutually exclusive with `reset_state=true` (already noted v8) AND with `unbounded_scan=true` (new — repair operates on a known title-marker, doesn't need scan). `force_delete_lock=true` is compatible with any other flag. (§7.3)
+> - **F8-008 Medium**: `/api/commands/jobs` has no pagination/age-filter contract pinned. v9 pins it in §6 + adds bridge-side mitigation: cap scan at first 200 jobs sorted by created desc (any deeper backlog itself is signal of larger problem). (§6, §7.8)
+> - **F8-009 Low**: Repair-flow HTTP response body undefined. v9: returns `200 {"status":"embed_repair_dispatched", "source_id":"<new-id>", "old_source_id":"<deleted-id>"}`. (§7.3a)
+>
+> **v8 changes** (Phase 0e operational findings, NOT a new codex pass):
+> - Phase 0e "F7 verification" was executed live against the running cluster. Two real defects in Open Notebook v0.x found, both worse than the plan assumed. F2-008 (originally deferred to v1.5 as "silent async-embedding degradation") is **promoted into v1 scope** because the failure mode is permanent (no auto-retry) and silent (no `processing_info.error`, no status change).
+>
+> - **F7-Live-001 [v1-blocker]**: When the embedding provider is unreachable, source ingestion fails silently — `status: "completed"`, `processing_info.error: ""`, but `embedded: false` permanently. Sources never auto-retry after the provider recovers. v8 makes the bridge **explicitly poll the source's `embedded` field** for up to 10 min after notes POST. New ingest state `embed_pending` between `notes_created` and `complete`. New metric `open_notebook_embed_stalled_total` + alert `PocketBridgeEmbedStalled`. (D17, §7.1 step 11+, §7.7 new)
+> - **F7-Live-002 [operational]**: `/api/embeddings/rebuild` only supports `mode: existing` (re-embeds items WITH embeddings) and `mode: all` (rebuilds entire DB). There is NO `mode: missing` for "items missing embeddings only" — that's a gap in Open Notebook. v8's `/admin/replay` adds `repair_embeddings_only: true` which deletes + re-ingests the specific recording's source rather than triggering a whole-DB rebuild. (§7.3)
+> - **F7-Live-003 [operational, hotfix in place]**: Open Notebook's `surreal-commands-worker` can stall silently — sources stuck `status: "new"` forever, no errors logged. Resolved by `kubectl rollout restart deployment/open-notebook`. v8 adds alert `PocketBridgeOpenNotebookCommandStalled` that fires on stale `new`-status commands. Documented in [[feedback_open_notebook_worker_stuck_pod_restart]]. (§8.2)
+> - 3 API contract corrections caught during Phase 0d (vs the §6 fixture):
+>   - `POST /api/credentials/{id}/register-models` body uses `model_type` (NOT `type`)
+>   - Model `name` must match the exact tag returned by `/discover` (e.g. `mxbai-embed-large:latest`, with suffix)
+>   - `/api/models/defaults` uses **PUT** (NOT POST per the plan §5 step 18) — POST returns "Method Not Allowed"
+>   - All three documented in [[feedback_open_notebook_register_models_schema]] + Appendix B
+>
+> **Status:** v7 — **CONVERGED** at Codex pass 7 (2026-05-28). 0 Critical, 0 High remaining; 1 Medium (F7-001, addressed) + 1 Low (F7-002, addressed) folded in as final pre-implementation patches. Plan was implementation-ready at v7 — v8 adds field-tested learnings.
 >
 > **v7 changes** (Codex pass-6: 1 High + 3 Medium + 1 Low). Trajectory: pass 1 (1C+9H+14M) → pass 2 (5H+4M) → pass 3 (1H+3M) → pass 4 (2H+4M) → pass 5 (3H+3M+1L) → pass 6 (1H+3M+1L). All 5 accepted.
 >
@@ -76,6 +137,7 @@ Side benefit: self-hosted equivalents of every Pocket Pro *analysis* feature (un
 | **D14 (hardened v5)** | **UUID-fenced lease + monotonic state (F2-001, F2-002, F3-001, F4-001)** | Lock value = UUID generated per-acquire. `refresh_lock`/`release_lock`/`advance_state` Lua scripts ALL take owner UUID arg and verify match before mutating. On ownership loss → worker aborts + emits `lease_ownership_lost_total`. Eliminates split-brain on Redis blip. |
 | **D15 (v3)** | **Three-port bridge: :8080 webhook, :8081 admin/healthz, :8082 metrics (F2-004)** | Each port has its own Service + NetworkPolicy. |
 | **D16 (revised v7)** | **Title-embedded recording-ID marker for bounded idempotency (F4-002, F6-002)** | Source titles: `"<original> [pocket-id:<recording_id>]"`. Notes: `"<original> [pocket-id:<recording_id> kind:<summary\|action_items>]"`. Pre-create lookup via `GET /api/sources` (paginated, 5-page cap) + `GET /api/notes` (single-shot per notebook) + client-side filter. Found → claim existing; not found → create. **Bounded idempotency**: covers crash-recovery for the most recent ~500 sources in target notebook. For older recordings, `/admin/replay` accepts `unbounded_scan=true` for full paginated scan. |
+| **D17 (NEW v8, revised v10 F9-006)** | **Post-ingest embed verification — promote F2-008 to v1 (F7-Live-001)** | Bridge POSTs source with `embed: true, async_processing: true`, then polls `GET /api/sources/{id}` at cumulative offsets 5s/20s/80s/260s/740s (intervals [5,15,60,180,480]) **for up to ~12 minutes** until `embedded: true`. State machine gains `embed_pending` between `notes_created` and `complete`. On timeout: state stays `embed_pending`, alert fires, source remains discoverable by tag-marker for `/admin/replay repair_embeddings_only=true` recovery. Open Notebook never auto-retries failed embeddings; this is the canonical detection path. |
 
 ## 3. Architecture
 
@@ -141,11 +203,15 @@ apps/base/pocket-bridge/
 │   ├── lua/
 │   │   ├── acquire_and_dispatch.lua       # Atomic lease + state read; returns
 │   │   │                                  # {action, current_state, owner_uuid}
-│   │   │                                  # (D14, F3-001, F4-001)
+│   │   │                                  # (D14, F3-001, F4-001, F8-002)
 │   │   ├── refresh_lock.lua               # EXPIRE iff lock value == owner UUID
 │   │   ├── release_lock.lua               # DEL    iff lock value == owner UUID
-│   │   └── advance_state.lua              # SET    iff lock value == owner UUID
-│   │                                      #        AND current state in allowed_prior
+│   │   ├── advance_state.lua              # SET    iff lock value == owner UUID
+│   │   │                                  #        AND current state in allowed_prior
+│   │   ├── complete_after_embed.lua       # v8 D17/F8-001 — embed_pending → complete
+│   │   │                                  # NO lock required; takes (state_key, stalled_marker_key, ttl)
+│   │   └── repair_revert_to_received.lua  # v10 F9-002 — embed_pending → received
+│   │                                      # ONLY retrograde transition; called by §7.3a R5
 │   ├── requirements.txt                   # fastapi, uvicorn, httpx, redis,
 │   │                                      #   pydantic, prometheus-client
 │   └── Dockerfile                         # python:3.13-slim, non-root,
@@ -276,14 +342,16 @@ Goal: Mac-Ollama serving Qwen3.6 + mxbai-embed-large, reachable from cluster pod
 
     curl -s -X POST "$ON/api/credentials/$CID/discover"
 
+    # v8: field is `model_type` not `type`, exact `:latest` tag required (see Appendix B / F7-Live)
     curl -s -X POST "$ON/api/credentials/$CID/register-models" \
       -H 'Content-Type: application/json' \
       -d '{"models":[
-            {"name":"qwen3.6:latest","provider":"ollama","type":"language"},
-            {"name":"mxbai-embed-large","provider":"ollama","type":"embedding"}
+            {"name":"qwen3.6:latest","provider":"ollama","model_type":"language"},
+            {"name":"mxbai-embed-large:latest","provider":"ollama","model_type":"embedding"}
           ]}'
 
-    curl -s -X POST "$ON/api/models/defaults" -H 'Content-Type: application/json' -d @defaults.json
+    # v8: verb is PUT not POST. Body shape mirrors GET /api/models/defaults response.
+    curl -s -X PUT "$ON/api/models/defaults" -H 'Content-Type: application/json' -d @defaults.json
     ```
 19. **Verify Open Notebook queue/retry semantics on provider unavailability (F7)**: stop Ollama, ingest a test source, observe behavior, document in Phase 0 results.
 20. UI smoke test: create throwaway notebook, add text source, confirm embedding + chat both work.
@@ -309,22 +377,26 @@ Goal: container image published to GHCR. No cluster wiring yet.
      -- ARGV[1] = lease_ttl_seconds (e.g. 60)
      -- ARGV[2] = owner_uuid (generated by bridge via uuid4)
      -- Returns: {action, current_state, owner_uuid}
-     --   "dedup"       — state is "complete"          (lock NOT taken)
-     --   "in_progress" — lock currently held by other  (lock NOT taken)
-     --   "resume"      — partial state, no live lock   (lock TAKEN with owner_uuid)
-     --   "start"       — no state at all               (lock TAKEN with owner_uuid)
+     --   "dedup"         — state is "complete"           (lock NOT taken)
+     --   "embed_pending" — state is "embed_pending"      (lock NOT taken; v9 F8-002)
+     --   "in_progress"   — lock currently held by other  (lock NOT taken)
+     --   "resume"        — partial state, no live lock   (lock TAKEN with owner_uuid)
+     --   "start"         — no state at all               (lock TAKEN with owner_uuid)
      local state = redis.call('GET', KEYS[1])
      if state == false then state = 'none' end
-     if state == 'complete' then return {'dedup', state, ''} end
+     if state == 'complete'      then return {'dedup',         state, ''} end
+     if state == 'embed_pending' then return {'embed_pending', state, ''} end
      local lock_ok = redis.call('SET', KEYS[2], ARGV[2], 'NX', 'EX', ARGV[1])
      if not lock_ok then return {'in_progress', state, ''} end
      if state == 'none' then return {'start', state, ARGV[2]} end
      return {'resume', state, ARGV[2]}
      ```
-     Sibling scripts (all UUID-fenced — strict match required, no "lock absent" shortcut, F5-002):
+     Sibling scripts (all UUID-fenced unless noted — strict match required, no "lock absent" shortcut, F5-002):
      - `refresh_lock.lua(KEYS[1]=lock_key, ARGV[1]=owner_uuid, ARGV[2]=ttl)`: `if GET == ARGV[1] then EXPIRE; return 1 else return 0`
      - `release_lock.lua(KEYS[1]=lock_key, ARGV[1]=owner_uuid)`: `if GET == ARGV[1] then DEL; return 1 else return 0`
      - `advance_state.lua(KEYS[1]=state_key, KEYS[2]=lock_key, ARGV[1]=owner_uuid, ARGV[2]=new_state, ARGV[3]=ttl, ARGV[4..N]=allowed_prior)`: requires `GET KEYS[2] == ARGV[1]` (strict — fails if lock absent); requires current state ∈ allowed_prior; SET state new_state EX ttl
+     - **`complete_after_embed.lua(KEYS[1]=state_key, KEYS[2]=stalled_marker_key, ARGV[1]=ttl)` (NEW v9 F8-001, revised v11 P10-005 to DEL stalled marker)**: NO lock required. Only fires from §7.7 poller / §7.8 recovery after `embedded: true` verified on the source. Script: `if GET KEYS[1] == 'embed_pending' then SET KEYS[1] 'complete' EX ARGV[1]; DEL KEYS[2]; return {1, 'completed'} elseif GET KEYS[1] == 'complete' then DEL KEYS[2]; return {0, 'already_complete'} else return {0, 'not_embed_pending', GET KEYS[1]} end`. Monotonic-only forward + idempotent stalled-marker cleanup so subsequent stale-scanner passes don't re-alert on a completed recording.
+     - **`repair_revert_to_received.lua(KEYS[1]=state_key) (NEW v10 F9-002)`**: ONLY retrograde transition in the system, used exclusively by §7.3a R5. Script: `if GET KEYS[1] == 'embed_pending' then SET KEYS[1] 'received'; return {1, 'reverted'} else return {0, 'not_embed_pending', GET KEYS[1]} end`. CAS guard: refuses if another worker advanced state in the gap between repair-decision and SET.
      - **Per F5-007**: bridge generates `owner_uuid = uuid4()` once per ingest; Lua stores and echoes it as confirmation. No Lua-side UUID generation.
    - **Status code handling (F2-007)**: pinned per-endpoint from `contracts/open-notebook-2026-05-28.json`. `POST /api/sources/json` → 200. `POST /api/notebooks` → 201. `POST /api/notes` → 200. `POST /api/credentials` → 201. Bridge accepts only the pinned code per endpoint; any other 2xx counts as fail (catches API drift).
 2. **Contract test**: load `contracts/open-notebook-2026-05-28.json` as fixture; bridge's Open Notebook client validates request shapes + expected response codes against the fixture (F18, F19, F2-007)
@@ -427,6 +499,11 @@ Live snapshot at `apps/base/pocket-bridge/contracts/open-notebook-2026-05-28.jso
 | `GET /api/notes` (NEW pin v6 F5-003) | query: `notebook_id=<id>` | **200** | Array of `NoteResponse` containing `id`, `title`. **No pagination** — returns all notes in notebook in one response. Bridge scans full list client-side. |
 | `GET /api/sources/{source_id}` | path: source_id | **200** / 404 | Used by `/admin/replay` step 7 to verify cached IDs (F3-002) |
 | `GET /api/notes/{note_id}` | path: note_id | **200** / 404 | Used by `/admin/replay` step 7 |
+| `POST /api/credentials/{credential_id}/register-models` (v9 F0d-Live) | `{models: [{name:"<exact-tag>", provider, model_type}, ...]}` | **200** with `{created, existing}` counts | Field is `model_type` NOT `type`. `name` must match exactly what `/discover` returned (e.g. `mxbai-embed-large:latest` with suffix). |
+| `PUT /api/models/defaults` (v9 F0d-Live) | full `DefaultModelsResponse` body (all fields including unset ones — bulk replace) | **200** | Verb is **PUT** not POST. `POST` returns 405. Body must include all fields the bridge wants to preserve (read GET first, modify, then PUT). |
+| `POST /api/embeddings/rebuild` (v9 F7-Live-002) | `{mode: "existing"\|"all", include_sources, include_notes, include_insights}` | **200** with `command_id` | No `mode: missing` — gap noted in F7-Live-002. Bridge uses `/admin/replay repair_embeddings_only` instead. |
+| `DELETE /api/sources/{source_id}` (v9 F7-Live-002) | — | **200** | Used by §7.3a for embed-pending recovery |
+| `GET /api/commands/jobs` (v9 F8-008) | optional query: none discovered | **200** array | No pagination params, no server-side age filter. Bridge fetches and **caps at first 200 entries** (sorted by `created` desc client-side); deeper backlog itself is signal of larger problem. Used by §7.8 stale-scanner. |
 
 **Auth:** currently disabled cluster instance. Bridge sends `Authorization: Bearer <key>` only if `OPEN_NOTEBOOK_API_KEY` env non-empty. Survives a future auth-flip without code change.
 
@@ -444,11 +521,12 @@ Live snapshot at `apps/base/pocket-bridge/contracts/open-notebook-2026-05-28.jso
 5. Verify hmac.compare_digest(HMAC(body, secret), signature)         → else 401
 6. Parse JSON; filter to event == "summary.completed"                → else 200 {"skipped": "non-summary"}
 7. Generate owner_uuid = uuid4(). Invoke acquire_and_dispatch.lua(state_key, lock_key, lease_ttl=60s, owner_uuid). Branch on returned action:
-     - "dedup":       → 200 {"skipped":"duplicate"},  webhook_total{result="duplicate"},  state_cas_rejected_total{reason="already_complete"}++
-     - "in_progress": → 200 {"deferred":"concurrent"}, webhook_total{result="in_progress"}, state_cas_rejected_total{reason="concurrent_in_progress"}++
-     - "start":       lock acquired with owner_uuid, state=none → advance state to "received" via advance_state.lua(owner_uuid, allowed_prior=["none"]); proceed to step 8.
-                      If acting state="received" → EMIT ingest_state_total{state="received"}++
-     - "resume":      lock acquired with owner_uuid, state ∈ {"received","source_created","notes_created"} → EMIT lease_expired_resume_total++; proceed to step 8 WITHOUT state advance; resume from current state.
+     - "dedup":         → 200 {"skipped":"duplicate"},                 webhook_total{result="duplicate"},     state_cas_rejected_total{reason="already_complete"}++
+     - "embed_pending": → 200 {"deferred":"awaiting_embed_verify"},    webhook_total{result="embed_pending"}, state_cas_rejected_total{reason="awaiting_embed"}++ (NEW v9 F8-002)
+     - "in_progress":   → 200 {"deferred":"concurrent"},               webhook_total{result="in_progress"},   state_cas_rejected_total{reason="concurrent_in_progress"}++
+     - "start":         lock acquired with owner_uuid, state=none → advance state to "received" via advance_state.lua(owner_uuid, allowed_prior=["none"]); proceed to step 8.
+                        If acting state="received" → EMIT ingest_state_total{state="received"}++
+     - "resume":        lock acquired with owner_uuid, state ∈ {"received","source_created","notes_created"} → EMIT lease_expired_resume_total++; proceed to step 8 WITHOUT state advance; resume from current state.
 8. Resolve tags → notebook_ids (cache hit / list-and-create on miss / Pocket Inbox if no tags)
 9. Source idempotency + POST + state-aware advance (D16; endpoints pinned F5-003; state-aware F6-001):
      a. Construct marker: M = "[pocket-id:<recording_id>]"
@@ -476,10 +554,14 @@ Live snapshot at `apps/base/pocket-bridge/contracts/open-notebook-2026-05-28.jso
      c. **State-aware advance to `notes_created` (v7 F6-001)**:
         - If current_state == "source_created": call advance_state.lua(owner_uuid, allowed_prior=["source_created"], new_state="notes_created"); EMIT ingest_state_total{state="notes_created"}++.
         - If current_state == "notes_created": SKIP advance — already at this state.
-11. **State-aware advance to `complete` (v7 F6-001)**:
-     - If current_state == "notes_created": call advance_state.lua(owner_uuid, allowed_prior=["notes_created"], new_state="complete", ttl=2592000); release_lock.lua(owner_uuid); EMIT ingest_state_total{state="complete"}++; lease_held_seconds.observe(now - start_time).
-     - If current_state == "complete": SKIP. (Cannot occur in practice: step 7 returned "dedup" for complete state.) Defensive code only.
-12. Return 200 {"recording_id", "source_id", "note_ids", "notebooks"}, webhook_total{result="success"}
+11. **State-aware advance to `embed_pending` (v8 D17 — was `complete`; v10 F9-001 also records timestamp)**:
+     - If current_state == "notes_created": advance_state.lua(owner_uuid, allowed_prior=["notes_created"], new_state="embed_pending", ttl=2592000); **SET pocket:embed_pending_at:<recording_id> = utc_iso_now() EX 2592000** (v11 P10-001: wall-clock UTC ISO 8601 — `datetime.now(UTC).isoformat()`. Used by §7.8 for creation-based age computation.); EMIT ingest_state_total{state="embed_pending"}++.
+     - If current_state ∈ {"embed_pending","complete"}: SKIP.
+12. **Schedule async embed-verification poll (v8 D17, §7.7)** — fire-and-forget background task per `pocket:ids:<recording_id>.source_id`. Return from webhook NOW; don't block Pocket.
+13. release_lock.lua(owner_uuid); lease_held_seconds.observe(now - start_time).
+14. Return 200 {"recording_id", "source_id", "note_ids", "notebooks", "embed":"pending"}, webhook_total{result="success"}
+
+The transition from `embed_pending` → `complete` happens in §7.7's background poller, not here.
 ```
 
 **Why UUID fencing + title markers (D14 hardened + D16, F4-001 + F4-002)**:
@@ -498,7 +580,7 @@ Live snapshot at `apps/base/pocket-bridge/contracts/open-notebook-2026-05-28.jso
 
 Open Notebook's embed + transformation pipeline can take 10–30s. Pocket's webhook timeout is ~10s. Async decouples bridge response from Open Notebook's heavy lifting.
 
-**Known limitation (F2-008, deferred to v1.5):** If async embedding fails after we return success, bridge marks `complete` but vector search degrades silently. v1.5 will add a CronJob that walks recent sources via `GET /api/sources/{id}/status`, alerts on `embedded == false` after N minutes.
+**Embed verification (v8 D17, see §7.7):** Open Notebook will return `status: "completed"` with empty error even when embedding fails (silent degradation, confirmed in Phase 0e). After the source POST, the bridge advances state to `embed_pending` (NOT `complete`) and a §7.7 background poller verifies `embedded: true` within ~12 min before advancing to `complete`. F2-008 was deferred to v1.5 in v3; promoted into v1 scope in v8 after Phase 0e showed the failure mode is permanent + silent (no auto-retry by Open Notebook).
 
 ### 7.3 /admin/replay
 
@@ -508,7 +590,8 @@ Authorization: Bearer <REPLAY_ADMIN_TOKEN>  (compare_digest)
 Body: { recording_id: "...",
         reset_state: <bool, default false>,
         force_delete_lock: <bool, default false>,
-        unbounded_scan: <bool, default false>  # v7 F6-002 — full paginated source scan for old recording recovery
+        unbounded_scan: <bool, default false>,       # v7 F6-002 — full paginated source scan for old recording recovery
+        repair_embeddings_only: <bool, default false> # v8 F7-Live-002 — embed_pending recovery; see step 12
       }
 
 1. Verify bearer token                                                  → else 401, replay_total{result="bearer_fail"}++
@@ -531,7 +614,59 @@ Body: { recording_id: "...",
 9. Synthesize webhook payload from Pocket API response
 10. Run normal ingest steps 8-12 from §7.1. If body had `unbounded_scan=true`, override the §7.1 step 9b 5-page cap with full paginated scan (continue until response.length < 100); otherwise default 5-page bound applies. **Call refresh_lock.lua(owner_uuid) every 5 pages during unbounded scan AND once immediately before any POST that follows** (v7 F7-001 — prevents lease expiry mid-scan from leaving an active POST with stale ownership). State-aware advance (F6-001) handles the resume path automatically — claimed-existing-objects don't double-advance.
 11. On full success: replay_total{result="success"}++; on ingest failure: replay_total{result="ingest_fail"}++
+
+If body had `repair_embeddings_only=true` — branch to §7.3a INSTEAD of steps 7-11 (mutually exclusive validation per §7.3 flag-matrix below).
 ```
+
+### 7.3 flag-validation matrix (NEW v9 F8-007, completed v10 F9-004)
+
+| Flag combo | Rule |
+|---|---|
+| `repair_embeddings_only=true` alone | OK — primary recovery path for `embed_pending` |
+| `reset_state=true` alone | OK — admin nuke + re-ingest |
+| `unbounded_scan=true` alone | OK — non-destructive replay with full Open Notebook search |
+| `force_delete_lock=true` alone | OK — unstick a wedged lock without state change |
+| All-`false` (defaults) | OK — standard non-destructive replay |
+| `repair_embeddings_only=true` + `reset_state=true` | **422 Bad Request** — repair operates on intact title-marker; reset destroys it |
+| `repair_embeddings_only=true` + `unbounded_scan=true` | **422 Bad Request** — repair targets a known source by marker; no scan needed |
+| `repair_embeddings_only=true` + `force_delete_lock=true` | OK — useful when an `embed_pending` source has a stale lock |
+| `reset_state=true` + `force_delete_lock=true` | OK — admin override of completely-stuck recording |
+| `reset_state=true` + `unbounded_scan=true` | OK — admin reset with full search of Open Notebook for any orphaned objects |
+| `reset_state=true` + `repair_embeddings_only=true` + `force_delete_lock=true` (or +`unbounded_scan`) | **422 Bad Request** — already rejected by the pairwise repair+reset rule above |
+
+Validation runs at request parse time; invalid combos return 422 with the matched rule as `detail`. Implementation: 3 explicit forbidden-pair checks, all other combos accepted.
+
+### 7.3a /admin/replay repair-embeddings-only flow (NEW v9 F8-005)
+
+Separate numbering to avoid collision with §7.3 step 7-11.
+
+```
+This branch is reached only when body has repair_embeddings_only=true
+AND the §7.3 flag-validation matrix accepted the combo.
+
+R1. Look up existing Open Notebook source by `[pocket-id:<recording_id>]` title marker.
+     - Use D16's paginated source lookup (5 pages default, unbounded_scan rejected per matrix).
+     - If not found: 404 {"error":"no source with pocket-id marker found"}, replay_total{result="repair_target_missing"}++.
+R2. (If force_delete_lock=true was passed:) DEL pocket:lock:<recording_id> with prominent log.
+R3. DELETE /api/sources/<id> via Open Notebook API.
+     - On 404 (race with concurrent UI delete): treat as success, continue to R4.
+     - On 5xx: 502, replay_total{result="repair_delete_fail"}++.
+R4. Clear cached pocket:ids:<recording_id>.source_id from Redis.
+R5. Transition pocket:state:<recording_id> from embed_pending → received via **repair_revert_to_received.lua CAS** (v10 F9-002 — Lua check guards against concurrent §7.7 poller having advanced the state).
+     - On `{1, "reverted"}`: EMIT replay_reset_total++; **SET pocket:embed_pending_at:<recording_id> = utc_iso_now()** (v11 P10-001 wall-clock UTC ISO) to preserve §7.8 age math after the new ingest re-enters embed_pending; continue.
+     - On `{0, "not_embed_pending", X}`: another worker advanced state in the gap. Return 409 {"error":"state changed during repair", "current_state":X}, replay_total{result="repair_state_drifted"}++.
+R6. Acquire new lease via acquire_and_dispatch.lua with new owner_uuid.
+     - Should return "resume" (state is "received" with no lock).
+R7. Synthesize a webhook-like payload from the Pocket API response (which we already fetched in §7.3 step 2).
+R8. Run §7.1 steps 9-14 (source create, notes claim-existing, advance to embed_pending, schedule poller, release lock).
+     - Notes are NOT recreated — D16's per-kind marker lookup finds existing notes and claims them.
+R9. Return 200 {"status":"embed_repair_dispatched", "old_source_id":"<deleted-id>", "new_source_id":"<new-id>", "embed":"pending"} (v9 F8-009).
+R10. EMIT replay_total{result="embed_repair_dispatched"}++.
+```
+
+**Race with §7.7 poller**: if the previous source's §7.7 poller was still running when R3 fired the DELETE, the poller's next GET will 404 → handled by §7.7's `embed_poller_aborted_total{reason="repair_replaced_source"}` exit (v11 P10-009 reason name). No corruption (per v9 F8-006).
+
+**Why direct SET in R5 instead of complete_after_embed.lua reverse**: repair is the only legitimate retrograde state transition. The `complete_after_embed.lua` script only goes forward (`embed_pending → complete`). For this one case, the bridge uses a direct SET, emits `replay_reset_total` for visibility, and continues. The new ingest re-establishes the normal forward state chain.
 
 **Why live-lock check + distinct reset metric (F4-003, F4-005)**:
 - Step 4 prevents replay from yanking a lock out from under an active webhook worker. `force_delete_lock` is the documented escape hatch for "the worker is truly dead but lease hasn't expired yet" scenarios.
@@ -558,7 +693,163 @@ Empty/absent `tags` → resolve to single notebook `Pocket Inbox` (auto-created 
 - **Sizing**: 60s TTL covers typical async source POST (returns in 1-2s) plus margin. Pocket's webhook retry cadence is typically 5min+ between attempts, so a 60s lease can never collide with the same recording's next legitimate retry.
 - **Implication**: a crash mid-ingest leaves orphaned state at `received` or `source_created`; lease expires within 60s; Pocket's retry (typically 5+ min later) lands the `resume` path with a NEW owner_uuid; pre-create title-marker lookup (D16) finds any Open Notebook objects the prior worker created; ingest completes without duplicates.
 
-`/admin/replay` is only needed for harder failures: Open Notebook 5xx during the active window that exhausted Pocket's retry budget, manual UI deletion of objects, or recovering from `complete`-state errors that need full reprocessing.
+`/admin/replay` is only needed for harder failures: Open Notebook 5xx during the active window that exhausted Pocket's retry budget, manual UI deletion of objects, or recovering from `embed_pending`-state stuck recordings (per §7.7).
+
+### 7.7 Embed verification poller (D17, F7-Live-001 — revised v9)
+
+Per Phase 0e live findings, Open Notebook silently fails embedding when the provider is unreachable. The bridge cannot trust the source POST's response to mean "vector-searchable" — it must verify.
+
+```
+After webhook handler returns (§7.1 step 14), a background asyncio task fires:
+
+verify_embed(recording_id, source_id, skip_intervals_under=0):
+  # Cumulative intervals: 5, 20, 80, 260, 740 seconds = 12m20s total (v9 F8-004 — corrected math)
+  poll_intervals_s = [5, 15, 60, 180, 480]
+  # v11 P10-003: skip_intervals_under preserves the 12-min budget after bridge restart.
+  # Drops leading intervals while their cumulative sum < skip_intervals_under,
+  # so a recording that already polled for 5min before the restart only polls
+  # for the remaining ~7min after the restart picks it up.
+  if skip_intervals_under > 0:
+    cum = 0
+    retained = []
+    for i in poll_intervals_s:
+      cum += i
+      if cum > skip_intervals_under:
+        # v12 P11-003: shorten the first retained interval to (cum - skip_intervals_under)
+        # so total elapsed (skip + first sleep) aligns with the original cumulative target.
+        # Subsequent intervals are unmodified.
+        retained.append((cum - skip_intervals_under) if not retained else i)
+    poll_intervals_s = retained
+  start = monotonic()
+  for delay in poll_intervals_s:
+    await asyncio.sleep(delay)
+
+    try:
+      r = GET /api/sources/<source_id>
+    except 404:
+      # v10 F9-005: distinguish repair-induced replacement from unexpected UI delete
+      # by checking whether a fresh source with the same recording-id marker exists
+      replacement_exists = any_source_with_marker(f"[pocket-id:{recording_id}]")
+      reason = "repair_replaced_source" if replacement_exists else "source_missing_unexpected"
+      EMIT embed_poller_aborted_total{reason=reason}++
+      return
+
+    if r["embedded"] is True:
+      # Success path — embed completed asynchronously inside Open Notebook
+      result = complete_after_embed.lua(state_key, stalled_marker_key=f"pocket:embed_stalled:{recording_id}", ttl=2592000)   # v12 P11-001 — 2-key signature
+      if result[0] == 1:
+        EMIT ingest_state_total{state="complete"}++
+        EMIT embed_verification_seconds.observe(monotonic() - start)
+      elif result[1] == "already_complete":
+        pass  # Another worker / startup-recovery beat us — fine
+      else:
+        # State is no longer embed_pending and not complete — surprising; log and move on
+        log.warn("complete_after_embed unexpected state: %s", result[2])
+      return
+    # Not yet — continue polling
+
+  # 12m20s elapsed, still embedded=false. Source remains in embed_pending state.
+  # SET pocket:embed_stalled:<recording_id> NX EX 86400 (24h) — persistent across bridge restart
+  EMIT open_notebook_embed_stalled_total{recording_id, reason="poll_timeout"}++  # v11 P10-002
+  log.error("embed stalled: source=%s recording=%s", source_id, recording_id)
+  # PocketBridgeEmbedStalled alert fires; /admin/replay repair_embeddings_only=true to recover
+  return
+```
+
+**Helper `any_source_with_marker(marker)` (v11 P10-004)**: paginated `GET /api/sources?limit=100&offset=N&sort_by=updated&sort_order=desc` for N ∈ {0,100,200,300,400} (5-page cap per D16), client-side filter for `title contains marker`. Returns first match or None. Used by §7.7 source-404 branch and §7.8 corrupt-state branch to distinguish repair-induced replacement from unexpected deletion.
+
+**Known bounded false-positive (v12 P11-004)**: for sources older than ~500 sources back (recordings from months ago that are still stuck), the 5-page cap won't find the replacement and the reason falls to `source_missing_unexpected` — incorrectly suggesting unexpected deletion. Manual recovery: `/admin/replay unbounded_scan=true` skips this helper entirely. Acceptable trade-off; bounded scan is the right default since the metric is observability-only.
+
+**Important properties (v9)**:
+- **No lease held by poller** (Pocket webhook is long-done). State transition uses `complete_after_embed.lua` which does not require a lock — only requires current state is `embed_pending`.
+- **`acquire_and_dispatch.lua` recognizes embed_pending** (v9 F8-002) — Pocket retries during the poll window return action `"embed_pending"` → 200 `{"deferred":"awaiting_embed_verify"}`. No re-dispatch of ingest.
+- **Source DELETE race handled** (v9 F8-006, v11 P10-009 — reason names) — if source 404s during polling, the poller calls `any_source_with_marker()`: a replacement with the same marker means repair was running → emit `embed_poller_aborted_total{reason="repair_replaced_source"}`. No replacement = unexpected (UI delete or DB inconsistency) → emit `embed_poller_aborted_total{reason="source_missing_unexpected"}`. Either way the poller exits silently; the replacement (if any) is owned by its own poller.
+- **Title-marker survives** — `[pocket-id:<id>]` on the source means `/admin/replay repair_embeddings_only=true` can find it.
+
+### 7.8 Startup recovery + periodic stale scanner (NEW v9 F8-003, revised v10 F9-001/F9-003)
+
+The §7.7 poller is fire-and-forget per request. If the bridge process exits mid-poll (kill/crash/redeploy), the in-memory task dies — but the source is already in `embed_pending` Redis state. Without a recovery path, that source is stuck forever with no alert.
+
+Two-layer recovery + per-recording timestamp (v10 F9-001) so age is creation-based, not last-access-based:
+
+**Layer A — Startup scan** (runs once at bridge boot, BEFORE serving traffic):
+```
+on_startup_scan_embed_pending():
+  for state_key in redis.scan("pocket:state:*"):
+    state = redis.get(state_key)
+    if state != "embed_pending": continue
+    recording_id = state_key.split(":")[-1]
+    source_id = redis.hget(f"pocket:ids:{recording_id}", "source_id")
+    if not source_id:
+      # v10 F9-003: corrupt state — emit + log instead of silent skip
+      EMIT embed_recovery_corrupt_state_total{reason="missing_source_id"}++
+      log.error("corrupt embed_pending state: recording=%s missing source_id; "
+                "manual recovery: /admin/replay reset_state=true", recording_id)
+      continue
+
+    # v10 F9-001: ALWAYS GET the source first — embed may have completed while we were down
+    try:
+      src = GET /api/sources/<source_id>
+    except 404:
+      # Source 404 with state=embed_pending = orphaned; same as poller F9-005 case
+      replacement_exists = any_source_with_marker(f"[pocket-id:{recording_id}]")
+      EMIT embed_poller_aborted_total{reason="repair_replaced_source" if replacement_exists else "source_missing_unexpected"}++
+      continue
+
+    if src["embedded"] is True:
+      # Embedded while bridge was down — advance state and exit
+      complete_after_embed.lua(state_key, stalled_marker_key=f"pocket:embed_stalled:{recording_id}", ttl=2592000)
+      EMIT ingest_state_total{state="complete", source="startup_recovery"}++
+      continue
+
+    # Not embedded yet; check creation-based age via stored timestamp (v10 F9-001)
+    started_at = redis.get(f"pocket:embed_pending_at:{recording_id}")
+    age_s = (datetime.now(UTC) - datetime.fromisoformat(started_at)).total_seconds() if started_at else 0   # v11 P10-001
+    if age_s > 12*60:
+      # Already past poll window; emit stalled signal
+      EMIT open_notebook_embed_stalled_total{recording_id, reason="startup_recovery"}++
+    else:
+      # Re-dispatch §7.7 poller for the REMAINING window (subtract elapsed)
+      asyncio.create_task(verify_embed(recording_id, source_id, skip_intervals_under=age_s))
+      EMIT embed_poller_restarted_total++
+```
+
+**Layer B — Periodic stale scanner** (runs every 5 min as defense in depth):
+```
+async def stale_embed_scanner():
+  while True:
+    await asyncio.sleep(300)
+    for state_key in redis.scan("pocket:state:*"):
+      state = redis.get(state_key)
+      if state != "embed_pending": continue
+      recording_id = state_key.split(":")[-1]
+      # v11 P10-005: always GET source first — don't gate on alert state, since the source
+      # may have embedded since the alert fired. complete_after_embed.lua DELs the stalled marker.
+      source_id = redis.hget(f"pocket:ids:{recording_id}", "source_id")
+      if not source_id:
+        EMIT embed_recovery_corrupt_state_total{reason="missing_source_id"}++
+        continue
+      try:
+        src = GET /api/sources/<source_id>
+      except 404:
+        replacement_exists = any_source_with_marker(f"[pocket-id:{recording_id}]")
+        EMIT embed_poller_aborted_total{reason="repair_replaced_source" if replacement_exists else "source_missing_unexpected"}++
+        continue
+      if src["embedded"]:
+        complete_after_embed.lua(state_key, stalled_marker_key=f"pocket:embed_stalled:{recording_id}", ttl=2592000)
+        EMIT ingest_state_total{state="complete", source="periodic_recovery"}++
+        continue
+      # Not embedded yet — check age
+      started_at = redis.get(f"pocket:embed_pending_at:{recording_id}")
+      age_s = (datetime.now(UTC) - datetime.fromisoformat(started_at)).total_seconds() if started_at else 0   # v11 P10-001
+      if age_s > 15*60:
+        already_alerted = redis.exists(f"pocket:embed_stalled:{recording_id}")
+        if not already_alerted:
+          EMIT open_notebook_embed_stalled_total{recording_id, reason="periodic_scan"}++
+          redis.set(f"pocket:embed_stalled:{recording_id}", "1", ex=86400)
+```
+
+Together: bridge restarts don't silently lose embed_pending recordings; explicit timestamp drives correct age math; ALWAYS-check-source-first prevents both false stalled alerts and missed completions.
 
 ## 8. Observability
 
@@ -570,13 +861,19 @@ Empty/absent `tags` → resolve to single notebook `Pocket Inbox` (auto-created 
 | `ingest_seconds` | `phase` | parse, dedup, tag_resolve, source_post, notes_post |
 | `tag_cache_hits_total` | `result` | hit / miss / stale_evicted |
 | `notebook_ensure_total` | `result` | found_in_cache / found_via_list / created / stale_cache_unrecoverable |
-| `replay_total` | `result` | success / bearer_fail / pocket_fetch_fail / ingest_fail / **lock_held** / **already_complete** (v6 F5-004 — both emitted in §7.3 steps 4+5) |
+| `replay_total` | `result` | success / bearer_fail / pocket_fetch_fail / ingest_fail / lock_held / already_complete / embed_repair_dispatched (v8 F7-Live-002) / **repair_target_missing** / **repair_delete_fail** / **repair_state_drifted** (all NEW v11 P10-007/P10-008 — emitted by §7.3a R1/R3/R5) |
+| `open_notebook_embed_stalled_total` | `recording_id`, `reason` (v11 P10-002, declaration fixed v12 P11-002) | NEW v8 (F7-Live-001) — incremented when an `embed_pending` source isn't observed `embedded:true` within the allowed window. `reason` enum: `poll_timeout` (§7.7 ~12min poll timeout), `startup_recovery` (§7.8 Layer A: bridge boot found source past window), `periodic_scan` (§7.8 Layer B: every-5min scan found source past window). Persistent in Redis (`pocket:embed_stalled:<recording_id>`) so post-restart bridge can resume awareness; cleared by `complete_after_embed.lua` on successful transition. **Cardinality (v12 P12-001)**: `recording_id` is high-cardinality; at homelab scale (≤10k recordings) fine. If this pattern is copied to a larger deployment, consider replacing the `recording_id` label with a sample-rate-capped log and a lower-cardinality aggregate counter. |
+| `embed_verification_seconds` | — | NEW v8 — Histogram of end-to-end time from notes_created → embed_verified. Surfaces Mac wake-time + Ollama cold-load latency |
+| `open_notebook_stale_commands_total` | — | NEW v8 (F7-Live-003) — Gauge of Open Notebook commands with `status=new` AND age > 5min. Set by a periodic bridge probe of `/api/commands/jobs`. Catches the [[feedback_open_notebook_worker_stuck_pod_restart]] failure mode |
+| `embed_poller_aborted_total` | `reason` | NEW v10 F9-005 — `repair_replaced_source` / `source_missing_unexpected`. Emitted by §7.7 poller when source 404s mid-poll. First reason is benign (intentional repair), second is concerning (UI delete or DB inconsistency). |
+| `embed_poller_restarted_total` | — | NEW v10 F9-001 — incremented by §7.8 startup recovery when re-dispatching a §7.7 poller for an `embed_pending` recording the bridge restart inherited. |
+| `embed_recovery_corrupt_state_total` | `reason` | NEW v10 F9-003 — `missing_source_id`. Emitted when §7.8 finds an `embed_pending` state with no corresponding `pocket:ids` entry. Manual recovery via `/admin/replay reset_state=true`. |
 | `redis_up` | — | Gauge 1/0 (F21) |
 | `open_notebook_up` | — | Gauge 1/0 (F20) |
 | `open_notebook_ping_total` | `result` | success / fail |
 | `open_notebook_write_total` | `operation`, `result` | source_post / summary_note_post / action_items_note_post (F24) |
-| `ingest_state_total` | `state` | received / source_created / notes_created / complete |
-| `state_cas_rejected_total` | `reason` | concurrent_in_progress / already_complete / non_monotonic (each reason tied to specific Lua return path; `non_monotonic` is **bug-only** — legitimate `/admin/replay` resets emit `replay_reset_total`, not this metric. v7 F6-004 reconciled with §8.2 alert guidance.) |
+| `ingest_state_total` | `state`, `source` (optional, v10 F9-007) | received / source_created / notes_created / **embed_pending** / complete. `source` label values: `webhook` (default, normal flow) / `startup_recovery` / `periodic_recovery` (used by §7.8). |
+| `state_cas_rejected_total` | `reason` | concurrent_in_progress / already_complete / non_monotonic / **awaiting_embed** (v10 F9-008 — emitted by §7.1 step 7 when state=embed_pending). `non_monotonic` is **bug-only** — legitimate `/admin/replay` resets emit `replay_reset_total`. |
 | `open_notebook_notes_per_notebook` | `notebook_id` | Gauge (NEW v7 F6-003) — set on each step 10a fetch; surfaces note-count growth that could degrade single-shot `GET /api/notes` performance |
 | `lease_held_seconds` | — | Histogram of lock-held duration (v4 F3-001) — emitted in §7.1 step 11 (terminal release path) |
 | `lease_expired_resume_total` | — | Counter: incremented in §7.1 step 7 `"resume"` branch (v4 F3-001) — indicates a prior worker crashed mid-ingest and was recovered via lease expiry |
@@ -597,6 +894,8 @@ Empty/absent `tags` → resolve to single notebook `Pocket Inbox` (auto-created 
 | `PocketBridgeFrequentLeaseResume` (v4) | `increase(lease_expired_resume_total[1h]) > 3` — indicates a worker is repeatedly crashing mid-ingest | warning |
 | `PocketBridgeLeaseOwnershipLost` (NEW v5) | `increase(lease_ownership_lost_total[15m]) > 0` — bridge or Redis instability; UUID fencing detected split-brain | warning |
 | `PocketBridgeNotebookNoteCount` (NEW v7 F6-003) | `max(open_notebook_notes_per_notebook) > 5000` — single-shot GET /api/notes degrading; cap or paginate before 10K | warning |
+| `PocketBridgeEmbedStalled` (NEW v8 F7-Live-001) | `increase(open_notebook_embed_stalled_total[15m]) > 0` — a source completed ingest but vector embedding never confirmed within ~12 min poll window (v12 P12-002 wording). Usually means Mac-Ollama unreachable during the window; `/admin/replay repair_embeddings_only=true` to recover | critical |
+| `PocketBridgeOpenNotebookCommandStalled` (NEW v8 F7-Live-003) | `open_notebook_stale_commands_total > 0` for > 10m — Open Notebook's surreal-commands-worker is wedged; kubectl rollout restart deploy/open-notebook to clear | critical |
 | `PocketBridgeNoScrape` (NEW v3, F2-004 belt-and-braces) | `up{service="pocket-bridge-metrics"} == 0` for > 5m | critical |
 
 All alert `description:` annotations include the bridge name + namespace per [[feedback_discord_bridge_renders_description_only]].
@@ -644,7 +943,7 @@ Without the per-kind suffix on notes, a later bridge ingest would claim the sour
 - **Pocket webhook subscription via API** — configured manually.
 - **Open Notebook auth enablement** — bridge supports either state transparently.
 - **F22 webhook-silence alert** — deferred until 2 weeks of baseline.
-- **F2-008 silent async-embedding degradation** — deferred to v1.5. Will add a CronJob walking sources from last 24h via `GET /api/sources/{id}/status`, alerting on `embedded == false` after N minutes.
+- ~~**F2-008 silent async-embedding degradation**~~ — **PROMOTED INTO v1 SCOPE** at v8 via D17 / §7.7. Phase 0e live verification (F7-Live-001) showed the failure mode is permanent + silent + needs in-bridge polling rather than an out-of-band CronJob.
 
 ## 12. Risks and unknowns (refreshed for v3)
 
@@ -660,7 +959,9 @@ Without the per-kind suffix on notes, a later bridge ingest would claim the sour
 | R8 | Pangolin route mis-configuration | Path allowlist verified in Phase 3 |
 | R9 | Tailscale operator + Mac connectivity issue blocks Phase 0 | Phase 0 step 9 acceptance gate (both directions) |
 | R10 | Pocket payload field-name change post-deployment | `--capture-fixture` available in main.py; CI unit test catches deviation |
-| R11 | F7 — Open Notebook does not queue on provider unavailability | Documented in Phase 0; if fail-loud: replay is primary recovery |
+| R11 | F7 — Open Notebook does not queue on provider unavailability | **Confirmed in Phase 0e (2026-05-30)**: silently fails, never auto-retries. Bridge polls `embedded` for 10min (§7.7); on timeout, `embed_pending` state + alert + `repair_embeddings_only` replay path |
+| R16 (NEW v8) | Open Notebook worker queue can stall — sources stuck `status:new` (F7-Live-003) | Detection: `open_notebook_stale_commands_total` gauge + `PocketBridgeOpenNotebookCommandStalled` alert. Recovery: `kubectl rollout restart deploy/open-notebook`. Documented in [[feedback_open_notebook_worker_stuck_pod_restart]] |
+| R17 (NEW v8) | Phase 0e found 3 API contract drifts from §6 fixture | Fixed in §6 + Appendix B. Re-probe at Phase 1 contract-test time before bridge code hardens against the fixture |
 | **R12 (v3)** | Lua script error or Redis CLUSTER mode disagreement | Single-Redis sidecar (not cluster); all 4 Lua scripts unit-tested in CI against ephemeral redis-test container |
 | **R13 (v3, hardened v4)** | Tailscale operator places egress proxy Pod with unexpected label | Phase 0b1 captures actual labels before Phase 0b2 commits NetworkPolicy; explicit acceptance gate after Phase 0b2 |
 | **R14 (NEW v4)** | Lease too short — long async source POST (>60s) loses lock mid-flight | `refresh_lock.lua` extends EXPIRE every 20s during source POST; if Open Notebook itself stalls >60s with no refresh thread alive, the lease expires and another retry takes over (correct behavior). Histograms via `lease_held_seconds` surface this trend. |
@@ -687,7 +988,114 @@ Each line is a discrete PR-sized chunk. Sequential within phase; phases are sequ
 
 ---
 
+## Appendix B — Phase 0e live verification findings (2026-05-30)
+
+Live verification against the running cluster surfaced 3 real defects in Open Notebook v0.x that the converged v7 plan didn't anticipate. v8 incorporates fixes.
+
+### F7-Live-001 [v1-blocker] — Silent embed failure when provider unreachable
+
+**Symptom**: When Mac-Ollama was unreachable from the cluster, source POST returned 200 with `status: "completed"` and `processing_info.error: ""` (empty string). But `embedded: false, embedded_chunks: 0` permanently. After Mac-Ollama recovered, the stuck source did NOT auto-retry — stayed `embedded: false` indefinitely.
+
+**Root cause in Open Notebook**: source processing and embedding are separate background commands. The processing command marks "completed" once chunking + text storage succeed. The embedding command silently fails without surfacing to `processing_info.error` — that field tracks the processing command, not the embedding one.
+
+**v8 fix**: bridge polls `embedded` for ~12 min after notes POST via §7.7's verify_embed task (cumulative budget revised v9 F8-004 + v11 P10-006). New state `embed_pending` between `notes_created` and `complete`. New metric `open_notebook_embed_stalled_total{recording_id, reason}` + critical alert `PocketBridgeEmbedStalled`. Recovery via `/admin/replay repair_embeddings_only=true` (D17, §7.1, §7.3a, §7.7).
+
+**Memory pointer**: [[feedback_open_notebook_silent_embed_failure]].
+
+### F7-Live-002 [operational] — `/api/embeddings/rebuild` has no `missing` mode
+
+**Symptom**: After F7-Live-001 created stuck sources, the natural recovery would be a targeted `mode: missing` rebuild. Open Notebook's `/api/embeddings/rebuild` only accepts `mode: existing` (re-embed items that already have embeddings — wrong direction) or `mode: all` (rebuild entire DB — heavy, affects unrelated work).
+
+**v8 fix**: `/admin/replay repair_embeddings_only=true` finds the source by `[pocket-id:<id>]` title marker, DELETEs it, and re-ingests via the normal §7.1 flow. Per-source repair without touching the rest of the DB.
+
+### F7-Live-003 [operational, hotfix] — Worker queue stalls silently
+
+**Symptom**: First test source after Open Notebook had been running ~6 days hit `status: "new"` and stayed there. `surreal-commands-worker` process was still alive but not pulling jobs from the queue. Sync source POST timed out with `Sync processing failed: Command ... did not complete within 300 seconds`. After `kubectl rollout restart deployment/open-notebook`, the previously-stuck command auto-completed within 5 seconds and new commands processed in <1s.
+
+**Root cause in Open Notebook**: unknown — possibly the SurrealDB/worker connection drifted, possibly garbage collection of changefeeds. Not investigated upstream.
+
+**v8 fix**: new gauge `open_notebook_stale_commands_total` (set by bridge periodically polling `/api/commands/jobs`) + critical alert `PocketBridgeOpenNotebookCommandStalled`. Manual recovery is `kubectl rollout restart`. v1.5 may add a Kubernetes liveness probe that auto-restarts on detection.
+
+**Memory pointer**: [[feedback_open_notebook_worker_stuck_pod_restart]].
+
+### F0d-Live — 3 API contract drifts vs §6 fixture
+
+The OpenAPI fixture snapshotted at 2026-05-28 had 3 fields/verbs wrong compared to the live cluster behavior at 2026-05-30 — schema may have drifted or my fixture transcription was imprecise:
+
+| Where | Plan said | Actual |
+|---|---|---|
+| `POST /api/credentials/{id}/register-models` body | `{"name":"...","provider":"...","type":"..."}` | `{"name":"...","provider":"...","model_type":"..."}` |
+| `register-models` model `name` | `mxbai-embed-large` | `mxbai-embed-large:latest` (exact `/discover` output) |
+| Setting model defaults | `POST /api/models/defaults` | `PUT /api/models/defaults` (POST returns "Method Not Allowed") |
+
+§5 step 18 and §6 corrected in v8. Phase 1 contract tests must re-probe the live OpenAPI immediately before bridge code locks the fixture.
+
+**Memory pointer**: [[feedback_open_notebook_register_models_schema]].
+
+---
+
 ## Appendix A — Codex review pass log
+
+### Pass 12 (2026-05-30) — **CONVERGED**: 2 findings (0 High + 0 Critical + 2 Low)
+
+| ID | Class | Dim | Disposition |
+|---|---|---|---|
+| P12-001 | Low | Observability scale note | Folded into v12 — `open_notebook_embed_stalled_total` row in §8.1 carries a cardinality callout for would-be larger-scale operators |
+| P12-002 | Low | Wording drift | Folded into v12 — §8.2 alert prose + Appendix B both updated from "10 min" to "~12 min" to match §7.7 actual budget |
+
+**Codex implementation-readiness verdict** (Pass 12 — embed subsystem):
+> "No logic regressions, undefined references, or contract drift found across the v8-v12 embed-verification subsystem. `complete_after_embed.lua` two-key signature is consistently referenced in §7.7, §7.8 Layer A, and §7.8 Layer B. `skip_intervals_under` budget math is verified correct for all four cases tested, including past-budget skip (loop body skipped → execution falls through immediately to the stalled emit, no silent exit)."
+
+### Pass 11 (2026-05-30) — 5 findings (2 High + 2 Medium + 1 Low)
+
+| ID | Class | Dim | v12 disposition |
+|---|---|---|---|
+| P11-001 | High | Spec call-site miss | Accepted — §7.7 main success-path call updated to 2-key signature |
+| P11-002 | High | Metric label declaration | Accepted — §8.1 `open_notebook_embed_stalled_total` row adds `reason` label + enum values |
+| P11-003 | Medium | Skip-interval edge | Accepted — first retained interval shortened to (cum - skip_intervals_under) to preserve total budget |
+| P11-004 | Medium | Bounded helper false-positive | Accepted — documented as known trade-off in `any_source_with_marker` helper spec; manual workaround via `unbounded_scan` |
+| P11-005 | Low | File layout completeness | Accepted — added `complete_after_embed.lua` + `repair_revert_to_received.lua` to §4.1 |
+
+### Pass 10 (2026-05-30) — 9 findings (2 High + 4 Medium + 3 Low)
+
+| ID | Class | Dim | v11 disposition |
+|---|---|---|---|
+| P10-001 | High | Spec inconsistency (clock) | Accepted — `utc_iso_now()` + `datetime.fromisoformat()` end to end (§7.1, §7.3a R5, §7.8) |
+| P10-002 | High | Metric label inconsistency | Accepted — all `open_notebook_embed_stalled_total` emit sites use `{recording_id, reason}` (§7.7 reason=poll_timeout, §7.8 reason=startup_recovery / periodic_scan); §8.1 declares both labels (§7.7, §7.8, §8.1) |
+| P10-003 | Medium | Function signature | Accepted — `verify_embed(... skip_intervals_under=0)` kwarg + cumulative-sum filter semantics (§7.7) |
+| P10-004 | Medium | Undefined helper | Accepted — `any_source_with_marker(marker)` defined inline in §7.7 referencing D16's lookup procedure |
+| P10-005 | Medium | Stalled marker never cleared | Accepted — `complete_after_embed.lua` now takes 2 keys (state + stalled marker), DELs stalled on success; §7.8 Layer B always GETs source first regardless of alert state (§7.6, §7.8) |
+| P10-006 | Medium | Stale wording in §7.2 | Accepted — §7.2 rewritten to reference D17/§7.7 instead of v1.5 deferral |
+| P10-007 | Low | Metrics table organization | Accepted — `repair_state_drifted` folded into main `replay_total` enum (§8.1) |
+| P10-008 | Low | Missing replay reasons in §8.1 | Accepted — `repair_target_missing`, `repair_delete_fail`, `repair_state_drifted` all added to `replay_total` enum |
+| P10-009 | Low | Stale prose reference | Accepted — §7.7 prose + §7.3a race-note updated to split reason names (§7.7, §7.3a) |
+
+### Pass 9 (2026-05-30) — 8 findings (1 High + 4 Medium + 3 Low)
+
+| ID | Class | Dim | v10 disposition |
+|---|---|---|---|
+| F9-001 | High | Startup recovery correctness | Accepted — explicit `pocket:embed_pending_at:<id>` timestamp at state transition; §7.8 always GETs source first to check `embedded:true` before stalled/repoll decision (§7.1, §7.3a, §7.8) |
+| F9-002 | Medium | Retrograde CAS | Accepted — new `repair_revert_to_received.lua` script; §7.3a R5 wraps SET in Lua CAS; 409 on drift (§7.6, §7.3a) |
+| F9-003 | Medium | Silent corrupt-state skip | Accepted — emits `embed_recovery_corrupt_state_total{reason="missing_source_id"}` + actionable log (§7.8, §8.1) |
+| F9-004 | Medium | Flag matrix completeness | Accepted — 4 single-flag rows + double-rejection corner added explicitly (§7.3) |
+| F9-005 | Medium | Metric coverage | Accepted — `embed_poller_aborted_total` added to §8.1; reason split into `repair_replaced_source` / `source_missing_unexpected` (§7.7, §8.1) |
+| F9-006 | Low | D17 wording | Accepted — "~12 minutes" not "10 min" (D17) |
+| F9-007 | Low | ingest_state_total enum | Accepted — `embed_pending` added; new `source` label for recovery-paths (§8.1) |
+| F9-008 | Low | state_cas_rejected reason | Accepted — `awaiting_embed` added (§8.1) |
+
+### Pass 8 (2026-05-30) — 9 findings (3 High + 5 Medium + 1 Low) — re-opened after v8 Phase 0e additions
+
+| ID | Class | Dim | v9 disposition |
+|---|---|---|---|
+| F8-001 | High | State-machine concurrency | Accepted — new `complete_after_embed.lua` (no lock required); §7.7 poller uses it instead of `advance_state.lua` (§7.6, §7.7) |
+| F8-002 | High | Retry semantics | Accepted — `acquire_and_dispatch.lua` recognizes `embed_pending`, returns new action; §7.1 step 7 adds branch (§5 Phase 1 snippet, §7.1, §7.6) |
+| F8-003 | High | Crash-recovery gap | Accepted — §7.8 startup recovery + periodic stale-scanner; persistent `pocket:embed_stalled:` Redis key survives bridge restart (§7.7, §7.8 NEW) |
+| F8-004 | Medium | Math | Accepted — `[5, 15, 60, 180, 480]` = 738s ≈ 12m20s; D17 wording corrected (§7.7, D17) |
+| F8-005 | Medium | Numbering | Accepted — repair-flow split into §7.3a with R-prefix step numbering (§7.3, §7.3a) |
+| F8-006 | Medium | Race condition | Accepted — §7.7 poller treats source 404 as "give up silently" with `embed_poller_aborted_total{reason="source_404"}` metric (§7.7) |
+| F8-007 | Medium | Input validation | Accepted — full flag-combo matrix in §7.3, invalid combos return 422 (§7.3) |
+| F8-008 | Medium | Schema | Accepted — `/api/commands/jobs` pinned in §6 with 200-entry client-side cap (§6, §7.8) |
+| F8-009 | Low | Response shape | Accepted — §7.3a step R9 explicit response body (§7.3a) |
 
 ### Pass 7 (2026-05-28) — **CONVERGED**: 2 findings (1 Medium + 1 Low, no Critical or High)
 
