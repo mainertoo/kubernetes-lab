@@ -19,9 +19,20 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
+        # Newt is this homelab's Pangolin tunnel terminator (in `newt` ns).
+        # All external traffic for *.mainertoo.com via Pangolin enters the
+        # cluster through this Pod and goes direct to the target Service.
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: traefik-proxy
+              kubernetes.io/metadata.name: newt
+        # `traefik-system` is the cluster Traefik LB ns (NOT `traefik-proxy`
+        # — that was a typo; `traefik-proxy` is the Service name within
+        # `traefik-system`). Kept here so the IngressRoute defense-in-depth
+        # path also works if/when we route Pangolin via Traefik instead of
+        # direct-to-Service.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-system
       ports:
         - protocol: TCP
           port: 8080
