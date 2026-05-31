@@ -67,7 +67,10 @@ class OpenNotebookClient:
         r = await self._client.post(
             "/api/notebooks", json={"name": name, "description": description}
         )
-        self._require(r, 201, "create_notebook")
+        # Live API at 2026-05-31 returns 200, NOT 201 as the v8 fixture
+        # documented. Re-pinned via the same probe; fixture file updated in
+        # this PR. Only this endpoint drifted; others still match.
+        self._require(r, 200, "create_notebook")
         return r.json()
 
     # ---- sources ------------------------------------------------------------
