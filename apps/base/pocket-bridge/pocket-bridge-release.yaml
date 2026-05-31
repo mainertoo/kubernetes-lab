@@ -72,7 +72,7 @@ spec:
               OPEN_NOTEBOOK_BASE_URL:
                 value: "http://open-notebook.open-notebook.svc.cluster.local:5055"
               POCKET_API_BASE_URL:
-                value: "https://api.usepocket.com/v1"
+                value: "https://public.heypocketai.com/api/v1/public"
               WEBHOOK_PORT:
                 value: "8080"
               ADMIN_PORT:
