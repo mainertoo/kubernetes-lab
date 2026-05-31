@@ -1,0 +1,133 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pocket-bridge
+  namespace: open-notebook
+  labels:
+    # Match kube-prom-stack's PrometheusRule discovery selector.
+    app.kubernetes.io/name: pocket-bridge
+spec:
+  groups:
+    - name: pocket-bridge
+      rules:
+        # ---- plan §8.2 ------------------------------------------------------
+        - alert: PocketBridgeWebhookFailureRate
+          # F23 — include timestamp_fail + payload_field_missing
+          expr: |
+            rate(webhook_total{result=~"hmac_fail|timestamp_fail|open_notebook_error|body_too_large|payload_field_missing"}[15m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge (open-notebook ns) webhook failure rate above threshold over 15m: {{ printf \"%.3f\" $value }} req/s"
+
+        - alert: PocketBridgeOpenNotebookDown
+          expr: open_notebook_up{job="pocket-bridge-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: "pocket-bridge (open-notebook ns) cannot reach Open Notebook at /api/auth/status for 5m+"
+
+        - alert: PocketBridgeRedisDown
+          expr: redis_up{job="pocket-bridge-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: "pocket-bridge (open-notebook ns) sidecar Redis ping failing for 5m+"
+
+        - alert: PocketBridgeStaleCacheUnrecoverable
+          expr: increase(notebook_ensure_total{result="stale_cache_unrecoverable"}[15m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge tag→notebook cache held a stale notebook_id; second 404 confirmed deletion. Manual cache clear may be required."
+
+        - alert: PocketBridgePartialIngest
+          # F24 — source created but corresponding notes failed
+          expr: |
+            (increase(open_notebook_write_total{operation="source_post",result="success"}[15m])
+             - on() (increase(open_notebook_write_total{operation=~".*note_post",result="success"}[15m]) / 2)
+            ) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge created sources without matching note pairs over 15m — possible mid-ingest crash, /admin/replay can recover"
+
+        - alert: PocketBridgeStateCASNonMonotonic
+          # v6/v7 scope: any increment is a real bug; replay resets emit replay_reset_total
+          expr: increase(state_cas_rejected_total{reason="non_monotonic"}[15m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge state machine rejected a non-monotonic transition — likely a logic bug. Investigate state machine paths."
+
+        - alert: PocketBridgeFrequentLeaseResume
+          # v4 — repeated mid-ingest crashes
+          expr: increase(lease_expired_resume_total[1h]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge worker repeatedly crashing mid-ingest over the last hour ({{ $value }} resume events)"
+
+        - alert: PocketBridgeLeaseOwnershipLost
+          # v5 P10-001 / F4-001 — UUID fencing detected split-brain
+          expr: increase(lease_ownership_lost_total[15m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge worker detected lease ownership loss and aborted — Redis instability or stalled worker. Investigate refresh latency."
+
+        - alert: MacOllamaUnreachable
+          # Bridge probes Mac-Ollama indirectly via open_notebook_up + the egress;
+          # this alert specifically watches for the bridge's direct path failing.
+          # (open_notebook_up=1 + this firing means Open Notebook is up but the
+          # egress proxy or Mac-Ollama itself is unreachable.)
+          expr: rate(open_notebook_write_total{operation="source_post",result="fail"}[10m]) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            description: "pocket-bridge source POST failures elevated for 10m+. If embed_stalled also firing, suspect Mac-Ollama unreachability via the ollama-egress proxy."
+
+        - alert: PocketBridgeNotebookNoteCount
+          # v7 F6-003 — single-shot GET /api/notes degrading at scale
+          expr: max(open_notebook_notes_per_notebook) > 5000
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: "Notebook {{ $labels.notebook_id }} has > 5000 notes; the bridge's single-shot per-notebook fetch will be slow. Consider pagination or note pruning."
+
+        - alert: PocketBridgeEmbedStalled
+          # v8 F7-Live-001 — embed verification timed out
+          expr: increase(open_notebook_embed_stalled_total[15m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            description: "Recording {{ $labels.recording_id }} reached embed_pending state but vector embedding never confirmed within the ~12min window (reason={{ $labels.reason }}). Recover via /admin/replay repair_embeddings_only=true. Usually Mac-Ollama was unreachable during the window."
+
+        - alert: PocketBridgeOpenNotebookCommandStalled
+          # v8 F7-Live-003 — Open Notebook surreal-commands-worker stuck
+          expr: open_notebook_stale_commands_total > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            description: "Open Notebook's surreal-commands-worker has {{ $value }} stale `status=new` commands for 10m+. Recovery: `kubectl rollout restart deploy/open-notebook -n open-notebook`."
+
+        - alert: PocketBridgeNoScrape
+          # v3 F2-004 belt-and-braces — Prometheus stops seeing the metrics port
+          expr: up{service="pocket-bridge-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: "Prometheus has not scraped pocket-bridge-metrics (:8082) for 5m+. NetworkPolicy / Service / pod-readiness issue. ALL pocket-bridge alerts are blind until this clears."

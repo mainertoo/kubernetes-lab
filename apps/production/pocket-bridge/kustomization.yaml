@@ -1,0 +1,38 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Phase 2 (pocket-bridge plan §5). Ingest bridge for Pocket AI → Open Notebook.
+# Deploys into the existing `open-notebook` namespace (sidekick to Open Notebook).
+# Public surface: only /webhook/pocket via Pangolin → Newt → Traefik (Phase 3).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pocket-bridge
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/pocket-bridge"
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  # NOTE: no targetNamespace — pocket-bridge spans `open-notebook` (most
+  # resources) and Prometheus-side discovery; each resource self-namespaces
+  # (same pattern as mac-ollama-egress per [[feedback_two_kustomization_files_per_app]]).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+  - "../../../components/gatus/internal"
+  postBuild:
+    substitute:
+      APP: pocket-bridge
+      APP_NAMESPACE: open-notebook
+      GATUS_APP: pocket-bridge-admin   # /healthz lives on the admin Service
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: "/healthz"
+      GATUS_PORT: '8081'
