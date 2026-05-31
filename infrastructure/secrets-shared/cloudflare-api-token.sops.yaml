@@ -5,11 +5,11 @@ metadata:
     namespace: cert-manager
 type: Opaque
 stringData:
-    api-token: ENC[AES256_GCM,data:5PoWWRfM/zQ8DgM/LfLpKFY4lhOMdeqgPNwZBxxvAMKhO+wqJrsTQQ==,iv:5NFr4sXuxmd0iSjemLbiVyvMKvLuHZNao7s/+RPPH7M=,tag:CIPc7VClw3VDNxaAfkPYYA==,type:str]
+    api-token: ENC[AES256_GCM,data:qMYZPvDXN+2Tz2rhI81Na/mFzGAeztkwKfEvqd3k3nOlN12YRXhrHJYpI1ik/sjVwUX3F38=,iv:V9IAi1TnP86xH7fTfDvw/Ds0P/ta2m5YQmWTw134N6k=,tag:ISwvlAJexttz6XTL1Nbjfg==,type:str]
+    #ENC[AES256_GCM,data:aoM6n4S0LS541LSKCexqN+sRM+CLgPrs2jpCqkjT6NuLMZvZEaNpX30uTgvsRQNTcwiIzA+xSnF4DV6ZKx+DVMPa79E5/qmzhhw=,iv:W/6e58aWR4NcMOLNooUUF3A7/IS2E/MWbU03eI6IU7o=,tag:qPGAmlJdpnB4ulCbA1oADg==,type:comment]
 sops:
     age:
-        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
-          enc: |
+        - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
             YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0c0FlOVZkb3EvNFZzNG93
             dVN5RnhrdStRcDVsb1haZ1BSZVc2aTNpelU0CmF1ck5Yd09CVWVZRldDNVlOeTI4
@@ -17,7 +17,8 @@ sops:
             SDNZSEpKdENlU001QnJjRWc0QUxVUG8Kmzclhg6EF96/XV04xI9qZKd/Q3lLDJUw
             U8rHPLBwaTTscUzmnn5jvDEJ3GsZAXEoDC3ez9D6aT4qe3amUreGSg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-11-23T01:27:04Z"
-    mac: ENC[AES256_GCM,data:UL1D+8GA0u1H0uN80vswb/NJRvO/b6VKjcoWsFWA8xgQzQqsSJ6D6xjtF0AYNLvOMsYyMqdJ2aDm6jK4uD7n1TbKfS0frLKR49j8KRbSJQbcQEEHM4J8W3pAyJWiSMa2cxCN25YjZgMcrh0ym6yhcktv/WVhlEHMs9XkcZSMjmw=,iv:cs3KYNxgBURqr645yK2qbHCeqE8ONw9ZbzlHFhK83Dg=,tag:uRPum6b6lg4BqjvBEn0l6Q==,type:str]
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
     encrypted_regex: ^(data|stringData)$
-    version: 3.11.0
+    lastmodified: "2026-05-31T20:38:20Z"
+    mac: ENC[AES256_GCM,data:6uMxu/QxmZ79IHoI+AWIJFQwRh7ndAaHfoNS+23EM2XKVrSIJgSxTnuM1SujqlbsCD/38TbHI5fUxv0g9CyxDF43niXUe0Uc5LE0/xcjj8lQtBzw5dp/wdDZPNx+pFwoCDJkMQT1Lc0uqRxJ9SbEKqsUzvoAVjPIWit7EsCQG3Q=,iv:NFHY/l38QG7yaWYlbJZO5IjeSPDlPCIrVUYmvnaMPtc=,tag:NyDMUjlcAzRQsu6VGficvQ==,type:str]
+    version: 3.13.1

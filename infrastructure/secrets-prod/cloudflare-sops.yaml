@@ -5,11 +5,10 @@ metadata:
     namespace: traefik-system
 type: Opaque
 stringData:
-    cloudflare-dns-api-key: ENC[AES256_GCM,data:7QURzwev8dmDWGSLup4BfHSH7ate6wqb36FUtCzeJrzc97PN1Sj0Vg==,iv:zbyTKPv23jXcbypphyCzXUJ8CSza9yU9f5hjS/iBvnI=,tag:3QJykbcUcSP0nPXV5bIIVg==,type:str]
+    cloudflare-dns-api-key: ENC[AES256_GCM,data:TOhejJUe9fFBY0otkjW5OOEylwWOxK3iawz/s5ZSHGW/BYj94hRKIzyP4AUHiRKY3WhU5xU=,iv:IKxPIfzpJP8SYYU84W5GjQlb+qPnBWPcZsoZFfzGZWA=,tag:tQ6dsW4N9bo3NjFxyt/S0A==,type:str]
 sops:
     age:
-        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
-          enc: |
+        - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
             YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuWEhTTFlWNDJ4ZnZ0dmRo
             RHg0Um1ZYzVudDU3eXJmUFNQWmx4Y2R2T21rCnlWamY1aHJrMi9FVHEzdGNkTzcx
@@ -17,7 +16,8 @@ sops:
             c0E2WFJJaXJuVWdwRVUvUDZmMFRzbm8KxUTI0vflmKO/NEjmVDOoJNNpXwjtnjyJ
             jKp9A9pVCcEP3H6+ii4G51rtCmLXz1Fvvws8jHqyIMn5pWMp9IljHA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-01-17T15:13:35Z"
-    mac: ENC[AES256_GCM,data:AVKZt7U8mTudj1AS5lAGa092kk9EmogZpJDmxUzzzncjjFl/8xgx7JYTI+ig95hpmjsqPX9pZjxEElnoUL0UNF9RjRjb91e7/uH/Vrvq5KAI1BYbdcgPHrFXG7N/TN09d2Gr2+h1nHy3mYAtOhOpX4pmt2DUzXQ7WDpvFC9m9O0=,iv:matmdxN+/rOfdpIiDUHdgl+3Q0lxGHuoMBDt2Gya/9c=,tag:MY4KsyjgHjg5CYTZ3yirEg==,type:str]
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
     encrypted_regex: ^(data|stringData)$
-    version: 3.11.0
+    lastmodified: "2026-05-31T20:38:36Z"
+    mac: ENC[AES256_GCM,data:WJ3eJ0iQJT8BHRHoBCe4LtkEKLNwa0dblFnE5qWXgsI2eHGieWhME9p/+/lfhZ+JLy2OdLAnUBpFEL16JeUlWXJKvfyocztS3ltj207Qdh7Tn/UYDg9hmLANCt5UOVzGekiu6Fxf/kC7gBXqoTDcvM8xIFtrjP30vPcSdt3+7og=,iv:wag5mp5w3wwffuyogE5ABjLrvra8HGwmpH5z9ntZ1Gk=,tag:4HTCwJNyk1gVPXbk/RBGHQ==,type:str]
+    version: 3.13.1
