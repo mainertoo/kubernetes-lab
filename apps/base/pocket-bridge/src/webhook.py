@@ -39,6 +39,17 @@ def build_webhook_app(
         pocket_signature: str = Header(default="", alias="Pocket-Signature"),
         pocket_timestamp: str = Header(default="", alias="Pocket-Timestamp"),
     ) -> dict:
+        # Plan §5 Phase 3a F2-006 diagnosis aid: when capture mode is ON,
+        # dump every request header so we can verify our guessed
+        # Pocket-Signature / Pocket-Timestamp names against the real ones.
+        # Headers themselves are non-secret (Pocket signs the body, the
+        # signature header is opaque random hex).
+        if cfg.capture_fixture:
+            log.warning(
+                "CAPTURE MODE incoming headers: %s",
+                {k: v for k, v in request.headers.items()},
+            )
+
         # Step 1 — body size limit (F12). Read bounded.
         body = await request.body()
         if len(body) > cfg.body_size_limit_bytes:
