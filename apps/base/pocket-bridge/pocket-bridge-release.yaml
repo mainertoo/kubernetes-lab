@@ -42,6 +42,11 @@ spec:
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
+            # Match redis sidecar's UID/GID 999 so it can write to the
+            # mounted Redis PVC. OnRootMismatch avoids re-chowning on every
+            # pod start (just checks root-dir ownership at mount time).
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
             seccompProfile:
               type: RuntimeDefault
         containers:
