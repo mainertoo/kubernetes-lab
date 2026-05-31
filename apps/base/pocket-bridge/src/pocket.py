@@ -44,11 +44,14 @@ def verify_hmac(
 
     Header format guard runs BEFORE the cryptographic compare (F13).
     """
-    # Header format guards
+    # Header format guards. Phase 3a discovery: x-heypocket-timestamp is
+    # milliseconds since epoch (e.g. 1780240286263), NOT seconds. Convert to
+    # seconds for window comparison.
     try:
-        ts = int(timestamp_header)
+        ts_ms = int(timestamp_header)
     except (TypeError, ValueError):
         raise TimestampError(f"malformed timestamp header: {timestamp_header!r}")
+    ts = ts_ms / 1000.0
     if not signature_header or any(c not in "0123456789abcdefABCDEF" for c in signature_header):
         raise HmacError("malformed signature header")
 
@@ -56,14 +59,15 @@ def verify_hmac(
     cur = now_s if now_s is not None else time.time()
     if abs(cur - ts) > window_seconds:
         raise TimestampError(
-            f"timestamp outside ±{window_seconds}s window (delta={cur-ts:.0f}s)"
+            f"timestamp outside ±{window_seconds}s window (delta={cur-ts:.0f}s, ts_ms={ts_ms})"
         )
 
-    # HMAC over body. Pocket signs `<ts>.<body>` for replay-safe canonicalisation
-    # — confirmed against their docs at webhook-creation time. Conservative
-    # parse: if Pocket changes the canonical form, the signed body still differs
-    # and HMAC fails closed.
-    msg = f"{ts}.".encode() + raw_body
+    # HMAC canonical form is being derived empirically in Phase 3a — capture
+    # body + signature, compute several candidate forms locally, pick the
+    # matching one. Until then this is a placeholder using `<ts_ms>.<body>`
+    # (analogous to Stripe). HMAC failure is expected; capture-mode in
+    # webhook.py short-circuits before this is reached during diagnosis.
+    msg = f"{ts_ms}.".encode() + raw_body
     expected = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature_header):
         raise HmacError("hmac mismatch")
