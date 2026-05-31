@@ -36,25 +36,36 @@ def build_webhook_app(
     @app.post("/webhook/pocket")
     async def receive(
         request: Request,
-        pocket_signature: str = Header(default="", alias="Pocket-Signature"),
-        pocket_timestamp: str = Header(default="", alias="Pocket-Timestamp"),
+        # Phase 3a live discovery (HeyPocket-Webhook/1.0): signature/timestamp
+        # arrive under x-heypocket-* headers, NOT the plan-time-guessed
+        # Pocket-* names. Timestamps are milliseconds (handled in pocket.py).
+        pocket_signature: str = Header(default="", alias="x-heypocket-signature"),
+        pocket_timestamp: str = Header(default="", alias="x-heypocket-timestamp"),
     ) -> dict:
-        # Plan §5 Phase 3a F2-006 diagnosis aid: when capture mode is ON,
-        # dump every request header so we can verify our guessed
-        # Pocket-Signature / Pocket-Timestamp names against the real ones.
-        # Headers themselves are non-secret (Pocket signs the body, the
-        # signature header is opaque random hex).
-        if cfg.capture_fixture:
-            log.warning(
-                "CAPTURE MODE incoming headers: %s",
-                {k: v for k, v in request.headers.items()},
-            )
-
         # Step 1 — body size limit (F12). Read bounded.
         body = await request.body()
         if len(body) > cfg.body_size_limit_bytes:
             M.webhook_total.labels(event="?", result="body_too_large").inc()
             raise HTTPException(status_code=413, detail="body too large")
+
+        # Phase 3a F2-006 / F3 fixture capture — moved BEFORE HMAC so the next
+        # test event captures the body even while HMAC canonical form is still
+        # under investigation. Headers + body together let us derive Pocket's
+        # signing scheme locally.
+        if cfg.capture_fixture:
+            log.warning(
+                "CAPTURE MODE headers=%s",
+                {k: v for k, v in request.headers.items()},
+            )
+            log.warning("CAPTURE MODE body=%s", body.decode(errors="replace"))
+            try:
+                captured = Path("/tmp") / f"pocket-fixture-{uuid.uuid4().hex[:8]}.json"
+                captured.write_text(body.decode(errors="replace"))
+                log.warning("CAPTURE MODE wrote fixture to %s", captured)
+            except Exception as e:
+                log.warning("CAPTURE MODE file-write failed (logs are authoritative): %s", e)
+            M.webhook_total.labels(event="capture", result="success").inc()
+            return {"captured": "logs+/tmp"}
 
         # Steps 3-5 — header validation + HMAC + timestamp window
         try:
@@ -73,14 +84,6 @@ def build_webhook_app(
             M.webhook_total.labels(event="?", result="hmac_fail").inc()
             log.warning("hmac_fail: %s", e)
             raise HTTPException(status_code=401, detail="hmac mismatch") from e
-
-        # Capture mode (Phase 3a F2-006) — log full body then short-circuit
-        if cfg.capture_fixture:
-            captured = Path("/tmp") / f"pocket-fixture-{uuid.uuid4().hex[:8]}.json"
-            captured.write_text(body.decode())
-            log.warning("CAPTURE MODE: wrote fixture to %s; not processing", captured)
-            M.webhook_total.labels(event="capture", result="success").inc()
-            return {"captured": str(captured)}
 
         # Step 6 — parse + filter
         try:
