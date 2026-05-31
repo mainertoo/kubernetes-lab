@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 # Multi-stage non-root build; plan §9 security posture.
 
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 WORKDIR /build
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user --no-warn-script-location -r requirements.txt
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /app
 
 # Non-root, read-only-friendly layout
