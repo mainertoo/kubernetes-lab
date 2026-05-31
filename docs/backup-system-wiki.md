@@ -1509,6 +1509,8 @@ Daily `cleanup-logs` run completes successfully (verified back to 2026-04-14 in 
 | (each of the rest) | 1 |
 | Other singletons | wallos, vaultwarden, ui-toolkit, tandoor, scrypted, paperless-ngx, open-notebook, memos, mealie, … |
 
+> **Intentionally unbacked PVCs** (not in the counts above — they carry no `backup:` label by design): `pocket-bridge-redis` (open-notebook ns, 1Gi ceph-rbd). The bridge's sidecar Redis holds ephemeral state-machine data (UUID-fenced locks, `embed_pending` timestamps, 30-day-TTL recording IDs). Worst-case data loss = up to 30 days of replay-protection state, mitigated by Pocket's own retry behavior + the bridge's §7.8 startup-recovery scan on the next pod start. See `docs/plans/pocket-to-open-notebook-pipeline.md` D10.
+
 ### Sync health (audit time)
 
 - **Failures or never-synced**: none

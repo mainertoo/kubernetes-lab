@@ -86,6 +86,12 @@ All severities flow through the existing Alertmanager → Discord bridge with no
 
 **Note on CNPG backup metrics:** the `barman_cloud_cloudnative_pg_io_*` family is served by the plugin-barman-cloud sidecar (the legacy `cnpg_collector_last_*_backup_timestamp` family was deprecated for plugin-method backups in cloudnative-pg PR #8091). These metrics carry `pod` + `namespace` but no `cluster` label, so the alerts template `pod` instead of `cluster`.
 
+### App-specific alerts (not catalogued above)
+
+Some apps ship their own PrometheusRule with app-specific alerts. These are owned by the app, not by the platform-level `homelab-custom` rule above:
+
+- **pocket-bridge** (`open-notebook` namespace) — 13 alerts covering webhook failure rate, Redis/Open-Notebook reachability, partial ingest, state-machine CAS rejections, lease ownership loss, embed-verification stalls, Open Notebook command-queue stalls, scrape health. Full alert table + expressions documented in [`docs/plans/pocket-to-open-notebook-pipeline.md`](plans/pocket-to-open-notebook-pipeline.md) §8.2; manifest at `apps/base/pocket-bridge/pocket-bridge-prometheusrule.yaml`. All route through the same Discord bridge.
+
 ### Adding a new alert
 
 1. Edit `apps/base/kube-prometheus-stack/homelab-prometheusrule.yaml`, add a rule under the appropriate group (or a new group).
