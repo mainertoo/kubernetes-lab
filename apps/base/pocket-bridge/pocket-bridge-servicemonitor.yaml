@@ -13,8 +13,13 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: pocket-bridge
-      app.kubernetes.io/service: metrics
+      # bjw-s app-template names Services <release>-<service-key>, so the
+      # service label value is the FULL Service name not just `metrics`.
+      app.kubernetes.io/service: pocket-bridge-metrics
   endpoints:
     - port: http
-      path: /metrics
+      # Trailing slash — prometheus_client's make_asgi_app mounted at /metrics
+      # 307-redirects to /metrics/. Prometheus follows 307s but the canonical
+      # path avoids the per-scrape extra hop.
+      path: /metrics/
       interval: 30s
