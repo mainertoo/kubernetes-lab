@@ -56,7 +56,12 @@ spec:
               repository: ghcr.io/mainertoo/pocket-bridge
               # Renovate will bump this to the latest sha-XXXX tag automatically.
               tag: latest
-              pullPolicy: IfNotPresent
+              # Always (not IfNotPresent) because we use `:latest`. With
+              # IfNotPresent, kubelet trusts its cached :latest forever even
+              # when the registry digest changes — Pod restart pulls nothing,
+              # runs stale code. Cost: ~1s startup re-check; cleanest until
+              # Renovate pins to sha-XXX digests.
+              pullPolicy: Always
             env:
               TZ:
                 value: America/Los_Angeles
