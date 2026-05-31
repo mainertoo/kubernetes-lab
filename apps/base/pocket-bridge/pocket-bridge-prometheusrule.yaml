@@ -46,10 +46,14 @@ spec:
             description: "pocket-bridge tag→notebook cache held a stale notebook_id; second 404 confirmed deletion. Manual cache clear may be required."
 
         - alert: PocketBridgePartialIngest
-          # F24 — source created but corresponding notes failed
+          # F24 — source created but corresponding notes failed.
+          # Both sides must be aggregated to a single series: the note_post RHS
+          # matches multiple operations (action_items_note_post, summary_note_post),
+          # so a bare `- on()` hits "many-to-many matching not allowed". sum() each
+          # side; both then carry empty label sets and subtract one-to-one.
           expr: |
-            (increase(open_notebook_write_total{operation="source_post",result="success"}[15m])
-             - on() (increase(open_notebook_write_total{operation=~".*note_post",result="success"}[15m]) / 2)
+            (sum(increase(open_notebook_write_total{operation="source_post",result="success"}[15m]))
+             - sum(increase(open_notebook_write_total{operation=~".*note_post",result="success"}[15m])) / 2
             ) > 0.5
           for: 10m
           labels:
