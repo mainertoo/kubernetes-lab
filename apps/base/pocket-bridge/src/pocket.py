@@ -114,41 +114,53 @@ class PocketPayload:
     raw: dict[str, Any]
 
 
+def _first_summarization(body: dict[str, Any]) -> dict[str, Any] | None:
+    """HeyPocket has TWO shapes for `summarizations` depending on path:
+      - Webhook event: ARRAY → summarizations[0]
+      - REST API:      DICT keyed by summarization-UUID → values()[0]
+    Return the first summarization dict either way, or None."""
+    s = body.get("summarizations")
+    if isinstance(s, list) and s:
+        first = s[0]
+        return first if isinstance(first, dict) else None
+    if isinstance(s, dict) and s:
+        first = next(iter(s.values()))
+        return first if isinstance(first, dict) else None
+    return None
+
+
 def parse_summary_completed(body: dict[str, Any]) -> PocketPayload:
-    """Extract from real HeyPocket schema (Phase 3a fixture-pinned 2026-05-31).
-
-    Fixture: apps/base/pocket-bridge/contracts/pocket-test-event-2026-05-31.json
-    Real fields observed on the captured "test" event:
-      recording.id, recording.title
-      summarizations[0].summary.markdown      # primary summary text
-      summarizations[0].summary.bulletPoints  # array of strings
-      summarizations[0].actionItems[].task    # array of dicts; we pull .task
-      transcript[] = [{speaker, text, start, end}, ...]
-      (tags absent in test event; real recordings TBD)
+    """Extract from HeyPocket schema. Tolerant of BOTH shapes:
+      - Webhook payloads (Phase 3a test event 2026-05-31): summarizations
+        is an array, summary at [0].summary.markdown (no v2 wrapper)
+      - REST API responses (Phase 3a-extension /admin/replay 2026-05-31):
+        summarizations is a UUID-keyed dict, summary at <uuid>.v2.summary.markdown
+    Real fields observed (recording-level):
+      recording.id, recording.title (both shapes)
+      tags (may be empty list)
+      transcript[] (webhook shape) OR transcript.segments[] (API shape)
     """
-    # Transcript: array of segments — concatenate with speaker prefix
-    transcript_segs = _safe_extract(body, "transcript")
-    transcript_text: str | None = None
-    if isinstance(transcript_segs, list) and transcript_segs:
-        lines = []
-        for seg in transcript_segs:
-            if not isinstance(seg, dict):
-                continue
-            spk = seg.get("speaker") or "?"
-            txt = seg.get("text") or ""
-            if txt:
-                lines.append(f"{spk}: {txt}")
-        transcript_text = "\n".join(lines) if lines else None
+    # Get the first summarization dict regardless of array/dict outer shape
+    summ = _first_summarization(body) or {}
 
-    # Summary: prefer markdown; fall back to bulletPoints joined
-    summary_text: str | None = _safe_extract(body, "summarizations.0.summary.markdown")
+    # Summary: try webhook path (.summary.markdown), then API path (.v2.summary.markdown)
+    summary_text: str | None = (
+        _safe_extract(summ, "summary.markdown")
+        or _safe_extract(summ, "v2.summary.markdown")
+    )
     if not summary_text:
-        bullets = _safe_extract(body, "summarizations.0.summary.bulletPoints")
+        bullets = (
+            _safe_extract(summ, "summary.bulletPoints")
+            or _safe_extract(summ, "v2.summary.bulletPoints")
+        )
         if isinstance(bullets, list) and bullets:
             summary_text = "\n".join(f"- {b}" for b in bullets if b)
 
-    # Action items: each is a dict with .task (+ assignee, dueDate, completed)
-    raw_actions = _safe_extract(body, "summarizations.0.actionItems")
+    # Action items: webhook (.actionItems) or API (.v2.actionItems or .actionItems)
+    raw_actions = (
+        _safe_extract(summ, "actionItems")
+        or _safe_extract(summ, "v2.actionItems")
+    )
     action_items: list[str] | None = None
     if isinstance(raw_actions, list) and raw_actions:
         action_items = []
@@ -162,14 +174,64 @@ def parse_summary_completed(body: dict[str, Any]) -> PocketPayload:
             elif isinstance(it, str):
                 action_items.append(it)
 
+    # Transcript: webhook gives transcript=[{speaker,text,...},...];
+    # API gives transcript={metadata:..., segments:[{speaker?,text,start,end},...], text:"..."}
+    transcript_text: str | None = None
+    t = body.get("transcript")
+    if isinstance(t, list) and t:
+        # Webhook shape: array of segments
+        lines = []
+        for seg in t:
+            if not isinstance(seg, dict):
+                continue
+            spk = seg.get("speaker") or "?"
+            txt = seg.get("text") or ""
+            if txt:
+                lines.append(f"{spk}: {txt}")
+        transcript_text = "\n".join(lines) if lines else None
+    elif isinstance(t, dict):
+        # API shape: prefer the flat .text; fall back to segments concat
+        flat = t.get("text")
+        if flat:
+            transcript_text = flat
+        else:
+            segs = t.get("segments")
+            if isinstance(segs, list):
+                lines = []
+                for seg in segs:
+                    if not isinstance(seg, dict):
+                        continue
+                    spk = seg.get("speaker") or "?"
+                    txt = seg.get("text") or ""
+                    if txt:
+                        lines.append(f"{spk}: {txt}")
+                transcript_text = "\n".join(lines) if lines else None
+
+    # Recording-level metadata: webhook nests in .recording.id; API top-level .id
+    rid = (
+        _safe_extract(body, "recording.id")
+        or _safe_extract(body, "recording_id")
+        or body.get("id")  # API response (after .data unwrap) has id at top
+        or ""
+    )
+    title = (
+        _safe_extract(body, "recording.title")
+        or body.get("title")
+    )
+    tags = (
+        _safe_extract(body, "tags", None)
+        if "tags" in body
+        else _safe_extract(body, "recording.tags", [])
+    ) or []
+
     return PocketPayload(
-        recording_id=_safe_extract(body, "recording.id") or _safe_extract(body, "recording_id") or "",
+        recording_id=rid,
         event=_safe_extract(body, "event") or _safe_extract(body, "event_type") or "",
-        title=_safe_extract(body, "recording.title") or _safe_extract(body, "title"),
+        title=title,
         transcript=transcript_text,
         summary=summary_text,
         action_items=action_items,
-        tags=_safe_extract(body, "tags", []) or [],
+        tags=tags,
         raw=body,
     )
 
@@ -194,10 +256,21 @@ class PocketAPIClient:
         await self._client.aclose()
 
     async def get_recording(self, recording_id: str) -> dict[str, Any]:
-        """Returns Pocket's full recording representation (for /admin/replay)."""
+        """GET /recordings/{id} on https://public.heypocketai.com/api/v1/public
+
+        Returns the unwrapped recording dict (HeyPocket wraps everything in
+        {"success": true, "data": {...}} — we return the .data payload).
+        """
         r = await self._client.get(f"/recordings/{recording_id}")
         if r.status_code == 404:
             raise FileNotFoundError(f"pocket recording {recording_id} not found")
         if r.status_code != 200:
-            raise RuntimeError(f"pocket GET /recordings/{recording_id}: HTTP {r.status_code}")
-        return r.json()
+            raise RuntimeError(
+                f"pocket GET /recordings/{recording_id}: HTTP {r.status_code}"
+            )
+        body = r.json()
+        # HeyPocket envelope: {"success": true, "data": <recording>}.
+        # Defensively unwrap; if no envelope, treat the body as the recording.
+        if isinstance(body, dict) and "data" in body and isinstance(body["data"], dict):
+            return body["data"]
+        return body

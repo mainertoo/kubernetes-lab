@@ -61,7 +61,7 @@ def load() -> Config:
             "http://open-notebook.open-notebook.svc.cluster.local:5055",
         ),
         pocket_api_base_url=os.environ.get(
-            "POCKET_API_BASE_URL", "https://api.usepocket.com/v1"
+            "POCKET_API_BASE_URL", "https://public.heypocketai.com/api/v1/public"
         ),
         redis_host=os.environ.get("REDIS_HOST", "127.0.0.1"),
         redis_port=int(os.environ.get("REDIS_PORT", "6379")),
