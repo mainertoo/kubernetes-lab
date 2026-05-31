@@ -92,12 +92,15 @@ spec:
                   secretKeyRef:
                     name: pocket-bridge-secret
                     key: POCKET_API_TOKEN
+              # Open Notebook auth currently disabled (Phase 0d probe); the
+              # secret ships an empty string for this key. `optional: true`
+              # was rejected by bjw-s v5 schema, so we just rely on the key
+              # being present-but-empty.
               OPEN_NOTEBOOK_API_KEY:
                 valueFrom:
                   secretKeyRef:
                     name: pocket-bridge-secret
                     key: OPEN_NOTEBOOK_API_KEY
-                    optional: true       # Open Notebook auth currently disabled
             probes:
               liveness:
                 enabled: true
