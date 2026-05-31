@@ -1,0 +1,213 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app pocket-bridge
+  namespace: open-notebook
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 5.0.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      reconcileStrategy: ChartVersion
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    force: true
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      main:
+        replicas: 1
+        # Plan F2-009 — bridge never calls the K8s API
+        serviceAccount:
+          create: false
+        pod:
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+        containers:
+          # ----- bridge (FastAPI) -----------------------------------------
+          bridge:
+            image:
+              repository: ghcr.io/mainertoo/pocket-bridge
+              # Renovate will bump this to the latest sha-XXXX tag automatically.
+              tag: latest
+              pullPolicy: IfNotPresent
+            env:
+              TZ:
+                value: America/Los_Angeles
+              REDIS_HOST:
+                value: "127.0.0.1"      # sidecar in same Pod
+              REDIS_PORT:
+                value: "6379"
+              OPEN_NOTEBOOK_BASE_URL:
+                value: "http://open-notebook.open-notebook.svc.cluster.local:5055"
+              POCKET_API_BASE_URL:
+                value: "https://api.usepocket.com/v1"
+              WEBHOOK_PORT:
+                value: "8080"
+              ADMIN_PORT:
+                value: "8081"
+              METRICS_PORT:
+                value: "8082"
+              HMAC_TIMESTAMP_WINDOW_S:
+                value: "300"
+              BODY_SIZE_LIMIT_BYTES:
+                value: "1048576"        # 1 MB (F12)
+              LEASE_TTL_S:
+                value: "60"
+              LEASE_REFRESH_S:
+                value: "20"
+              POCKET_WEBHOOK_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: pocket-bridge-secret
+                    key: POCKET_WEBHOOK_SECRET
+              REPLAY_ADMIN_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: pocket-bridge-secret
+                    key: REPLAY_ADMIN_TOKEN
+              POCKET_API_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: pocket-bridge-secret
+                    key: POCKET_API_TOKEN
+              OPEN_NOTEBOOK_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: pocket-bridge-secret
+                    key: OPEN_NOTEBOOK_API_KEY
+                    optional: true       # Open Notebook auth currently disabled
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            resources:
+              requests:
+                cpu: 25m
+                memory: 96Mi
+              limits:
+                cpu: 500m
+                memory: 256Mi
+
+          # ----- redis (sidecar, AOF on PVC) ------------------------------
+          redis:
+            image:
+              repository: redis
+              tag: 8.8.0
+              pullPolicy: IfNotPresent
+            args:
+              - redis-server
+              - --appendonly
+              - "yes"
+              - --appendfsync
+              - everysec
+              - --dir
+              - /data
+              - --save
+              - ""              # disable RDB; AOF only (smaller, simpler)
+              - --maxmemory
+              - 128mb
+              - --maxmemory-policy
+              - noeviction       # never drop dedup state under pressure
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [redis-cli, ping]
+                  initialDelaySeconds: 5
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [redis-cli, ping]
+                  initialDelaySeconds: 2
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 200m
+                memory: 192Mi
+
+    # Three Services — plan D15 (one Pod, three ports, three Services)
+    service:
+      public:
+        controller: main
+        ports:
+          http:
+            port: 8080
+      admin:
+        controller: main
+        ports:
+          http:
+            port: 8081
+      metrics:
+        controller: main
+        ports:
+          http:
+            port: 8082
+
+    persistence:
+      # Redis AOF — Pod-restart durability. NOT backed up (D10).
+      redis-data:
+        enabled: true
+        existingClaim: pocket-bridge-redis
+        advancedMounts:
+          main:
+            redis:
+              - path: /data

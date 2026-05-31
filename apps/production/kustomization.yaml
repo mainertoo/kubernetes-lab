@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - mac-ollama-egress/kustomization.yaml
   - open-webui/kustomization.yaml
+  - pocket-bridge/kustomization.yaml
   - audiobookshelf/kustomization.yaml
   - actual-budget/kustomization.yaml
   - home-assistant/kustomization.yaml

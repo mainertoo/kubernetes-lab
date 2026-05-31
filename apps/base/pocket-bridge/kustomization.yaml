@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: open-notebook
+resources:
+  - pocket-bridge-pvc.yaml
+  - pocket-bridge-secret.sops.yaml
+  - pocket-bridge-release.yaml
+  - pocket-bridge-ingressroute.yaml
+  - pocket-bridge-networkpolicies.yaml
+  - pocket-bridge-servicemonitor.yaml
+  - pocket-bridge-prometheusrule.yaml

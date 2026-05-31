@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pocket-bridge
+  namespace: open-notebook
+  labels:
+    # No release-label selector on this cluster's kube-prom-stack
+    # (per [[feedback_kube_prom_servicemonitor_selector_trap]]), but the
+    # Service must be label-discoverable. The Service has app.kubernetes.io/*
+    # labels from bjw-s by default.
+    app.kubernetes.io/name: pocket-bridge
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-bridge
+      app.kubernetes.io/service: metrics
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

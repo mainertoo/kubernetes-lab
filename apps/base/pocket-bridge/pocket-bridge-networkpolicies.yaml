@@ -1,0 +1,120 @@
+# Plan §9 — bridge NetworkPolicies. Per-port ingress allowlists plus a
+# combined egress policy. Lives in `open-notebook` ns (same as the Pod).
+#
+# IMPORTANT (plan §7.6 / port-forward): kubectl port-forward connections
+# arrive INSIDE the Pod's network namespace via the kubelet — NetworkPolicy
+# does NOT block port-forward. The :8081 admin port's "in-namespace only"
+# rule still permits dev/operator access via port-forward, while denying
+# arbitrary cross-namespace pod-to-pod traffic.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pocket-bridge-ingress-public
+  namespace: open-notebook
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-bridge
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-proxy
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pocket-bridge-ingress-admin
+  namespace: open-notebook
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-bridge
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: open-notebook
+      ports:
+        - protocol: TCP
+          port: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pocket-bridge-ingress-metrics
+  namespace: open-notebook
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-bridge
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack
+      ports:
+        - protocol: TCP
+          port: 8082
+---
+# Egress: DNS + Open Notebook + Mac-Ollama egress + Pocket API (external HTTPS).
+# Plan §9 / v9 F2-005 (DNS), F8-008 (cmds-jobs probes via Open Notebook).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pocket-bridge-egress
+  namespace: open-notebook
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-bridge
+  policyTypes: [Egress]
+  egress:
+    # DNS — kube-system (CoreDNS / k3s built-in)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Open Notebook (in-namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: open-notebook
+      ports:
+        - protocol: TCP
+          port: 5055
+    # Mac-Ollama via egress proxy (plan D11 / Phase 0b)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ollama-egress
+      ports:
+        - protocol: TCP
+          port: 11434
+    # Pocket API on the public internet — needed for /admin/replay's
+    # Pocket fetch (plan §7.3 step 2).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            # Don't blanket-allow internal RFC1918 by accident; explicit
+            # exclusions for the lab subnets + pod/service CIDRs.
+            except:
+              - 10.42.0.0/16        # K3s pod network
+              - 10.43.0.0/16        # K3s service network
+              - 192.168.0.0/16      # lab LAN
+              - 100.64.0.0/10       # tailnet CGNAT
+      ports:
+        - protocol: TCP
+          port: 443

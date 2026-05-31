@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pocket-bridge-redis
+  # Plan §3 + D10 — Redis AOF state is ephemeral (30-day TTL recording IDs);
+  # NOT worth a backup chain. Intentionally no backup: / backup-engine: labels
+  # so the volsync Kyverno policy DOES NOT generate ReplicationSource/Destination.
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 1Gi

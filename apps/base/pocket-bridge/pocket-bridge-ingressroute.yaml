@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pocket-bridge
+  namespace: open-notebook
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    # Plan §3 + §9 — STRICT path match to /webhook/pocket only. The public
+    # surface is exactly this one route. Pangolin enforces the same restriction
+    # at the VPS edge as defense in depth (plan Phase 3 step 1).
+    - match: Host(`pocket-bridge.mainertoo.com`) && Path(`/webhook/pocket`)
+      kind: Rule
+      services:
+        - name: pocket-bridge-public
+          port: 8080
+  tls: {}
