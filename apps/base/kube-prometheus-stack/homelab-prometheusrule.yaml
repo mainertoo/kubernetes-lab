@@ -86,7 +86,7 @@ spec:
             severity: critical
           annotations:
             summary: "VolSync cannot reach Kopia repo {{ $labels.repository }} for {{ $labels.obj_namespace }}/{{ $labels.obj_name }}"
-            description: "ReplicationSource `{{ $labels.obj_namespace }}/{{ $labels.obj_name }}` cannot reach Kopia repo `{{ $labels.repository }}` for 30 minutes — credentials, S3 endpoint, or Garage backend issue. No new backups can land for this PVC."
+            description: "ReplicationSource `{{ $labels.obj_namespace }}/{{ $labels.obj_name }}` cannot reach Kopia repo `{{ $labels.repository }}` for 30 minutes. No new backups can land for this PVC. Causes: (1) credentials, S3 endpoint, or Garage backend issue; (2) a wedged sync — check for a `volsync-{{ $labels.obj_name }}-src` VolumeSnapshot stuck Terminating with a stale `volumesnapshot-as-source-protection` finalizer (RS Synchronizing=False/`data PVC not available`, lastSyncTime pinned stale). Clear it with `kubectl patch volumesnapshot <name> -n {{ $labels.obj_namespace }} --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'`."
 
     # ----------------------------------------------------------------------
     # CNPG cluster health (per-cluster PodMonitors enabled via
