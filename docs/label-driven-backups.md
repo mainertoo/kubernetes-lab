@@ -180,10 +180,23 @@ Kopia snapshots stay in the shared repo** until pruned manually
 (`kopia snapshot list --all` then `kopia snapshot delete` against the
 `<pvc>-backup@<ns>` identity, using the shared key + password).
 
-## Special case — `dumb`
+## Special case — `dumb` (label-driven, plus a `.kopiaignore`)
 
-`dumb` does not use this policy: its PVC carries `backup: paused` and a
-hand-written ReplicationSource/Destination live in `apps/base/dumb/`. This was
-the canary for the cephfs `backingSnapshot` fix. Now that the policy itself
-does `backingSnapshot` for cephfs (Phase 2), `dumb` can be folded back onto the
-label — tracked as a follow-up.
+`dumb` **is** an ordinary label-driven cephfs app now: its PVC carries
+`backup: daily` + `backup-engine: kopia`, and the Kyverno policy generates the
+Kopia Secret + RS/RD using the cephfs `backingSnapshot` shallow-mount path
+(zero-copy, no clone). It was the canary for that Phase-2 fix and was folded back
+onto the policy in PR #571 — the hand-written RS/RD was retired, the same Kopia
+source identity (`dumb-backup@dumb`) preserved, no history lost.
+
+**`.kopiaignore` (lives in the PVC, not git):** a `/.kopiaignore` at the PVC root
+excludes `data/neutarr/*/.cache/` — neutarr's poetry/pip HTTP cache. It's
+ephemeral (rebuilt every boot) and its leaf dirs are created `root:root 0700`
+under setgid parents, so the gid-1000 Kopia mover can't descend them. Without the
+exclude, every backup failed with ~44 `permission denied` fatal errors →
+`Failed to create snapshot` (added + verified 2026-06-02). Because the file is
+PVC-resident rather than GitOps-managed, it rides along inside the backup but is
+**not** recreated by a from-scratch repo deploy — re-add it after a bare PVC
+restore. To force a fresh snapshot that picks up an edited `.kopiaignore`, delete
+the backingsnapshot PVC `<rs>-src` (deleting the VolumeSnapshot alone deadlocks on
+the `as-source-protection` finalizer).
