@@ -83,7 +83,8 @@ home                                              Mainertoo Homelab Wiki (landin
 │   ├── rag-and-memory
 │   └── integrations/
 │       ├── home-assistant-llm
-│       └── claude-desktop-mcp
+│       ├── claude-desktop-mcp
+│       └── codex-open-notebook                  ★ Codex (subscription) ⇄ Open Notebook MCP over Tailscale (2026-06-02)
 │
 ├── backup-and-recovery/                          10-layer system
 │   ├── architecture                              80 KB Backup System Complete Reference (relocated from legacy)
@@ -216,3 +217,4 @@ When the wiki tree changes meaningfully (new top-level section, large reorg), up
 - [`backup-system-wiki.md`](backup-system-wiki.md) — the 80 KB canonical reference, lives at `/backup-and-recovery/architecture` in the wiki.
 - [`label-driven-backups.md`](label-driven-backups.md) — mirrored at `/backup-and-recovery/label-driven-backups`.
 - [`observability.md`](observability.md) — kube-prom-stack + Loki + Alloy + Grafana reference, mirrored at `/infrastructure/software/observability`.
+- [`guides/codex-open-notebook.md`](guides/codex-open-notebook.md) — practical guide for driving Open Notebook from Codex; auto-synced to `/docs/guides/codex-open-notebook`, with a curated overview/link page at `/ai/integrations/codex-open-notebook` (created via API 2026-06-02).
