@@ -6,4 +6,5 @@ resources:
   - open-notebook-secret.sops.yaml
   - open-notebook-release.yaml
   - open-notebook-ingressroute.yaml
+  - open-notebook-tailscale-ingress.yaml
   - open-notebook-pvc.yaml
