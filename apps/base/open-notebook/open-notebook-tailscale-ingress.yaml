@@ -1,0 +1,34 @@
+# Tailnet-only ingress for the Open Notebook FastAPI (:5055), so the MacBook can reach
+# the API over Tailscale (not just the home LAN) for the Codex `open-notebook-mcp` server.
+# Mirrors apps/base/vaultwarden/vaultwarden-tailscale-ingress.yaml, but WITHOUT funnel
+# (tailnet-only — never public). Plan: docs/plans/open-notebook-tailnet-ingress.md (CONVERGED v3).
+#
+# SECURITY: the :5055 API is unauthenticated and this path bypasses the Authentik SSO that
+# gates the UI (open-notebook.lab.mainertoo.com). Guard is the tailnet (+ optional ACL). This
+# is an accepted residual risk per the plan's T6 (no API key). The UI is unaffected.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-notebook-tailscale
+  namespace: open-notebook
+  annotations:
+    # tailnet-only — intentionally NO tailscale.com/funnel (would expose to the public internet).
+    # tag:k8s is already authorized in the operator's OAuth client (reused, not a new tag) and is
+    # apply-once: re-verify the device tag after any prune+recreate.
+    tailscale.com/tags: "tag:k8s"
+spec:
+  ingressClassName: tailscale
+  # API-ONLY: defaultBackend routes ALL paths to FastAPI :5055. The Open Notebook UI is NOT here —
+  # it stays on the Traefik IngressRoute at open-notebook.lab.mainertoo.com (Authentik-gated).
+  #
+  # Backend name `open-notebook` is the live, deterministic Service name for this SINGLE-service
+  # bjw-s release. If a 2nd service block is ever added to open-notebook-release.yaml, bjw-s renames
+  # this Service to `open-notebook-app` and this Ingress must be updated (see plan §5.1).
+  tls:
+    - hosts:
+        - open-notebook            # → https://open-notebook.<tailnet>.ts.net
+  defaultBackend:
+    service:
+      name: open-notebook
+      port:
+        number: 5055
