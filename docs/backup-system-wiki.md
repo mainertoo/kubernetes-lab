@@ -212,7 +212,7 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 - ~70 ReplicationSources active across the fleet (heaviest namespace: `media`).
 - **In-cluster Postgres apps are excluded** — they use CNPG (Layer 10). CNPG-managed PVCs (`cnpg.io/cluster` label or `app.kubernetes.io/managed-by: cnpg|cloudnative-pg`) are skipped by the policy. Their legacy raw-PVC volsync sources + 88 GiB of data PVCs were removed during the Phase 5 decommission (PRs #305–#313, 2026-05-09–10).
 - App-author how-to: `docs/label-driven-backups.md`. Operator view of the policies: `infrastructure/controllers/kyverno/policies/README.md`.
-- `dumb` is now an ordinary label-driven cephfs app — was the canary for the cephfs `backingSnapshot` Phase-2 fix; hand-written setup retired in PR #571 once the Kyverno policy itself does the shallow-mount path. Same Kopia source identity preserved, no history lost.
+- `dumb` is now an ordinary label-driven cephfs app — was the canary for the cephfs `backingSnapshot` Phase-2 fix; hand-written setup retired in PR #571 once the Kyverno policy itself does the shallow-mount path. Same Kopia source identity preserved, no history lost. **Caveat:** a `/.kopiaignore` at the PVC root excludes `data/neutarr/*/.cache/` (ephemeral poetry cache whose `root:root 0700` leaf dirs the gid-1000 mover can't read — caused ~44 `permission denied` fatal errors → failed backups until added 2026-06-02). That ignore file is PVC-resident, **not** GitOps-managed: re-add it after a bare PVC restore. See `docs/label-driven-backups.md` §"Special case — `dumb`".
 
 ### Layer 3 — Ceph RBD nightly export
 
@@ -1348,7 +1348,8 @@ The only test of a backup is a restore. Each quarter, run:
 
 ```bash
 # Volsync label-driven restore drill — pick a small backup-labelled app
-# (NOT `dumb` — it has a hand-written setup; pick any app with `backup: daily`)
+# (any app with `backup: daily`; avoid `dumb` here only because it's a 24 GB
+#  high-file-count PVC — slow drill, not a config caveat: it's label-driven too)
 ns=<namespace>; app=<app>; pvc=<pvc>
 flux suspend hr -n "$ns" "$app"
 kubectl -n "$ns" scale deploy/"$app" --replicas=0
