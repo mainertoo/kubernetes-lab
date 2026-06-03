@@ -157,6 +157,7 @@ anyway), and diagnose before proceeding.
   — no RGW on this cluster by design (S3 = Garage).
 
   > ### ⚠️ Host-level dashboard patches — NOT in git, reverted by upgrades
+  >
   > Two `ceph-mgr-dashboard` files are patched **directly on all 3 mgr
   > hosts** (`pve-mammoth`, `pve-whistler`, `pve-zermatt`) to make the
   > Tentacle dashboard work. **The next `ceph-mgr-dashboard` package
@@ -168,7 +169,7 @@ anyway), and diagnose before proceeding.
   >    controller but not the `smb` mgr module it imports →
   >    `ModuleNotFoundError: No module named 'smb'` crashes the whole
   >    dashboard. Fix: `mv .../dashboard/controllers/smb.py{,.disabled-tentacle-smb-bug}`
-  >    + clear `__pycache__/smb.*`.
+  >    and clear `__pycache__/smb.*`.
   > 2. **`services/auth/auth.py`** (~line 168) — assumes every token has a
   >    `sub` claim in oauth2 mode; the dashboard's own session JWTs / the
   >    local `admin` user lack it → `KeyError: 'sub'` → intermittent 500 on
