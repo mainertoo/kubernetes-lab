@@ -1,0 +1,1371 @@
+profile: Core
+channels:
+- name: ABC — KABC Los Angeles
+  number: 100.0
+  group: US | Local ABC
+  tvg_id: ABCKABC.us
+  streams:
+  - 16406
+  - 8919
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 527
+- name: CBS — KCBS Los Angeles
+  number: 101.0
+  group: US | Local CBS
+  tvg_id: CBSKCBS.us
+  streams:
+  - 16408
+  - 9389
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 528
+- name: CBS — KCAL Los Angeles
+  number: 102.0
+  group: US | Local CBS
+  tvg_id: NewsKCAL.us
+  streams:
+  - 16407
+  - 9388
+  - 9612
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 529
+- name: NBC — KNBC Los Angeles
+  number: 103.0
+  group: US | Local NBC
+  tvg_id: NBCKNBC.us
+  streams:
+  - 16411
+  - 10515
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 530
+- name: FOX — KTTV Los Angeles
+  number: 104.0
+  group: US | Local FOX
+  tvg_id: FOXKTTV.us
+  streams:
+  - 16409
+  - 9751
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 531
+- name: PBS — KOCE Los Angeles
+  number: 105.0
+  group: US | Local PBS
+  tvg_id: PBSKOCE.us
+  streams:
+  - 16412
+  - 10711
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 532
+- name: PBS — KLCS Los Angeles
+  number: 106.0
+  group: USA PBS LOCALS
+  tvg_id: KLCS-DT.us_locals1
+  streams:
+  - 10248
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 2
+  id: 533
+- name: CW — KTLA 5 Los Angeles
+  number: 107.0
+  group: US | Local CW & MY
+  tvg_id: CWKTLA.us
+  streams:
+  - 16388
+  - 9613
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 534
+- name: MyNet — KCOP 13 Los Angeles
+  number: 108.0
+  group: US | Local CW & MY
+  tvg_id: Fox11+KCOP.us
+  streams:
+  - 16410
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 535
+- name: CNN
+  number: 130.0
+  group: US | News
+  tvg_id: CNN.us
+  streams:
+  - 15851
+  - 9594
+  - 9595
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 536
+- name: Fox News
+  number: 131.0
+  group: US | News
+  tvg_id: FoxNewsChannel.us
+  streams:
+  - 15855
+  - 9938
+  - 9939
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 537
+- name: MSNBC (MS NOW)
+  number: 132.0
+  group: US | News
+  tvg_id: MSNOW.us
+  streams:
+  - 15860
+  - 10061
+  - 10062
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 538
+- name: CNBC
+  number: 133.0
+  group: US | News
+  tvg_id: CNBC.us
+  streams:
+  - 15849
+  - 9590
+  - 9591
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 539
+- name: Fox Business
+  number: 134.0
+  group: US | News
+  tvg_id: FoxBusiness.us
+  streams:
+  - 15854
+  - 9935
+  - 9936
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 540
+- name: The Weather Channel
+  number: 135.0
+  group: US | News
+  tvg_id: TheWeatherChannel.us
+  streams:
+  - 15883
+  - 10410
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 541
+- name: BBC World News
+  number: 136.0
+  group: US | News
+  tvg_id: BBCWorldNews.us
+  streams:
+  - 15841
+  - 9345
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 542
+- name: NewsNation
+  number: 137.0
+  group: US | News
+  tvg_id: NewsNation.us
+  streams:
+  - 15873
+  - 10159
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 543
+- name: TNT
+  number: 200.0
+  group: US | Entertainment
+  tvg_id: TNT.us
+  streams:
+  - 16285
+  - 10415
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 544
+- name: TBS
+  number: 201.0
+  group: US | Entertainment
+  tvg_id: TBS.us
+  streams:
+  - 16276
+  - 10397
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 545
+- name: truTV
+  number: 202.0
+  group: US | Entertainment
+  tvg_id: truTV.us
+  streams:
+  - 16289
+  - 10418
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 546
+- name: USA Network
+  number: 203.0
+  group: US | Entertainment
+  tvg_id: USANetwork.us
+  streams:
+  - 16295
+  - 10429
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 547
+- name: Discovery Channel
+  number: 204.0
+  group: US | Entertainment
+  tvg_id: DiscoveryChannel.us
+  streams:
+  - 16160
+  - 9676
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 548
+- name: History
+  number: 205.0
+  group: US | Entertainment
+  tvg_id: History.us
+  streams:
+  - 16200
+  - 9986
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 549
+- name: HGTV
+  number: 206.0
+  group: US | Entertainment
+  tvg_id: HGTV.us
+  streams:
+  - 16198
+  - 9984
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 550
+- name: Food Network
+  number: 207.0
+  group: US | Entertainment
+  tvg_id: FoodNetwork.us
+  streams:
+  - 16173
+  - 9732
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 551
+- name: A&E
+  number: 208.0
+  group: US | Entertainment
+  tvg_id: AandENetwork.us
+  streams:
+  - 16115
+  - 8900
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 552
+- name: AMC
+  number: 209.0
+  group: US | Entertainment
+  tvg_id: AMC.us
+  streams:
+  - 16119
+  - 16122
+  - 9330
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 553
+- name: FX
+  number: 210.0
+  group: US | Entertainment
+  tvg_id: FX.us
+  streams:
+  - 16180
+  - 9953
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 554
+- name: FXX
+  number: 211.0
+  group: US | Entertainment
+  tvg_id: FXX.us
+  streams:
+  - 16182
+  - 9956
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 555
+- name: Bravo
+  number: 212.0
+  group: US | Entertainment
+  tvg_id: Bravo.us
+  streams:
+  - 16140
+  - 9362
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 556
+- name: Comedy Central
+  number: 213.0
+  group: US | Entertainment
+  tvg_id: ComedyCentral.us
+  streams:
+  - 16150
+  - 9597
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 557
+- name: Paramount Network
+  number: 214.0
+  group: US | Entertainment
+  tvg_id: ParamountNetwork.us
+  streams:
+  - 16251
+  - 10245
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 558
+- name: TLC
+  number: 215.0
+  group: US | Entertainment
+  tvg_id: TLC.us
+  streams:
+  - 16283
+  - 10413
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 559
+- name: National Geographic
+  number: 216.0
+  group: US | Entertainment
+  tvg_id: NationalGeographic.us
+  streams:
+  - 16238
+  - 10076
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 560
+- name: Nat Geo Wild
+  number: 217.0
+  group: US | Entertainment
+  tvg_id: NationalGeographicWild.us
+  streams:
+  - 16240
+  - 10074
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 561
+- name: Animal Planet
+  number: 218.0
+  group: US | Entertainment
+  tvg_id: AnimalPlanet.us
+  streams:
+  - 16124
+  - 9335
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 562
+- name: Syfy
+  number: 219.0
+  group: US | Entertainment
+  tvg_id: Syfy.us
+  streams:
+  - 16270
+  - 10392
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 563
+- name: Freeform
+  number: 220.0
+  group: US | Entertainment
+  tvg_id: Freeform.us
+  streams:
+  - 16177
+  - 9949
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 564
+- name: Hallmark Channel
+  number: 221.0
+  group: US | Entertainment
+  tvg_id: HallmarkChannel.us
+  streams:
+  - 16192
+  - 9971
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 565
+- name: Lifetime
+  number: 222.0
+  group: US | Entertainment
+  tvg_id: Lifetime.us
+  streams:
+  - 16217
+  - 10006
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 566
+- name: ESPN
+  number: 300.0
+  group: US | Sports
+  tvg_id: ESPN.us
+  streams:
+  - 15910
+  - 15911
+  - 9694
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 567
+- name: ESPN2
+  number: 301.0
+  group: US | Sports
+  tvg_id: ESPN2.us
+  streams:
+  - 15913
+  - 9692
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 568
+- name: ESPNU
+  number: 302.0
+  group: US | Sports
+  tvg_id: ESPNU.us
+  streams:
+  - 15915
+  - 9698
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 569
+- name: ESPNews
+  number: 303.0
+  group: US | Sports
+  tvg_id: ESPNEWS.us
+  streams:
+  - 15914
+  - 9696
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 570
+- name: ESPN Deportes
+  number: 304.0
+  group: US | Sports
+  tvg_id: ESPNDeportes.us
+  streams:
+  - 15912
+  - 9693
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 571
+- name: 'ESPN8: The Ocho'
+  number: 305.0
+  group: US | Sports
+  tvg_id: ESPN8TheOcho.us
+  streams:
+  - 20354
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 572
+- name: Spectrum SportsNet LA (Dodgers)
+  number: 306.0
+  group: US | Sports
+  tvg_id: SpectrumSportsNetLADodgers.us
+  streams:
+  - 16003
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 573
+- name: Spectrum SportsNet (Lakers)
+  number: 307.0
+  group: US | Sports
+  tvg_id: SpectrumSportsNetLALakers.us
+  streams:
+  - 16004
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 574
+- name: Tennis Channel
+  number: 308.0
+  group: US | Sports
+  tvg_id: TennisChannel.us
+  streams:
+  - 16008
+  - 10402
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 575
+- name: Tennis Channel 2
+  number: 309.0
+  group: US | Sports
+  tvg_id: T2.us
+  streams:
+  - 16009
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 576
+- name: Fox Sports 1
+  number: 310.0
+  group: US | Sports
+  tvg_id: FoxSports1.us
+  streams:
+  - 15951
+  - 9943
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 577
+- name: Fox Sports 2
+  number: 311.0
+  group: US | Sports
+  tvg_id: FoxSports2.us
+  streams:
+  - 15952
+  - 9945
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 578
+- name: NFL Network
+  number: 312.0
+  group: US | Sports
+  tvg_id: NFLNetwork.us
+  streams:
+  - 15989
+  - 10182
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 579
+- name: NBA TV
+  number: 313.0
+  group: US | Sports
+  tvg_id: NBAtv.us
+  streams:
+  - 15973
+  - 10105
+  - 10106
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 580
+- name: MLB Network
+  number: 314.0
+  group: US | Sports
+  tvg_id: MLBNetwork.us
+  streams:
+  - 15961
+  - 10043
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 581
+- name: Golf Channel
+  number: 315.0
+  group: US | Sports
+  tvg_id: GolfChannel.us
+  streams:
+  - 15957
+  - 9964
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 582
+- name: CBS Sports Network
+  number: 316.0
+  group: US | Sports
+  tvg_id: CBSSportsNetwork.us
+  streams:
+  - 15907
+  - 9578
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 583
+- name: beIN Sports
+  number: 317.0
+  group: US | Sports
+  tvg_id: beINSports.us
+  streams:
+  - 15893
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 584
+- name: CBC Calgary
+  number: 500.0
+  group: CA | Regional
+  tvg_id: CBCCalgary-CBRT.ca
+  streams:
+  - 15472
+  - 2501
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 585
+- name: CBC Edmonton
+  number: 501.0
+  group: CA | Regional
+  tvg_id: CBCEdmonton-CBXT.ca
+  streams:
+  - 15474
+  - 2503
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 586
+- name: CBC News Network
+  number: 502.0
+  group: CANADIAN TV
+  tvg_id: CBCNewsNetwork.ca
+  streams:
+  - 2500
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 2
+  id: 587
+- name: CTV Calgary
+  number: 503.0
+  group: CA | Regional
+  tvg_id: CTVCalgary-CFCN.ca
+  streams:
+  - 15504
+  - 15505
+  - 2538
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 588
+- name: CTV Edmonton
+  number: 504.0
+  group: CA | Regional
+  tvg_id: CTVEdmonton-CFRN.ca
+  streams:
+  - 15513
+  - 2541
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 589
+- name: CTV News Channel
+  number: 505.0
+  group: CA | Regional
+  tvg_id: CTVNewsChannel.ca
+  streams:
+  - 15510
+  - 2529
+  - 2547
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 590
+- name: Global Calgary
+  number: 506.0
+  group: CA | Regional
+  tvg_id: GlobalCalgary-CICT.ca
+  streams:
+  - 15522
+  - 2588
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 591
+- name: Global Edmonton
+  number: 507.0
+  group: CA | Regional
+  tvg_id: GlobalEdmonton-CITV.ca
+  streams:
+  - 15524
+  - 15530
+  - 2589
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 592
+- name: RDS
+  number: 600.0
+  group: CA | French
+  tvg_id: ReseaudesSports-RDS.ca
+  streams:
+  - 15587
+  - 15644
+  - 3512
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 593
+- name: RDS 2
+  number: 601.0
+  group: CA | French
+  tvg_id: RDS2.ca
+  streams:
+  - 15588
+  - 15645
+  - 3513
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 594
+- name: RDS Info
+  number: 602.0
+  group: CA | French
+  tvg_id: ReseaudesSportsInfo-RDSI.ca
+  streams:
+  - 15589
+  - 2639
+  - 3514
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 595
+- name: TVA Sports
+  number: 603.0
+  group: CA | French
+  tvg_id: TVASports.ca
+  streams:
+  - 15604
+  - 15665
+  - 2671
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 596
+- name: TVA Sports 2
+  number: 604.0
+  group: CA | Sports
+  tvg_id: TVASports2.ca
+  streams:
+  - 15666
+  - 2480
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 597
+- name: ICI Radio-Canada (Montréal)
+  number: 605.0
+  group: CA | French
+  tvg_id: ICIGrandMontreal-CBFT.ca
+  streams:
+  - 15562
+  - 15569
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 3
+  id: 598
+- name: ICI RDI
+  number: 606.0
+  group: CA | French
+  tvg_id: ICI-RDI.ca
+  streams:
+  - 15560
+  - 3507
+  - 3508
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 599
+- name: Noovo
+  number: 607.0
+  group: CANADIAN TV
+  tvg_id: NOOVO-Montreal-CFJP.ca
+  streams:
+  - 3511
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 2
+  id: 600
+- name: TVA (Montréal)
+  number: 608.0
+  group: CA | French
+  tvg_id: TVA-Montreal-CFTM.ca
+  streams:
+  - 15602
+  - 2670
+  - 3522
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 601
+- name: Bein Sports HD
+  number: 400.0
+  group: CA | Sports
+  tvg_id: beINSports.ca
+  streams:
+  - 15631
+  - 2492
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 602
+- name: CTV Speed
+  number: 401.0
+  group: CA | Sports
+  tvg_id: CTVSpeed.ca
+  streams:
+  - 15632
+  - 2556
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 603
+- name: Euro Sport World
+  number: 402.0
+  group: CA | Sports
+  tvg_id: EuroSportWorld.ca
+  streams:
+  - 15633
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 604
+- name: Fight Network
+  number: 403.0
+  group: CA | Sports
+  tvg_id: TheFightNetwork.ca
+  streams:
+  - 15634
+  - 2573
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 605
+- name: Fox Sports Racing
+  number: 404.0
+  group: CA | Sports
+  tvg_id: FoxSportsRacing.ca1
+  streams:
+  - 15635
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 606
+- name: Golf Channel
+  number: 405.0
+  group: CA | Sports
+  tvg_id: GolfChannel.ca
+  streams:
+  - 15636
+  - 2626
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 607
+- name: HPITV East
+  number: 406.0
+  group: CA | Sports
+  tvg_id: HPItvCanada.ca
+  streams:
+  - 15637
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 608
+- name: HPITV International
+  number: 407.0
+  group: CA | Sports
+  tvg_id: HPItvInternational.ca
+  streams:
+  - 15638
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 609
+- name: HPITV West
+  number: 408.0
+  group: CA | Sports
+  tvg_id: HPItvWest.ca
+  streams:
+  - 15639
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 610
+- name: MLB Network
+  number: 409.0
+  group: CA | Sports
+  tvg_id: MLBNetwork.ca
+  streams:
+  - 15640
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 611
+- name: NBA TV
+  number: 410.0
+  group: CA | Sports
+  tvg_id: NBATV.ca
+  streams:
+  - 15641
+  - 2625
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 612
+- name: NFL Network
+  number: 411.0
+  group: CA | Sports
+  tvg_id: NFLNetwork.ca
+  streams:
+  - 15642
+  - 2627
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 613
+- name: One Soccer
+  number: 412.0
+  group: CA | Sports
+  tvg_id: OneSoccer.ca
+  streams:
+  - 15643
+  - 25536
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 614
+- name: Sportsman
+  number: 413.0
+  group: CA | Sports
+  tvg_id: SportsmanChannel.ca
+  streams:
+  - 15646
+  - 2644
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 615
+- name: Sportsnet 360
+  number: 414.0
+  group: CA | Sports
+  tvg_id: Sportsnet360.ca
+  streams:
+  - 15647
+  - 2645
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 616
+- name: Sportsnet East
+  number: 415.0
+  group: CA | Sports
+  tvg_id: SportsnetEast.ca
+  streams:
+  - 15648
+  - 2646
+  - 2647
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 617
+- name: Sportsnet Flames
+  number: 416.0
+  group: CA | Sports
+  tvg_id: ''
+  streams:
+  - 15649
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 618
+- name: Sportsnet Oilers
+  number: 417.0
+  group: CA | Sports
+  tvg_id: ''
+  streams:
+  - 15650
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 619
+- name: Sportsnet ONE
+  number: 418.0
+  group: CA | Sports
+  tvg_id: SportsnetOne.ca
+  streams:
+  - 15651
+  - 2648
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 620
+- name: Sportsnet Ontario
+  number: 419.0
+  group: CA | Sports
+  tvg_id: SportsnetOntario.ca
+  streams:
+  - 15652
+  - 2649
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 621
+- name: Sportsnet Pacific
+  number: 420.0
+  group: CA | Sports
+  tvg_id: SportsnetPacific.ca
+  streams:
+  - 15653
+  - 2650
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 622
+- name: Sportsnet West
+  number: 421.0
+  group: CA | Sports
+  tvg_id: SportsnetWest.ca
+  streams:
+  - 15654
+  - 2651
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 623
+- name: Sportsnet World
+  number: 422.0
+  group: CA | Sports
+  tvg_id: SportsnetWorld.ca
+  streams:
+  - 15655
+  - 2652
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 624
+- name: Sportsnet World +1
+  number: 423.0
+  group: CA | Sports
+  tvg_id: SportsNetWorld1.ca
+  streams:
+  - 15656
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 625
+- name: Sportsnet World +2
+  number: 424.0
+  group: CA | Sports
+  tvg_id: SportsNetWorld2.ca
+  streams:
+  - 15657
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 626
+- name: Sportsnet World +3
+  number: 425.0
+  group: CA | Sports
+  tvg_id: SportsNetWorld3.ca
+  streams:
+  - 15658
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 627
+- name: Sportsnet World +4
+  number: 426.0
+  group: CA | Sports
+  tvg_id: SportsNetWorld4.ca
+  streams:
+  - 15659
+  enabled: true
+  _failover: 1
+  _picked_from:
+  - 3
+  id: 628
+- name: TSN 1
+  number: 427.0
+  group: CA | Sports
+  tvg_id: TSN1.ca
+  streams:
+  - 15660
+  - 2663
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 629
+- name: TSN 2
+  number: 428.0
+  group: CA | Sports
+  tvg_id: TSN2.ca
+  streams:
+  - 15661
+  - 2664
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 630
+- name: TSN 3
+  number: 429.0
+  group: CA | Sports
+  tvg_id: TSN3.ca
+  streams:
+  - 15662
+  - 2665
+  - 2666
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 631
+- name: TSN 4
+  number: 430.0
+  group: CA | Sports
+  tvg_id: TSN4.ca
+  streams:
+  - 15663
+  - 2667
+  enabled: true
+  _failover: 2
+  _picked_from:
+  - 2
+  - 3
+  id: 632
+- name: TSN 5
+  number: 431.0
+  group: CA | Sports
+  tvg_id: TSN5.ca
+  streams:
+  - 15664
+  - 2668
+  - 2669
+  enabled: true
+  _failover: 3
+  _picked_from:
+  - 2
+  - 3
+  id: 633
