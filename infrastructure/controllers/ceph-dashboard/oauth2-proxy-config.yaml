@@ -8,18 +8,21 @@ data:
   # Non-alpha options (cookie-secret, email-domains, redirect-url, …) come from
   # env vars on the Deployment. clientSecret is mounted from the SOPS secret.
   oauth2-proxy.yaml: |
-    upstreams:
-      - id: ceph-dashboard
-        path: /
-        uri: https://ceph-dashboard.ceph-dashboard.svc.cluster.local:8443
-        insecureSkipTLSVerify: true
+    upstreamConfig:
+      upstreams:
+        - id: ceph-dashboard
+          path: /
+          uri: https://ceph-dashboard.ceph-dashboard.svc.cluster.local:8443
+          insecureSkipTLSVerify: true
     # The ceph dashboard (Tentacle oauth2 SSO) reads the JWT from a cookie named
     # `token` or the header `X-Access-Token`, then decodes sub/name/email/iat/roles.
     # oauth2-proxy injects the OIDC id_token under that exact header name.
+    # v7.14+ requires header values nested under `claimSource:`.
     injectRequestHeaders:
       - name: X-Access-Token
         values:
-          - claim: id_token
+          - claimSource:
+              claim: id_token
     providers:
       - id: authentik
         provider: oidc
