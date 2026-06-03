@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Phase 2: stand up ONLY the CNPG database while the QNAS Immich is still
+  # serving. The writing app is intentionally NOT enabled yet — this enforces
+  # the single-writer invariant (Codex review #1): nothing in the cluster may
+  # mount/write the live NFS photo tree until the QNAS instance is stopped at
+  # cutover. See docs/immich-cluster-migration-plan.md §5 Phase 2/Phase 3.
+  - db-cnpg.yaml
+
+  # Phase 3 (CUTOVER ONLY): uncomment after the QNAS immich-server + ml are
+  # stopped and the final DB dump has been restored into CNPG. This is the
+  # moment the cluster takes over as the sole writer of the NFS tree.
+  # - app.yaml

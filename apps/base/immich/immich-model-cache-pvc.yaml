@@ -1,0 +1,16 @@
+---
+# Machine-learning model cache (CLIP + face-detection models). ceph-rbd RWO,
+# mounted by the immich-machine-learning container at /cache. Regenerable
+# (models re-download on miss) → deliberately NOT backed up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-model-cache
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi

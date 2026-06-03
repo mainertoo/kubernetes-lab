@@ -1,0 +1,28 @@
+---
+# Static NFS PV scoped to EXACTLY Immich's upload tree on the QNAS
+# (/QNAS/data/photos/library = /share/QNAS/data/photos/library on the NAS,
+# 187 GB as of 2026-06-03). This is the same export the cluster's
+# qnap-media-pv already uses (server 192.168.1.252, /QNAS/data), but a
+# dedicated, narrowly-scoped PV — least-privilege vs reusing the broad
+# 20 Ti qnap-media-pvc (which also lives in the `media` namespace; PVCs
+# are namespace-scoped and can't cross into `immich`).
+#
+# reclaimPolicy: Retain — deleting this PV/PVC must NEVER touch the 187 GB
+# of photos on the NAS. The QNAP remains responsible for backing up the
+# originals; the cluster only backs up the Postgres DB (see docs/immich-cluster-migration-plan.md §6).
+#
+# Capacity is nominal for NFS (not enforced); set above current usage.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-media-pv
+spec:
+  capacity:
+    storage: 300Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: immich-media-static
+  nfs:
+    server: 192.168.1.252
+    path: /QNAS/data/photos/library

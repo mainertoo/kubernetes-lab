@@ -39,6 +39,7 @@ resources:
   - media/seerr/kustomization.yaml
   - paperless-ngx/kustomization.yaml
   - dawarich/
+  - immich/
   - dumb/kustomization.yaml
   - media/sym-prowlarr/kustomization.yaml
   - media/sym-radarr/kustomization.yaml

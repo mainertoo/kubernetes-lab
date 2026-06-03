@@ -1,0 +1,29 @@
+---
+# Internal ingress only. Immich has its own auth and the mobile app hits the
+# API directly, so there is NO Authentik forward-auth middleware (same posture
+# as Plex/Jellyfin). External exposure (today the QNAS used a Tailscale sidecar)
+# is decided separately at cutover — see docs/immich-cluster-migration-plan.md §9.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: immich-ingressroute
+  namespace: immich
+  annotations:
+    gethomepage.dev/href: "https://immich.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Immich"
+    gethomepage.dev/description: "Self-hosted photo and video library"
+    gethomepage.dev/app: immich
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/immich.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`immich.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: immich
+          port: 2283
+  tls: {}

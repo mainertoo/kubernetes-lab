@@ -1,0 +1,45 @@
+---
+# Flux Kustomization for the Immich app (HelmRelease, PV/PVCs, IngressRoute).
+# dependsOn the CNPG db Kustomization so the immich-cnpg-db-app Secret (DB
+# credentials, referenced by the HelmRelease env) exists before the release
+# reconciles.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: immich
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/immich
+  targetNamespace: immich
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  dependsOn:
+    - name: immich-db-cnpg
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+  postBuild:
+    substitute:
+      APP: immich
+      APP_NAMESPACE: immich
+      SUBDOMAIN: immich
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /api/server/ping
+      GATUS_PORT: "2283"
+      GATUS_APP: immich
+      GATUS_STATUS_INTERNAL: "200"
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
