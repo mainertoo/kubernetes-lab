@@ -6,3 +6,6 @@ resources:
   - ceph-service-endpoints.yaml
   - ceph-serverstransport.yaml
   - ceph-ingressroute.yaml
+  - oauth2-proxy-config.yaml
+  - oauth2-proxy-secret.sops.yaml
+  - oauth2-proxy.yaml

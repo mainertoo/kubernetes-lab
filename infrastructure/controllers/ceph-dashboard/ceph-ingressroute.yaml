@@ -15,12 +15,11 @@ spec:
   routes:
     - match: Host(`ceph.lab.mainertoo.com`)
       kind: Rule
-      # middlewares:
-      #   - name: authentik-sso
-      #     namespace: traefik-system
+      # SSO is handled by oauth2-proxy (OIDC against Authentik), which proxies
+      # to the ceph-dashboard Service and injects X-Access-Token for the
+      # dashboard's oauth2 SSO mode. Do NOT also add the authentik-sso
+      # forward-auth middleware here — that would double-authenticate.
       services:
-        - name: ceph-dashboard
-          port: 8443
-          scheme: https
-          serversTransport: ceph-dashboard-insecure
+        - name: oauth2-proxy
+          port: 4180
   tls: {}
