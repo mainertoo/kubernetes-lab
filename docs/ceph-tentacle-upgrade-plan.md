@@ -146,6 +146,38 @@ anyway), and diagnose before proceeding.
 
 ## Status
 
+- **2026-06-03** — **Phase 3 (dashboard SSO) COMPLETE.** ceph-dashboard
+  OAuth2/OIDC SSO against Authentik via a self-hosted **oauth2-proxy**
+  (manifests in [`infrastructure/controllers/ceph-dashboard/`](../infrastructure/controllers/ceph-dashboard/),
+  PRs #719/#720). Native OAuth2 (`ceph orch apply mgmt-gateway`) needs
+  cephadm — unavailable on pveceph — and SAML hits a `python3-xmlsec`/
+  `libxml2` mismatch that crashes the mgr, so oauth2-proxy injects the
+  id_token as `X-Access-Token` for the dashboard's oauth2 mode. Object
+  Gateway dashboard feature disabled (`ceph dashboard feature disable rgw`)
+  — no RGW on this cluster by design (S3 = Garage).
+
+  > ### ⚠️ Host-level dashboard patches — NOT in git, reverted by upgrades
+  > Two `ceph-mgr-dashboard` files are patched **directly on all 3 mgr
+  > hosts** (`pve-mammoth`, `pve-whistler`, `pve-zermatt`) to make the
+  > Tentacle dashboard work. **The next `ceph-mgr-dashboard` package
+  > upgrade WILL overwrite them** (also when the upstream Proxmox fixes
+  > likely land). After any such upgrade, re-apply both and restart the
+  > active mgr:
+  >
+  > 1. **`controllers/smb.py`** — Proxmox ships the dashboard's `smb`
+  >    controller but not the `smb` mgr module it imports →
+  >    `ModuleNotFoundError: No module named 'smb'` crashes the whole
+  >    dashboard. Fix: `mv .../dashboard/controllers/smb.py{,.disabled-tentacle-smb-bug}`
+  >    + clear `__pycache__/smb.*`.
+  > 2. **`services/auth/auth.py`** (~line 168) — assumes every token has a
+  >    `sub` claim in oauth2 mode; the dashboard's own session JWTs / the
+  >    local `admin` user lack it → `KeyError: 'sub'` → intermittent 500 on
+  >    `/ui-api/motd`. Fix: `decoded_message['username'] = decoded_message.get('sub') or decoded_message.get('username')`.
+  >
+  > Originals are kept beside each file (`*.bak-tentacle-sub-bug`,
+  > `*.disabled-tentacle-smb-bug`). Also requires `python3-jmespath` on the
+  > mgr hosts (for the oauth2 `roles_path`).
+
 - **2026-06-02** — **Phase 2 COMPLETE. Cluster is on Tentacle 20.2.1-pve1,
   `HEALTH_OK`.** All 17 daemons upgraded (3 mon, 3 mgr, 6 osd, 5 mds),
   `min_mon_release 20 (tentacle)`, `require_osd_release tentacle` set,
