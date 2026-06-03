@@ -1,0 +1,104 @@
+---
+# CloudNativePG cluster for Immich, using the VectorChord-enabled CNPG operand
+# image. Renders Cluster + ScheduledBackup + ObjectStore + S3 Secret via the
+# shared cnpg-cluster Components, patched here for VectorChord.
+#
+# Vector-extension nuance (see docs/immich-cluster-migration-plan.md §2):
+#   - Immich needs a vector-search extension. We run VectorChord (vchord),
+#     the successor to the deprecated pgvecto.rs the QNAS DB currently uses.
+#   - vchord is matched end-to-end at 0.4.2 (QNAS in-place migration image
+#     immich-app/postgres:14-vectorchord0.4.2-pgvectors0.2.0 → this CNPG image
+#     cloudnative-vectorchord:17.5-0.4.2), so the only delta on restore is the
+#     PG14→PG17 major jump. Immich v2.7.5 accepts vchord >=0.3 <2 (verified
+#     against server/src/constants.ts), so 0.4.2 is in range.
+#
+# Superuser posture (Codex review #9): the app role `immich` is a plain,
+# non-superuser owner. The vchord/cube/earthdistance extensions are created
+# at bootstrap by postInitApplicationSQL, which CNPG runs as the postgres
+# superuser — so the running app never needs superuser. (The one-time data
+# restore excludes EXTENSION objects since they are pre-created here.)
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: immich-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/immich/db-cnpg
+  targetNamespace: immich
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: immich-cnpg-db
+      namespace: immich
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  # Component paths are relative to spec.path (./apps/base/immich/db-cnpg),
+  # which is 4 directory levels deep → 4 `..` segments to repo root.
+  components:
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
+  # Patch the Component-rendered Cluster to enable VectorChord:
+  #   - shared_preload_libraries: vchord.so must be preloaded before
+  #     CREATE EXTENSION vchord can succeed.
+  #   - postInitApplicationSQL runs once at initdb in the app DB (as the
+  #     postgres superuser) creating the three required extensions. Immich's
+  #     geo features need cube + earthdistance; smart-search/faces need vchord.
+  # Target the literal ${APP} placeholder (Flux substitutes the real name
+  # afterward). Strategic-merge form (the JSON6902 form silently no-ops here).
+  patches:
+    - target:
+        kind: Cluster
+        name: \${APP}
+      patch: |-
+        apiVersion: postgresql.cnpg.io/v1
+        kind: Cluster
+        metadata:
+          name: ${APP}
+        spec:
+          postgresql:
+            shared_preload_libraries:
+              - "vchord.so"
+          bootstrap:
+            initdb:
+              postInitApplicationSQL:
+                - "CREATE EXTENSION IF NOT EXISTS vchord CASCADE;"
+                - "CREATE EXTENSION IF NOT EXISTS cube;"
+                - "CREATE EXTENSION IF NOT EXISTS earthdistance;"
+  postBuild:
+    substitute:
+      APP: immich-cnpg-db
+      APP_NAMESPACE: immich
+      CNPG_DB_NAME: immich
+      CNPG_DB_OWNER: immich
+      # VectorChord-enabled CNPG operand image (PG17.5 + vchord 0.4.2).
+      CNPG_IMAGE: ghcr.io/tensorchord/cloudnative-vectorchord:17.5-0.4.2
+      # Placeholder — set from the measured DB size after the QNAS vchord
+      # migration (docs §5 Phase 1). Rule of thumb: >=3x measured DB size.
+      CNPG_STORAGE_SIZE: 10Gi
+      CNPG_STORAGECLASS: ceph-rbd
+      CNPG_INSTANCES: "1"
+      # Daily base backup at 08:15 UTC — clear of the other CNPG schedules.
+      CNPG_BACKUP_SCHEDULE: "0 15 8 * * *"
+      CNPG_RETENTION: "30d"
+      # Vector indexing is heavier than the homelab default.
+      CNPG_CPU_REQUEST: "250m"
+      CNPG_MEMORY_REQUEST: "512Mi"
+      CNPG_MEMORY_LIMIT: "2Gi"
+      CNPG_LINEAGE: v1
+      CNPG_RESTORE_FROM_LINEAGE: v0
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base

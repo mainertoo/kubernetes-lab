@@ -1,0 +1,21 @@
+---
+# Binds 1:1 to immich-media-pv via volumeName + the dedicated storage class.
+# Mounted by the immich-server container at /usr/src/app/upload — the same
+# in-container path the QNAS Docker compose used (UPLOAD_LOCATION:/usr/src/app/upload),
+# so every path Immich stored in the DB resolves unchanged (no re-import).
+#
+# NOT labelled for Kopia backup: the originals live on the NAS and are the
+# NAS's responsibility; only the CNPG database is backed up by the cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-media-pvc
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 300Gi
+  storageClassName: immich-media-static
+  volumeName: immich-media-pv

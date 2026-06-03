@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: immich
+# No app-managed role secret needed: Immich connects as the CNPG-created
+# owner role `immich` via the auto-generated `immich-cnpg-db-app` Secret.
+# The Cluster / ScheduledBackup / ObjectStore / S3 secret are all rendered
+# by the cnpg-cluster Components referenced from the parent Flux
+# Kustomization (apps/production/immich/db-cnpg.yaml). This directory exists
+# so that Flux Kustomization has a valid build target for those components.
+resources: []
