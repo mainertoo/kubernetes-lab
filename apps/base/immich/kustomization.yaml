@@ -2,7 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: immich
 resources:
-  - immich-namespace.yaml
+  # immich-namespace.yaml lives in db-cnpg/ so the namespace is created in
+  # Phase 2 (DB-only) while this writing-app layer stays gated until cutover.
   - immich-media-pv.yaml
   - immich-media-pvc.yaml
   - immich-model-cache-pvc.yaml
