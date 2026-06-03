@@ -7,4 +7,10 @@ namespace: immich
 # by the cnpg-cluster Components referenced from the parent Flux
 # Kustomization (apps/production/immich/db-cnpg.yaml). This directory exists
 # so that Flux Kustomization has a valid build target for those components.
-resources: []
+#
+# The immich Namespace is created here (not in the writing-app layer) so it
+# exists in Phase 2 — the CNPG Cluster/ObjectStore/Secret all target it. The
+# app layer (apps/base/immich) no longer carries the namespace; it simply
+# lands in this pre-existing namespace once enabled at cutover.
+resources:
+  - immich-namespace.yaml
