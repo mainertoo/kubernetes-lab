@@ -146,6 +146,41 @@ anyway), and diagnose before proceeding.
 
 ## Status
 
+- **2026-06-02** — **Phase 2 COMPLETE. Cluster is on Tentacle 20.2.1-pve1,
+  `HEALTH_OK`.** All 17 daemons upgraded (3 mon, 3 mgr, 6 osd, 5 mds),
+  `min_mon_release 20 (tentacle)`, `require_osd_release tentacle` set,
+  273 PGs `active+clean`, `noout` cleared. No client downtime; brief
+  per-fs MDS failover only. Procedure followed the official wiki
+  (repo flip `ceph-squid`→`ceph-tentacle` in `/etc/apt/sources.list.d/ceph.sources`
+  → `apt full-upgrade` → restart mons→mgrs→OSDs(host-by-host)→MDS).
+  - **Correction to "Current state" table below: the Ceph cluster spans
+    FIVE hosts, not three.** Beyond the 3 OSD/mon hosts (mammoth,
+    whistler, zermatt) there are two MDS-only PVE cluster members that
+    also needed the repo flip + `apt full-upgrade`: **pve-mac**
+    (192.168.1.250, k3s-fs standby-replay) and **pve-s13**
+    (192.168.1.20, plain standby; nodeid 1, the cluster's founding
+    node). pve-ugreen (192.168.1.251) is in the PVE cluster but runs no
+    ceph daemons — left untouched. Both pve-mac and pve-s13 had inert
+    pending kernel/pve-manager updates that were NOT applied to keep the
+    window ceph-only (pve-mac still pending a 6.17 kernel + 9.2.2→9.2.3;
+    pve-s13 was already 9.2.3 and pulled ceph-only).
+  - **MDS handling:** both filesystems already at `max_mds 1`, so no rank
+    reduction — only disable `allow_standby_replay` → cycle standbys →
+    cycle each active (failover to a hot standby) → re-enable
+    `allow_standby_replay`. All on-version (every MDS host pre-upgraded),
+    so no cross-version-failover risk.
+  - **Post-upgrade validation:** `HEALTH_OK`, no new crashes, all 195 app
+    pods Running, no `FailedMount` events, rbd + cephfs provisioners
+    clean, all PVCs `Bound`, k3s-fs serving ~300 reqs/s immediately after
+    failover. ceph-csi unchanged (v3.17.0, already Tentacle-aware).
+  - **Unrelated pre-existing finding (NOT caused by this upgrade):** a
+    leaked cephfs `VolumeAttachment`
+    (`csi-8a0f6be4…`, PV `pvc-6d82a04f-…`, node `mainertoo-k3s-worker-3`)
+    has been stuck terminating since 2026-01-26 — the external-attacher
+    finalizer loops every 5 min trying to detach an already-deleted PV.
+    Harmless log spam; safe cleanup = strip the finalizer from the VA.
+  - **Remaining: Phase 3** (dashboard OAuth2/OIDC against Authentik) — not
+    yet started; dashboard-only, no storage risk.
 - **2026-05-22** — Plan written. Prerequisites confirmed already met on
   PVE 9.1.16 / Ceph 19.2.3-pve4. Not scheduled; deferred until the
   Ceph/CSI/dumb work settles. Target: before Squid EOL (~Sept 2026).
