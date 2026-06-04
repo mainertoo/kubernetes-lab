@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: meshcentral
+resources:
+  - meshcentral-namespace.yaml
+  - meshcentral-pvc.yaml
+  - meshcentral-release.yaml
+  - meshcentral-ingressroute.yaml

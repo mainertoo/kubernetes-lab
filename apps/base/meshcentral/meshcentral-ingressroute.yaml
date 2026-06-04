@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: meshcentral-ingressroute
+  namespace: meshcentral
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    # Hostname is hardcoded for the staging POC. On production promotion this
+    # becomes meshcentral.lab.mainertoo.com.
+    # NOTE: no authentik-sso middleware on purpose — MeshCentral has its own
+    # auth, and SSO in front would break the agent/KVM websocket sessions.
+    - match: Host(`meshcentral.staging.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: meshcentral
+          port: 80
+          scheme: http
+  tls: {}
