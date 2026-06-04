@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Tailscale egress to the MacBook on :22 for Hermes' SSH terminal backend.
+# Own Flux app (mirrors mac-ollama-egress): spans hermes + tailscale namespaces,
+# so targetNamespace is intentionally omitted — each resource self-namespaces.
+# dependsOn hermes because the egress Service lands in the hermes namespace,
+# which the hermes app creates.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mac-ssh-egress
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/mac-ssh-egress"
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  dependsOn:
+    - name: hermes
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

@@ -79,6 +79,9 @@ resources:
   - gatus/kustomization.yaml
   - grafana/kustomization.yaml
 
+  - hermes/kustomization.yaml
+  - mac-ssh-egress/kustomization.yaml
+
   ## old resources list (apps that have been disabled)
   # - spoolman/kustomization.yaml
   # - paperless-ngx/kustomization.yaml

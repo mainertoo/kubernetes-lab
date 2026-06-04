@@ -1,0 +1,27 @@
+---
+# Hermes' entire persistent state: config.yaml, .env, codex auth.json, the
+# in-pod SSH key (.ssh/id_ed25519), and — most importantly — its SQLite
+# sessions/memories/skills store. HERMES_HOME=/opt/data in the image, which is
+# also the `hermes` (uid 10000) user's home, so the pod must own this mount
+# (see fsGroup: 10000 in the release).
+#
+# Config is seeded onto this PVC interactively (Option B), so the daily Kopia
+# backup IS the source of truth for a cluster rebuild — the label below opts
+# the PVC into the Kyverno volsync-pvc-backup-restore-kopia policy, which
+# auto-generates the Secret + ReplicationSource + ReplicationDestination.
+# `daily` (not hourly): memories/skills accrete slowly, not DB-churn.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: hermes
+  labels:
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi

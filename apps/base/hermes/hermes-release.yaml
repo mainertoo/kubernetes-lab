@@ -1,0 +1,145 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hermes
+  namespace: hermes
+spec:
+  interval: 30m
+  releaseName: hermes
+
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      hermes:
+        # Single writer over a SQLite store — never run two replicas.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              # renovate: pin to a digest once the first good tag is chosen.
+              tag: latest
+            # Image ENTRYPOINT is s6-overlay `/init … main-wrapper.sh` (starts
+            # as root, drops to uid 10000). We only override CMD args, leaving
+            # the s6 entrypoint intact, to run the always-on gateway.
+            args:
+              - gateway
+              - run
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              # ---- Web dashboard (fronted by Authentik at the IngressRoute) ----
+              - name: HERMES_DASHBOARD
+                value: "1"
+              - name: HERMES_DASHBOARD_HOST
+                value: "0.0.0.0"
+              - name: HERMES_DASHBOARD_PORT
+                value: "9119"
+              # ---- Gateway OpenAI-compatible API + /health ----
+              - name: API_SERVER_ENABLED
+                value: "true"
+              - name: API_SERVER_HOST
+                value: "0.0.0.0"
+              # ---- SSH terminal backend → the MacBook over Tailscale egress ----
+              # backend selection itself lives in /opt/data/config.yaml
+              # (terminal.backend: ssh), seeded at bootstrap. These connection
+              # params are non-secret; the private key lives on the PVC and is
+              # generated in-pod at bootstrap (never in git).
+              - name: TERMINAL_SSH_HOST
+                value: "mac-egress.hermes.svc.cluster.local"
+              - name: TERMINAL_SSH_USER
+                value: "darcymainville"
+              - name: TERMINAL_SSH_PORT
+                value: "22"
+              - name: TERMINAL_SSH_KEY
+                value: "/opt/data/.ssh/id_ed25519"
+            envFrom:
+              # API_SERVER_KEY + dashboard basic-auth creds (and, later, the
+              # Telegram/Discord bot tokens). These are read as container env,
+              # so they come from a SOPS Secret rather than the PVC .env.
+              - secretRef:
+                  name: hermes-secret
+            probes:
+              liveness: &health
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8642
+                  periodSeconds: 30
+                  failureThreshold: 5
+              readiness: *health
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8642
+                  # First boot runs s6 init + any runtime setup.
+                  failureThreshold: 40
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                # Headroom for browser automation / subagents; the brain is
+                # remote (Codex), so steady-state is light.
+                memory: 3Gi
+
+    defaultPodOptions:
+      securityContext:
+        # The image drops to uid 10000 (`hermes`); fsGroup makes the ceph-rbd
+        # PVC group-owned + writable by it. Do NOT set runAsNonRoot — s6 needs
+        # to start as root before dropping privileges.
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: hermes
+        type: ClusterIP
+        ports:
+          gateway:
+            port: 8642
+          dashboard:
+            port: 9119
+
+    persistence:
+      data:
+        existingClaim: hermes-data
+        advancedMounts:
+          hermes:
+            app:
+              - path: /opt/data
+      # Chromium-based browser automation needs more than the default 64Mi /dev/shm.
+      dshm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 512Mi
+        advancedMounts:
+          hermes:
+            app:
+              - path: /dev/shm

@@ -1,0 +1,28 @@
+---
+# The `tailscale` namespace is default-deny, so the operator-managed egress
+# proxy Pod won't accept traffic from the hermes ns without this allowlist.
+# podSelector labels match what the operator stamps on the proxy Pod
+# (parent-resource = the Service name, parent-resource-type = svc), per the
+# captured-live selectors in apps/base/mac-ollama-egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tailscale-proxy-mac-egress-allowlist
+  namespace: tailscale
+spec:
+  podSelector:
+    matchLabels:
+      tailscale.com/managed: "true"
+      tailscale.com/parent-resource: mac-egress
+      tailscale.com/parent-resource-ns: hermes
+      tailscale.com/parent-resource-type: svc
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+      ports:
+        - protocol: TCP
+          port: 22

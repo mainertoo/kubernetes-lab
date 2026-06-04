@@ -1,0 +1,32 @@
+---
+# Web dashboard, internal-only via Traefik. Reachable off-LAN through Tailscale
+# split DNS (*.lab.mainertoo.com resolves on the tailnet), so no separate
+# Tailscale ingress is needed. Authentik forward-auth gates it; Hermes' own
+# dashboard basic-auth stays on as defense-in-depth (creds in hermes-secret).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hermes-ingressroute
+  namespace: hermes
+  annotations:
+    gethomepage.dev/href: "https://hermes.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Hermes"
+    gethomepage.dev/description: "Always-on Hermes agent (Codex brain)"
+    gethomepage.dev/app: hermes
+    gethomepage.dev/group: "AI"
+    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/nous-research.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`hermes.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: hermes-app
+          port: 9119
+  tls: {}
