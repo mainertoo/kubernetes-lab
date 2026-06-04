@@ -1,0 +1,34 @@
+---
+# Tailscale funnel for Immich — mirrors the vaultwarden pattern
+# (apps/base/vaultwarden/vaultwarden-tailscale-ingress.yaml). Exposes Immich
+# on the tailnet AND publicly via Funnel, replacing the QNAS tailscale
+# sidecar (TS_SERVE_CONFIG /config/immich.json) that some clients use today.
+#
+# Hostname `immich` → https://immich.<tailnet>.ts.net — the SAME URL the QNAS
+# funnel serves, so existing funnel/mobile clients keep working after cutover.
+#
+# ⚠️ MagicDNS name collision at cutover: the `immich` name is held by the QNAS
+# tailscale node. Bring this up ONLY after the QNAS `tailscale-immich` sidecar
+# is stopped (Phase M4-step-2), so the operator can claim `immich` cleanly.
+# Gated with the rest of apps/base/immich (app.yaml enabled at cutover only).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: immich-tailscale
+  namespace: immich
+  annotations:
+    # Public Funnel in addition to tailnet access (parity with the QNAS funnel).
+    tailscale.com/funnel: "true"
+    # Tags applied only on initial provisioning.
+    tailscale.com/tags: "tag:k8s"
+spec:
+  ingressClassName: tailscale
+  # First label of the MagicDNS name → https://immich.<tailnet>.ts.net
+  tls:
+    - hosts:
+        - immich
+  defaultBackend:
+    service:
+      name: immich
+      port:
+        number: 2283
