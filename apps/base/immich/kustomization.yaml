@@ -9,3 +9,4 @@ resources:
   - immich-model-cache-pvc.yaml
   - immich-release.yaml
   - immich-ingressroute.yaml
+  - immich-tailscale-ingress.yaml
