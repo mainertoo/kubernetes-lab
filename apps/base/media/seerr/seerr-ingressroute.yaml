@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Next-gen media request manager (successor to Jellyseerr/Overseerr)"
     gethomepage.dev/app: seerr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyseerr.svg"
+    gethomepage.dev/icon: "sh-jellyseerr.svg"
 spec:
   entryPoints:
     - websecure

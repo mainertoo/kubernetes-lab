@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "SSO / Identity Provider"
     gethomepage.dev/app: authentik
     gethomepage.dev/group: "Infrastructure"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/authentik.svg"
+    gethomepage.dev/icon: "sh-authentik.svg"
 spec:
   entryPoints:
     - websecure

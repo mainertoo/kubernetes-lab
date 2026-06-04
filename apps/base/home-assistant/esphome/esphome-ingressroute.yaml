@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "ESPHome"
     gethomepage.dev/description: "ESPHome dashboard (Bluetooth proxy, sensors, OTA)"
+    gethomepage.dev/app: esphome
     gethomepage.dev/group: "Automation"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/esphome.svg"
+    gethomepage.dev/icon: "sh-esphome.svg"
 spec:
   entryPoints:
     - websecure

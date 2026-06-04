@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "DumbAssets"
     gethomepage.dev/description: "Simple asset tracking"
     gethomepage.dev/app: dumbassets
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/dumbassets.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-dumbassets.svg"
 spec:
   entryPoints:
     - websecure

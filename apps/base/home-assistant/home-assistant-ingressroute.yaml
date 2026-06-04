@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Home Assistant"
     gethomepage.dev/description: "Self-hosted home automation"
+    gethomepage.dev/app: home-assistant
     gethomepage.dev/group: "Automation"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/home-assistant.svg"
+    gethomepage.dev/icon: "sh-home-assistant.svg"
 spec:
   entryPoints: [websecure, web]
   routes:
@@ -32,8 +33,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "VSCode - Home Assistant"
     gethomepage.dev/description: "Code server for Home Assistant config"
+    gethomepage.dev/app: home-assistant
     gethomepage.dev/group: "Automation"
-    gethomepage.dev/icon: "https://code.visualstudio.com/assets/images/code-stable.png"
+    gethomepage.dev/icon: "sh-visual-studio-code.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

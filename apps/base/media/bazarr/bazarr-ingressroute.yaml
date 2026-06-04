@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Subtitle manager"
     gethomepage.dev/app: bazarr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/bazarr.svg"
+    gethomepage.dev/icon: "sh-bazarr.svg"
 spec:
   entryPoints:
     - websecure

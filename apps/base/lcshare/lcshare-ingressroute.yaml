@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Local Content Share"
     gethomepage.dev/description: "Quick file sharing"
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://github.com/Tanq16/local-content-share/blob/main/assets/logo.png"
+    gethomepage.dev/app: lcshare
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-local-content-share.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

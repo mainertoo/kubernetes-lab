@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "ExpenseOwl"
     gethomepage.dev/description: "Expense tracking and budgeting"
     gethomepage.dev/app: expense-owl
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/expenseowl.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-expenseowl.png"
 spec:
   entryPoints:
     - websecure

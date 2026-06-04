@@ -9,9 +9,10 @@ metadata:
     gethomepage.dev/name: "Zurg"
     gethomepage.dev/description: "Real-Debrid / Torbox WebDAV bridge"
     gethomepage.dev/app: zurg
+    gethomepage.dev/pod-selector: "app=zurg"
     gethomepage.dev/group: "Media"
     # swap this icon if you want another; reusing something media-ish is fine
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/riven.svg"
+    gethomepage.dev/icon: "sh-riven.svg"
 spec:
   entryPoints:
     - websecure

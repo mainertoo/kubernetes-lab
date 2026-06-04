@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Homebox"
     gethomepage.dev/description: "Home inventory management"
     gethomepage.dev/app: homebox
-    gethomepage.dev/group: "Utilities"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/homebox.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-homebox.png"
 spec:
   entryPoints:
     - websecure

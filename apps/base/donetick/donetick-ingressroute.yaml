@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "DoneTick"
     gethomepage.dev/description: "Task tracking"
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/donetick.svg"
+    gethomepage.dev/app: donetick
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-donetick.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

@@ -8,7 +8,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Neutarr"
     gethomepage.dev/description: "DUMB service"
-    gethomepage.dev/app: neutarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -36,7 +36,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "nzbDAV"
     gethomepage.dev/description: "WebDAV bridge"
-    gethomepage.dev/app: nzbdav
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -64,7 +64,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Profilarr"
     gethomepage.dev/description: "DUMB service"
-    gethomepage.dev/app: profilarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -92,9 +92,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Prowlarr"
     gethomepage.dev/description: "Indexer manager"
-    gethomepage.dev/app: prowlarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/prowlarr.svg"
+    gethomepage.dev/icon: "sh-prowlarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -121,9 +121,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Radarr 1080p"
     gethomepage.dev/description: "Movie organizer/manager"
-    gethomepage.dev/app: radarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/radarr.svg"
+    gethomepage.dev/icon: "sh-radarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -150,9 +150,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Radarr 4K"
     gethomepage.dev/description: "4K movie organizer/manager"
-    gethomepage.dev/app: radarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/radarr.svg"
+    gethomepage.dev/icon: "sh-radarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -179,9 +179,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Seerr"
     gethomepage.dev/description: "Media requests"
-    gethomepage.dev/app: overseerr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/overseerr.svg"
+    gethomepage.dev/icon: "sh-overseerr.svg"
 spec:
   entryPoints:
     - websecure
@@ -208,9 +208,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Sonarr 1080p"
     gethomepage.dev/description: "TV organizer/manager"
-    gethomepage.dev/app: sonarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+    gethomepage.dev/icon: "sh-sonarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -237,9 +237,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Sonarr 4K"
     gethomepage.dev/description: "4K TV organizer/manager"
-    gethomepage.dev/app: sonarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+    gethomepage.dev/icon: "sh-sonarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -266,7 +266,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "DUMB Traefik"
     gethomepage.dev/description: "Internal DUMB Traefik"
-    gethomepage.dev/app: traefik
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -294,7 +294,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Decypharr"
     gethomepage.dev/description: "Debrid bridge manager"
-    gethomepage.dev/app: decypharr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -322,9 +322,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Plex"
     gethomepage.dev/description: "Media server"
-    gethomepage.dev/app: plex
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/plex.svg"
+    gethomepage.dev/icon: "sh-plex.svg"
 spec:
   entryPoints:
     - websecure
@@ -351,9 +351,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Jellyfin"
     gethomepage.dev/description: "Media server"
-    gethomepage.dev/app: jellyfin
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg"
+    gethomepage.dev/icon: "sh-jellyfin.svg"
 spec:
   entryPoints:
     - websecure
@@ -380,7 +380,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Whisparr"
     gethomepage.dev/description: "Adult media organizer/manager"
-    gethomepage.dev/app: whisparr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
 spec:
   entryPoints:
@@ -408,9 +408,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Lidarr"
     gethomepage.dev/description: "Music organizer/manager"
-    gethomepage.dev/app: lidarr
+    gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/lidarr.svg"
+    gethomepage.dev/icon: "sh-lidarr.svg"
 spec:
   entryPoints:
     - websecure

@@ -15,7 +15,7 @@ metadata:
     gethomepage.dev/description: "Self-hosted photo and video library"
     gethomepage.dev/app: immich
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/immich.svg"
+    gethomepage.dev/icon: "sh-immich.svg"
 spec:
   entryPoints:
     - websecure

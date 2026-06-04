@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Audiobook request and automation platform"
     gethomepage.dev/app: readmeabook
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "mdi-book-headphones"
+    gethomepage.dev/icon: "sh-readmeabook.svg"
 spec:
   entryPoints:
     - websecure

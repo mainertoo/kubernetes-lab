@@ -8,7 +8,7 @@ metadata:
     gethomepage.dev/name: "Ceph Dashboard"
     gethomepage.dev/group: "Infrastructure"
     gethomepage.dev/href: "https://ceph.lab.mainertoo.com"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/ceph.svg"
+    gethomepage.dev/icon: "sh-ceph.svg"
 spec:
   entryPoints:
     - websecure

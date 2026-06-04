@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "draw.io"
     gethomepage.dev/description: "Diagramming"
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/draw-io.svg"
+    gethomepage.dev/app: drawio
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-draw-io.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

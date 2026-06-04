@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Actual Budget"
     gethomepage.dev/description: "A local-first personal finance app"
     gethomepage.dev/app: actual-budget
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/actual-budget.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-actual-budget.svg"
 spec:
   entryPoints:
     - websecure

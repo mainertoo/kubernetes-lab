@@ -9,9 +9,9 @@ metadata:
     gethomepage.dev/name: "BentoPDF"
     gethomepage.dev/description: "Client-side PDF tools"
     gethomepage.dev/app: bentopdf
-    gethomepage.dev/group: "Tools"
+    gethomepage.dev/group: "Apps"
     # pick any icon you like; leaving a safe placeholder:
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/bentopdf.png"
+    gethomepage.dev/icon: "sh-bentopdf.png"
 spec:
   entryPoints:
     - websecure

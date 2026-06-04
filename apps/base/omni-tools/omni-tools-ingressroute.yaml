@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Omni Tools"
     gethomepage.dev/description: "Collection of powerful web-based tools"
     gethomepage.dev/app: omni-tools
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/omnitools.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-omnitools.png"
 spec:
   entryPoints:
     - websecure

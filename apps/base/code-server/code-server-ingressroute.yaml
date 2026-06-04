@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Code Server"
     gethomepage.dev/description: "VS Code in a browser"
     gethomepage.dev/app: code-server
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/coder.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-coder.png"
 spec:
   entryPoints:
     - websecure

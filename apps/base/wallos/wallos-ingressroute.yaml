@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Wallos"
     gethomepage.dev/description: "Self-hosted subscription tracker"
     gethomepage.dev/app: wallos
-    gethomepage.dev/group: "Utilities"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/wallos.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-wallos.png"
 spec:
   entryPoints:
     - websecure

@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "SparkyFitness"
     gethomepage.dev/description: "Self-hosted fitness tracking"
     gethomepage.dev/app: sparky-fitness
-    gethomepage.dev/group: "Health"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/heart.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "mdi-heart-pulse"
 spec:
   entryPoints:
     - websecure

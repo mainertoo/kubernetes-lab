@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Book search and request tool"
     gethomepage.dev/app: shelfmark
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/calibre.svg"
+    gethomepage.dev/icon: "sh-calibre.svg"
 spec:
   entryPoints:
     - websecure

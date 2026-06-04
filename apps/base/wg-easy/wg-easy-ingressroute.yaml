@@ -8,7 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "wg-easy"
     gethomepage.dev/description: "WireGuard UI + config management"
-    gethomepage.dev/group: "VPN"
+    gethomepage.dev/app: wg-easy
+    gethomepage.dev/icon: "sh-wireguard.svg"
+    gethomepage.dev/group: "Security & Network"
 spec:
   entryPoints:
     - websecure

@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Indexer aggregator for media downloads"
     gethomepage.dev/app: jackett
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jackett.svg"
+    gethomepage.dev/icon: "sh-jackett.svg"
 spec:
   entryPoints:
     - websecure

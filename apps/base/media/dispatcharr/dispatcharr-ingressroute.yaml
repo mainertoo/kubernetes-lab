@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Arr request dispatching & orchestration"
     gethomepage.dev/app: dispatcharr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/dispatcharr.png"
+    gethomepage.dev/icon: "sh-dispatcharr.png"
 spec:
   entryPoints:
     - websecure

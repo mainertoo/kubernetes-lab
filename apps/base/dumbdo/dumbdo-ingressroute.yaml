@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "DumbDo"
     gethomepage.dev/description: "Simple TODO list"
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/dumbdo.svg"
+    gethomepage.dev/app: dumbdo
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-dumbdo.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

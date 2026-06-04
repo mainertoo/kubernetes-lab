@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "KitchenOwl"
     gethomepage.dev/description: "Self-hosted groceries & recipe management"
     gethomepage.dev/app: kitchenowl
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/kitchenowl.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-kitchenowl.svg"
 spec:
   entryPoints:
     - websecure
