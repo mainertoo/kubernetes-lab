@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "UniFi management toolkit (Crosstalk Solutions)"
     gethomepage.dev/app: ui-toolkit
     gethomepage.dev/group: "Security & Network"
-    gethomepage.dev/icon: "sh-ubiquiti.svg"
+    gethomepage.dev/icon: "sh-ubiquiti-unifi.svg"
 spec:
   entryPoints:
     - websecure

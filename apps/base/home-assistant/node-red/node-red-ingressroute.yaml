@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Flows & automations for Home Assistant"
     gethomepage.dev/app: node-red
     gethomepage.dev/group: "Automation"
-    gethomepage.dev/icon: "sh-nodered.svg"
+    gethomepage.dev/icon: "sh-node-red.svg"
 spec:
   entryPoints:
     - websecure

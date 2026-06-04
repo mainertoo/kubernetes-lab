@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Receives and manages Prometheus alerts."
     gethomepage.dev/app: alertmanager
     gethomepage.dev/group: "Monitoring"
-    gethomepage.dev/icon: "sh-alertmanager.svg"
+    gethomepage.dev/icon: "sh-prometheus.svg"
 spec:
   entryPoints:
     - websecure
