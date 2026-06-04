@@ -1,0 +1,26 @@
+---
+# Tailscale-operator EGRESS to the MacBook on :22 so the in-cluster Hermes pod
+# can SSH to the Mac wherever it is on the tailnet ("works outside the house").
+# Mirrors apps/base/mac-ollama-egress (same Mac, :11434) — a separate proxy.
+#
+# Split into its own Flux app (no targetNamespace) because it spans two
+# namespaces; the hermes app itself uses targetNamespace + the gatus Component.
+# The Service lives in the `hermes` ns so it resolves as
+# mac-egress.hermes.svc.cluster.local (= TERMINAL_SSH_HOST in the release).
+#
+# Prereqs (verify at deploy):
+#   - Tailnet ACL allows tag:k8s-egress → darcys-macbookpro:22
+#   - macOS Remote Login (sshd) on; in-pod public key in the Mac's
+#     ~/.ssh/authorized_keys (plain sshd + key auth, NOT Tailscale SSH — the
+#     egress proxy is a tagged device, won't match autogroup:self).
+apiVersion: v1
+kind: Service
+metadata:
+  name: mac-egress
+  namespace: hermes
+  annotations:
+    tailscale.com/tailnet-fqdn: darcys-macbookpro.tuxedo-halosaur.ts.net
+    tailscale.com/tags: tag:k8s-egress
+spec:
+  type: ExternalName
+  externalName: unused.tailscale-operator-target.invalid

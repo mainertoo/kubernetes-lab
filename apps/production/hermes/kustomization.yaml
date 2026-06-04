@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Flux wrapper for the in-cluster Hermes agent. The Mac SSH egress (Service +
+# cross-namespace NetworkPolicy) is a SEPARATE app — apps/production/mac-ssh-egress
+# — so this one can use targetNamespace + the shared gatus Components like every
+# other app. decryption is required for hermes-secret.sops.yaml.
+#
+# gatus endpoints (via components/gatus):
+#   internal → http://hermes-app.hermes.svc.cluster.local:8642/health  (== 200)
+#   external → https://hermes.lab.mainertoo.com/health  (< 500; Authentik 302 ok)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hermes
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/hermes"
+  targetNamespace: hermes
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - "../../../components/gatus/internal"
+    - "../../../components/gatus/external"
+  postBuild:
+    substitute:
+      APP: hermes
+      APP_NAMESPACE: hermes
+      # Service is hermes-app (bjw-s <release>-<key>), gateway port + /health.
+      GATUS_APP: hermes-app
+      GATUS_PORT: '8642'
+      GATUS_PATH: "/health"
+      SUBDOMAIN: hermes
+      GATUS_DOMAIN: lab.mainertoo.com
