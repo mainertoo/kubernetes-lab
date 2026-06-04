@@ -28,12 +28,28 @@ spec:
         bootstrapPassword: ""
         bootstrapPasswordSecretName: rancher-bootstrap
 
-    # HA: 3 replicas spread across worker nodes. The chart defaults to 3 with
-    # antiAffinity=preferred + topologyKey=hostname, which already matches the
-    # cluster's "ScheduleAnyway"-style spread (see docs/ha-architecture.md).
+    # HA: 3 replicas, one per worker node. The chart default antiAffinity
+    # "preferred" is a soft hint the scheduler can ignore — and did, landing all
+    # 3 replicas on worker-2. At boot each replica clones its git catalogs,
+    # saturating that node's disk (NodeDiskIOSaturation) so startup blew past the
+    # 120s startupProbe budget → SIGKILL (exit 137) → crashloop, which flapped
+    # the v1.ext.cattle.io aggregated API and cascaded into apiserver/kyverno
+    # alerts. "required" forces one replica per node (3 replicas, 3 workers).
     replicas: 3
+    antiAffinity: required
+    topologyKey: kubernetes.io/hostname
 
-    # Optional: tighten resources a bit for home-lab
+    # Give Rancher more headroom to finish its boot-time catalog restore before
+    # probes start killing it. Default startupProbe is 12 × 10s = 120s, which is
+    # too tight under any disk contention. 30 × 10s = 300s.
+    startupProbe:
+      timeoutSeconds: 5
+      periodSeconds: 10
+      failureThreshold: 30
+
+    # Optional: tighten resources a bit for home-lab. NOTE: crashes here were
+    # NOT OOM (usage ~1Gi vs 2Gi limit; kubelet reported reason=Error, never
+    # OOMKilled) — leaving memory as-is is deliberate.
     resources:
       requests:
         cpu: "100m"
