@@ -5,4 +5,5 @@ resources:
   - meshcentral-namespace.yaml
   - meshcentral-pvc.yaml
   - meshcentral-release.yaml
+  - meshcentral-servers-transport.yaml
   - meshcentral-ingressroute.yaml

@@ -63,8 +63,13 @@ spec:
         enabled: true
         controller: meshcentral
         ports:
-          http:
-            port: 80
+          # MeshCentral terminates its own TLS on 443 (TLSOffload=false; the
+          # typhonragewind REVERSE_PROXY env sets certUrl but not offload).
+          # Port 80 is only a 301→443 redirect, so Traefik must talk HTTPS to
+          # :443 and skip-verify the self-signed backend cert (see ingressroute
+          # + servers-transport).
+          https:
+            port: 443
 
     persistence:
       data:
