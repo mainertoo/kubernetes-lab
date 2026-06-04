@@ -1,0 +1,81 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app meshcentral
+  namespace: meshcentral
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      meshcentral:
+        type: deployment
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: typhonragewind/meshcentral
+              tag: "1.1.53"
+            # typhonragewind image renders config.json from these env vars at boot.
+            # app-template v3 expects env as a MAP, not a list.
+            env:
+              TZ: "America/Los_Angeles"
+              # Public FQDN + reverse-proxy / TLS-offload (Traefik terminates TLS):
+              HOSTNAME: "meshcentral.staging.mainertoo.com"
+              REVERSE_PROXY: "meshcentral.staging.mainertoo.com"
+              REVERSE_PROXY_TLS_PORT: "443"
+              # NeDB (built-in) — fine for an AMT-only POC (a handful of devices).
+              USE_MONGODB: "false"
+              # Leave open so the FIRST visit can create the admin account;
+              # tighten to "false" once that account exists.
+              ALLOW_NEW_ACCOUNTS: "true"
+              IFRAME: "false"
+              WEBRTC: "false"
+              ALLOWPLUGINS: "false"
+            # MeshCentral can take ~20-30s to generate certs/db on first boot;
+            # probes left off for the POC to avoid masking real crash loops.
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+
+    service:
+      app:
+        enabled: true
+        controller: meshcentral
+        ports:
+          http:
+            port: 80
+
+    persistence:
+      data:
+        existingClaim: meshcentral
+        globalMounts:
+          - path: /opt/meshcentral/meshcentral-data
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi

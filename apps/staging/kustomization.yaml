@@ -2,4 +2,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # Staging cluster app registry. Empty by default — add one line per app
 # to opt it into the staging cluster. Pattern matches apps/production/.
-resources: []
+resources:
+  - meshcentral/kustomization.yaml
