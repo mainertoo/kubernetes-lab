@@ -59,7 +59,13 @@ data:
         - pbs:
             href: https://pbs.lab.mainertoo.com:8007
             description: Proxmox Backup Server
-            icon: sh-proxmox-backup-server.svg
+            icon: proxmox-backup-server.svg
+
+    - Automation:
+        - Z-Wave JS UI:
+            href: http://192.168.1.236:8091
+            description: Z-Wave control (out-of-cluster Docker VM)
+            icon: sh-z-wave-js-ui.svg
 
   settings.yaml: |
     title: "mainertoo lab"

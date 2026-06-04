@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/description: "DUMB service"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://github.com/I-am-puid-0.png"
 spec:
   entryPoints:
     - websecure
@@ -38,6 +39,7 @@ metadata:
     gethomepage.dev/description: "WebDAV bridge"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "sh-nzb-dav.svg"
 spec:
   entryPoints:
     - websecure
@@ -66,6 +68,7 @@ metadata:
     gethomepage.dev/description: "DUMB service"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "sh-profilarr.svg"
 spec:
   entryPoints:
     - websecure
@@ -268,6 +271,7 @@ metadata:
     gethomepage.dev/description: "Internal DUMB Traefik"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "sh-traefik.svg"
 spec:
   entryPoints:
     - websecure
@@ -296,6 +300,7 @@ metadata:
     gethomepage.dev/description: "Debrid bridge manager"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "sh-decypharr.png"
 spec:
   entryPoints:
     - websecure
@@ -382,6 +387,7 @@ metadata:
     gethomepage.dev/description: "Adult media organizer/manager"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "sh-whisparr.svg"
 spec:
   entryPoints:
     - websecure

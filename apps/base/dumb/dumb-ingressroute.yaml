@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/description: "Debrid Unlimited Media Bridge"
     gethomepage.dev/app: dumb
     gethomepage.dev/group: "DUMB-Media"
+    gethomepage.dev/icon: "https://github.com/I-am-puid-0.png"
 spec:
   entryPoints:
     - websecure
