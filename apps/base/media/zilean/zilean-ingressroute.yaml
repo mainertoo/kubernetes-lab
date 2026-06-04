@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Zurg/Torrent scraper backend feeding Riven"
     gethomepage.dev/app: zilean
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jackett.svg"
+    gethomepage.dev/icon: "sh-jackett.svg"
 spec:
   entryPoints:
     - websecure

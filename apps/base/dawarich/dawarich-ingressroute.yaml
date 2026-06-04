@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Dawarich"
     gethomepage.dev/description: "Self-hosted location history and timeline"
     gethomepage.dev/app: dawarich
-    gethomepage.dev/group: "Utilities"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/dawarich.png"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-dawarich.png"
 spec:
   entryPoints:
     - websecure

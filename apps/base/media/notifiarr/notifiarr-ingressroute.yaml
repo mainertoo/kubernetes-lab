@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Notification and automation integration for media servers"
     gethomepage.dev/app: notifiarr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/notifiarr.svg"
+    gethomepage.dev/icon: "sh-notifiarr.svg"
 spec:
   entryPoints:
     - websecure

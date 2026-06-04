@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Loki"
     gethomepage.dev/description: "Log storage backend"
+    gethomepage.dev/app: loki
     gethomepage.dev/group: "Monitoring"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/loki.svg"
+    gethomepage.dev/icon: "sh-loki.svg"
 spec:
   entryPoints: [websecure, web]
   routes:

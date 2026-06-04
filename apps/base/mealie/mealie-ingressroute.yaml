@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Mealie"
     gethomepage.dev/description: "Self-hosted recipe manager and meal planner"
     gethomepage.dev/app: mealie
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/mealie.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-mealie.svg"
 spec:
   entryPoints:
     - websecure

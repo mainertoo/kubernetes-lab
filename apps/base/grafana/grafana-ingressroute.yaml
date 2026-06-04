@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Analytics and interactive visualization web application"
     gethomepage.dev/app: grafana
     gethomepage.dev/group: "Monitoring"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/grafana.svg"
+    gethomepage.dev/icon: "sh-grafana.svg"
 spec:
   entryPoints:
     - websecure

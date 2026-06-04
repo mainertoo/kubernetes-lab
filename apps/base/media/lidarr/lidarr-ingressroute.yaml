@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Music organizer/manager"
     gethomepage.dev/app: lidarr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/lidarr.svg"
+    gethomepage.dev/icon: "sh-lidarr.svg"
 spec:
   entryPoints:
     - websecure

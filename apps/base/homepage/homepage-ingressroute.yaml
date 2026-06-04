@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Homepage"
     gethomepage.dev/description: "Cluster dashboard"
     gethomepage.dev/app: homepage
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/homepage.png"
+    gethomepage.dev/group: "Infrastructure"
+    gethomepage.dev/icon: "sh-homepage.png"
 spec:
   entryPoints:
     - websecure

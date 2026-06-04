@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Indexer manager"
     gethomepage.dev/app: prowlarr
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/prowlarr.svg"
+    gethomepage.dev/icon: "sh-prowlarr.svg"
 spec:
   entryPoints:
     - websecure

@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Open-source media server"
     gethomepage.dev/app: jellyfin
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg"
+    gethomepage.dev/icon: "sh-jellyfin.svg"
 spec:
   entryPoints:
     - websecure

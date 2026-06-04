@@ -9,8 +9,9 @@ metadata:
     gethomepage.dev/name: "Zilean pgAdmin"
     gethomepage.dev/description: "pgAdmin for Zilean's Postgres database"
     gethomepage.dev/app: zilean-pgadmin
+    gethomepage.dev/pod-selector: "app=zilean-pgadmin"
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/postgresql.svg"
+    gethomepage.dev/icon: "sh-postgresql.svg"
 spec:
   entryPoints:
     - websecure

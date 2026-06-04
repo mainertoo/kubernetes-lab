@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "ConvertX"
     gethomepage.dev/description: "File converter"
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/convertx.png"
+    gethomepage.dev/app: convertx
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-convertx.png"
 spec:
   entryPoints: [websecure, web]
   routes:

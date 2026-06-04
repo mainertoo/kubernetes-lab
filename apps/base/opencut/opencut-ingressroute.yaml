@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "OpenCut"
     gethomepage.dev/description: "Video editor (self-hosted)"
+    gethomepage.dev/app: opencut
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/opencut.png"
+    gethomepage.dev/icon: "sh-opencut.png"
 spec:
   entryPoints:
     - websecure

@@ -31,39 +31,48 @@ data:
         - pve-whistler:
             href: https://pve-whistler.lab.mainertoo.com:8006
             description: Proxmox (whistler)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-s13:
             href: https://pve-s13.lab.mainertoo.com:8006
             description: Proxmox (s13)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-s12:
             href: https://pve-s12.lab.mainertoo.com:8006
             description: Proxmox (s12)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-ugreen:
             href: https://pve-ugreen.lab.mainertoo.com:8006
             description: Proxmox (ugreen)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-mac:
             href: https://pve-mac.lab.mainertoo.com:8006
             description: Proxmox (mac)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-zermatt:
             href: https://pve-zermatt.lab.mainertoo.com:8006
             description: Proxmox (zermatt)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pve-mammoth:
             href: https://pve-mammoth.lab.mainertoo.com:8006
             description: Proxmox (mammoth)
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox.svg
         - pbs:
             href: https://pbs.lab.mainertoo.com:8007
             description: Proxmox Backup Server
-            icon: https://www.45drives.com/solutions/proxmox/img/proxmox_Logo.png
+            icon: sh-proxmox-backup-server.svg
 
   settings.yaml: |
     title: "mainertoo lab"
     theme: dark
+    layout:
+      Infrastructure:     { style: row, columns: 4 }
+      Monitoring:         { style: row, columns: 5 }
+      Media:              { style: row, columns: 5 }
+      DUMB-Media:         { style: row, columns: 5 }
+      Automation:         { style: row, columns: 4 }
+      AI:                 { style: row, columns: 3 }
+      Apps:               { style: row, columns: 5 }
+      Security & Network: { style: row, columns: 3 }
 
   widgets.yaml: |
     - search:

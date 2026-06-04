@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Open Notebook"
     gethomepage.dev/description: "Self-hosted research notebook (NotebookLM alternative)"
     gethomepage.dev/app: open-notebook
-    gethomepage.dev/group: "Productivity"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/notebooklm.png"
+    gethomepage.dev/group: "AI"
+    gethomepage.dev/icon: "sh-notebooklm.png"
 spec:
   entryPoints:
     - websecure

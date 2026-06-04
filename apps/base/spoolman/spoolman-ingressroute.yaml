@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Spoolman"
     gethomepage.dev/description: "Application for managing filament spools."
     gethomepage.dev/app: spoolman
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/spoolman.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-spoolman.svg"
     gethomepage.dev/widget.type: "spoolman"
     gethomepage.dev/widget.url: "http://spoolman.spoolman.svc.cluster.local:8000"
 spec:

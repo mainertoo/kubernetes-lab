@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Wiki.js"
     gethomepage.dev/description: "Personal knowledge base"
     gethomepage.dev/app: wiki-js
-    gethomepage.dev/group: "Utilities"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/wiki-js.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-wiki-js.svg"
 spec:
   entryPoints:
     - websecure

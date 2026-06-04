@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "TV series organizer/manager (4K)"
     gethomepage.dev/app: sonarr4k
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/sonarr.svg"
+    gethomepage.dev/icon: "sh-sonarr.svg"
 spec:
   entryPoints:
     - websecure

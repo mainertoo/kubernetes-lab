@@ -47,15 +47,11 @@ spec:
             args:
               - |
                 set -eu
-                echo "Bootstrapping /app/config (only missing files)..."
+                echo "Syncing /app/config from /defaults (declarative, always overwrite)..."
                 mkdir -p /app/config
                 for f in bookmarks.yaml docker.yaml kubernetes.yaml services.yaml settings.yaml widgets.yaml; do
-                  if [ ! -s "/app/config/$f" ]; then
-                    echo "  -> seeding $f"
-                    cp "/defaults/$f" "/app/config/$f"
-                  else
-                    echo "  -> keeping existing $f"
-                  fi
+                  echo "  -> syncing $f"
+                  cp "/defaults/$f" "/app/config/$f"
                 done
 
                 echo "Fixing perms..."

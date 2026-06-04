@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Automated Calibre-Web ebook manager"
     gethomepage.dev/app: calibre-web-automated
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/calibre-web.svg"
+    gethomepage.dev/icon: "sh-calibre-web.svg"
 spec:
   entryPoints:
     - websecure

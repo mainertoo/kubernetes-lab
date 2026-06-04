@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Movie organizer/manager (4K)"
     gethomepage.dev/app: radarr4k
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/radarr.svg"
+    gethomepage.dev/icon: "sh-radarr.svg"
 spec:
   entryPoints:
     - websecure

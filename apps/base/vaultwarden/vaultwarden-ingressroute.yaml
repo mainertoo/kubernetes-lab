@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "Vaultwarden"
     gethomepage.dev/description: "Bitwarden-compatible password manager (SSO via Authentik)"
     gethomepage.dev/app: vaultwarden
-    gethomepage.dev/group: "Security"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/bitwarden.svg"
+    gethomepage.dev/group: "Security & Network"
+    gethomepage.dev/icon: "sh-bitwarden.svg"
 spec:
   entryPoints:
     - websecure

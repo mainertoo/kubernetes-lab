@@ -9,7 +9,7 @@ metadata:
     gethomepage.dev/name: "Tandoor"
     gethomepage.dev/description: "Self-hosted recipe manager"
     gethomepage.dev/app: tandoor
-    gethomepage.dev/group: "Tools"
+    gethomepage.dev/group: "Apps"
     gethomepage.dev/icon: "https://raw.githubusercontent.com/TandoorRecipes/recipes/192ca44d893858ef9899dc71036d2078f5fbc29a/docs/logo_color.svg"
 spec:
   entryPoints:

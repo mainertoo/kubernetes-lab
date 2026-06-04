@@ -15,7 +15,7 @@ metadata:
     gethomepage.dev/description: "Always-on Hermes agent (Codex brain)"
     gethomepage.dev/app: hermes
     gethomepage.dev/group: "AI"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/nous-research.svg"
+    gethomepage.dev/icon: "mdi-robot-happy"
 spec:
   entryPoints:
     - websecure

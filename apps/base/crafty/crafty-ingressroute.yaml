@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Crafty"
     gethomepage.dev/description: "Minecraft server manager"
-    gethomepage.dev/group: "Games"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/crafty-controller.svg"
+    gethomepage.dev/app: crafty
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-crafty-controller.svg"
     
 spec:
   entryPoints:

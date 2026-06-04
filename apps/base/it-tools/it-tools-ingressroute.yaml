@@ -9,8 +9,8 @@ metadata:
     gethomepage.dev/name: "IT - Tools"
     gethomepage.dev/description: "Collection of handy online tools for developers"
     gethomepage.dev/app: it-tools
-    gethomepage.dev/group: "Tools"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/it-tools.svg"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-it-tools.svg"
 spec:
   entryPoints:
     - websecure

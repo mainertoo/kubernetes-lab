@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/description: "Plex usage statistics and monitoring"
     gethomepage.dev/app: tautulli
     gethomepage.dev/group: "Media"
-    gethomepage.dev/icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/tautulli.svg"
+    gethomepage.dev/icon: "sh-tautulli.svg"
 spec:
   entryPoints:
     - websecure

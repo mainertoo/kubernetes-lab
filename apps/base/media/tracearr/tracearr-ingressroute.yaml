@@ -8,6 +8,8 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Tracearr"
     gethomepage.dev/description: "Media activity + history analytics (Jellyfin/Plex)"
+    gethomepage.dev/app: tracearr
+    gethomepage.dev/icon: "sh-tracearr.svg"
     gethomepage.dev/group: "Media"
 spec:
   entryPoints:
