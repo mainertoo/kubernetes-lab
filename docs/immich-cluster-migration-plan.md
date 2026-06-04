@@ -36,6 +36,19 @@ Source: `~/home_server/docker-qnas/immich/{docker-compose.yml,.env}` + live QNAS
 
 **Bonus — this also solves PostgreSQL 14 EOL.** PG14 reaches end-of-life **2026-11-13** (~5 months out). Immich users were historically pinned to PG14 because the old pgvecto.rs image only existed for PG14. The new VectorChord-based images are published for PG14–18, but bumping the major requires a real dump/restore (not an in-place tag swap). Since we're doing a dump/restore into CNPG anyway, we land on **PG17** — killing the deprecated extension *and* the EOL major in one move. PG17 EOL is 2029.
 
+> **⛔ STRATEGY A IS DEAD — the QNAP cannot run VectorChord (2026-06-03).** Attempted in PR #48 (home_server): swapping the QNAS DB to `immich-app/postgres:14-vectorchord0.4.2-pgvectors0.2.0` crash-loops immediately:
+> ```
+> <jemalloc>: Unsupported system page size
+> memory allocation of 16 bytes failed
+> ```
+> The QNAP is **`aarch64` (ARM64, 64 KB kernel page size)**; the VectorChord image's jemalloc is built for 4 KB pages. This is a hardware incompatibility, not a config fix — **VectorChord/jemalloc images will never run on this QNAP.** Reverted in PR #49; QNAS Immich restored to pgvecto.rs (data dir untouched — the crash was at allocator init, pre-DB-open). Lesson: the Proxmox cluster nodes are x86/4 KB (why the CNPG VectorChord DB is healthy there), so **all VectorChord work must happen in the cluster, never on the QNAP.**
+>
+> **→ Revised approach (Strategy A′): the pgvecto.rs→VectorChord migration moves into the cluster.** The QNAP stays on pgvecto.rs permanently. We already have the pgvecto.rs dump (183 MB, `immich-prevchord-20260603.dump`). Migrate it in-cluster (x86), then load into CNPG. Two candidate designs under evaluation (pending redesign + Codex pass):
+> - **X (keep CNPG):** restore the pgvecto.rs dump into a temporary `immich-app/postgres` Deployment in-cluster → point a throwaway Immich v2.7.5 at it to auto-migrate `vectors`→`vchord` → dump vchord-native → restore into the existing CNPG `cloudnative-vectorchord` cluster → cutover. Preserves CNPG barman/PITR backups; more steps.
+> - **Y (simpler, weaker backups):** run the cluster Immich directly against an `immich-app/postgres` Deployment (it auto-migrates in place); back its PVC up via label-driven Kopia instead of CNPG barman. Drops the scratch-migration dance; loses CNPG-grade PITR. The already-deployed CNPG cluster would be torn down.
+>
+> The original Strategy A text below is retained for history.
+
 ### Strategy A (chosen): migrate the extension IN PLACE on QNAS first, then move
 
 The current QNAS image has only `vectors.so` — a dump from it carries `CREATE EXTENSION vectors` + `vectors.vector`-typed columns that won't restore into a vchord-only image. So:
@@ -142,7 +155,7 @@ The concern that Immich needed vchord ≥ 0.5.0 was wrong — `immich-app/postgr
 - [x] ~~Confirm the live running Immich version~~ → **v2.7.5**, still running on pgvecto.rs (API probe, 2026-06-03).
 - [x] ~~**vchord compat gate**~~ → **RESOLVED**: v2.7.5 accepts vchord `>=0.3 <2`; `17.5-0.4.2` is compatible. App pinned at v2.7.5 (latest). See §4.
 - [ ] Confirm `cloudnative-vectorchord:17.5-0.4.2` ships vchord-only (Strategy B dead — sanity check).
-- [ ] **NFS write test (BLOCKER, Codex #2):** debug pod with the exact `runAsUser/runAsGroup/fsGroup` + `fsGroupChangePolicy: OnRootMismatch`, mount the NFS subdir, then `touch/mkdir/rename/rm` under `upload/ thumbs/ encoded-video/ profile/ backups/`. Confirm no recursive chown of 187 GB. Get the numeric uid(`admin`)/gid(`administrators`).
+- [x] ~~**NFS write test (BLOCKER, Codex #2)**~~ → **PASSED 2026-06-03**: throwaway pod as `runAsUser:0/runAsGroup:0` mounted the NFS export and did `mkdir/write/rename/read/rm` in a scratch dir under UPLOAD_LOCATION; files created as `0:0`. `no_root_squash` + run-as-root confirmed. No fsGroup used (no recursive chown). uid(`admin`)=0, gid(`administrators`)=0.
 - [ ] Decide PG target (PG17 baseline) and confirm Immich supports it for the chosen app version.
 
 **Phase 1 — In-place pgvecto.rs → VectorChord on QNAS**
@@ -154,9 +167,10 @@ The concern that Immich needed vchord ≥ 0.5.0 was wrong — `immich-app/postgr
 **Phase 1.5 — Throwaway restore rehearsal (Codex #8)**
 - [ ] Spin up a *disposable* CNPG `cloudnative-vectorchord:17.5-0.4.2` cluster (separate name), restore the Phase-1 dump, confirm extensions + `pg_restore` clean, and boot a throwaway Immich pod against it. Tear down. Only proceed if green.
 
-**Phase 2 — Land cluster infra (QNAS still serving; NO cluster writes)**
-- [ ] Commit repo changes, but **gate the writing app** (Codex #1 — BLOCKER): either don't add the HelmRelease to `apps/production/kustomization.yaml` yet (CNPG + PVs only), or ship the HelmRelease with controllers scaled to 0. Verify with `flux build kustomization apps --path ./clusters/production | rg -n "kind: (HelmRelease|PersistentVolume|PersistentVolumeClaim)|name: immich"` that nothing mounts the live NFS rw before the window. Validate via flux-local CI diff.
-- [ ] CNPG cluster healthy; extensions present.
+**Phase 2 — Land cluster infra (QNAS still serving; NO cluster writes) — ✅ DONE 2026-06-03**
+- [x] Repo changes merged (PR #723 scaffold + PR #724 namespace fix). Writing app gated out of `apps/production/immich/kustomization.yaml` (only `db-cnpg.yaml` active) — single-writer invariant holds; nothing mounts the NFS tree.
+- [x] CNPG cluster **healthy** (`immich-cnpg-db-1` 2/2 Running). Live-verified: `vchord 0.4.2` + `cube 1.5` + `earthdistance 1.2` + `vector 0.8.0`; `shared_preload_libraries=vchord.so`. `immich-cnpg-db-app` secret + ObjectStore + daily ScheduledBackup created.
+- [ ] (Optional) Trigger a manual backup to confirm Garage S3 write before relying on the 08:15 schedule: `kubectl -n immich create -f -` a `Backup` CR, or wait for the first scheduled run (Phase 4 check).
 
 **Phase 3 — Cutover (maintenance window, single-writer invariant)**
 - [ ] Drain/verify no critical queued Immich jobs (admin Jobs dashboard) (Codex #14), then stop QNAS immich-server + ml (leave DB up for the final dump).
