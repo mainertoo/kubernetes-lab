@@ -40,14 +40,14 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Match container image repository+tag pairs in HelmRelease values",
+      "description": "Match container image repository+tag pairs in HelmRelease values (optional @sha256 digest pin, e.g. tag: dev@sha256:... so Renovate tracks rolling-tag digest updates)",
       "managerFilePatterns": [
         "/apps/.+\\.ya?ml$/",
         "/infrastructure/.+\\.ya?ml$/"
       ],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "repository:\\s?\"?(?<depName>[^\\s\"]+)\"?\\s*?tag:\\s?\"?(?<currentValue>[^\\s\"]+)\"?"
+        "repository:\\s?\"?(?<depName>[^\\s\"]+)\"?\\s*?tag:\\s?\"?(?<currentValue>[^\\s\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\"?"
       ],
       "datasourceTemplate": "docker"
     },
@@ -132,6 +132,14 @@
       "matchPackageNames": ["ghcr.io/mitchross/pvc-plumber"],
       "matchUpdateTypes": ["major"],
       "enabled": false
+    },
+    {
+      "description": "dumb is pinned to the rolling :dev tag by digest (tag: dev@sha256:...). There is no semver to bump, so track digest changes: Renovate raises a PR each time the dev image is rebuilt. Review/merge to upgrade deliberately instead of pulling latest dev on every restart.",
+      "matchPackageNames": ["ghcr.io/i-am-puid-0/dumb"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": true,
+      "groupName": "dumb (dev digest)",
+      "groupSlug": "dumb-dev"
     }
   ]
 }

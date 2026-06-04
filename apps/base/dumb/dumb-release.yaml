@@ -52,8 +52,11 @@ spec:
           app:
             image:
               repository: ghcr.io/i-am-puid-0/dumb
-              tag: dev
-              pullPolicy: Always
+              # Pinned to the rolling :dev tag by digest so a new dev build can't
+              # silently roll in on restart (past profiler crashloop). Renovate
+              # tracks the dev digest and PRs new builds — bump deliberately.
+              tag: dev@sha256:1a194f09d8d3d4fdfd90c5b827ad6576b0a91ffa6e2d984dffc3c8712418720c
+              pullPolicy: IfNotPresent
 
             envFrom:
               - secretRef:
@@ -78,6 +81,19 @@ spec:
                 enabled: false
               startup:
                 enabled: false
+
+            # dumb is a heavy AIO bridge (bundles Plex + Seerr + Riven + debrid
+            # mount). Requests reflect its real ~3.2Gi baseline so the scheduler
+            # stops over-packing its node (was the root of worker-1 saturation).
+            # No CPU limit (would throttle Plex transcodes); memory limit is a
+            # generous runaway backstop well above transcode headroom, not a cap
+            # meant to bind in normal use.
+            resources:
+              requests:
+                cpu: 500m
+                memory: 4Gi
+              limits:
+                memory: 12Gi
 
     defaultPodOptions:
       hostNetwork: false
