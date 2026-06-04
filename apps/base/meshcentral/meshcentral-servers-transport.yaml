@@ -1,0 +1,9 @@
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: meshcentral-transport
+  namespace: meshcentral
+spec:
+  # MeshCentral serves its own self-signed cert on :443; Traefik re-encrypts
+  # to it and skips verification of that backend cert.
+  insecureSkipVerify: true
