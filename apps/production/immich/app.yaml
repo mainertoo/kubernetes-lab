@@ -30,6 +30,7 @@ spec:
     namespace: flux-system
   components:
     - ../../../components/gatus/internal
+    - ../../../components/gatus/external
   postBuild:
     substitute:
       APP: immich
@@ -38,7 +39,7 @@ spec:
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /api/server/ping
       GATUS_PORT: "2283"
-      GATUS_APP: immich
+      GATUS_APP: immich-app
       GATUS_STATUS_INTERNAL: "200"
     substituteFrom:
       - kind: Secret
