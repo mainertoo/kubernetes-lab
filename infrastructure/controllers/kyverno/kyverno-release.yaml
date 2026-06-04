@@ -90,6 +90,25 @@ spec:
 
     reportsController:
       replicas: 2
+      # Chart defaults (128Mi limit, 100m CPU, default client rate limits) are
+      # too tight for this cluster's report churn. During a pod-churn burst
+      # (e.g. a multi-replica app rollout) kyverno generates a flood of
+      # ephemeralreports; the controller gets buried processing them and its
+      # leader-election lease renewal misses its deadline
+      # ("Failed to renew lease: context deadline exceeded") → it drops
+      # leadership, restarts, and its /metrics target flaps (TargetDown 50%).
+      # Mirror the backgroundController headroom: more CPU + a wider client
+      # rate limit so a burst can drain without starving lease renewal.
+      # Surfaced 2026-06-04; this scales with churn-burst size, not steady state.
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      extraArgs:
+        clientRateLimitQPS: 100
+        clientRateLimitBurst: 200
       podDisruptionBudget:
         enabled: true
         minAvailable: 1
