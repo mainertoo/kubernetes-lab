@@ -6,7 +6,7 @@
 # other app. decryption is required for hermes-secret.sops.yaml.
 #
 # gatus endpoints (via components/gatus):
-#   internal → http://hermes-app.hermes.svc.cluster.local:8642/health  (== 200)
+#   internal → http://hermes.hermes.svc.cluster.local:8642/health  (== 200)
 #   external → https://hermes.lab.mainertoo.com/health  (< 500; Authentik 302 ok)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -36,8 +36,8 @@ spec:
     substitute:
       APP: hermes
       APP_NAMESPACE: hermes
-      # Service is hermes-app (bjw-s <release>-<key>), gateway port + /health.
-      GATUS_APP: hermes-app
+      # GATUS_APP defaults to ${APP}=hermes, which is the actual service name
+      # (bjw-s collapses a single service to the release name). Gateway port + /health.
       GATUS_PORT: '8642'
       GATUS_PATH: "/health"
       SUBDOMAIN: hermes

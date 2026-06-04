@@ -27,6 +27,9 @@ spec:
         - name: authentik-sso
           namespace: traefik-system
       services:
-        - name: hermes-app
+        # bjw-s names a SINGLE service after the release (`hermes`), not
+        # `<release>-<key>` — the multi-service `-app` suffix only applies when
+        # there are sibling services (cf. immich-app/immich-ml).
+        - name: hermes
           port: 9119
   tls: {}
