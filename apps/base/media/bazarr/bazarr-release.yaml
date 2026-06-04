@@ -112,13 +112,6 @@ spec:
         globalMounts:
           - path: /data
 
-      rclone:
-        type: hostPath
-        hostPath: /mnt/decypharr
-        globalMounts:
-          - path: /mnt/decypharr
-            readOnly: true
-
       symlinks:
         enabled: true
         existingClaim: symlinks-cephfs

@@ -134,20 +134,6 @@ spec:
           - path: /mnt/zurg
             readOnly: true
 
-      rclone-decypharr:
-        type: hostPath
-        hostPath: /mnt/decypharr
-        globalMounts:
-          - path: /mnt/decypharr
-            readOnly: true
-
-      nzbdav-mount:
-        type: hostPath
-        hostPath: /mnt/nzbdav
-        globalMounts:
-          - path: /mnt/nzbdav
-            readOnly: true
-
       library:
         existingClaim: shared-media-pvc
         advancedMounts:

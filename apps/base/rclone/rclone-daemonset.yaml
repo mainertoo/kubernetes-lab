@@ -45,63 +45,6 @@ spec:
               mountPath: /mnt/zurg
               mountPropagation: Bidirectional
 
-        - name: rclone-decypharr
-          image: rclone/rclone@sha256:9ce0d49b611d3781233e25334e9e23d7af01e5546da7087f90d55f034ef13637
-          command: ["rclone", "mount", "decypharr:", "/mnt/decypharr"]
-          args:
-            - "--umask=000"
-            - "--allow-other"
-            - "--allow-non-empty"
-            - "--read-only"
-            - "-v"
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - SYS_ADMIN
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/rclone
-            - name: rclone-config
-              mountPath: /root/.rclone.conf
-              subPath: rclone.conf
-            - name: decypharr-mount
-              mountPath: /mnt/decypharr
-              mountPropagation: Bidirectional
-
-        - name: rclone-nzbdav
-          image: rclone/rclone:1.74.2
-          command: ["rclone", "mount", "nzbdav:", "/mnt/nzbdav"]
-          args:
-            - "--config=/config/rclone/rclone.conf"
-            - "--uid=1000"
-            - "--gid=1000"
-            - "--allow-other"
-            - "--allow-non-empty"
-            - "--links"
-            - "--use-cookies"
-            - "--vfs-cache-mode=full"
-            - "--vfs-cache-max-size=20G"
-            - "--vfs-cache-max-age=24h"
-            - "--buffer-size=0M"
-            - "--vfs-read-ahead=512M"
-            - "--dir-cache-time=20s"
-            - "-v"
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - SYS_ADMIN
-          volumeMounts:
-            - name: nzbdav-rclone-config
-              mountPath: /config/rclone/rclone.conf
-              subPath: rclone.conf
-            - name: nzbdav-data
-              mountPath: /var/lib/rclone
-            - name: nzbdav-mount
-              mountPath: /mnt/nzbdav
-              mountPropagation: Bidirectional
-
       volumes:
         - name: data
           hostPath:
@@ -114,21 +57,4 @@ spec:
           hostPath:
             path: /mnt/zurg
             type: DirectoryOrCreate
-        - name: decypharr-mount
-          hostPath:
-            path: /mnt/decypharr
-            type: DirectoryOrCreate
-
-        - name: nzbdav-rclone-config
-          secret:
-            secretName: nzbdav-rclone-secret
-        - name: nzbdav-data
-          hostPath:
-            path: /var/lib/rclone-nzbdav
-            type: DirectoryOrCreate
-        - name: nzbdav-mount
-          hostPath:
-            path: /mnt/nzbdav
-            type: DirectoryOrCreate
-
       restartPolicy: Always
