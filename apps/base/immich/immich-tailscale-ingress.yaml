@@ -29,6 +29,6 @@ spec:
         - immich
   defaultBackend:
     service:
-      name: immich
+      name: immich-app
       port:
         number: 2283

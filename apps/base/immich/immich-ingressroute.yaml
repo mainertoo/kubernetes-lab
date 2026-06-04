@@ -24,6 +24,6 @@ spec:
     - match: Host(`immich.lab.mainertoo.com`)
       kind: Rule
       services:
-        - name: immich
+        - name: immich-app
           port: 2283
   tls: {}
