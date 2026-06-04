@@ -189,11 +189,6 @@ data:
           entryPoints: [websecure]
           service: portainer_http
 
-        immich:
-          rule: "Host(`immich.lab.mainertoo.com`)"
-          entryPoints: [websecure]
-          service: immich_http
-
         # --- SSO via Authentik forwardAuth ---
         sabnzbd:
           rule: "Host(`sabnzbd.lab.mainertoo.com`)"
@@ -324,13 +319,6 @@ data:
             passHostHeader: true
             servers:
               - url: "http://192.168.1.252:8080"
-
-        # Immich
-        immich_http:
-          loadBalancer:
-            passHostHeader: true
-            servers:
-              - url: "http://192.168.1.252:2283"
 
         # Z-Wave JS UI backend
         zwave_js_ui_http:
