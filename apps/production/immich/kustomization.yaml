@@ -11,4 +11,4 @@ resources:
   # Phase 3 (CUTOVER ONLY): uncomment after the QNAS immich-server + ml are
   # stopped and the final DB dump has been restored into CNPG. This is the
   # moment the cluster takes over as the sole writer of the NFS tree.
-  # - app.yaml
+  - app.yaml
