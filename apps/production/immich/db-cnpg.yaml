@@ -74,9 +74,19 @@ spec:
           bootstrap:
             initdb:
               postInitApplicationSQL:
+                # vchord CASCADE also pulls in pgvector (`vector`). The full set
+                # below matches what the live Immich DB uses (verified 2026-06-03
+                # rehearsal: a dump expects cube/earthdistance/pg_trgm/unaccent/
+                # uuid-ossp/vchord/vector). The app role is non-superuser and
+                # CANNOT CREATE EXTENSION, so ALL must be pre-created here at
+                # bootstrap (superuser). Missing pg_trgm/unaccent/uuid-ossp failed
+                # the rehearsal restore on Immich's f_unaccent() function.
                 - "CREATE EXTENSION IF NOT EXISTS vchord CASCADE;"
                 - "CREATE EXTENSION IF NOT EXISTS cube;"
                 - "CREATE EXTENSION IF NOT EXISTS earthdistance;"
+                - "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+                - "CREATE EXTENSION IF NOT EXISTS unaccent;"
+                - "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
   postBuild:
     substitute:
       APP: immich-cnpg-db
