@@ -52,6 +52,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: open-notebook
+        # Gatus health-checks admin:8081/healthz from the gatus ns.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gatus
       ports:
         - protocol: TCP
           port: 8081

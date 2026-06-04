@@ -140,6 +140,14 @@
       "enabled": true,
       "groupName": "dumb (dev digest)",
       "groupSlug": "dumb-dev"
+    },
+    {
+      "description": "bazarr is pinned to the linuxserver :development rolling tag by digest. That floating tag silently reverted to an older build (2026-06-04), breaking a DB migration on restart. Track digest changes so Renovate raises a PR to review/test before adopting a new dev build.",
+      "matchPackageNames": ["lscr.io/linuxserver/bazarr"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": true,
+      "groupName": "bazarr (dev digest)",
+      "groupSlug": "bazarr-dev"
     }
   ]
 }
