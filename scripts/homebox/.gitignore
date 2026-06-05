@@ -1,0 +1,4 @@
+# Local snapshots from `pull` — not the source of truth.
+current.yaml
+*.local.yaml
+__pycache__/

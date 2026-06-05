@@ -1,0 +1,71 @@
+# inventory.yaml — declarative source of truth for Homebox.
+# Apply:  ./inventory.py apply inventory.yaml          (dry-run)
+#         ./inventory.py apply inventory.yaml --commit  (write)
+#
+# Matched by NAME, so re-applying only creates/updates what's missing or changed.
+# Locations below mirror the existing Home tree (declared for reproducibility on a
+# fresh cluster; matched as no-ops against the live tree).
+
+locations:
+  - name: Main Floor
+    children:
+      - name: Laundry Room
+        children:
+          - name: Server Closet
+  - name: Upstairs Floor
+    children:
+      - name: Office
+
+tags:
+  - name: Proxmox
+    color: "#e57000"   # Proxmox orange
+  - name: Mini PC
+    color: "#3b82f6"
+  - name: NAS
+    color: "#10b981"
+  - name: Laptop
+    color: "#8b5cf6"
+
+# Homelab compute — the six Proxmox hosts.
+items:
+  - name: pve-mammoth
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
+
+  - name: pve-whistler
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
+
+  - name: pve-zermatt
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
+
+  - name: pve-mac
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Laptop]
+    manufacturer: Apple
+    modelNumber: MacBook Pro (Mid 2014)
+    description: Proxmox node — Ceph MDS only
+
+  - name: pve-s13
+    location: Upstairs Floor/Office
+    tags: [Proxmox, Mini PC]
+    manufacturer: Beelink
+    modelNumber: S13
+    description: Proxmox node — Ceph MDS only
+
+  - name: pve-ugreen
+    location: Upstairs Floor/Office
+    tags: [Proxmox, NAS]
+    manufacturer: UGREEN
+    modelNumber: DX4800
+    description: Proxmox host — NAS (no Ceph)
