@@ -1,0 +1,5 @@
+# Generated snapshots — regenerate from the live API, not source of truth.
+network-inventory.yaml
+network-map.yaml
+*.local.yaml
+__pycache__/
