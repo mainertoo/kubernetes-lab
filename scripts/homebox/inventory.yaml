@@ -1,43 +1,71 @@
 # inventory.yaml — declarative source of truth for Homebox.
-# Apply with:  ./inventory.py apply inventory.yaml          (dry-run)
-#              ./inventory.py apply inventory.yaml --commit  (write)
+# Apply:  ./inventory.py apply inventory.yaml          (dry-run)
+#         ./inventory.py apply inventory.yaml --commit  (write)
 #
-# Matching is by NAME, so the spec is idempotent: re-applying only creates/updates
-# what's missing or changed. Renaming a node here creates a NEW one (delete the old
-# in the UI). Run `./inventory.py pull -o current.yaml` to snapshot live state.
+# Matched by NAME, so re-applying only creates/updates what's missing or changed.
+# Locations below mirror the existing Home tree (declared for reproducibility on a
+# fresh cluster; matched as no-ops against the live tree).
 
-# ── Locations: a nested tree. Items reference these by full slash-path. ──
 locations:
-  - name: Garage
-    description: Main garage
+  - name: Main Floor
     children:
-      - name: Workbench
-      - name: Shelving Unit A
+      - name: Laundry Room
         children:
-          - name: Bin 1
-          - name: Bin 2
-  - name: Office
+          - name: Server Closet
+  - name: Upstairs Floor
     children:
-      - name: Desk Drawer
+      - name: Office
 
-# ── Labels (Homebox "tags"): flat, matched by name. ──
 tags:
-  - name: Electronics
+  - name: Proxmox
+    color: "#e57000"   # Proxmox orange
+  - name: Mini PC
     color: "#3b82f6"
-  - name: Tools
-  - name: Consumable
+  - name: NAS
+    color: "#10b981"
+  - name: Laptop
+    color: "#8b5cf6"
 
-# ── Items: name is required; location is a path into the tree above. ──
+# Homelab compute — the six Proxmox hosts.
 items:
-  - name: Cordless Drill
-    location: Garage/Workbench
-    tags: [Tools]
-    quantity: 1
-    description: DeWalt 20V MAX
-    manufacturer: DeWalt
-    modelNumber: DCD777
+  - name: pve-mammoth
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
 
-  - name: USB-C Cables
-    location: Office/Desk Drawer
-    tags: [Electronics, Consumable]
-    quantity: 6
+  - name: pve-whistler
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
+
+  - name: pve-zermatt
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Mini PC]
+    manufacturer: Minisforum
+    modelNumber: MS-01
+    description: Proxmox node — Ceph mon + OSD
+
+  - name: pve-mac
+    location: Main Floor/Laundry Room/Server Closet
+    tags: [Proxmox, Laptop]
+    manufacturer: Apple
+    modelNumber: MacBook Pro (Mid 2014)
+    description: Proxmox node — Ceph MDS only
+
+  - name: pve-s13
+    location: Upstairs Floor/Office
+    tags: [Proxmox, Mini PC]
+    manufacturer: Beelink
+    modelNumber: S13
+    description: Proxmox node — Ceph MDS only
+
+  - name: pve-ugreen
+    location: Upstairs Floor/Office
+    tags: [Proxmox, NAS]
+    manufacturer: UGREEN
+    modelNumber: DX4800
+    description: Proxmox host — NAS (no Ceph)
