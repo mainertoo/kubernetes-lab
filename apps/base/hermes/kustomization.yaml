@@ -7,3 +7,14 @@ resources:
   - hermes-pvc.yaml
   - hermes-release.yaml
   - hermes-ingressroute.yaml
+
+configMapGenerator:
+  - name: hermes-ssh-config
+    files:
+      - 10-mac-egress.conf=./ssh-mac-egress.conf
+
+generatorOptions:
+  disableNameSuffixHash: false
+
+configurations:
+  - ./kustomizeconfig.yaml
