@@ -1,8 +1,8 @@
 ---
 # Web dashboard, internal-only via Traefik. Reachable off-LAN through Tailscale
 # split DNS (*.lab.mainertoo.com resolves on the tailnet), so no separate
-# Tailscale ingress is needed. Authentik forward-auth gates it; Hermes' own
-# dashboard basic-auth stays on as defense-in-depth (creds in hermes-secret).
+# Tailscale ingress is needed. Authentik forward-auth is the sole auth gate;
+# Hermes' own dashboard basic-auth was dropped (redundant behind Authentik).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
