@@ -54,25 +54,23 @@ spec:
           app:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              # PINNED to a digest: the floating `latest` tag silently changed
-              # the image's s6 service layout (it began auto-running the gateway
-              # via the `gateway-default` service), which collided with our CMD
-              # and produced a duplicate gateway. Renovate proposes digest bumps
-              # we can test before adopting. Verify the s6 service layout (esp.
-              # gateway-default) still matches on any bump.
+              # PINNED to a digest so the floating `latest` tag can't silently
+              # change the image's s6 / profile layout under us on a pod roll.
+              # Renovate proposes digest bumps we can test before adopting.
               tag: latest@sha256:d0ba42c0777f3e9455694a74d3959fa0d46b07c3ab4597f7e36a785d9ad36b63
             # Image ENTRYPOINT is s6-overlay `/init … main-wrapper.sh` (starts as
-            # root, drops to uid 10000). The image now runs the always-on gateway
-            # itself via the supervised `gateway-default` s6 service (it inherits
-            # our env + /opt/data/config.yaml, so it behaves identically). The CMD
-            # main-program must therefore NOT start a second `gateway run` — that
-            # raced the supervised one for :8642 + the bot tokens and spammed
-            # "port/token already in use" + showed "disconnected". So CMD is a
-            # no-op keep-alive (`sleep infinity`, the image's own main-hermes
-            # pattern); the gateway runs once, via gateway-default.
+            # root, drops to uid 10000). The CMD `gateway run` IS what starts the
+            # always-on gateway: it registers the `default` profile and its
+            # dynamically-supervised `gateway-default` service. Do NOT replace
+            # this with a no-op (e.g. `sleep infinity`) — without it the profile
+            # gateway never registers and :8642 never comes up (verified outage,
+            # PR #772 → reverted here). The recurring "port/token already in use"
+            # log spam is a benign upstream side effect of `gateway run` also
+            # probing a second bind; the gateway itself serves fine. Revisit if
+            # the image exposes a clean single-gateway invocation.
             args:
-              - sleep
-              - infinity
+              - gateway
+              - run
             env:
               - name: TZ
                 value: America/Los_Angeles
