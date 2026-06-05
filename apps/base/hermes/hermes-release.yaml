@@ -157,3 +157,15 @@ spec:
           hermes:
             app:
               - path: /dev/shm
+      # SSH client drop-in so `hermes doctor`'s plain `ssh` host-key check
+      # uses the PERSISTENT PVC known_hosts (/opt/data/.ssh/known_hosts)
+      # instead of the ephemeral /root copy (HOME=/root, wiped each pod
+      # roll). Name is rewritten to the hashed ConfigMap by kustomizeconfig.
+      ssh-config:
+        type: configMap
+        name: hermes-ssh-config
+        advancedMounts:
+          hermes:
+            app:
+              - path: /etc/ssh/ssh_config.d/10-mac-egress.conf
+                subPath: 10-mac-egress.conf

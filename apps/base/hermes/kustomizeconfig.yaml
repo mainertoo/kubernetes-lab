@@ -1,0 +1,10 @@
+---
+# Rewrites the HelmRelease's persistence.ssh-config.name to the
+# hash-suffixed name of the generated `hermes-ssh-config` ConfigMap,
+# so the mount tracks content changes (mirrors the mosquitto pattern).
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - path: spec/values/persistence/ssh-config/name
+        kind: HelmRelease
