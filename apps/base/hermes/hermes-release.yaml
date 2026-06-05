@@ -73,10 +73,24 @@ spec:
                 value: "22"
               - name: TERMINAL_SSH_KEY
                 value: "/opt/data/.ssh/id_ed25519"
+              # ---- Messaging platforms ----
+              # Bot tokens (TELEGRAM_BOT_TOKEN / DISCORD_BOT_TOKEN) live in the
+              # SOPS secret and arrive via envFrom; a platform auto-enables when
+              # its token is present (no config.yaml flag needed). These
+              # allowlists + home-channel IDs are non-secret. All reused
+              # verbatim from the retired Mac-local Hermes deployment.
+              - name: TELEGRAM_ALLOWED_USERS
+                value: "15854701"
+              - name: TELEGRAM_HOME_CHANNEL
+                value: "15854701"
+              - name: DISCORD_ALLOWED_USERS
+                value: "1008503804158803978"
+              - name: DISCORD_HOME_CHANNEL
+                value: "1511918541400576100"
             envFrom:
-              # API_SERVER_KEY + dashboard basic-auth creds (and, later, the
-              # Telegram/Discord bot tokens). These are read as container env,
-              # so they come from a SOPS Secret rather than the PVC .env.
+              # API_SERVER_KEY + dashboard basic-auth creds + the Telegram/Discord
+              # bot tokens. These are read as container env, so they come from a
+              # SOPS Secret rather than the PVC .env.
               - secretRef:
                   name: hermes-secret
             probes:
