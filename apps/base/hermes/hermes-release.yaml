@@ -33,6 +33,23 @@ spec:
       hermes:
         # Single writer over a SQLite store — never run two replicas.
         strategy: Recreate
+        initContainers:
+          # openssh (used by `hermes doctor`) refuses a group-readable private
+          # key for non-root users, and the PVC fsGroup loosens the in-pod SSH
+          # key to 0660 — so the doctor SSH check (run as the hermes user)
+          # ignores the key and false-fails. Tighten to 0600 before the gateway
+          # starts. Runs as root (image starts as root), idempotent, and a
+          # no-op on a fresh PVC where the key isn't generated yet.
+          fix-ssh-key-perms:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                [ -d /opt/data/.ssh ] && chmod 700 /opt/data/.ssh || true
+                [ -f /opt/data/.ssh/id_ed25519 ] && chmod 600 /opt/data/.ssh/id_ed25519 || true
         containers:
           app:
             image:
@@ -147,6 +164,9 @@ spec:
         advancedMounts:
           hermes:
             app:
+              - path: /opt/data
+            # init needs the PVC to chmod the SSH key before the gateway starts
+            fix-ssh-key-perms:
               - path: /opt/data
       # Chromium-based browser automation needs more than the default 64Mi /dev/shm.
       dshm:
