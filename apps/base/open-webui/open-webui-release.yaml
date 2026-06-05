@@ -58,12 +58,17 @@ spec:
                 value: "true"
               ENABLE_OLLAMA_API:
                 value: "false"
+              # Two OpenAI-compatible backends (semicolon-separated), both on
+              # the Mac via Tailscale egress:
+              #   1. mac-ollama  :11434  — Ollama (Qwen3.5 MoE + embeddings)
+              #   2. mac-llama   :8080   — llama.cpp serving Qwen3.6-27B
+              # Each backend's models appear in the Open WebUI model dropdown.
               OPENAI_API_BASE_URLS:
-                value: "http://mac-ollama.ollama-egress.svc.cluster.local:11434/v1"
-              # Ollama ignores the API key but Open WebUI requires the env to
-              # be non-empty when OPENAI_API_BASE_URLS is set.
+                value: "http://mac-ollama.ollama-egress.svc.cluster.local:11434/v1;http://mac-llama.llama-egress.svc.cluster.local:8080/v1"
+              # Neither backend enforces the API key, but Open WebUI requires a
+              # non-empty key PER base URL (semicolon-separated, matching count).
               OPENAI_API_KEYS:
-                value: "ollama-ignores-this-but-openwebui-requires-it"
+                value: "ollama-ignores-this-but-openwebui-requires-it;llama-cpp-ignores-this-too"
               # Route RAG embeddings through the same Mac-Ollama endpoint
               # (we already have mxbai-embed-large pulled). Skips the
               # default HuggingFace sentence-transformers download at

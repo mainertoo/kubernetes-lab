@@ -1,0 +1,30 @@
+---
+# NetworkPolicy lives in the `tailscale` namespace (where the operator
+# places the egress-proxy Pod for the mac-llama Service), NOT in
+# `llama-egress` (where the user-facing Service lives). Mirrors
+# mac-ollama-egress: select the proxy Pod by its operator-applied labels
+# and allow ingress only from the consuming namespace(s) on :8080.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tailscale-proxy-mac-llama-allowlist
+  namespace: tailscale
+spec:
+  podSelector:
+    matchLabels:
+      tailscale.com/managed: "true"
+      tailscale.com/parent-resource: mac-llama
+      tailscale.com/parent-resource-ns: llama-egress
+      tailscale.com/parent-resource-type: svc
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Open WebUI consumes llama-server's OpenAI-compatible /v1 endpoint.
+        # (pocket-bridge will be added here in Phase 4 when it cuts over.)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: open-webui
+      ports:
+        - protocol: TCP
+          port: 8080
