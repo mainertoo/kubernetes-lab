@@ -54,14 +54,25 @@ spec:
           app:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              # renovate: pin to a digest once the first good tag is chosen.
-              tag: latest
-            # Image ENTRYPOINT is s6-overlay `/init … main-wrapper.sh` (starts
-            # as root, drops to uid 10000). We only override CMD args, leaving
-            # the s6 entrypoint intact, to run the always-on gateway.
+              # PINNED to a digest: the floating `latest` tag silently changed
+              # the image's s6 service layout (it began auto-running the gateway
+              # via the `gateway-default` service), which collided with our CMD
+              # and produced a duplicate gateway. Renovate proposes digest bumps
+              # we can test before adopting. Verify the s6 service layout (esp.
+              # gateway-default) still matches on any bump.
+              tag: latest@sha256:d0ba42c0777f3e9455694a74d3959fa0d46b07c3ab4597f7e36a785d9ad36b63
+            # Image ENTRYPOINT is s6-overlay `/init … main-wrapper.sh` (starts as
+            # root, drops to uid 10000). The image now runs the always-on gateway
+            # itself via the supervised `gateway-default` s6 service (it inherits
+            # our env + /opt/data/config.yaml, so it behaves identically). The CMD
+            # main-program must therefore NOT start a second `gateway run` — that
+            # raced the supervised one for :8642 + the bot tokens and spammed
+            # "port/token already in use" + showed "disconnected". So CMD is a
+            # no-op keep-alive (`sleep infinity`, the image's own main-hermes
+            # pattern); the gateway runs once, via gateway-default.
             args:
-              - gateway
-              - run
+              - sleep
+              - infinity
             env:
               - name: TZ
                 value: America/Los_Angeles
