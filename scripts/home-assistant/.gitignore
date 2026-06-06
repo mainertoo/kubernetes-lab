@@ -1,0 +1,4 @@
+# Generated snapshots — regenerate from the live HA API, not source of truth.
+ha-devices.yaml
+*.local.yaml
+__pycache__/
