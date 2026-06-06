@@ -122,6 +122,11 @@ spec:
                 value: "1008503804158803978"
               - name: DISCORD_HOME_CHANNEL
                 value: "1511918541400576100"
+              # Allow this Home Assistant integration thread to work like a DM:
+              # messages from allowed Discord users in this thread do not need
+              # an explicit @mention to get a Hermes reply.
+              - name: DISCORD_FREE_RESPONSE_CHANNELS
+                value: "1512867561933508820"
               # ---- Home Assistant integration ----
               # HASS_TOKEN lives in hermes-secret.sops.yaml. When present, Hermes
               # auto-enables the homeassistant toolset and gateway integration.
