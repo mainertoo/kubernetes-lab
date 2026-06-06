@@ -207,9 +207,8 @@ When the wiki tree changes meaningfully (new top-level section, large reorg), up
 
 ## Open follow-ups
 
-- **Wiki-js Git Storage backend** — enable so the repo's `/docs` folder syncs to the wiki's `docs/` section automatically. Eliminates the manual copy-paste loop and makes wiki content versioned + Renovate-bumpable.
-- **PR #584** — lands `WIKI_API_KEY` on master so Flux reconciles it into the live cluster Secret.
-- **Stub content** — 80+ leaves are currently stubs. Fill in as the homelab story matures.
+- **Git-backed `docs/` publishing** — the in-cluster Wiki.js docs publisher now syncs Markdown from the repo's `/docs` folder into the wiki's `docs/` section. Keep repo docs and publisher behavior aligned when adding or moving Git-backed pages.
+- **Stub content** — many wiki leaves are still intentionally thin. Fill in high-value pages as the homelab story matures.
 
 ## See also
 
