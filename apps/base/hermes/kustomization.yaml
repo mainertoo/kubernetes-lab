@@ -12,7 +12,7 @@ resources:
 configMapGenerator:
   - name: hermes-ssh-config
     files:
-      - 10-mac-egress.conf=./ssh-mac-egress.conf
+      - 10-ops-node.conf=./ssh-mac-egress.conf
 
 generatorOptions:
   disableNameSuffixHash: false

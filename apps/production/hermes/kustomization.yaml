@@ -1,9 +1,10 @@
 ---
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Flux wrapper for the in-cluster Hermes agent. The Mac SSH egress (Service +
-# cross-namespace NetworkPolicy) is a SEPARATE app — apps/production/mac-ssh-egress
-# — so this one can use targetNamespace + the shared gatus Components like every
-# other app. decryption is required for hermes-secret.sops.yaml.
+# Flux wrapper for the in-cluster Hermes agent. Hermes terminal SSH now points
+# directly at the always-on VM 701 / zwave-js ops node; the older Mac SSH egress
+# app remains separate for Mac-specific fallback or future use. This app can use
+# targetNamespace + the shared gatus Components like every other app. Decryption
+# is required for hermes-secret.sops.yaml.
 #
 # gatus endpoints (via components/gatus):
 #   internal → http://hermes.hermes.svc.cluster.local:8642/health  (== 200)

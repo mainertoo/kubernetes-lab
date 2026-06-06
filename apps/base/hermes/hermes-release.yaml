@@ -95,15 +95,15 @@ spec:
                 value: "true"
               - name: API_SERVER_HOST
                 value: "0.0.0.0"
-              # ---- SSH terminal backend → the MacBook over Tailscale egress ----
+              # ---- SSH terminal backend → always-on ops node VM 701 (zwave-js) ----
               # backend selection itself lives in /opt/data/config.yaml
               # (terminal.backend: ssh), seeded at bootstrap. These connection
               # params are non-secret; the private key lives on the PVC and is
-              # generated in-pod at bootstrap (never in git).
+              # authorized on VM 701 for the mainertoo account.
               - name: TERMINAL_SSH_HOST
-                value: "mac-egress.hermes.svc.cluster.local"
+                value: "192.168.1.236"
               - name: TERMINAL_SSH_USER
-                value: "darcymainville"
+                value: "mainertoo"
               - name: TERMINAL_SSH_PORT
                 value: "22"
               - name: TERMINAL_SSH_KEY
@@ -230,5 +230,5 @@ spec:
         advancedMounts:
           hermes:
             app:
-              - path: /etc/ssh/ssh_config.d/10-mac-egress.conf
-                subPath: 10-mac-egress.conf
+              - path: /etc/ssh/ssh_config.d/10-ops-node.conf
+                subPath: 10-ops-node.conf
