@@ -22,6 +22,7 @@ spec:
     substitute:
       APP: *app
       SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PATH: /api/app/about
       GATUS_PORT: "9000"
   prune: true
