@@ -122,11 +122,19 @@ spec:
                 value: "1008503804158803978"
               - name: DISCORD_HOME_CHANNEL
                 value: "1511918541400576100"
-              # Allow the Home Assistant integration channel/thread to work like
-              # a DM: messages from allowed Discord users do not need an explicit
-              # @mention to get a Hermes reply. Include both the parent channel
-              # ID and the starter thread ID so free replies work whether the
-              # user posts in #hermes-home-assistant itself or its topic thread.
+              # Restrict Discord inbound processing to approved Hermes channels,
+              # then disable the global @mention requirement. This preserves
+              # free-response behavior in dedicated Hermes spaces without letting
+              # the bot answer throughout the server.
+              # IDs: #hermes-main parent, current hermes-main thread,
+              # #hermes-home-assistant parent, Home Assistant topic/thread.
+              - name: DISCORD_ALLOWED_CHANNELS
+                value: "1511918541400576100,1512254208731123832,1512867343745683576,1512867561933508820"
+              - name: DISCORD_REQUIRE_MENTION
+                value: "false"
+              # Keep explicit free-response IDs too; this documents the dedicated
+              # Home Assistant channel/thread and remains compatible if the global
+              # mention requirement is restored later.
               - name: DISCORD_FREE_RESPONSE_CHANNELS
                 value: "1512867343745683576,1512867561933508820"
               # ---- Home Assistant integration ----
