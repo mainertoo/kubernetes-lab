@@ -122,12 +122,22 @@ spec:
                 value: "1008503804158803978"
               - name: DISCORD_HOME_CHANNEL
                 value: "1511918541400576100"
+              # ---- Home Assistant integration ----
+              # HASS_TOKEN lives in hermes-secret.sops.yaml. When present, Hermes
+              # auto-enables the homeassistant toolset and gateway integration.
+              # Use in-cluster DNS so Hermes does not hairpin through ingress.
+              - name: HASS_URL
+                value: "http://home-assistant-app.home-assistant.svc.cluster.local:8123"
             envFrom:
               # API_SERVER_KEY + dashboard basic-auth creds + the Telegram/Discord
               # bot tokens. These are read as container env, so they come from a
               # SOPS Secret rather than the PVC .env.
               - secretRef:
                   name: hermes-secret
+              # Home Assistant Long-Lived Access Token for the homeassistant
+              # toolset/gateway integration.
+              - secretRef:
+                  name: hermes-hass-secret
             probes:
               liveness: &health
                 enabled: true
