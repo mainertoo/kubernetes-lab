@@ -35,7 +35,7 @@ Nine independent backup layers (5 original + F1/F2 + Container/appdata gap-fill)
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
 | 2 | K8s app PVCs (live) | volsync (Kopia), label-driven | PVC snapshot → shared Kopia repo in Garage S3 (Docker container on QNAP) |
-| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
+| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → **local ZFS staging `/zbackup/rbd-backup`** → Kopia source `/mnt/rbd-backup` (mp6) → zbackup ZFS |
 | 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
 | 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
 | 6 | **PBS datastore mirror** (F1) | Kopia (NFS RO mount) | QNAP `/proxmox/proxmox-backup-server` → Kopia source `/mnt/qnap_pbs` → zbackup ZFS |
@@ -44,6 +44,8 @@ Nine independent backup layers (5 original + F1/F2 + Container/appdata gap-fill)
 | 9 | **QNAP appdata mirror** | Kopia (NFS RO mount + subdir bind) | QNAP `/share/CACHEDEV1_DATA/appdata` → Kopia source `/mnt/qnap_appdata` → zbackup ZFS |
 
 > **Note on the deprecated `/mnt/cephfs` source**: Layer 3 was previously snapshotted via `/mnt/cephfs` (a wider source containing both rbd-backup + legacy docker-swarm content). On 2026-05-08 the cron switched to `/mnt/rbd-backup` and the `/mnt/cephfs` source stopped receiving new snapshots. Existing `/mnt/cephfs` snapshots remain in the repo as historical RBD restore points and will age out per the global retention policy (~12 months for monthlies, 3 years for annuals).
+
+> **2026-06-02 hardening — Layer 3 staging moved off CephFS onto local ZFS.** `rbd-nightly-backup.sh` previously wrote exports to the CephFS `ceph-swarm` pool at `/mnt/pve/cephfs-swarm/rbd-backup/`, and the kopia-lxc `mp6` bind-mounted that cephfs subdir. On **2026-06-02** a failing OSD (osd.4 on pve-zermatt) stalled pve-ugreen's **kernel CephFS client** mid-backup and wedged the host (uninterruptible D-state on the cephfs mount → `pvestatd`/`pmxcfs` pile-up → full freeze, power-cycle required). Fix: the export now writes to the **local ZFS `/zbackup/rbd-backup`** and the cron was staggered `30 1` → `0 0`. On **2026-06-05** the kopia `mp6` bind was repointed `/mnt/pve/cephfs-swarm/rbd-backup` → **`/zbackup/rbd-backup`** (`pct set 111 -mp6 /zbackup/rbd-backup,mp=/mnt/rbd-backup,ro=0` + `pct reboot 111`), a verifying kopia snapshot ran clean against the new path, and the stale cephfs copy was deleted (~180 GiB reclaimed). The nightly RBD chain (export **and** kopia archive) is now entirely off the kernel CephFS path. osd.4 was also replaced (Samsung), removing the original trigger.
 
 Plus two parallel **inventory mechanisms** (so blob names like `csi-vol-fa7e…` can be traced back to the originating PVC during recovery):
 
@@ -121,7 +123,7 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 | Pool | Used | Purpose |
 |---|---|---|
 | `ceph-shared` | 699 GiB | Shared RWX images (legacy docker-swarm era; cephfs-swarm) |
-| `ceph-swarm.meta` / `.data` | 484 MiB / 343 GiB | Old cephfs (was docker-swarm). **Now used as RBD backup staging** at `/mnt/pve/cephfs-swarm/rbd-backup/`. |
+| `ceph-swarm.meta` / `.data` | 484 MiB / ~97 GiB | Old cephfs (was docker-swarm). **No longer RBD backup staging** — that moved to local ZFS `/zbackup/rbd-backup` on 2026-06-02 (see Layer 3 note); the stale `/mnt/pve/cephfs-swarm/rbd-backup/` copy was deleted 2026-06-05 (~180 GiB reclaimed). |
 | `k3s-fs-metadata` / `k3s-fs-data` | 3.0 GiB / 1.7 TiB | Live CephFS PVCs for k3s |
 | `k3s-rbd` | 129 GiB (68 GiB stored) | Live RBD PVCs for k3s |
 | `kube-rbd` | 12 KiB | Empty (legacy, can be removed) |
@@ -131,7 +133,8 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 
 | Source | Mount point | Where |
 |---|---|---|
-| `192.168.99.12/13/14:/` (mds_namespace=ceph-swarm) | `/mnt/pve/cephfs-swarm` (host) → `/mnt/cephfs` (kopia-lxc, mp0; deprecated as Kopia source) + `/mnt/rbd-backup` (kopia-lxc, mp6 = `/mnt/pve/cephfs-swarm/rbd-backup` subdir) | All PVE hosts + kopia-lxc |
+| `192.168.99.12/13/14:/` (mds_namespace=ceph-swarm) | `/mnt/pve/cephfs-swarm` (host) → `/mnt/cephfs` (kopia-lxc, mp0; deprecated as Kopia source). **mp6 (`/mnt/rbd-backup`) repointed off this pool on 2026-06-05** — now binds local ZFS `/zbackup/rbd-backup`, see next row | All PVE hosts + kopia-lxc |
+| `zbackup/rbd-backup` (local ZFS, pve-ugreen) | `/zbackup/rbd-backup` (host) → `/mnt/rbd-backup` (kopia-lxc, **mp6**, RW) | pve-ugreen + kopia-lxc — Layer 3 RBD export staging since 2026-06-02 |
 | `192.168.99.11/12/13:/` (mds_namespace=k3s-fs) | `/mnt/cephfs-k3s` | kopia-lxc (kernel ceph client; bind via mp2) |
 | `192.168.1.252:/QNAS` | `/mnt/pve/tank` (host) → `/mnt/qnap_alldata` (in kopia-lxc) | All PVE hosts + kopia-lxc |
 | `192.168.1.252:/pve-ha` | `/mnt/pve/shared-nfs` | All PVE hosts (PVE shared storage class) |
@@ -219,25 +222,25 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 ```
 [k3s-rbd Ceph pool, ~148 RBD images]
         │
-        │ /usr/local/sbin/rbd-nightly-backup.sh on pve-ugreen, cron 30 1 * * *
+        │ /usr/local/sbin/rbd-nightly-backup.sh on pve-ugreen, cron 0 0 * * *  (was 30 1 until 2026-06-02)
         │
 For each image:
-  1. mkdir /mnt/pve/cephfs-swarm/rbd-backup/<image>/
+  1. mkdir /zbackup/rbd-backup/<image>/                    ← local ZFS (was /mnt/pve/cephfs-swarm/rbd-backup until 2026-06-02)
   2. find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +     ← clears prior run
   3. rbd export k3s-rbd/<image> <image>-YYYY-MM-DD.img.tmp
   4. mv tmp → final
   5. emit <image>-YYYY-MM-DD.meta.txt    (namespace, PVC name, size, Flux SHA, etc.)
         │
         ▼
-[CephFS ceph-swarm at /mnt/pve/cephfs-swarm/rbd-backup/]   ← Kopia source /mnt/rbd-backup (mp6 bind, RO read) snapshots this at 02:45
+[local ZFS at /zbackup/rbd-backup/]   ← Kopia source /mnt/rbd-backup (mp6 bind, RW) snapshots this at 02:45
 ```
 
-Pattern is intentional: cephfs-swarm holds only the latest export, Kopia provides historical retention. See [§6 source](#6a-rbd-nightly-backupsh) for the full script.
+Pattern is intentional: the staging dir holds only the latest export, Kopia provides historical retention. The `rbd export` still **reads** Ceph (k3s-rbd pool) but now **writes** to local ZFS, so the heavy nightly write no longer traverses pve-ugreen's kernel CephFS mount (the 2026-06-02 wedge path). See [§6 source](#6a-rbd-nightly-backupsh) for the full script.
 
 ### Layer 4 — CephFS Kopia snapshots
 
 ```
-[CephFS k3s-fs]   (live PVCs)              [CephFS ceph-swarm]   (legacy + rbd-backup staging)
+[CephFS k3s-fs]   (live PVCs)              [CephFS ceph-swarm]   (legacy docker-swarm; rbd staging moved to /zbackup 2026-06-02)
         │                                            │
         │  kernel ceph mount                         │  bind-mount via LXC mp0
         │  /mnt/cephfs-k3s                           │  /mnt/cephfs
@@ -357,8 +360,8 @@ cluster-nuke ergonomics on the PVC side.
 ## 5. Schedule timeline (24 h)
 
 ```
+00:00 ──────── rbd-nightly-backup.sh on pve-ugreen  → /zbackup/rbd-backup/   (was 01:30 → cephfs-swarm until 2026-06-02)
 01:05/07/09 ── k3s-pv-index.sh on master-1/2/3  → /var/backups/*.csv
-01:30 ──────── rbd-nightly-backup.sh on pve-ugreen  → /mnt/pve/cephfs-swarm/rbd-backup/
 02:00 ──────── PVE vzdump (all guests except 299)  → PBS → QNAP
 02:45 ──────── kopia snapshot /mnt/rbd-backup  → zbackup    (was /mnt/cephfs before 2026-05-08 rename)
 03:00 ──────── /var/tmp/vzdumptmp* cleanup on pve-ugreen
@@ -393,11 +396,11 @@ Window 01:30–08:00 is the densest. Each consumer reads what the prior step wro
 ### 6a. `rbd-nightly-backup.sh`
 
 **Lives at**: `/usr/local/sbin/rbd-nightly-backup.sh` on `pve-ugreen`
-**Cron**: `30 1 * * * /usr/local/sbin/rbd-nightly-backup.sh >> /var/log/rbd-nightly-backup.log 2>&1`
+**Cron**: `0 0 * * * /usr/local/sbin/rbd-nightly-backup.sh >> /var/log/rbd-nightly-backup.log 2>&1`  *(was `30 1` until 2026-06-02)*
 **Dependencies**: `rbd`, `kubectl`, `jq`, `stat`, `base64` (all present on a default Proxmox install + jq from apt)
 **Required state on host**:
 
-- `/mnt/pve/cephfs-swarm` mounted (CephFS swarm namespace) — script aborts if not mounted
+- `/zbackup` ZFS pool mounted (local export staging since 2026-06-02) — script aborts if not mounted
 - `/etc/ceph/ceph.conf` + ceph keyring readable (so `rbd ls` and `rbd export` work)
 - `/root/.kube/config` valid kubeconfig for the k3s cluster (for PV / HelmRelease metadata lookups)
 
@@ -411,11 +414,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # RBD pool to back up
 POOL="k3s-rbd"
 
-# Host-side CephFS mount point
-CEPHFS_HOST_ROOT="/mnt/pve/cephfs-swarm"
+# Local ZFS target root (redirected off kernel cephfs 2026-06-02 to avoid client D-state wedge)
+ZFS_TARGET_ROOT="/zbackup"
 
 # Where RBD exports will be written
-BACKUP_ROOT="${CEPHFS_HOST_ROOT}/rbd-backup"
+BACKUP_ROOT="${ZFS_TARGET_ROOT}/rbd-backup"
 
 # Explicit kubeconfig for the k3s cluster
 KUBECONFIG="/root/.kube/config"
@@ -423,9 +426,9 @@ KCTL="kubectl --kubeconfig=${KUBECONFIG}"
 
 echo "[RBD BACKUP] Starting backup for pool ${POOL} at $(date)"
 
-# --- Ensure CephFS is mounted ---
-if ! mountpoint -q "${CEPHFS_HOST_ROOT}"; then
-  echo "[RBD BACKUP] ERROR: ${CEPHFS_HOST_ROOT} is not mounted. Aborting." >&2
+# --- Ensure local ZFS target is mounted ---
+if ! mountpoint -q "${ZFS_TARGET_ROOT}"; then
+  echo "[RBD BACKUP] ERROR: ${ZFS_TARGET_ROOT} is not mounted. Aborting." >&2
   exit 1
 fi
 
@@ -750,7 +753,7 @@ echo "[k3s-pv-index] Node UUID: ${NODE_UUID}"
 
 ```cron
 # nightly ceph-rbd backup to run before Kopia sends it to zbackup
-30 1 * * * /usr/local/sbin/rbd-nightly-backup.sh >> /var/log/rbd-nightly-backup.log 2>&1
+0 0 * * * /usr/local/sbin/rbd-nightly-backup.sh >> /var/log/rbd-nightly-backup.log 2>&1
 0 3 * * * rm -rf /var/tmp/vzdumptmp*
 ```
 
@@ -810,7 +813,7 @@ mp2: /mnt/pve/cephfs-k3s,mp=/mnt/cephfs-k3s
 mp3: /mnt/pve/tank,mp=/mnt/qnap_alldata
 mp4: /mnt/qnap_pbs,mp=/mnt/qnap_pbs,ro=1                             # F1 added 2026-05-08
 mp5: /mnt/qnap_root/garage,mp=/mnt/qnap_garage,ro=1                  # F2 added 2026-05-08
-mp6: /mnt/pve/cephfs-swarm/rbd-backup,mp=/mnt/rbd-backup,ro=0        # rename of Layer 3 source 2026-05-08
+mp6: /zbackup/rbd-backup,mp=/mnt/rbd-backup,ro=0                     # 2026-06-05: repointed off cephfs-swarm to local ZFS
 mp7: /mnt/qnap_root/Container,mp=/mnt/qnap_container,ro=1            # added 2026-05-08
 mp8: /mnt/qnap_root/appdata,mp=/mnt/qnap_appdata,ro=1                # added 2026-05-08
 net0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:A2:BB:B1,ip=dhcp,type=veth
@@ -823,7 +826,7 @@ unprivileged: 0
 ```
 
 > Note: `unprivileged: 0` (privileged). Required so the kernel CephFS client and ZFS bind-mount work cleanly.
-> mp6 is the only RW bind (`ro=0`) — but Kopia only reads from it. The mp6 path is the rbd-backup-staging subdir of mp0; using a dedicated mountpoint gives the Kopia source a clean name (`/mnt/rbd-backup`) that matches its purpose.
+> mp6 is the only RW bind (`ro=0`) — but Kopia only reads from it. Since 2026-06-05 the mp6 path is the local ZFS `/zbackup/rbd-backup` (no longer a subdir of the mp0 cephfs mount); the Kopia source keeps its clean name (`/mnt/rbd-backup`) so nothing downstream of the bind changed.
 
 ### `pve-ugreen` `/etc/fstab` additions (F1 + F2)
 
@@ -1177,7 +1180,7 @@ $ ssh kopia 'kopia repository status; kopia snapshot list | tail -20'
 $ ssh ubuntu@192.168.90.161 'sudo head -20 /var/backups/pv-index-k3s.csv'
 
 # Inventory: latest .meta.txt
-$ ssh pve-ugreen 'ls /mnt/pve/cephfs-swarm/rbd-backup/ | head -1'
+$ ssh pve-ugreen 'ls /zbackup/rbd-backup/ | head -1'
 ```
 
 ### 12.1 Restore a single PVC — preferred: label-driven Kopia (Layer 2)
@@ -1319,7 +1322,7 @@ After F1+F2 fixes: Kopia snapshots of `/mnt/qnap_pbs` and `/mnt/qnap_garage` on 
 
 ### 12.7 Loss of zbackup pool
 
-Direct losses: all historical Kopia data; the `rbd-nightly-backup.sh` history beyond today (today's run still on cephfs-swarm).
+Direct losses: all historical Kopia data **and** the latest `rbd-nightly-backup.sh` staging export (since 2026-06-02 the export writes to `/zbackup/rbd-backup`, which lives on this same pool — so a zbackup loss takes today's RBD export too, not just Kopia history). Live Ceph RBD images themselves are unaffected; re-run `rbd-nightly-backup.sh` after the pool is rebuilt to repopulate staging.
 
 Recovery:
 
@@ -1610,7 +1613,7 @@ ssh kopia '
 ssh pve-ugreen '
   kubectl --kubeconfig=/root/.kube/config get replicationsources -A --no-headers | wc -l
   kubectl --kubeconfig=/root/.kube/config get replicationsources -A --no-headers | awk "{print \$1}" | sort | uniq -c | sort -rn
-  ls /mnt/pve/cephfs-swarm/rbd-backup/ | wc -l
+  ls /zbackup/rbd-backup/ | wc -l
 '
 
 # PBS state

@@ -34,9 +34,9 @@ $ kubectl get backup -A --sort-by='.status.startedAt' | tail
 # Inventory: latest k3s-pv-index CSV
 $ ssh ubuntu@192.168.90.161 'sudo head -20 /var/backups/pv-index-k3s.csv'
 
-# Inventory: latest .meta.txt for an RBD image
-$ ssh pve-ugreen 'ls /mnt/pve/cephfs-swarm/rbd-backup/ | head; \
-  ls /mnt/pve/cephfs-swarm/rbd-backup/$(ls /mnt/pve/cephfs-swarm/rbd-backup | head -1)'
+# Inventory: latest .meta.txt for an RBD image  (staging moved to local ZFS /zbackup 2026-06-02)
+$ ssh pve-ugreen 'ls /zbackup/rbd-backup/ | head; \
+  ls /zbackup/rbd-backup/$(ls /zbackup/rbd-backup | head -1)'
 ```
 
 If Kopia, PBS, volsync, AND CNPG all pass, you have all backup paths available.

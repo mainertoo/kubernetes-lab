@@ -14,7 +14,7 @@ Ten independent backup layers, each with its own schedule and target:
 |---|---|---|---|
 | 1 | VMs + LXCs | PVE vzdump → PBS | All guests except PBS itself → `pbs-backups` datastore (NFS to QNAP) |
 | 2 | K8s app PVCs (live, non-postgres) | volsync (Kopia), label-driven | PVC snapshot → shared Kopia repo in Garage S3 (Docker container on QNAP) |
-| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → CephFS staging → Kopia source `/mnt/rbd-backup` → zbackup ZFS |
+| 3 | Ceph RBD images | `rbd-nightly-backup.sh` → Kopia | `rbd export` → **local ZFS staging `/zbackup/rbd-backup`** → Kopia source `/mnt/rbd-backup` (mp6) → zbackup ZFS |
 | 4 | Ceph FS subvolumes | Kopia (kernel mount) | CephFS `k3s-fs` → Kopia source `/mnt/cephfs-k3s` → zbackup ZFS |
 | 5 | QNAP `/QNAS` subtree | Kopia (NFS mount) | QNAP `/share/CACHEDEV1_DATA/QNAS` → Kopia source `/mnt/qnap_alldata` → zbackup ZFS |
 | 6 | PBS datastore mirror (F1) | Kopia (NFS RO) | QNAP `/proxmox/proxmox-backup-server` → Kopia source `/mnt/qnap_pbs` → zbackup |
@@ -84,7 +84,7 @@ Ceph pools breakdown (`ceph df`):
 | Pool | Used | Purpose |
 |---|---|---|
 | `ceph-shared` | 699 GiB | Shared RWX images (legacy docker-swarm era, still mounted as cephfs-swarm) |
-| `ceph-swarm.meta` / `.data` | 484 MiB / 343 GiB | Old cephfs (was docker-swarm); now used as **rbd-backup staging** |
+| `ceph-swarm.meta` / `.data` | 484 MiB / ~97 GiB | Old cephfs (was docker-swarm); **no longer rbd-backup staging** — moved to local ZFS `/zbackup/rbd-backup` 2026-06-02, stale copy deleted 2026-06-05 |
 | `k3s-fs-metadata` / `k3s-fs-data` | 3.0 GiB / 1.7 TiB | Live CephFS PVCs for k3s |
 | `k3s-rbd` | 129 GiB (68 GiB stored) | Live RBD PVCs for k3s |
 | `kube-rbd` | 12 KiB | Empty (legacy, can be removed) |
@@ -202,18 +202,20 @@ was fully removed in early 2026. Full operator guide: `docs/label-driven-backups
 
 ---
 
-## 4. Layer 3 — Ceph RBD nightly export (rbd → CephFS staging → Kopia)
+## 4. Layer 3 — Ceph RBD nightly export (rbd → local ZFS staging → Kopia)
+
+> **2026-06-02:** staging moved off the kernel CephFS mount onto local ZFS `/zbackup/rbd-backup` (cron `30 1` → `0 0`), and on 2026-06-05 the kopia-lxc `mp6` bind followed it. A failing OSD had stalled pve-ugreen's kernel CephFS client mid-backup and wedged the host; writing exports to local ZFS keeps the heavy nightly I/O off that path. See the Layer 3 note in `backup-system-wiki.md` for the full incident + cleanup.
 
 ```
 [k3s-rbd Ceph pool]
    148 RBD images (csi-vol-XXX, csi-snap-XXX)
         │
         │ /usr/local/sbin/rbd-nightly-backup.sh on pve-ugreen
-        │   cron: 30 1 * * * (01:30 daily)
+        │   cron: 0 0 * * * (00:00 daily; was 30 1 until 2026-06-02)
         │
         ▼
 For each image:
-  1. mkdir /mnt/pve/cephfs-swarm/rbd-backup/<image>/
+  1. mkdir /zbackup/rbd-backup/<image>/                  ← local ZFS (was /mnt/pve/cephfs-swarm/rbd-backup)
   2. find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +     ← clears prior run
   3. rbd export k3s-rbd/<image> <image>-YYYY-MM-DD.img.tmp
   4. mv tmp → final
@@ -221,19 +223,19 @@ For each image:
                                            Flux git SHA, hostname, timestamp)
         │
         ▼
-[CephFS k3s-fs (mounted on pve-ugreen at /mnt/pve/cephfs-swarm)]
-   /mnt/pve/cephfs-swarm/rbd-backup/<image>/<image>-YYYY-MM-DD.img(+.meta.txt)
+[local ZFS on pve-ugreen at /zbackup/rbd-backup]
+   /zbackup/rbd-backup/<image>/<image>-YYYY-MM-DD.img(+.meta.txt)
         │
         │ Kopia cron job at 02:45 picks up this directory
-        │ (see Layer 4 below — rbd-backup is a subtree of /mnt/cephfs)
+        │ (mp6 bind → Kopia source /mnt/rbd-backup; source name unchanged)
         ▼
 [Kopia repo on /mnt/zbackup/kopia-repo]
-   historical retention provided by Kopia (only "today" lives in CephFS)
+   historical retention provided by Kopia (only "today" lives in the staging dir)
 ```
 
 ### Notes
 
-- The "wipe and re-export" pattern is intentional: ceph-fs holds only the most recent export, Kopia provides history via its repo.
+- The "wipe and re-export" pattern is intentional: the staging dir holds only the most recent export, Kopia provides history via its repo.
 - Script needs `rbd ls` / `rbd export` / `kubectl` / `jq`. Runs on pve-ugreen (which has Ceph keyring + kubeconfig at `/root/.kube/config`).
 - **The `.meta.txt` file is one of two RBD-PV inventory mechanisms** (the other is `k3s-pv-index.sh` on each master, see Layer 6).
 - **`POOL` is hardcoded to `k3s-rbd`** — `ceph-shared` (the legacy docker-swarm RBD pool, 699 GiB) is **not** exported. Mostly fine, since that pool's data is also accessible via cephfs-swarm and gets snapshotted that way, but worth flagging.
@@ -244,7 +246,7 @@ For each image:
 ## 5. Layer 4 — CephFS Kopia snapshot (k3s + swarm filesystems)
 
 ```
-[CephFS k3s-fs]   (live PVCs)              [CephFS ceph-swarm]   (legacy + rbd staging)
+[CephFS k3s-fs]   (live PVCs)              [CephFS ceph-swarm]   (legacy docker-swarm; rbd staging moved to /zbackup 2026-06-02)
    192.168.99.11/12/13:/                      192.168.99.12/13/14:/
    mds_namespace=k3s-fs                       mds_namespace=ceph-swarm
         │                                            │
@@ -379,8 +381,8 @@ Two parallel inventories, neither alone is sufficient — they cover different d
 
 ### 7a. `rbd-nightly-backup.sh` — `.meta.txt` files alongside images
 
-- **Where**: pve-ugreen, runs `01:30` daily.
-- **Output**: For every csi-vol image in pool `k3s-rbd`, writes `<image>-YYYY-MM-DD.meta.txt` next to the `.img` export inside `/mnt/pve/cephfs-swarm/rbd-backup/<image>/`.
+- **Where**: pve-ugreen, runs `00:00` daily (was `01:30` until 2026-06-02).
+- **Output**: For every csi-vol image in pool `k3s-rbd`, writes `<image>-YYYY-MM-DD.meta.txt` next to the `.img` export inside `/zbackup/rbd-backup/<image>/` (local ZFS; was `/mnt/pve/cephfs-swarm/rbd-backup/` until 2026-06-02).
 - **Captured by**: Layer 4 Kopia snapshot of `/mnt/cephfs` at 02:45.
 - **Contents**: namespace, PVC name, PV name, size, Flux git SHA at backup time, host, timestamp.
 - **Purpose**: Lets you tell which app a given `csi-vol-XXX.img` belongs to during a from-scratch restore.
@@ -408,8 +410,8 @@ Two parallel inventories, neither alone is sufficient — they cover different d
 ## 8. Schedule timeline (24h view, all times America/Tijuana except where noted)
 
 ```
+00:00 ──────── rbd-nightly-backup.sh on pve-ugreen  → /zbackup/rbd-backup/   (was 01:30 → cephfs-swarm until 2026-06-02)
 01:05/07/09 ── k3s-pv-index.sh on master-1/2/3  → /var/backups/*.csv
-01:30 ──────── rbd-nightly-backup.sh on pve-ugreen  → /mnt/pve/cephfs-swarm/rbd-backup/
 02:00 ──────── PVE vzdump (jobs.cfg) all guests except 299  → PBS → QNAP
 02:00-02:59 ── volsync ReplicationSource backups (daily, label-driven; <min> 2 * * *,
                 <min>=len(namespace)%60 — spread across the hour)
@@ -436,7 +438,7 @@ daily ──────── PBS prune (keep 17/7/8/2 last/daily/weekly/monthl
 monthly ────── PBS verify job v-e00654e0-3168 (ignore-verified=true)
 ```
 
-Window from 01:30 to ~04:00 is the densest. RBD export → CephFS settle → Kopia all serialize cleanly because each consumer reads what the prior step wrote.
+Window from 00:00 to ~04:00 is the densest. RBD export → local ZFS settle → Kopia all serialize cleanly because each consumer reads what the prior step wrote.
 
 CNPG base backups are interleaved 04:30–08:00 UTC (30-min slots) so they don't collide with each other or with the kopia mirror jobs. Each is a small (5 MB–50 MB compressed) S3 push so they finish in seconds.
 
