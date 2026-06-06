@@ -4,6 +4,7 @@ namespace: hermes
 resources:
   - hermes-namespace.yaml
   - hermes-secret.sops.yaml
+  - hermes-hass-secret.sops.yaml
   - hermes-pvc.yaml
   - hermes-release.yaml
   - hermes-ingressroute.yaml
