@@ -431,11 +431,22 @@ spec:
             # Required by volsync 0.15.0 Kopia mover controller validation:
             # `secret is missing field: KOPIA_REPOSITORY` error at Phase 6
             # 2026-05-18 first turn-up. The mover's entry.sh parses this
-            # URI prefix (s3:) and then uses the separate KOPIA_S3_* env
-            # vars for the actual S3 connect. Per-PVC isolation within
-            # this single shared repo is via hostname=<ns> + username=
-            # <pvc>-backup (see ReplicationSource generate rule below).
-            KOPIA_REPOSITORY: "s3://garage.lab.mainertoo.com/volsync-kopia"
+            # URI and then uses the separate KOPIA_S3_* env vars for the
+            # actual S3 connect. Per-PVC isolation within this single
+            # shared repo is via hostname=<ns> + username=<pvc>-backup
+            # (see ReplicationSource generate rule below).
+            #
+            # IMPORTANT — no trailing path: entry.sh derives the S3 PREFIX
+            # purely from the path segment of this URI (regex
+            # s3://host/(.+) -> --prefix). A path here (e.g. .../volsync-
+            # kopia) made movers write under prefix `volsync-kopia/` while
+            # the pvc-plumber oracle reads the bucket ROOT — two repos in
+            # one bucket that never meet, so the oracle answered exists=false
+            # for every app and auto-restore was silently dead fleet-wide.
+            # Bucket + endpoint come from the explicit KOPIA_S3_* vars below,
+            # so the host here only needs to yield NO prefix -> root.
+            # See docs/volsync-kopia-oracle-prefix-mismatch.md (RESOLVED).
+            KOPIA_REPOSITORY: "s3://garage.lab.mainertoo.com"
             KOPIA_PASSWORD: "{{ base64_decode(sharedSecret.data.KOPIA_PASSWORD) }}"
             AWS_ACCESS_KEY_ID: "{{ base64_decode(sharedSecret.data.AWS_ACCESS_KEY_ID) }}"
             AWS_SECRET_ACCESS_KEY: "{{ base64_decode(sharedSecret.data.AWS_SECRET_ACCESS_KEY) }}"

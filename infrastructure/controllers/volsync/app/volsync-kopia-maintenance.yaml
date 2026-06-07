@@ -1,4 +1,9 @@
-# Periodic maintenance for the shared Kopia repo (`s3://garage.lab.mainertoo.com/volsync-kopia`).
+# Periodic maintenance for the shared Kopia repo at the BUCKET ROOT
+# (`s3://garage.lab.mainertoo.com`, bucket `volsync-kopia`). The repo moved
+# from the `volsync-kopia/` prefix to the root in the oracle-prefix-mismatch
+# fix (docs/volsync-kopia-oracle-prefix-mismatch.md) so movers + maintenance
+# + the pvc-plumber oracle all converge on one repo. The old prefixed repo is
+# a frozen manual-restore-only archive and intentionally gets no maintenance.
 #
 # WHY: every backup adds index entries; over time the index fragments into
 # many small blobs. Without `kopia maintenance run`, snapshot operations
