@@ -175,8 +175,11 @@ movers and the oracle are reading different repos.
 > `KOPIA_REPOSITORY` splits one bucket into two repos that never meet, and the
 > oracle confidently reports `exists: false` for the whole fleet. Confirm by
 > listing both repos (connect with and without `--prefix=volsync-kopia/`); the
-> fix is to keep `KOPIA_REPOSITORY` path-less (root). Full write-up:
-> `docs/volsync-kopia-oracle-prefix-mismatch.md`.
+> fix is to keep `KOPIA_REPOSITORY` path-less (root). **And if you ever change the
+> repo location, you must also delete the `volsync-{src,dst}-<pvc>-backup-cache`
+> PVCs** — the mover skips reconnect when `/cache/kopia.config` already points
+> somewhere ("Repository already connected"), so a warm cache keeps using the old
+> location. Full write-up: `docs/volsync-kopia-oracle-prefix-mismatch.md`.
 
 ### Validation mode
 
