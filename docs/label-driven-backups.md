@@ -163,8 +163,20 @@ curl -s http://localhost:18080/exists/<ns>/<pvc> | jq .
 ```
 
 `authoritative: false` → pvc-plumber can't reach the Kopia repo (check the pod
-is Ready and Garage is reachable). `authoritative: true, exists: false` → no
-snapshots for that source identity yet (check the RS `status`).
+is Ready and Garage is reachable). `authoritative: true, exists: false` → either
+no snapshots for that source identity yet (check the RS `status`), **or** the
+movers and the oracle are reading different repos.
+
+> ⚠️ **The two-repos (prefix/root) trap.** If `authoritative: true, exists:
+> false` for an app whose RS shows recent successful syncs, the movers are
+> probably writing under an S3 **prefix** the oracle doesn't read. The mover's
+> `entry.sh` derives the prefix from the path segment of `KOPIA_REPOSITORY`,
+> while pvc-plumber always reads the bucket **root** — so a stray path in
+> `KOPIA_REPOSITORY` splits one bucket into two repos that never meet, and the
+> oracle confidently reports `exists: false` for the whole fleet. Confirm by
+> listing both repos (connect with and without `--prefix=volsync-kopia/`); the
+> fix is to keep `KOPIA_REPOSITORY` path-less (root). Full write-up:
+> `docs/volsync-kopia-oracle-prefix-mismatch.md`.
 
 ### Validation mode
 
