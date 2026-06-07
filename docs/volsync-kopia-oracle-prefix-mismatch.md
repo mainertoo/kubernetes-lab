@@ -30,18 +30,45 @@ survive).
   needed no change — it carries only `KOPIA_PASSWORD` + AWS creds, never
   `KOPIA_REPOSITORY`.
 
+**⚠️ Required post-merge step — clear the mover cache PVCs (the non-obvious one):**
+Updating the secrets is **not sufficient**. The perfectra1n mover `entry.sh`
+(~lines 1188–1316) runs `kopia repository status` against a **persisted config at
+`/cache/kopia.config`** (the `--config-file` is `${KOPIA_CACHE_DIR}/kopia.config`,
+which lives in the `volsync-src-<pvc>-backup-cache` PVC). If status succeeds it
+logs *"Repository already connected"* and **skips the connect entirely** — so an
+existing mover with a warm cache keeps using the **old prefix** connection and
+ignores the new root `KOPIA_REPOSITORY`. To activate the fix fleet-wide you must
+delete the stale caches so every mover reconnects:
+
+```bash
+# caches only — NO application data; volsync recreates them on the next run.
+# do it when no mover Job is running.
+kubectl -n volsync-system get pvc ... # (enumerate volsync-{src,dst}-*-cache across all ns)
+kubectl -n <ns> delete pvc volsync-src-<pvc>-backup-cache volsync-dst-<pvc>-backup-cache
+```
+
+> A fresh/scratch PVC has an **empty** cache → forces a fresh connect → goes to
+> root immediately. That is why a scratch-harness test PASSES even while the
+> existing fleet is still mis-writing to the prefix. **A scratch test alone is not
+> sufficient proof for a repo-location migration — verify a real, already-running
+> app after clearing its cache.**
+
 **Consequences / state after the fix:**
 
 - The existing **182 GB prefixed repo is a frozen, manual-restore-only archive**
   (Option B keeps it rather than moving objects). Restore from it manually by
   pointing a `ReplicationDestination` at prefix `volsync-kopia/` (§6 reproducer).
-- Each app re-seeds the root repo on its next backup; backups were triggered
-  post-cutover to close the auto-restore gap quickly rather than waiting for the
-  scheduled run.
-- Validated end-to-end with the §8 scratch harness: backup lands at root, the
-  oracle returns `exists:true / decision:restore`, and a recreated PVC
-  auto-restores. Real-app oracle checks (`/exists/<ns>/<pvc>`) now return
-  `exists:true`.
+- Each app re-seeds the root repo on its **next scheduled backup after the cache
+  clear** — hourly apps within the hour, the daily fleet at 02:xx UTC the
+  following night. (Manual `trigger.manual` does **not** work to force-seed: the
+  Kyverno generate rule reverts it within ~8s via `synchronize: true`.) Until an
+  app reseeds root, its auto-restore is unavailable; manual restore from the
+  prefix archive still works.
+- Validated: the §8 scratch harness proved the chain end-to-end (backup→root,
+  oracle `exists:true/decision:restore`, recreated PVC auto-restores the sentinel
+  byte-for-byte); then confirmed on a real already-running app — **grafana**
+  reconnected post-cache-clear, backed up to root, and its oracle answer flipped
+  to `restore`.
 
 The investigation/audit below is retained as the historical record of how the
 break was found and why this path was chosen.
