@@ -437,7 +437,10 @@ After offsite is implemented: pull the offsite repo back into the rebuilt zbacku
 
 ## 9. Verify a backup actually works (do this quarterly)
 
-The only test of a backup is a restore. Run one quarterly:
+The only test of a backup is a restore. Run one quarterly. For the **full
+cluster-rebuild drill** (cold-swap onto production's own hardware, restore-only),
+see [`dr-gameday-runbook.md`](dr-gameday-runbook.md) — the per-layer spot-checks
+below are the lighter-weight interim tests.
 
 ### Volsync label-driven restore
 
