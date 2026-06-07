@@ -101,6 +101,20 @@ class UniFi:
         except urllib.error.HTTPError as e:
             sys.exit(f"GET {path} -> {e.code} {e.reason}\n{e.read().decode()[:400]}")
 
+    def _get_opt(self, path: str) -> list | dict | None:
+        """Like _get but returns None on 4xx — the Integration API is read-mostly and a
+        given controller version may not expose networks/wlans/firewall endpoints."""
+        req = urllib.request.Request(self.base + path)
+        req.add_header("X-API-KEY", self.key)
+        req.add_header("Accept", "application/json")
+        try:
+            with urllib.request.urlopen(req, context=self.ctx) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if 400 <= e.code < 500:
+                return None
+            sys.exit(f"GET {path} -> {e.code} {e.reason}\n{e.read().decode()[:400]}")
+
     def _paged(self, path: str) -> list:
         out, offset = [], 0
         while True:
@@ -131,6 +145,37 @@ class UniFi:
             det = self._get(f"/sites/{self.site}/devices/{d['id']}")
             out[d["id"]] = (det.get("uplink") or {}).get("deviceId")
         return out
+
+    # Read-mostly config reads (return None if the controller version doesn't expose them).
+    def networks(self) -> list | None:
+        r = self._get_opt(f"/sites/{self.site}/networks")
+        return None if r is None else r.get("data", [])
+
+    def wlans(self) -> list | None:
+        r = self._get_opt(f"/sites/{self.site}/wlans")
+        return None if r is None else r.get("data", [])
+
+    def firewall_policies(self) -> list | None:
+        r = self._get_opt(f"/sites/{self.site}/firewall/policies")
+        return None if r is None else r.get("data", [])
+
+
+# Target VLAN scheme — keep in sync with docs/network-vlan-design.md.
+TARGET_VLANS = {
+    1:  ("Management/Cluster-Infra", "192.168.1.0/24"),
+    10: ("Trusted",                  "192.168.10.0/24"),
+    20: ("IoT",                      "192.168.20.0/24"),
+    30: ("Guest",                    "192.168.30.0/24"),
+    40: ("Kids",                     "192.168.40.0/24"),
+    50: ("Cameras",                  "192.168.50.0/24"),
+    60: ("Servers/DMZ",              "192.168.60.0/24"),
+    90: ("Kubernetes",               "192.168.90.0/24"),
+    99: ("Ceph",                     "192.168.99.0/24"),
+}
+
+_UNSUPPORTED = ("  This controller's UniFi Integration API does not expose this endpoint "
+                "(read-mostly — write/config scope is rolling out through 2026).\n"
+                "  Check/apply in the UI; this tool verifies whatever the API does return.")
 
 
 # ─────────────────────────── classification ───────────────────────────
@@ -360,6 +405,80 @@ def cmd_wiki(u: UniFi, args):
         print(text)
 
 
+def _net_vlan(n: dict):
+    for k in ("vlanId", "vlan", "vlan_id"):
+        if n.get(k) not in (None, ""):
+            return int(n[k])
+    return 1  # no tag → native/default VLAN 1
+
+
+def _net_subnet(n: dict) -> str:
+    return n.get("subnet") or n.get("ipSubnet") or n.get("cidr") or ""
+
+
+def cmd_networks(u: UniFi, args):
+    nets = u.networks()
+    if nets is None:
+        print(_UNSUPPORTED)
+        return
+    for n in sorted(nets, key=_net_vlan):
+        print(f"  vlan {str(_net_vlan(n)):>4}  {str(n.get('name',''))[:24]:24} {_net_subnet(n)}")
+    print(f"\n  {len(nets)} networks")
+
+
+def cmd_wlans(u: UniFi, args):
+    wl = u.wlans()
+    if wl is None:
+        print(_UNSUPPORTED)
+        return
+    for w in sorted(wl, key=lambda x: str(x.get("name", ""))):
+        en = "" if w.get("enabled", True) else " (disabled)"
+        net = w.get("networkId") or w.get("networkName") or w.get("vlanId") or ""
+        print(f"  {str(w.get('name',''))[:28]:28} net={net} {w.get('security','')}{en}")
+    print(f"\n  {len(wl)} WLANs")
+
+
+def cmd_firewall(u: UniFi, args):
+    fp = u.firewall_policies()
+    if fp is None:
+        print(_UNSUPPORTED)
+        return
+    for p in fp:
+        en = "on " if p.get("enabled", True) else "off"
+        print(f"  [{en}] {str(p.get('name') or p.get('index',''))[:40]:40} "
+              f"{p.get('action','')}")
+    print(f"\n  {len(fp)} firewall policies")
+
+
+def cmd_verify(u: UniFi, args):
+    """Diff live VLANs against the target scheme in docs/network-vlan-design.md."""
+    nets = u.networks()
+    print("Target VLAN scheme vs live UniFi networks:\n")
+    if nets is None:
+        print(_UNSUPPORTED)
+        print("\n  Falling back: verify the VLANs/subnets below by hand in the UI.")
+        live = {}
+    else:
+        live = {_net_vlan(n): _net_subnet(n) for n in nets}
+    ok = miss = 0
+    for vid, (name, subnet) in sorted(TARGET_VLANS.items()):
+        if nets is None:
+            print(f"   ?  vlan {vid:<3} {name:24} {subnet}")
+        elif vid in live:
+            ok += 1
+            note = "" if (not live[vid] or live[vid] == subnet) else f"  ⚠ live={live[vid]}"
+            print(f"   ✓  vlan {vid:<3} {name:24} {subnet}{note}")
+        else:
+            miss += 1
+            print(f"   ✗  vlan {vid:<3} {name:24} {subnet}   MISSING")
+    if nets is not None:
+        extra = sorted(set(live) - set(TARGET_VLANS))
+        if extra:
+            print("\n  Extra live VLANs not in the target scheme: "
+                  + ", ".join(f"{v} ({live[v]})" for v in extra))
+        print(f"\n  {ok} present, {miss} missing of {len(TARGET_VLANS)} target VLANs")
+
+
 def main():
     ap = argparse.ArgumentParser(description="UniFi network info / inventory")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -371,10 +490,15 @@ def main():
     p.add_argument("--all-clients", action="store_true",
                    help="also import every client (in 'Unsorted (auto-import)')")
     p = sub.add_parser("wiki"); p.add_argument("-o", "--output")
+    sub.add_parser("networks", help="list VLANs/subnets (read)")
+    sub.add_parser("wlans", help="list SSIDs and their networks (read)")
+    sub.add_parser("firewall", help="list firewall policies (read)")
+    sub.add_parser("verify", help="diff live VLANs against the target scheme")
     args = ap.parse_args()
     u = UniFi(*load_creds())
     {"devices": cmd_devices, "clients": cmd_clients, "map": cmd_map,
-     "homebox": cmd_homebox, "wiki": cmd_wiki}[args.cmd](u, args)
+     "homebox": cmd_homebox, "wiki": cmd_wiki, "networks": cmd_networks,
+     "wlans": cmd_wlans, "firewall": cmd_firewall, "verify": cmd_verify}[args.cmd](u, args)
 
 
 if __name__ == "__main__":

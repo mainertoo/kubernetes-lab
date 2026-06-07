@@ -23,6 +23,13 @@ mint/revoke under UniFi → Settings → Control Plane → Integrations.
 ../homebox/inventory.py apply network-inventory.yaml          # dry-run
 ../homebox/inventory.py apply network-inventory.yaml --commit # write
 
+# VLAN-migration verification (read-only; Integration API is read-mostly):
+./netinfo.py networks                 # list VLANs/subnets
+./netinfo.py wlans                    # list SSIDs and their networks
+./netinfo.py firewall                 # list firewall policies
+./netinfo.py verify                   # diff live VLANs against the target scheme
+                                      #   (TARGET_VLANS in netinfo.py / docs/network-vlan-design.md)
+
 # Wiki page (topology tree + device table + client/IP map):
 ./netinfo.py wiki -o /tmp/network-wiki.md
 python3 ~/.claude/skills/wikijs-update/wiki.py upsert \
@@ -42,3 +49,7 @@ python3 ~/.claude/skills/wikijs-update/wiki.py upsert \
 - `network-inventory.yaml` / `network-map.yaml` are **generated** (gitignored) — the tool
   is the source of truth, regenerate as the network changes.
 - Wiki page: `infrastructure/networking/topology` (id 173), linked from the Networking index.
+- `networks`/`wlans`/`firewall`/`verify` return None gracefully if this controller's
+  Integration API doesn't expose config reads (it's read-mostly; write/config scope is
+  rolling out through 2026) — verify in the UI in that case. These read commands need
+  **LAN access** to the UDM (run on-site or over Tailscale; they fail from off-network).
