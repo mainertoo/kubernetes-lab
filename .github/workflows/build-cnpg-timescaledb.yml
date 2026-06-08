@@ -23,6 +23,10 @@ on:
         description: "cloudnative-pg/postgresql base image tag"
         required: false
         default: "16-bookworm"
+      revision:
+        description: "Packaging revision suffix (bump to republish a fix at the same TS version; leave blank for none)"
+        required: false
+        default: "1"
 
 env:
   REGISTRY: ghcr.io
@@ -44,7 +48,9 @@ jobs:
         run: |
           TS="${{ github.event.inputs.ts_version }}"
           PG="${{ github.event.inputs.pg_major }}"
+          REV="${{ github.event.inputs.revision }}"
           TAG="${PG}-${TS}"
+          if [ -n "$REV" ]; then TAG="${TAG}-${REV}"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Building ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
 

@@ -87,8 +87,11 @@ spec:
       CNPG_DB_NAME: tracearr
       CNPG_DB_OWNER: tracearr
       # Self-built operand image — PG16 + TimescaleDB 2.25.0 pinned to match the
-      # live source DB. See docker/cnpg-timescaledb/. Renovate-ignored.
-      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:16-2.25.0
+      # live source DB (loader + extension both pinned; the -1 revision corrects
+      # the first build where the loader floated to 2.27.2). See
+      # docker/cnpg-timescaledb/. Renovate-ignored. Post-migration this bumps to
+      # a 16-2.27.2 image + ALTER EXTENSION timescaledb UPDATE to land current.
+      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:16-2.25.0-1
       # Live DB is 893 MB; 5Gi gives >5x headroom (chunks + WAL + bloat).
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
