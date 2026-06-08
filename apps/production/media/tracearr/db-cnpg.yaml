@@ -100,8 +100,11 @@ spec:
       CNPG_BACKUP_SCHEDULE: "0 45 6 * * *"
       CNPG_RETENTION: "30d"
       CNPG_CPU_REQUEST: "100m"
-      CNPG_MEMORY_REQUEST: "256Mi"
-      CNPG_MEMORY_LIMIT: "1Gi"
+      # TimescaleDB with 4121+ chunks + background workers (compression/retention
+      # jobs) and the migration restore spike OOM-killed the 1Gi pod. Bumped to
+      # 2Gi (matches immich's CNPG); request raised so the scheduler reserves it.
+      CNPG_MEMORY_REQUEST: "512Mi"
+      CNPG_MEMORY_LIMIT: "2Gi"
       CNPG_LINEAGE: v1
       CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
