@@ -69,20 +69,22 @@ spec:
               # non-empty key PER base URL (semicolon-separated, matching count).
               OPENAI_API_KEYS:
                 value: "ollama-ignores-this-but-openwebui-requires-it;llama-cpp-ignores-this-too"
-              # Route RAG embeddings through the same Mac-Ollama endpoint
-              # (we already have mxbai-embed-large pulled). Skips the
-              # default HuggingFace sentence-transformers download at
-              # startup — that was OOM-killing the Pod inside 1Gi as it
-              # loaded the model into RAM. Side benefit: one less model to
-              # keep updated, consistent embedding for chat + RAG.
+              # Route RAG embeddings through the llama.cpp mxbai embeddings
+              # server (:8081 on the Mac). Same mxbai-embed-large-v1 model,
+              # 1024-dim CLS pooling — verified cosine ~1.000 vs the previous
+              # Mac-Ollama mxbai (2026-06-08), so already-stored RAG vectors
+              # remain valid (no re-index needed). Consolidates embeddings +
+              # chat onto llama.cpp so Mac-Ollama can be retired. Still skips
+              # the default HuggingFace sentence-transformers download (that
+              # OOM-killed the Pod inside 1Gi loading the model into RAM).
               RAG_EMBEDDING_ENGINE:
                 value: "openai"
               RAG_OPENAI_API_BASE_URL:
-                value: "http://mac-ollama.ollama-egress.svc.cluster.local:11434/v1"
+                value: "http://mac-llama.llama-egress.svc.cluster.local:8081/v1"
               RAG_OPENAI_API_KEY:
-                value: "ollama-ignores-this-but-openwebui-requires-it"
+                value: "llama-cpp-ignores-this-too"
               RAG_EMBEDDING_MODEL:
-                value: "mxbai-embed-large:latest"
+                value: "ChristianAzinn/mxbai-embed-large-v1-gguf:Q8_0"
 
             resources:
               requests:

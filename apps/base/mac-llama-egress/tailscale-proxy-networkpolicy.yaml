@@ -3,7 +3,9 @@
 # places the egress-proxy Pod for the mac-llama Service), NOT in
 # `llama-egress` (where the user-facing Service lives). Mirrors
 # mac-ollama-egress: select the proxy Pod by its operator-applied labels
-# and allow ingress only from the consuming namespace(s) on :8080.
+# and allow ingress only from the consuming namespace(s).
+#   :8080 — chat (Qwen3.6-27B)        consumed by open-webui
+#   :8081 — embeddings (mxbai)        consumed by open-webui + open-notebook
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -19,12 +21,21 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Both consuming namespaces use the Mac llama.cpp servers over the same
+    # egress: :8080 = chat (Qwen3.6-27B), :8081 = embeddings (mxbai). Open
+    # Notebook gained both when the Mac-Ollama path (chat + mxbai embeddings)
+    # was consolidated onto llama.cpp (Phase 4, 2026-06-08); pocket-bridge
+    # reaches both indirectly via Open Notebook (svc :5055), so it needs no
+    # direct egress here.
     - from:
-        # Open WebUI consumes llama-server's OpenAI-compatible /v1 endpoint.
-        # (pocket-bridge will be added here in Phase 4 when it cuts over.)
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: open-webui
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: open-notebook
       ports:
         - protocol: TCP
           port: 8080
+        - protocol: TCP
+          port: 8081
