@@ -35,7 +35,7 @@ spec:
           main:
             image:
               repository: ghcr.io/dispatcharr/dispatcharr
-              tag: 0.25.1
+              tag: 0.26.0
               pullPolicy: IfNotPresent
 
             env:
