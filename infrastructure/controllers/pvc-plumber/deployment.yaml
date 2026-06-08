@@ -86,8 +86,17 @@ spec:
             # Bumped 7s → 15s in v7 (Codex v5 finding [5]) — our path goes
             # HTTPS through Traefik (extra TLS handshake + ingress hop).
             # mitchross uses 7s for low-latency in-cluster RustFS.
+            # 15s → 60s 2026-06-08: during a full-fleet backup herd (e.g. the
+            # post-#789 root reseed — 51 concurrent movers writing the root
+            # repo), `kopia repository status` / `snapshot list --all` exceed
+            # 15s while the repo index churns → the subprocess is killed
+            # ("signal: killed") → /readyz 503 → both oracle pods go unready →
+            # Service loses all endpoints → Kyverno restore apiCall would fail.
+            # 60s lets the kopia op ride out the churn. The readinessProbe
+            # below is widened to match (a kubelet probe timeout < HTTP_TIMEOUT
+            # would cut the connection first and defeat this bump).
             - name: HTTP_TIMEOUT
-              value: "15s"
+              value: "60s"
             - name: RE_WARM_INTERVAL
               value: "90s"
             - name: KOPIA_CONFIG_PATH
@@ -143,8 +152,15 @@ spec:
               path: /readyz
               port: http
             initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 15
+            # Widened 2026-06-08 alongside HTTP_TIMEOUT 60s (see env comment):
+            # /readyz runs `kopia repository status`, which can take up to
+            # HTTP_TIMEOUT under a backup herd. timeoutSeconds must exceed that
+            # or the kubelet cuts the probe at 15s and the pod flaps unready
+            # despite the app-level bump. period > timeout so probes don't
+            # overlap; 3 misses (~3min) before the pod is pulled from the
+            # Service — enough grace to ride out a reseed without a false down.
+            periodSeconds: 60
+            timeoutSeconds: 45
             failureThreshold: 3
           volumeMounts:
             - name: kopia-tmp
