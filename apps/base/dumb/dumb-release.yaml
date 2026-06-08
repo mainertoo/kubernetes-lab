@@ -124,7 +124,10 @@ spec:
 
     persistence:
       dumb-storage:
-        existingClaim: dumb
+        # Migrated cephfs → ceph-rbd (RWO; single GPU-pinned Recreate pod
+        # never needed RWX). Data rsync'd offline; old cephfs `dumb` PVC
+        # retained for rollback until the RBD backup is confirmed seeded.
+        existingClaim: dumb-rbd
         advancedMounts:
           dumb:
             app:
