@@ -306,6 +306,10 @@ def cmd_wiki(cs, args):
     L.append("|------|------|------|--------|------|")
     for g in m["guests"]:
         L.append(f"| {g['vmid']} | {g.get('name','')} | {g['type']} | {g['status']} | {g['node']} |")
+    L.append("\n## Related\n")
+    L.append("- Physical hosts: **[Proxmox nodes](/infrastructure/hardware/proxmox-nodes)**")
+    L.append("- Network plan: **[VLAN Segmentation Design](/infrastructure/networking/vlan-design)** · "
+             "**[VLAN Migration Runbook](/infrastructure/networking/vlan-migration-runbook)**")
     text = "\n".join(L) + "\n"
     if args.output:
         Path(args.output).write_text(text)
