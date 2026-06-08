@@ -12,7 +12,8 @@
   "rebaseWhen": "conflicted",
 
   "ignorePaths": [
-    "**/archive/**"
+    "**/archive/**",
+    "docker/cnpg-timescaledb/**"
   ],
 
   "flux": {
