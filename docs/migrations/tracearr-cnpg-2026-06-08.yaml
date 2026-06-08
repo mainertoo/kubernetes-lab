@@ -30,9 +30,13 @@
 # pg_dump | psql does NOT correctly reconstruct hypertables; you must use the
 # official pre/post-restore wrappers:
 #
-#   - Destination extension is pre-created at the SAME version (2.25.0) by the
-#     CNPG Cluster's postInitApplicationSQL (apps/.../db-cnpg.yaml). PG major is
-#     16 → 16, so this is a same-version dump/restore (lowest risk).
+#   - Destination extension is pre-created at the SAME version (2.25.0, operand
+#     image 16-2.25.0-1) by the CNPG Cluster's postInitApplicationSQL
+#     (apps/.../db-cnpg.yaml). Timescale requires the restore to land on the
+#     same version as the source — cross-version restore is unsupported. PG
+#     major is 16 → 16, so this is a same-version dump/restore (lowest risk).
+#     AFTER this migration verifies, bump the operand image to 16-2.27.2 and run
+#     `ALTER EXTENSION timescaledb UPDATE;` to land on the current release.
 #   - SELECT timescaledb_pre_restore()  — puts the extension into restoring mode
 #     (disables background jobs, lets chunk/catalog rows restore verbatim).
 #   - pg_restore the custom-format dump. We do NOT exclude _timescaledb_internal
