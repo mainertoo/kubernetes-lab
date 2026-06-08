@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+pve-map.yaml
+pve-map.json
