@@ -79,7 +79,7 @@ spec:
         - protocol: TCP
           port: 8082
 ---
-# Egress: DNS + Open Notebook + Mac-Ollama egress + Pocket API (external HTTPS).
+# Egress: DNS + Open Notebook + Pocket API (external HTTPS).
 # Plan §9 / v9 F2-005 (DNS), F8-008 (cmds-jobs probes via Open Notebook).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -110,14 +110,10 @@ spec:
       ports:
         - protocol: TCP
           port: 5055
-    # Mac-Ollama via egress proxy (plan D11 / Phase 0b)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ollama-egress
-      ports:
-        - protocol: TCP
-          port: 11434
+    # (Mac-Ollama egress allow removed 2026-06-08 — Ollama retired; embeddings
+    # now run on mac-llama :8081, reached by Open Notebook, NOT pocket-bridge.
+    # pocket-bridge only talks to Open Notebook svc:5055, so it needs no direct
+    # egress to any model backend.)
     # Pocket API on the public internet — needed for /admin/replay's
     # Pocket fetch (plan §7.3 step 2).
     - to:

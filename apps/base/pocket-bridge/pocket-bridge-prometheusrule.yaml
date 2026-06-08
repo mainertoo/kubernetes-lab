@@ -88,17 +88,17 @@ spec:
           annotations:
             description: "pocket-bridge worker detected lease ownership loss and aborted — Redis instability or stalled worker. Investigate refresh latency."
 
-        - alert: MacOllamaUnreachable
-          # Bridge probes Mac-Ollama indirectly via open_notebook_up + the egress;
-          # this alert specifically watches for the bridge's direct path failing.
-          # (open_notebook_up=1 + this firing means Open Notebook is up but the
-          # egress proxy or Mac-Ollama itself is unreachable.)
+        - alert: MacLlamaEmbeddingsUnreachable
+          # Bridge probes the embeddings backend indirectly via open_notebook_up;
+          # this alert watches Open Notebook source POSTs failing. (open_notebook_up=1
+          # + this firing means Open Notebook is up but its embeddings backend —
+          # mac-llama :8081 via the llama-egress proxy — is unreachable.)
           expr: rate(open_notebook_write_total{operation="source_post",result="fail"}[10m]) > 0.1
           for: 10m
           labels:
             severity: warning
           annotations:
-            description: "pocket-bridge source POST failures elevated for 10m+. If embed_stalled also firing, suspect Mac-Ollama unreachability via the ollama-egress proxy."
+            description: "pocket-bridge source POST failures elevated for 10m+. If embed_stalled also firing, suspect the mac-llama embeddings endpoint (:8081) unreachable via the llama-egress proxy."
 
         - alert: PocketBridgeNotebookNoteCount
           # v7 F6-003 — single-shot GET /api/notes degrading at scale
@@ -116,7 +116,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            description: "Recording {{ $labels.recording_id }} reached embed_pending state but vector embedding never confirmed within the ~12min window (reason={{ $labels.reason }}). Recover via /admin/replay repair_embeddings_only=true. Usually Mac-Ollama was unreachable during the window."
+            description: "Recording {{ $labels.recording_id }} reached embed_pending state but vector embedding never confirmed within the ~12min window (reason={{ $labels.reason }}). Recover via /admin/replay repair_embeddings_only=true. Usually the mac-llama embeddings endpoint (:8081) was unreachable during the window."
 
         - alert: PocketBridgeOpenNotebookCommandStalled
           # v8 F7-Live-003 — Open Notebook surreal-commands-worker stuck
