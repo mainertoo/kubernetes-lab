@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - redis.yaml
   - timescale.yaml
+  - db-cnpg.yaml
   - app.yaml

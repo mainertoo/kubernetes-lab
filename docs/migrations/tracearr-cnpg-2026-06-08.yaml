@@ -1,0 +1,218 @@
+---
+# One-shot migration Job: dumps tracearr's inline TimescaleDB
+# (the `timescale` controller inside the tracearr HelmRelease, Service
+# tracearr-tracearr-timescale) → the tracearr-cnpg-db CNPG cluster.
+#
+# This file is intentionally NOT in any kustomization.yaml — Flux will not apply
+# it. Apply manually AFTER:
+#   1. PR #A merged and CNPG cluster `tracearr-cnpg-db` is healthy + has its
+#      first base backup.
+#   2. tracearr is QUIESCED so the dump is consistent (small DB, ~2-3 min
+#      downtime — far simpler than a delta sync):
+#
+#        kubectl -n media scale deploy tracearr --replicas=0
+#
+# Then:
+#
+#   kubectl apply -f docs/migrations/tracearr-cnpg-2026-06-08.yaml
+#   kubectl -n media logs -f job/tracearr-cnpg-migration
+#
+# The Job auto-deletes after 1 hour (ttlSecondsAfterFinished). After verifying
+# row counts + hypertables match, proceed to the PR #B cutover (repoint
+# DATABASE_URL at tracearr-cnpg-db-rw). Do NOT scale tracearr back up against
+# the OLD inline DB once the dump has been taken, or the two DBs diverge.
+#
+# ## TimescaleDB approach (verified live 2026-06-08)
+#
+# The live DB (timescaledb 2.25.0, PG16) has 2 hypertables — public.sessions and
+# public.library_snapshots — whose data lives as chunks under
+# _timescaledb_internal, plus catalog in _timescaledb_catalog. A plain
+# pg_dump | psql does NOT correctly reconstruct hypertables; you must use the
+# official pre/post-restore wrappers:
+#
+#   - Destination extension is pre-created at the SAME version (2.25.0) by the
+#     CNPG Cluster's postInitApplicationSQL (apps/.../db-cnpg.yaml). PG major is
+#     16 → 16, so this is a same-version dump/restore (lowest risk).
+#   - SELECT timescaledb_pre_restore()  — puts the extension into restoring mode
+#     (disables background jobs, lets chunk/catalog rows restore verbatim).
+#   - pg_restore the custom-format dump. We do NOT exclude _timescaledb_internal
+#     or _timescaledb_catalog — those chunks/rows ARE the time-series data.
+#   - SELECT timescaledb_post_restore() — re-enables background jobs + validates.
+#
+# The dump's `CREATE EXTENSION timescaledb` is a benign "already exists" notice
+# because we pre-created it; pg_restore (no --exit-on-error) logs and continues.
+# We use --no-owner --no-acl because the CNPG owner role differs from any source
+# ownership. pg_dump/pg_restore from a stock postgres:16 client handle timescale
+# objects fine (they are ordinary catalog tables + chunk relations to the dump).
+#
+# Reference: https://docs.timescale.com/self-hosted/latest/migration/pg-dump-and-restore/
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tracearr-cnpg-migration
+  namespace: media
+  labels:
+    app.kubernetes.io/name: tracearr
+    app.kubernetes.io/component: db-migration
+    migration.kubernetes-lab/source: tracearr-tracearr-timescale
+    migration.kubernetes-lab/target: tracearr-cnpg-db
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tracearr
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 4Gi
+      containers:
+        - name: migrate
+          # Stock postgres 16 client — pg_dump/pg_restore handle timescale
+          # catalog + chunk relations as ordinary objects. Matches the PG16
+          # major on both ends.
+          image: postgres:16-bookworm
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "==========================================="
+              echo " tracearr inline TimescaleDB → CNPG migration"
+              echo " started: $(date -u)"
+              echo "==========================================="
+
+              echo ""
+              echo "[1/8] Verify source connectivity ($SRC_HOST) ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h "$SRC_HOST" -U "$SRC_USER" -d "$SRC_DB" \
+                -tAc "SELECT 'src ok ' || version()"
+              echo "    source timescaledb version:"
+              PGPASSWORD="$SRC_PASSWORD" psql -h "$SRC_HOST" -U "$SRC_USER" -d "$SRC_DB" \
+                -tAc "SELECT extversion FROM pg_extension WHERE extname='timescaledb'"
+
+              echo ""
+              echo "[2/8] Verify destination connectivity (tracearr-cnpg-db-rw) ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -tAc "SELECT 'dst ok ' || version()"
+              echo "    destination timescaledb version (must match source):"
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -tAc "SELECT extversion FROM pg_extension WHERE extname='timescaledb'"
+
+              echo ""
+              echo "[3/8] Source hypertables + row counts ..."
+              PGPASSWORD="$SRC_PASSWORD" psql -h "$SRC_HOST" -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT hypertable_schema||'.'||hypertable_name AS hypertable,
+                       num_chunks
+                FROM timescaledb_information.hypertables;
+              "
+              PGPASSWORD="$SRC_PASSWORD" psql -h "$SRC_HOST" -U "$SRC_USER" -d "$SRC_DB" -c "
+                SELECT schemaname||'.'||relname AS tbl, n_live_tup AS rows
+                FROM pg_stat_user_tables
+                WHERE schemaname='public'
+                ORDER BY n_live_tup DESC LIMIT 15;
+              "
+
+              echo ""
+              echo "[4/8] pg_dump (custom format) from source → /scratch/tracearr.dump ..."
+              PGPASSWORD="$SRC_PASSWORD" pg_dump \
+                --format=custom \
+                --no-owner --no-acl --no-tablespaces \
+                --no-publications --no-subscriptions \
+                -h "$SRC_HOST" -U "$SRC_USER" -d "$SRC_DB" \
+                -f /scratch/tracearr.dump
+              echo "    dump size: $(du -h /scratch/tracearr.dump | cut -f1)"
+
+              echo ""
+              echo "[5/8] timescaledb_pre_restore() on destination ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -v ON_ERROR_STOP=1 -tAc "SELECT timescaledb_pre_restore();"
+
+              echo ""
+              echo "[6/8] pg_restore into destination (extension-exists notices are benign) ..."
+              # No --exit-on-error: the pre-created CREATE EXTENSION + any
+              # extension-owned objects produce benign 'already exists' notices
+              # that must not abort the chunk/catalog restore.
+              set +e
+              PGPASSWORD="$DST_PASSWORD" pg_restore \
+                --no-owner --no-acl --no-tablespaces \
+                -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                /scratch/tracearr.dump
+              RESTORE_RC=$?
+              set -e
+              echo "    pg_restore exit code: $RESTORE_RC (non-zero only from benign notices is acceptable; counts below are the real check)"
+
+              echo ""
+              echo "[7/8] timescaledb_post_restore() on destination ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -v ON_ERROR_STOP=1 -tAc "SELECT timescaledb_post_restore();"
+
+              echo ""
+              echo "[8/8] Verify destination hypertables + row counts + ANALYZE ..."
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT hypertable_schema||'.'||hypertable_name AS hypertable,
+                       num_chunks
+                FROM timescaledb_information.hypertables;
+              "
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" -c "
+                SELECT schemaname||'.'||relname AS tbl, n_live_tup AS rows
+                FROM pg_stat_user_tables
+                WHERE schemaname='public'
+                ORDER BY n_live_tup DESC LIMIT 15;
+              "
+              PGPASSWORD="$DST_PASSWORD" psql -h tracearr-cnpg-db-rw -U "$DST_USER" -d "$DST_DB" \
+                -c "ANALYZE;"
+
+              echo ""
+              echo "==========================================="
+              echo " migration complete: $(date -u)"
+              echo " COMPARE the [3/8] (source) vs [8/8] (destination) counts —"
+              echo " they must match (tracearr was scaled to 0, so no drift)."
+              echo "==========================================="
+
+          env:
+            # ----- SOURCE: inline TimescaleDB (tracearr-tracearr-timescale) -----
+            # The inline pod sets POSTGRES_DB=tracearr, POSTGRES_USER=tracearr
+            # (release values) with POSTGRES_PASSWORD from tracearr-secret. The
+            # `tracearr` role is the DB owner/superuser of this inline instance.
+            - name: SRC_HOST
+              value: "tracearr-tracearr-timescale.media.svc.cluster.local"
+            - name: SRC_USER
+              value: "tracearr"
+            - name: SRC_DB
+              value: "tracearr"
+            - name: SRC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tracearr-secret
+                  key: POSTGRES_PASSWORD
+
+            # ----- DESTINATION: CNPG-managed tracearr-cnpg-db -----
+            - name: DST_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tracearr-cnpg-db-app
+                  key: username
+            - name: DST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tracearr-cnpg-db-app
+                  key: password
+            - name: DST_DB
+              value: "tracearr"
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              # 893 MB DB; custom-format dump streams to /scratch (emptyDir),
+              # pg_restore parses incrementally. 1Gi is generous headroom.
+              memory: 1Gi
