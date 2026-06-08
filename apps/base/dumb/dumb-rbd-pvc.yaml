@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dumb-rbd
+  labels:
+    # Label-driven Kyverno backup. On a ceph-rbd source the policy
+    # auto-selects copyMethod=Snapshot + ceph-rbd-snapclass (RBD CSI
+    # clone), not the cephfs `backingsnapshot` shallow-mount path. See:
+    #   docs/label-driven-backups.md
+    #   infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml
+    backup: daily
+    backup-engine: kopia
+  annotations:
+    # Override the policy's default 5Gi cache. Shared-repo cache demand
+    # is ~5% of TOTAL repo size, not just this app's snapshots, so the
+    # working set is larger than per-app-repo intuition would suggest
+    # (KubePersistentVolumeFillingUp fired on the 5Gi default during the
+    # cephfs era's initial sync).
+    volsync.backup/cache-capacity: 10Gi
+spec:
+  # RWO: dumb is a single GPU-pinned pod with strategy=Recreate, so the
+  # cephfs RWX semantics were never needed. ceph-rbd is the better fit
+  # for its SQLite/small-file-heavy workload (Plex/Seerr/Riven DBs),
+  # which is corruption-prone on a clustered FS under node hangs.
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 100Gi
