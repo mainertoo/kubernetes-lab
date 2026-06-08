@@ -58,17 +58,16 @@ spec:
                 value: "true"
               ENABLE_OLLAMA_API:
                 value: "false"
-              # Two OpenAI-compatible backends (semicolon-separated), both on
-              # the Mac via Tailscale egress:
-              #   1. mac-ollama  :11434  — Ollama (Qwen3.5 MoE + embeddings)
-              #   2. mac-llama   :8080   — llama.cpp serving Qwen3.6-27B
-              # Each backend's models appear in the Open WebUI model dropdown.
+              # Single OpenAI-compatible backend on the Mac via Tailscale
+              # egress: mac-llama :8080 — llama.cpp serving Qwen3.6-27B.
+              # (Mac-Ollama retired 2026-06-08 — chat consolidated onto
+              # llama.cpp, embeddings onto :8081; mac-ollama-egress dropped.)
               OPENAI_API_BASE_URLS:
-                value: "http://mac-ollama.ollama-egress.svc.cluster.local:11434/v1;http://mac-llama.llama-egress.svc.cluster.local:8080/v1"
-              # Neither backend enforces the API key, but Open WebUI requires a
-              # non-empty key PER base URL (semicolon-separated, matching count).
+                value: "http://mac-llama.llama-egress.svc.cluster.local:8080/v1"
+              # The backend doesn't enforce the API key, but Open WebUI still
+              # requires a non-empty value.
               OPENAI_API_KEYS:
-                value: "ollama-ignores-this-but-openwebui-requires-it;llama-cpp-ignores-this-too"
+                value: "llama-cpp-ignores-this-too"
               # Route RAG embeddings through the llama.cpp mxbai embeddings
               # server (:8081 on the Mac). Same mxbai-embed-large-v1 model,
               # 1024-dim CLS pooling — verified cosine ~1.000 vs the previous
