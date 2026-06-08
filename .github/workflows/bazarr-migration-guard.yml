@@ -1,0 +1,146 @@
+---
+# Bazarr :development dev-digest bumps repeatedly ship breaking Alembic DB
+# migrations that crash-loop the pod with no possible revert (downgrade()
+# bodies are `pass`; see docs / memory project_bazarr_dev_digest_migration_crashloops
+# + wiki apps/media/bazarr id 170, Incidents A & B).
+#
+# The ENTIRE crash-loop risk lives in the migration files under
+# /app/bazarr/bin/migrations/versions/*.py. If those are byte-identical
+# between the currently-pinned digest (master) and the digest this PR
+# proposes, the bump does ZERO schema work on startup and the failure mode
+# cannot occur. This job diffs exactly those files (no cluster needed — both
+# images are public on lscr.io) and posts the verdict on the PR:
+#   ✅ identical  -> safe to merge, check passes.
+#   ⚠️ changed    -> a migration was added or altered; check FAILS so the bump
+#                    can't be merged unprepared. Repair-readiness required:
+#                    scaled-to-0 maint pod + DB backup first, fix forward.
+name: bazarr migration guard
+
+on:
+  pull_request:
+    paths:
+      - 'apps/base/media/bazarr/bazarr-release.yaml'
+
+jobs:
+  migration-diff:
+    name: Bazarr Alembic migration diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve old (master) + new (PR) bazarr digests
+        id: digests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          F=apps/base/media/bazarr/bazarr-release.yaml
+          # The file has two `tag:` lines (busybox initContainer + bazarr); pull
+          # the sha256 on the line right after the bazarr repository line only.
+          digest_of() { grep -A1 'repository: lscr.io/linuxserver/bazarr' "$1" \
+            | grep -oE 'sha256:[a-f0-9]{64}' | head -1 || true; }
+          NEW=$(digest_of "$F")
+          git show "origin/${BASE_REF}:$F" > /tmp/base.yaml 2>/dev/null || : > /tmp/base.yaml
+          OLD=$(digest_of /tmp/base.yaml)
+          echo "old=${OLD:-<none>}  new=${NEW:-<none>}"
+          if [ -z "$NEW" ]; then
+            echo "No bazarr image digest in PR head — nothing to check."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$OLD" = "$NEW" ]; then
+            echo "Digest unchanged by this PR — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # OLD empty (e.g. new file) => can't establish a baseline; force review.
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "old=$OLD" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+
+      - name: Install crane
+        if: steps.digests.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          ver=v0.20.2
+          curl -sSL "https://github.com/google/go-containerregistry/releases/download/${ver}/go-containerregistry_Linux_x86_64.tar.gz" \
+            | sudo tar -xzf - -C /usr/local/bin crane
+          crane version
+
+      - name: Diff migration files between digests
+        if: steps.digests.outputs.skip != 'true'
+        id: diff
+        env:
+          OLD: ${{ steps.digests.outputs.old }}
+          NEW: ${{ steps.digests.outputs.new }}
+        run: |
+          set -euo pipefail
+          # Extract only the Alembic versions dir from each image (selective tar
+          # member — avoids unpacking the whole multi-hundred-MB rootfs) and emit
+          # a sorted "sha256  filename" manifest.
+          manifest() {
+            local ref="$1" dir="$2"
+            mkdir -p "$dir"
+            crane export "lscr.io/linuxserver/bazarr@${ref}" - 2>/dev/null \
+              | tar -x -C "$dir" --strip-components=5 \
+                  'app/bazarr/bin/migrations/versions' 2>/dev/null || true
+            ( cd "$dir" && find . -name '*.py' ! -path '*__pycache__*' \
+                -exec sha256sum {} \; | sed 's#\./##' | sort -k2 )
+          }
+          manifest "$OLD" old_mig > old.manifest
+          manifest "$NEW" new_mig > new.manifest
+          oc=$(wc -l < old.manifest); nc=$(wc -l < new.manifest)
+          echo "old migration files: $oc | new migration files: $nc"
+          if [ "$oc" -eq 0 ] || [ "$nc" -eq 0 ]; then
+            echo "verdict=error" >> "$GITHUB_OUTPUT"
+            echo "Could not extract migration files from one of the images." | tee body.md
+            exit 0
+          fi
+          if diff -u old.manifest new.manifest > manifest.diff; then
+            echo "verdict=safe" >> "$GITHUB_OUTPUT"
+            {
+              echo "### ✅ Bazarr dev-digest is migration-safe"
+              echo
+              echo "All **$nc** Alembic migration files under \`/app/bazarr/bin/migrations/versions/\` are **byte-identical** between the master-pinned digest and this PR's digest. The bump does zero schema work on startup — the crash-loop failure mode cannot occur. Safe to merge."
+              echo
+              echo "<sub>\`${OLD}\` → \`${NEW}\`</sub>"
+            } > body.md
+          else
+            echo "verdict=changed" >> "$GITHUB_OUTPUT"
+            {
+              echo "### ⚠️ Bazarr dev-digest CHANGES Alembic migrations — review before merge"
+              echo
+              echo "Migration files under \`/app/bazarr/bin/migrations/versions/\` differ between the master-pinned digest and this PR. A new or altered migration runs on startup and **may crash-loop the pod with no possible revert** (downgrade bodies are \`pass\`)."
+              echo
+              echo "**Do not merge unprepared.** Be ready to fix forward from a scaled-to-0 maintenance pod with the DB backed up first. See wiki \`apps/media/bazarr\` (id 170) and memory \`project_bazarr_dev_digest_migration_crashloops\`."
+              echo
+              echo '```diff'
+              cat manifest.diff
+              echo '```'
+              echo
+              echo "<sub>\`${OLD}\` → \`${NEW}\`</sub>"
+            } > body.md
+          fi
+
+      - name: Post verdict comment
+        if: steps.digests.outputs.skip != 'true' && steps.diff.outputs.verdict != ''
+        uses: mshick/add-pr-comment@8e4927817251f1ff60c001f04568532b38e0b4a0 # v3.11
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          message-id: bazarr-migration-guard
+          message-path: body.md
+
+      - name: Fail the check if migrations changed
+        if: steps.digests.outputs.skip != 'true'
+        env:
+          VERDICT: ${{ steps.diff.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          case "$VERDICT" in
+            safe)    echo "✅ migration-safe"; exit 0 ;;
+            changed) echo "⚠️ migrations changed — blocking"; exit 1 ;;
+            *)       echo "✗ could not verify migrations — blocking"; exit 1 ;;
+          esac
