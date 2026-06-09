@@ -46,8 +46,8 @@ spec:
               - |
                 set -eux
 
-                until nslookup tracearr-tracearr-timescale.media.svc.cluster.local >/dev/null 2>&1; do
-                  echo "waiting for DNS: tracearr-tracearr-timescale.media.svc.cluster.local"
+                until nslookup tracearr-cnpg-db-rw.media.svc.cluster.local >/dev/null 2>&1; do
+                  echo "waiting for DNS: tracearr-cnpg-db-rw.media.svc.cluster.local"
                   sleep 2
                 done
 
@@ -56,8 +56,8 @@ spec:
                   sleep 2
                 done
 
-                until nc -z -w 2 tracearr-tracearr-timescale.media.svc.cluster.local 5432; do
-                  echo "waiting for postgres: tracearr-tracearr-timescale.media.svc.cluster.local:5432"
+                until nc -z -w 2 tracearr-cnpg-db-rw.media.svc.cluster.local 5432; do
+                  echo "waiting for postgres: tracearr-cnpg-db-rw.media.svc.cluster.local:5432"
                   sleep 2
                 done
 
@@ -88,6 +88,18 @@ spec:
               # Use your real URL (helps auth + browser behavior)
               CORS_ORIGIN: "https://tracearr.lab.mainertoo.com"
 
+              # DB connection now points at the CNPG-managed cluster
+              # (tracearr-cnpg-db). Sourced from the CNPG-generated app Secret's
+              # ready-made connection URI (fqdn-uri uses the in-cluster FQDN),
+              # which auto-tracks the managed password. This explicitly overrides
+              # the stale DATABASE_URL still carried in tracearr-secret (removed
+              # in the decommission PR).
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: tracearr-cnpg-db-app
+                    key: fqdn-uri
+
             envFrom:
               - secretRef:
                   name: tracearr-secret
@@ -109,40 +121,6 @@ spec:
               - --appendonly
               - "yes"
 
-      timescale:
-        initContainers:
-          init-timescale-pgdata:
-            image:
-              repository: busybox
-              tag: "1.38"
-              pullPolicy: IfNotPresent
-            command:
-              - /bin/sh
-              - -c
-            args:
-              - |
-                set -eux
-                mkdir -p /var/lib/postgresql/data/pgdata
-                chown -R 999:999 /var/lib/postgresql/data/pgdata
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-
-        containers:
-          main:
-            image:
-              repository: timescale/timescaledb
-              tag: latest-pg16
-              pullPolicy: IfNotPresent
-            env:
-              POSTGRES_DB: tracearr
-              POSTGRES_USER: tracearr
-              PGDATA: /var/lib/postgresql/data/pgdata
-            envFrom:
-              - secretRef:
-                  name: tracearr-secret
-
     service:
       tracearr:
         controller: tracearr
@@ -160,14 +138,6 @@ spec:
             port: 6379
             targetPort: 6379
 
-      tracearr-timescale:
-        controller: timescale
-        type: ClusterIP
-        ports:
-          postgres:
-            port: 5432
-            targetPort: 5432
-
     persistence:
       redis-data:
         enabled: true
@@ -176,26 +146,6 @@ spec:
           redis:
             main:
               - path: /data
-
-      timescale-data:
-        enabled: true
-        existingClaim: tracearr-timescale
-        advancedMounts:
-          timescale:
-            init-timescale-pgdata:
-              - path: /var/lib/postgresql/data
-            main:
-              - path: /var/lib/postgresql/data
-
-      timescale-shm:
-        enabled: true
-        type: emptyDir
-        medium: Memory
-        sizeLimit: 512Mi
-        advancedMounts:
-          timescale:
-            main:
-              - path: /dev/shm
 
     defaultPodOptions:
       automountServiceAccountToken: false
