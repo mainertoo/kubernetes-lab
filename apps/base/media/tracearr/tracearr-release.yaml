@@ -88,12 +88,12 @@ spec:
               # Use your real URL (helps auth + browser behavior)
               CORS_ORIGIN: "https://tracearr.lab.mainertoo.com"
 
-              # DB connection now points at the CNPG-managed cluster
+              # DB connection points at the CNPG-managed cluster
               # (tracearr-cnpg-db). Sourced from the CNPG-generated app Secret's
               # ready-made connection URI (fqdn-uri uses the in-cluster FQDN),
-              # which auto-tracks the managed password. This explicitly overrides
-              # the stale DATABASE_URL still carried in tracearr-secret (removed
-              # in the decommission PR).
+              # which auto-tracks the managed password. The legacy DATABASE_URL
+              # + POSTGRES_PASSWORD keys were dropped from tracearr-secret in the
+              # TimescaleDB decommission — this is now the sole DB connection.
               DATABASE_URL:
                 valueFrom:
                   secretKeyRef:
