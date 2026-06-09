@@ -2,7 +2,8 @@
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # Phase 5b (settled) — dumb on production with label-driven volsync
 # backup. components/volsync-v2 + volsync/remote removed; PVC owned by
-# apps/base/dumb/dumb-pvc.yaml with `backup: daily`.
+# apps/base/dumb/dumb-rbd-pvc.yaml with `backup: daily` (migrated off
+# cephfs to ceph-rbd 2026-06-08; old cephfs `dumb` PVC decommissioned).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
