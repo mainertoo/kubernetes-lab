@@ -70,8 +70,12 @@ sops scripts/immich/credentials.sops.yaml      # set IMMICH_API_KEY (admin key)
 
 oauth block applied: `enabled`, `issuerUrl`, `clientId`, `clientSecret`,
 `scope=openid email profile`, `buttonText=Login with Authentik`,
-`autoRegister=true`, `autoLaunch=false` (password form stays default),
-`storageLabelClaim=preferred_username`, `roleClaim=immich_role`.
+`autoRegister=false` (existing Immich accounts only — link by email, no new
+account on unmatched SSO login), `autoLaunch=false` (password form stays
+default), `storageLabelClaim=preferred_username`, `roleClaim=immich_role`.
+
+> To let new Authentik users get an Immich account on first login, flip
+> `autoRegister` to `true` in `OAUTH_STATIC` (configure-oauth.py) and re-`--commit`.
 
 ## User merge (by email)
 
