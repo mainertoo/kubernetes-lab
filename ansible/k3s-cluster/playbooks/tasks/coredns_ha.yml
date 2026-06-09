@@ -1,0 +1,67 @@
+---
+# Make K3s deploy CoreDNS with 2 replicas (HA) instead of the bundled default of 1.
+#
+# Why: K3s ships CoreDNS as a server AddOn manifest with NO `replicas:` field (so it
+# defaults to a single pod) — a cluster-wide DNS single point of failure. When that one
+# pod reschedules (node drain, upgrade, eviction) DNS is briefly unavailable, which trips
+# DB-coupled liveness probes (e.g. authentik-server) and causes needless restarts.
+# The bundled manifest ALREADY carries a hostname topologySpreadConstraint with
+# whenUnsatisfiable: DoNotSchedule, so simply setting replicas: 2 forces the two pods
+# onto separate nodes — no extra affinity needed.
+#
+# Mechanism: derive a copy of K3s's *current* bundled manifest with `replicas: 2` injected,
+# write it as coredns-ha.yaml, and drop coredns.yaml.skip so K3s stops re-applying (and
+# reverting to 1 replica) its bundled copy. Re-deriving from the on-node bundled manifest
+# each run means it auto-tracks the CoreDNS image/config across K3s upgrades — which is why
+# this task is also imported at the end of k3s_upgrade.yml.
+#
+# Runs on K3s SERVER (master) nodes only — the manifests dir is server-only. Idempotent.
+# Full design + execution/rollback procedure: docs/plans/coredns-ha.md.
+
+- name: Stat the bundled CoreDNS manifest
+  ansible.builtin.stat:
+    path: /var/lib/rancher/k3s/server/manifests/coredns.yaml
+  register: _coredns_bundled
+
+- name: Configure CoreDNS HA (skip nodes without the bundled manifest)
+  when: _coredns_bundled.stat.exists
+  block:
+    - name: Guard — confirm the replicas-injection anchor still exists upstream
+      # The Deployment's `spec:` is uniquely followed by `  revisionHistoryLimit: 0`.
+      # If K3s changes the CoreDNS manifest layout this fails loudly instead of
+      # silently producing a 1-replica (or malformed) manifest.
+      ansible.builtin.command:
+        cmd: "grep -qx '  revisionHistoryLimit: 0' /var/lib/rancher/k3s/server/manifests/coredns.yaml"
+      changed_when: false
+      register: _coredns_anchor
+      failed_when: _coredns_anchor.rc != 0
+
+    - name: Copy the bundled CoreDNS manifest as the HA base (tracks K3s's current version)
+      ansible.builtin.copy:
+        src: /var/lib/rancher/k3s/server/manifests/coredns.yaml
+        dest: /var/lib/rancher/k3s/server/manifests/coredns-ha.yaml
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Set the CoreDNS Deployment to 2 replicas
+      ansible.builtin.lineinfile:
+        path: /var/lib/rancher/k3s/server/manifests/coredns-ha.yaml
+        insertbefore: '^  revisionHistoryLimit: 0$'
+        line: "  replicas: 2"
+        firstmatch: true
+        state: present
+
+    - name: Stop K3s re-applying (and reverting) the bundled 1-replica CoreDNS
+      # `.skip` makes the K3s deploy controller leave the bundled coredns.yaml alone
+      # (it does NOT delete the already-applied objects); our coredns-ha.yaml then owns
+      # the Deployment at 2 replicas.
+      ansible.builtin.copy:
+        dest: /var/lib/rancher/k3s/server/manifests/coredns.yaml.skip
+        content: |
+          # Managed by Ansible (tasks/coredns_ha.yml) — CoreDNS runs via coredns-ha.yaml
+          # with replicas: 2 (HA). See docs/plans/coredns-ha.md.
+        owner: root
+        group: root
+        mode: "0644"

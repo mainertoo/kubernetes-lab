@@ -166,3 +166,13 @@
       register: uncordon
       changed_when: "'uncordoned' in uncordon.stdout"
       delegate_to: "{{ first_master }}"
+
+# K3s rewrites its bundled AddOn manifests (incl. CoreDNS) on upgrade, so re-derive the
+# 2-replica HA override from the freshly-written manifest — otherwise CoreDNS would either
+# revert to 1 replica or stay pinned to the pre-upgrade image. See docs/plans/coredns-ha.md.
+- name: Re-apply CoreDNS HA override after upgrade
+  hosts: master
+  become: true
+  tasks:
+    - name: Re-derive coredns-ha.yaml from the post-upgrade bundled manifest
+      ansible.builtin.import_tasks: tasks/coredns_ha.yml
