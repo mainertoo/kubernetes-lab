@@ -11,5 +11,7 @@ resources:
   - wiki-js-secret.sops.yaml
   - wiki-js-release.yaml
   - wiki-js-ingressroute.yaml
-  # CronJob that publishes /docs/*.md → wiki under docs/* every 15 min.
-  - docs-publisher
+  # NOTE: the docs-publisher CronJob was retired 2026-06-08 — wiki content is
+  # now backed up via Wiki.js native bidirectional Git Storage to the PRIVATE
+  # mainertoo/wiki repo (deploy key in WIKI_GIT_SSH_KEY). The whole wiki, not
+  # just docs/*, is mirrored there.
