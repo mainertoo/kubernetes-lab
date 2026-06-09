@@ -1,0 +1,26 @@
+---
+# Reconfigure K3s's bundled CoreDNS to run 2 replicas (HA) across separate nodes.
+#
+# Run with:
+#   ansible-playbook -i ansible/k3s-cluster/inventory/dynamic_terraform_inventory.sh \
+#     ansible/k3s-cluster/playbooks/k3s_coredns_ha.yml
+#
+# Idempotent and safe to re-run. No K3s restart required — the deploy controller
+# applies coredns-ha.yaml as soon as it appears. See docs/plans/coredns-ha.md.
+
+- name: CoreDNS HA (2 replicas) on K3s servers
+  hosts: master
+  become: true
+  tasks:
+    - name: Apply the CoreDNS HA manifest override on every server
+      ansible.builtin.import_tasks: tasks/coredns_ha.yml
+
+    - name: Wait for CoreDNS to report 2 ready replicas
+      ansible.builtin.command:
+        cmd: k3s kubectl -n kube-system get deploy coredns -o jsonpath={.status.readyReplicas}
+      register: _coredns_ready
+      changed_when: false
+      retries: 30
+      delay: 5
+      until: _coredns_ready.stdout == "2"
+      run_once: true
