@@ -123,7 +123,6 @@ Architecture notes and runbooks live in [`docs/`](docs/). A few worth highlighti
 - [`volsync-kopia-transition.md`](docs/volsync-kopia-transition.md) — moving the fleet from Restic to Kopia
 - [`backup-architecture.md`](docs/backup-architecture.md) / [`backup-recovery.md`](docs/backup-recovery.md) — backup layers + restore procedures
 - [`cnpg-disaster-recovery.md`](docs/cnpg-disaster-recovery.md) — CloudNativePG cluster recovery
-- [`ceph-tuning-2026-05-07.md`](docs/ceph-tuning-2026-05-07.md) — the homelab Ceph tuning pass
 - [`observability.md`](docs/observability.md) — Prometheus + Alertmanager + Grafana + Loki + Alloy, custom alerts, dashboards, LogQL starters
 
 ---
