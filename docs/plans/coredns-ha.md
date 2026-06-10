@@ -51,11 +51,34 @@ owning the manifest. K3s supports this via a `.skip` sentinel:
    bundled manifest. `.skip` makes K3s leave the bundled file alone — it does **not** delete
    the already-applied objects. `coredns-ha.yaml` is the *full* manifest (SA, RBAC,
    ConfigMap, Service, Deployment), so it remains correct whether `.skip` orphans or prunes.
+4. **Hands the `kube-dns` Service over to coredns-ha** (one-time, idempotent). See below.
 
 The K3s deploy controller watches the manifests dir and applies `coredns-ha.yaml` as soon
 as it appears — **no K3s restart needed**, and no DNS-outage cutover (it updates the existing
 Deployment in place, just adding a pod). The `NodeHosts` ConfigMap key stays K3s-managed
 (its node-IP controller is independent of the AddOn deploy).
+
+### Service-ownership handoff (step 4) — why it's needed
+
+`.skip` stops the bundled `coredns` AddOn re-applying, but it does **not** transfer ownership
+of the objects that addon already created. coredns-ha *adopts* the Deployment, SA, ConfigMap
+and RBAC fine (those apply as updates), but a Service's **clusterIP is immutable**, so the
+coredns-ha objectset can't adopt the existing `kube-dns` Service — it falls to the *create*
+path and fails forever:
+
+```
+ApplyManifestFailed … Service "kube-dns" is invalid: spec.clusterIPs:
+  Invalid value: ["10.43.0.10"]: failed to allocate IP 10.43.0.10: provided IP is already allocated
+```
+
+This is silent to a pod/`nslookup` failover test (DNS works the whole time) but spams the
+event log every ~15–90s and adds needless apiserver/etcd reconcile churn. The task fixes it
+once: if `kube-dns` is still owned by the bundled `coredns` objectset, it deletes that AddOn
+and the `kube-dns` Service (K3s does **not** auto-prune the Service on AddOn deletion), then
+coredns-ha recreates `kube-dns` at the same `10.43.0.10` under its own objectset. This costs
+a **brief one-time DNS blip** (~a few seconds, until the next coredns-ha reconcile) and is a
+no-op on every subsequent run. First applied to production on 2026-06-10 (initial PR #824
+shipped without it; the conflict was found and resolved the next day).
 
 ## Execute
 
@@ -87,6 +110,16 @@ kubectl run dnstest --rm -it --image=busybox --restart=Never -- \
 
 Also confirm the K3s objects survived the `.skip` (should still exist):
 `kubectl -n kube-system get sa coredns; get cm coredns; get svc kube-dns`.
+
+Confirm the Service-ownership handoff completed — `kube-dns` must be owned by `coredns-ha`,
+and there should be no recurring `ApplyManifestFailed` for `coredns-ha`:
+
+```bash
+kubectl -n kube-system get svc kube-dns \
+  -o jsonpath='{.metadata.annotations.objectset\.rio\.cattle\.io/owner-name}'   # -> coredns-ha
+kubectl -n kube-system get addon coredns-ha -o jsonpath='{.spec.checksum}'      # non-empty == applied clean
+kubectl -n kube-system get events --field-selector reason=ApplyManifestFailed | grep coredns || echo "none (good)"
+```
 
 ## Rollback
 

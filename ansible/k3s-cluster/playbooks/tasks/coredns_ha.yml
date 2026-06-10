@@ -15,6 +15,14 @@
 # each run means it auto-tracks the CoreDNS image/config across K3s upgrades — which is why
 # this task is also imported at the end of k3s_upgrade.yml.
 #
+# Service-ownership handoff: on a fresh cluster the bundled `coredns` AddOn has already
+# created the kube-dns Service, and a Service's clusterIP is IMMUTABLE — so the coredns-ha
+# objectset cannot adopt it and loops forever on ApplyManifestFailed ("failed to allocate IP
+# 10.43.0.10 ... already allocated"). `.skip` stops the bundled manifest re-applying but does
+# NOT transfer ownership of objects it already created. So once, this task removes the bundled
+# addon's claim and lets coredns-ha re-create + own kube-dns. This is idempotent and a no-op
+# once kube-dns is already owned by coredns-ha (e.g. on every upgrade-replay run).
+#
 # Runs on K3s SERVER (master) nodes only — the manifests dir is server-only. Idempotent.
 # Full design + execution/rollback procedure: docs/plans/coredns-ha.md.
 
@@ -65,3 +73,63 @@
         owner: root
         group: root
         mode: "0644"
+
+    - name: Hand the kube-dns Service over to coredns-ha (one-time; bundled coredns owns it on a fresh cluster)
+      # Cluster-scoped reconcile — run on a single master. A no-op once kube-dns is already
+      # owned by the coredns-ha objectset (so it stays silent on every upgrade-replay run).
+      run_once: true
+      block:
+        - name: Read the current kube-dns Service objectset owner
+          # argv form (not a `cmd:` string): Ansible shlex-splits `cmd:` in POSIX mode and
+          # would strip the backslash-escapes in the dotted annotation key (objectset\.rio\.…)
+          # before kubectl ever sees them, yielding an empty result. argv is passed literally.
+          ansible.builtin.command:
+            argv:
+              - k3s
+              - kubectl
+              - -n
+              - kube-system
+              - get
+              - svc
+              - kube-dns
+              - -o
+              - 'jsonpath={.metadata.annotations.objectset\.rio\.cattle\.io/owner-name}'
+          register: _kubedns_owner
+          changed_when: false
+          failed_when: false
+
+        - name: Free the kube-dns Service from the bundled coredns addon (brief one-time DNS blip)
+          # Only when the bundled `coredns` objectset still owns the Service. K3s does NOT
+          # auto-prune the Service when its AddOn is deleted, so delete the Service explicitly
+          # to free clusterIP 10.43.0.10; the coredns-ha deploy controller recreates kube-dns
+          # (same clusterIP) on its next reconcile, now under the coredns-ha objectset.
+          when: _kubedns_owner.stdout == 'coredns'
+          block:
+            - name: Remove the stale bundled coredns AddOn (kept inert by .skip, but still claims kube-dns)
+              ansible.builtin.command:
+                cmd: k3s kubectl -n kube-system delete addon coredns --ignore-not-found
+              changed_when: true
+
+            - name: Delete the orphaned kube-dns Service so coredns-ha can recreate and own it
+              ansible.builtin.command:
+                cmd: k3s kubectl -n kube-system delete svc kube-dns --ignore-not-found
+              changed_when: true
+
+        - name: Wait until kube-dns exists and is owned by coredns-ha
+          # argv form for the same reason as above (preserve the dotted-key backslashes).
+          ansible.builtin.command:
+            argv:
+              - k3s
+              - kubectl
+              - -n
+              - kube-system
+              - get
+              - svc
+              - kube-dns
+              - -o
+              - 'jsonpath={.metadata.annotations.objectset\.rio\.cattle\.io/owner-name}'
+          register: _kubedns_owner_final
+          changed_when: false
+          retries: 30
+          delay: 5
+          until: _kubedns_owner_final.stdout == 'coredns-ha'
