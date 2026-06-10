@@ -33,7 +33,7 @@ spec:
           app:
             image:
               repository: nodered/node-red
-              tag: 4.1.11
+              tag: 5.0.0
 
             env:
               TZ: America/Los_Angeles
