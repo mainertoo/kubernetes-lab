@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: oauth2-proxy
-          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
           args:
             - --alpha-config=/etc/oauth2-proxy/config/oauth2-proxy.yaml
           env:
