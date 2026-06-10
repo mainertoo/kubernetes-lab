@@ -36,8 +36,9 @@ OAUTH_STATIC = {
     "enabled": True,
     "scope": "openid email profile",
     "buttonText": "Login with Authentik",
-    "autoRegister": True,        # create a user on first SSO login...
-    "autoLaunch": False,         # ...but keep the password form as the default
+    "autoRegister": False,       # existing Immich accounts only (link by email);
+                                 # no new account is created on unmatched SSO login
+    "autoLaunch": False,         # keep the password form as the default
     "storageLabelClaim": "preferred_username",
     "roleClaim": "immich_role",
     "mobileOverrideEnabled": False,  # rely on app.immich:///oauth-callback scheme
