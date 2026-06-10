@@ -90,3 +90,7 @@ Downloads/
 # Python bytecode (from local dev / pocket-bridge tests)
 __pycache__/
 *.pyc
+
+# Wallos populator — never commit financial CSVs or local creds (repo is public)
+scripts/wallos/*.csv
+scripts/wallos/credentials*.yaml
