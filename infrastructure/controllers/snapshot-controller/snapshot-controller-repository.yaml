@@ -9,7 +9,7 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: 5.0.4
+    tag: 5.1.0
   url: oci://ghcr.io/piraeusdatastore/helm-charts/snapshot-controller
   # NOTE: home-operations/charts-mirror only ever shipped 4.0.2 of this chart
   # (no 4.1+, no 5.x). Switched to the upstream piraeus publisher so we can
