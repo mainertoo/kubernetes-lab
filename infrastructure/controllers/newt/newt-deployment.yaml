@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: newt
-          image: fosrl/newt:1.12.5
+          image: fosrl/newt:1.13.0
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
