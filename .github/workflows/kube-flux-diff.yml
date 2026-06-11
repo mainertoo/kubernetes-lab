@@ -28,6 +28,7 @@ jobs:
             test
             --all-namespaces
             --enable-helm
+            --kube-version "1.35"
             --path /github/workspace/clusters/${{ matrix.cluster }}
             --verbose
 
