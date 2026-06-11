@@ -43,6 +43,7 @@ resources:
   - media/readmeabook/kustomization.yaml
   - media/calibre-web-automated/
   - media/shelfmark/
+  - mkdocs/kustomization.yaml
   - grocy/kustomization.yaml
   - mealie/kustomization.yaml
   - donetick/kustomization.yaml
