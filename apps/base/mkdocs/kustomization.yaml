@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mkdocs
+resources:
+  - mkdocs-namespace.yaml
+  - mkdocs-git-secret.sops.yaml
+  - mkdocs-content-pvc.yaml
+  - mkdocs-release.yaml
+  - mkdocs-ingressroute.yaml

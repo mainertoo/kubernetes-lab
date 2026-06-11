@@ -1,0 +1,151 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mkdocs
+  namespace: mkdocs
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      mkdocs:
+        # Single RWO content PVC -> one replica.
+        strategy: Recreate
+        containers:
+          # ---- git-sync: continuously mirror mainertoo/wiki (private) ----
+          # Runs as root so openssh accepts the 0400 root-owned deploy key
+          # (matches the in-cluster root pattern used by other apps).
+          git-sync:
+            image:
+              repository: registry.k8s.io/git-sync/git-sync
+              tag: v4.4.0
+            env:
+              GITSYNC_REPO: "git@github.com:mainertoo/wiki.git"
+              GITSYNC_REF: "main"
+              GITSYNC_ROOT: "/repo"
+              GITSYNC_LINK: "current"
+              GITSYNC_PERIOD: "60s"
+              GITSYNC_SSH: "true"
+              GITSYNC_SSH_KEY_FILE: "/etc/git-secret/ssh"
+              GITSYNC_SSH_KNOWN_HOSTS: "true"
+              GITSYNC_SSH_KNOWN_HOSTS_FILE: "/etc/git-secret/known_hosts"
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+
+          # ---- build: render the guides site on each sync (~1-2 min lag) ----
+          # Re-resolves /repo/current every loop so it always builds the latest
+          # git-synced worktree, writing static HTML into the shared emptyDir.
+          build:
+            image:
+              repository: ghcr.io/squidfunk/mkdocs-material
+              tag: 9.5.49
+            command:
+              - /bin/sh
+              - -c
+              - |
+                while true; do
+                  if [ -f /repo/current/guides/mkdocs.yml ]; then
+                    mkdocs build -f /repo/current/guides/mkdocs.yml -d /site --clean \
+                      || echo "[build] mkdocs build failed; will retry"
+                  else
+                    echo "[build] waiting for git-sync (/repo/current/guides/mkdocs.yml)"
+                  fi
+                  sleep 60
+                done
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+
+          # ---- web: serve the rendered static site (unprivileged nginx :8080) ----
+          web:
+            image:
+              repository: nginxinc/nginx-unprivileged
+              tag: 1.27-alpine
+            probes:
+              liveness: &webProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  periodSeconds: 20
+                  failureThreshold: 6
+              readiness: *webProbe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  # Generous: first boot waits for git-sync + first build.
+                  failureThreshold: 60
+                  periodSeconds: 5
+
+    service:
+      app:
+        controller: mkdocs
+        ports:
+          http:
+            port: 80
+            targetPort: 8080
+
+    persistence:
+      # git-sync working copy (the mkdocs-content PVC). git-sync writes; the
+      # build loop reads it.
+      repo:
+        existingClaim: mkdocs-content
+        advancedMounts:
+          mkdocs:
+            git-sync:
+              - path: /repo
+            build:
+              - path: /repo
+                readOnly: true
+
+      # Rendered static HTML handed from the build loop to nginx.
+      site:
+        type: emptyDir
+        advancedMounts:
+          mkdocs:
+            build:
+              - path: /site
+            web:
+              - path: /usr/share/nginx/html
+                readOnly: true
+
+      # Read-only deploy key + pinned github.com known_hosts for git-sync.
+      git-secret:
+        type: secret
+        name: mkdocs-git-secret
+        defaultMode: 0400
+        advancedMounts:
+          mkdocs:
+            git-sync:
+              - path: /etc/git-secret

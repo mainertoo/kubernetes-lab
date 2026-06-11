@@ -1,0 +1,16 @@
+# git-sync working copy of mainertoo/wiki. Deliberately NOT labelled for volsync
+# backup: the content is a read-only mirror of the private wiki repo and is fully
+# reproducible by re-syncing from git — git is the durable copy. Backing up a
+# git-sync worktree (hash-keyed symlink tree) would be redundant and incoherent.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mkdocs-content
+  namespace: mkdocs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 2Gi
