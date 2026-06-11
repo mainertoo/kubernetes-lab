@@ -62,7 +62,7 @@ spec:
           build:
             image:
               repository: ghcr.io/squidfunk/mkdocs-material
-              tag: 9.5.49
+              tag: 9.5.50
             command:
               - /bin/sh
               - -c
