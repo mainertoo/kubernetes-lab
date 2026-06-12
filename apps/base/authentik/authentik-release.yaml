@@ -18,6 +18,12 @@ spec:
         namespace: flux-system
 
   values:
+    # Mount declarative blueprints from SOPS-encrypted Secrets. The worker
+    # discovers any key ending in `.yaml` and applies it on a schedule.
+    blueprints:
+      secrets:
+        - authentik-blueprint-discord-signup
+
     global:
       postgresql:
         auth:
