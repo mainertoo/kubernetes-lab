@@ -83,9 +83,8 @@ resources:
   - hermes/kustomization.yaml
   - mac-ssh-egress/kustomization.yaml
 
-  ## old resources list (apps that have been disabled)
-  # - spoolman/kustomization.yaml
-  # - paperless-ngx/kustomization.yaml
-  # - decypharr/kustomization.yaml
-  # - notifiarr/kustomization.yaml
-  
+  ## Disabled apps (base manifests kept under apps/base/, no production overlay).
+  ## Re-enabling one requires recreating its apps/production/<app>/ overlay first.
+  # - spoolman/
+  # - stirling-pdf/
+  # - wg-easy/
