@@ -28,9 +28,12 @@ data:
               - X-authentik-meta-app
               - X-authentik-meta-version
               - Authorization
-            # If you want to tighten this later, switch to the regex below:
-            # authResponseHeadersRegex: "^(X-authentik-|Set-Cookie|Authorization)$"
-            authResponseHeadersRegex: ".*"
+            # Scoped to authentik identity + session headers only.
+            # Avoid ".*": it copies hop-by-hop/body headers (Content-Length,
+            # Content-Type, ...) from the auth response onto the proxied
+            # request, which intermittently corrupts upstreams (e.g. SABnzbd).
+            # Matches the authentik-sso Middleware CRD in authentik-middleware.yaml.
+            authResponseHeadersRegex: "^(X-authentik-|Set-Cookie|Authorization)$"
 
       routers:
         pve-whistler:
