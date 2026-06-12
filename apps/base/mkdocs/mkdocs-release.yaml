@@ -85,7 +85,7 @@ spec:
           web:
             image:
               repository: nginxinc/nginx-unprivileged
-              tag: 1.27-alpine
+              tag: 1.31-alpine
             probes:
               liveness: &webProbe
                 enabled: true
