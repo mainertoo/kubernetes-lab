@@ -1,18 +1,16 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: wg-easy
-  namespace: wg-easy
+  name: spoolman
   labels:
     # Label-driven volsync backup — ClusterPolicy volsync-pvc-backup-restore-kopia
-    # generates the volsync-wg-easy Secret + RS + RD in this namespace.
-    # /etc/wireguard holds the server key + all client configs — small but critical.
+    # generates the volsync-spoolman Secret + RS + RD in this namespace.
     backup: daily
     backup-engine: kopia
 spec:
-  storageClassName: ceph-rbd
   accessModes:
     - ReadWriteOnce
+  storageClassName: ceph-rbd
   resources:
     requests:
       storage: 2Gi

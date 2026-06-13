@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Spoolman — filament spool manager. Re-activated 2026-06 (was a disabled
+# fork leftover). PVC owned by apps/base/spoolman/spoolman-pvc.yaml with
+# `backup: daily` + `backup-engine: kopia`.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: spoolman
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/spoolman"
+  targetNamespace: spoolman
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+  - "../../../components/gatus/internal"
+  - "../../../components/gatus/external"
+  postBuild:
+    substitute:
+      APP: spoolman
+      APP_NAMESPACE: spoolman
+      SUBDOMAIN: spoolman
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PORT: '8000'
+      GATUS_PATH: "/"

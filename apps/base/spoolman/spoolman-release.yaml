@@ -30,7 +30,7 @@ spec:
               tag: 0.23.1
             env:
               - name: TZ
-                value: Europe/Copenhagen
+                value: America/Los_Angeles
               - name: SPOOLMAN_PORT
                 value: "8000"
               - name: SPOOLMAN_DIR_DATA
