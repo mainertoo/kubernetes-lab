@@ -1,6 +1,43 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
+apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-resources:
-  - config.yaml
-  - downloads.yaml
-  - app.yaml
+metadata:
+  name: jackett
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/jackett
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 15m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: jackett
+      APP_NAMESPACE: media
+
+      SUBDOMAIN: jackett
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /health
+      GATUS_PORT: "9117"
+      # GATUS_STATUS_INTERNAL: "200"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
