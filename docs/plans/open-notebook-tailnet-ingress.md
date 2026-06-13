@@ -1,6 +1,8 @@
 # Open Notebook tailnet ingress + Mac sleep hardening (planning doc)
 
-> **Status:** v3 — **CONVERGED** (2026-06-02, owner sign-off). 2 Codex adversarial passes: pass 1 (3C/4H/6M/4L) → pass 2 (0C/2H/4M/3L) → both pass-2 Highs dispositioned (one rejected as verified-false with a dangerous fix, one folded as test remediation). 0 Critical, 0 open High. Remaining items are implementation-time verifications (netpol label, ACL posture, streaming/redirect/stdio tests), not design flaws.
+> **✅ SHIPPED — deployed 2026-06-02 (PR #710), live over the tailnet.** Manifest: `apps/base/open-notebook/open-notebook-tailscale-ingress.yaml`. This doc is retained as the cited design reference (the manifest header points here). **Two user-side tasks remain open:** `sudo pmset -c sleep 0` on the MacBook (sleep hardening) and one real off-LAN test of the Codex→MCP path — see the DEPLOYED note below.
+>
+> **Status (historical):** v3 — **CONVERGED** (2026-06-02, owner sign-off). 2 Codex adversarial passes: pass 1 (3C/4H/6M/4L) → pass 2 (0C/2H/4M/3L) → both pass-2 Highs dispositioned (one rejected as verified-false with a dangerous fix, one folded as test remediation). 0 Critical, 0 open High. Remaining items are implementation-time verifications (netpol label, ACL posture, streaming/redirect/stdio tests), not design flaws.
 >
 > **DEPLOYED 2026-06-02 (PR #710).** Live: Ingress `open-notebook-tailscale` → tailnet device `open-notebook` @ `100.120.143.100` (`open-notebook.tuxedo-halosaur.ts.net`). Verified: HTTP 200 to the API over the tailnet (ACL is allow-all → no rule needed); no `API_URL` leak; Codex `/mcp` shows the full open-notebook toolset; transport = stdio by construction (so the H-2 SSE-over-L7 concern is moot). NetworkPolicy intentionally omitted. Pending: `sudo pmset -c sleep 0` (user) + a real off-LAN test. Usage guide: `codex-open-notebook` in the internal wiki.
 >
