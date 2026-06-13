@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: dawarich
 resources:
   - dawarich-namespace.yaml
+  - dawarich-media-pvc.yaml
   - dawarich-secret.sops.yaml
   - dawarich-release.yaml
   - dawarich-ingressroute.yaml

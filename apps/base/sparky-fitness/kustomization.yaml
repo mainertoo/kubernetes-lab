@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: sparky-fitness
 resources:
   - sparky-fitness-namespace.yaml
+  - sparky-fitness-media-pvc.yaml
   - sparky-fitness-secret.sops.yaml
   - sparky-fitness-release.yaml
   - sparky-fitness-ingressroute.yaml
