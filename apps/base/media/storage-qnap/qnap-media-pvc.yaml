@@ -3,6 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: qnap-media-pvc
   namespace: media
+  # Intentionally NOT volsync-labelled: 20Ti media library on the QNAP NAS. The
+  # NAS is the source of truth and has its own backup regime; this is far too
+  # large for volsync/Kopia and is static external storage, not cluster state.
 spec:
   accessModes:
     - ReadWriteMany

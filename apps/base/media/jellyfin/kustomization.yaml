@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: media
 resources:
   # - jellyfin-namespace.yaml
-  #- jellyfin-config-pvc.yaml
   - jellyfin-release.yaml
   - jellyfin-ingressroute.yaml
   - jellyfin-pvc.yaml
