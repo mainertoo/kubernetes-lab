@@ -10,6 +10,7 @@ metadata:
     backup: daily
     backup-engine: kopia
   annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
     # Override mover cache PVC size (policy default 5Gi). Big-data
     # sources benefit from a larger cache to reduce repeat-fetch from
     # the Kopia repo during the initial scan.
