@@ -31,7 +31,7 @@ resources:
   - media/dispatcharr/kustomization.yaml
   - media/storage-qnap/kustomization.yaml
   - media/plex/kustomization.yaml
-  - media/notifiarr/
+  - media/notifiarr/kustomization.yaml
   - media/tautulli/kustomization.yaml
   - media/jackett/kustomization.yaml
   - media/zilean/
@@ -41,8 +41,8 @@ resources:
   - immich/
   - dumb/kustomization.yaml
   - media/readmeabook/kustomization.yaml
-  - media/calibre-web-automated/
-  - media/shelfmark/
+  - media/calibre-web-automated/kustomization.yaml
+  - media/shelfmark/kustomization.yaml
   - mkdocs/kustomization.yaml
   - grocy/kustomization.yaml
   - mealie/kustomization.yaml

@@ -1,5 +1,45 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
+apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-resources:
-  - app.yaml
-  - config.yaml
+metadata:
+  name: shelfmark
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/shelfmark
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: shelfmark
+      APP_NAMESPACE: media
+
+      SUBDOMAIN: shelfmark
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      GATUS_PORT: "8084"
+
+      GATUS_APP: shelfmark
+      GATUS_STATUS_INTERNAL: "200"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
