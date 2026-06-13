@@ -56,7 +56,7 @@ spec:
           app:
             image:
               repository: registry.gitlab.com/crafty-controller/crafty-4
-              tag: latest
+              tag: "latest@sha256:d2f61fcabb4756a63bc8538fb4f5e35ffddca3f1916a733c95a31c705c697742"
             env:
               - name: TZ
                 value: America/Los_Angeles

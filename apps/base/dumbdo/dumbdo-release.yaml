@@ -28,7 +28,7 @@ spec:
           app:
             image:
               repository: dumbwareio/dumbdo
-              tag: latest
+              tag: "latest@sha256:03a01d15847ba59ed845a3bcf60bba22889e1d27fc9a66ab31ccd7195b52efcc"
             env:
               TZ: America/Los_Angeles
               PUID: "1000"
