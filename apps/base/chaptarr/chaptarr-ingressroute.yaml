@@ -14,5 +14,5 @@ spec:
       kind: Rule
       services:
         - name: chaptarr
-          port: 8787
+          port: 8789
   tls: {}
