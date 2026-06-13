@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: media
 resources:
   - plex-ingressroute.yaml
-  # - plex-config-pvc.yaml
   - plex-release.yaml
   # - qnap-media-pv.yaml
   # - qnap-media-pvc.yaml

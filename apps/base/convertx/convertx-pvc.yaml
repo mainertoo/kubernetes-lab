@@ -3,6 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: convertx
   namespace: convertx
+  # Intentionally NOT volsync-labelled: transient file-conversion workspace +
+  # history. Uploaded/converted files are ephemeral; nothing here warrants a
+  # point-in-time restore. Host-level Layer-3 RBD Kopia snapshot covers DR.
 spec:
   storageClassName: ceph-rbd
   accessModes: [ReadWriteOnce]

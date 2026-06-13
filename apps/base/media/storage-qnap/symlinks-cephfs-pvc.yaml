@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: symlinks-cephfs
   namespace: media
+  # Intentionally NOT volsync-labelled: the symlink farm is fully reproducible —
+  # zurg/riven rebuild it from the debrid mounts on startup. No durable state.
 spec:
   storageClassName: cephfs
   accessModes:

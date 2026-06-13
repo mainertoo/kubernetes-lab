@@ -3,6 +3,10 @@ kind: PersistentVolumeClaim
 metadata:
   name: gatus
   namespace: gatus
+  # Intentionally NOT volsync-labelled: holds only Gatus's check-result history
+  # (SQLite). Endpoint config lives in git and is re-monitored on restart, so the
+  # data is reproducible. The pve-ugreen host-level Layer-3 RBD Kopia snapshot is
+  # the safety net if ever needed.
 spec:
   storageClassName: ceph-rbd
   accessModes:

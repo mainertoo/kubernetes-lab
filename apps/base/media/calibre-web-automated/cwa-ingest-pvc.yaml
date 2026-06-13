@@ -3,6 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: cwa-book-ingest-cephfs
   namespace: media
+  # Intentionally NOT volsync-labelled: this is the calibre-web-automated book
+  # *ingest* drop folder — a transient scratch area. Files land here, get imported
+  # into the calibre library (which IS backed up), then are removed.
 spec:
   accessModes:
     - ReadWriteMany

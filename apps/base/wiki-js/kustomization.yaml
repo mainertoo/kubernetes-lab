@@ -3,11 +3,14 @@ kind: Kustomization
 namespace: wiki-js
 resources:
   - wiki-js-namespace.yaml
-  # PVCs owned by volsync-v2 (bootstrap on first deploy, plain after settle).
-  # wiki-js-data managed by wiki-js-data kustomization (cephfs 20Gi)
-  # wiki-js-db   managed by wiki-js-db   kustomization (ceph-rbd 10Gi, was wiki-js-postgres)
-  # - wiki-js-postgres-pvc.yaml
-  # - wiki-js-data-pvc.yaml
+  # Storage is owned by sibling Flux Kustomizations, not this base:
+  #   - wiki-js-data (cephfs 20Gi) — app uploads/assets, volsync backup: daily,
+  #     deployed from apps/base/wiki-js-data/ via apps/production/wiki-js/data.yaml
+  #   - the Postgres DB is CNPG (cluster wiki-js-cnpg-db), deployed from
+  #     apps/base/wiki-js/db-cnpg/ via apps/production/wiki-js/db-cnpg.yaml;
+  #     backed up daily by the barman-cloud plugin ScheduledBackup to S3.
+  # The legacy in-tree postgres sidecar + its PVC were removed in the Phase 5b
+  # CNPG migration — no PVC resources belong here.
   - wiki-js-secret.sops.yaml
   - wiki-js-release.yaml
   - wiki-js-ingressroute.yaml
