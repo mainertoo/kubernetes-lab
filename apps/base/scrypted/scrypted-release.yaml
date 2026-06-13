@@ -32,6 +32,12 @@ spec:
         strategy: Recreate
         containers:
           app:
+            resources:
+              requests:
+                cpu: 200m
+                memory: 768Mi
+              limits:
+                memory: 4Gi
             image:
               repository: ghcr.io/koush/scrypted
               tag: "latest@sha256:f23251dad07cf02b4b6b2e364e7948ab9fb77656e31f226186c2ba5304ebd2cd"

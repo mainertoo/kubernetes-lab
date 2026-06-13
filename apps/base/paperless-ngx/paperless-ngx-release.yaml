@@ -27,6 +27,12 @@ spec:
       paperless-ngx:
         containers:
           app:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 768Mi
+              limits:
+                memory: 3Gi
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
               tag: 2.20.15

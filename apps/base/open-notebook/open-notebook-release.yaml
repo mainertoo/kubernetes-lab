@@ -31,6 +31,12 @@ spec:
         strategy: Recreate
         containers:
           main:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 768Mi
+              limits:
+                memory: 2Gi
             image:
               repository: lfnovo/open_notebook
               tag: 1.9.0-single
