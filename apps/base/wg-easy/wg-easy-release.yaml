@@ -54,7 +54,15 @@ spec:
                 protocol: UDP
 
     defaultPodOptions:
-      # sysctls required for WG routing/marks (matches your Swarm sysctls)
+      # sysctls required for WG routing/marks (matches your Swarm sysctls).
+      # ⚠️ These are "unsafe" namespaced sysctls. K3s kubelets reject them at
+      # admission (SysctlForbidden) UNLESS each is listed in the kubelet's
+      # --allowed-unsafe-sysctls. Before re-activating wg-easy (see
+      # apps/production/kustomization.yaml), EITHER add these via an Ansible K3s
+      # config drop-in (kubelet-arg "allowed-unsafe-sysctls=net.ipv4.ip_forward,
+      # net.ipv4.conf.all.src_valid_mark,net.ipv6.conf.all.disable_ipv6,
+      # net.ipv6.conf.all.forwarding,net.ipv6.conf.default.forwarding" on workers),
+      # OR delete this sysctls block and let the privileged container set them.
       securityContext:
         sysctls:
           - name: net.ipv4.ip_forward
