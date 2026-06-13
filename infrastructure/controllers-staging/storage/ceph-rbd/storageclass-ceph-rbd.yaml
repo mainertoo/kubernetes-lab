@@ -1,0 +1,31 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-rbd
+provisioner: rbd.csi.ceph.com
+parameters:
+  clusterID: "2b142655-7791-4f14-8934-0ea16121b652"
+  # Dedicated staging pool on the shared Ceph cluster — own PGs + a 1 TiB
+  # quota, so staging load lands on its own placement groups and can't
+  # pressure production's k3s-rbd. The scoped cephx user (ceph-rbd-secret)
+  # can only address this pool.
+  pool: staging-rbd
+  imageFormat: "2"
+  imageFeatures: "layering"
+
+  # Secrets for provisioning and node operations
+  csi.storage.k8s.io/provisioner-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
+  csi.storage.k8s.io/node-stage-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
+
+  # Monitors (space-separated)
+  monitors: "192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789"
+
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+mountOptions:
+  - discard
+volumeBindingMode: Immediate
