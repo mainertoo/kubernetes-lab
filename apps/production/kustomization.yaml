@@ -70,14 +70,6 @@ resources:
   - zurg/kustomization.yaml
   - rclone/kustomization.yaml
   - spoolman/kustomization.yaml
-  # wg-easy DISABLED 2026-06-13: its pod-level unsafe sysctls
-  # (net.ipv4.conf.all.src_valid_mark, ip_forward, ipv6 forwarding) are rejected
-  # at admission with SysctlForbidden — the kubelet has no --allowed-unsafe-sysctls
-  # allowlist for them, so the ReplicaSet spun 12.5k failed pods. Re-enable only
-  # AFTER either (a) allowlisting those sysctls on the worker kubelets via Ansible
-  # K3s config drop-in, or (b) dropping the pod sysctls and relying on the
-  # privileged container to set them. See apps/base/wg-easy/wg-easy-release.yaml.
-  # - wg-easy/kustomization.yaml
 
   - loki/kustomization.yaml
   - alloy/kustomization.yaml
