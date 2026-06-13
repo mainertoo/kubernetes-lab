@@ -1,7 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: spoolman  
+namespace: spoolman
 resources:
   - spoolman-namespace.yaml
+  - spoolman-pvc.yaml
   - spoolman-release.yaml
   - spoolman-ingressroute.yaml

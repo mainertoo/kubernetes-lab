@@ -69,6 +69,8 @@ resources:
   - drawio/kustomization.yaml
   - zurg/kustomization.yaml
   - rclone/kustomization.yaml
+  - spoolman/kustomization.yaml
+  - wg-easy/kustomization.yaml
 
   - loki/kustomization.yaml
   - alloy/kustomization.yaml
@@ -82,9 +84,3 @@ resources:
 
   - hermes/kustomization.yaml
   - mac-ssh-egress/kustomization.yaml
-
-  ## Disabled apps (base manifests kept under apps/base/, no production overlay).
-  ## Re-enabling one requires recreating its apps/production/<app>/ overlay first.
-  # - spoolman/
-  # - stirling-pdf/
-  # - wg-easy/
