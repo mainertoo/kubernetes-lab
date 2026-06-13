@@ -4,3 +4,4 @@ kind: Kustomization
 # to opt it into the staging cluster. Pattern matches apps/production/.
 resources:
   - meshcentral/kustomization.yaml
+  - chaptarr/kustomization.yaml
