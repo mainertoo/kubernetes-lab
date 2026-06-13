@@ -14,15 +14,26 @@ kind: Kustomization
 #   - traefik-proxy  — staging-specific (./traefik-proxy/). Uses
 #                      the staging wildcard cert; no Authentik
 #                      middleware, no PVE file provider.
+#   - ceph-csi-rbd   — RBD CSI driver via the shared, cluster-agnostic
+#                      manifests (../controllers/ceph-csi-base +
+#                      ceph-csi-rbd; same Ceph cluster as production). The
+#                      StorageClass is staging-specific (./storage/ceph-rbd/)
+#                      and points at the dedicated, quota'd `staging-rbd`
+#                      pool through a cephx user scoped to that pool only —
+#                      isolated from production's k3s-rbd.
 #
 # Deliberately NOT in staging yet (add later when needed):
 #   - newt           — pangolin tunnel client for external access at
 #                      *.staging.mainertoo.com. Needs a fresh pangolin
 #                      client registration; follow-up PR once you have
 #                      the secret.
-#   - snapshot-controller / volsync / kyverno / cnpg / ceph-csi-* /
+#   - cephfs / snapshot-controller / volsync / kyverno / cnpg /
 #     cloudflared / tailscale-operator / intel-gpu / pvc-plumber /
 #     kube-prometheus-stack / etc.
 resources:
   - ../controllers/cert-manager
   - ./traefik-proxy
+  # Ceph RBD storage — shared driver manifests + staging-only StorageClass.
+  - ../controllers/ceph-csi-base
+  - ../controllers/ceph-csi-rbd
+  - ./storage/ceph-rbd
