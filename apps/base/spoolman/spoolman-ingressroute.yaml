@@ -4,7 +4,7 @@ metadata:
   name: spoolman-ingressroute
   namespace: spoolman
   annotations:
-    gethomepage.dev/href: "https://${SUBDOMAIN:=placeholder}.hephaestus.markmk.com"
+    gethomepage.dev/href: "https://spoolman.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Spoolman"
     gethomepage.dev/description: "Application for managing filament spools."
@@ -18,17 +18,17 @@ spec:
     - websecure
   routes:
     # Route WITHOUT middleware for /api
-    - match: Host(`${SUBDOMAIN:=placeholder}.hephaestus.markmk.com`) && PathPrefix(`/api`)
+    - match: Host(`spoolman.lab.mainertoo.com`) && PathPrefix(`/api`)
       kind: Rule
       services:
         - name: spoolman
           port: 8000
 
-    - match: Host(`${SUBDOMAIN:=placeholder}.hephaestus.markmk.com`)
+    - match: Host(`spoolman.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: spoolman
           port: 8000
       middlewares:
-        - name: tinyauth
-          namespace: tinyauth
+        - name: authentik-sso
+          namespace: traefik-system
