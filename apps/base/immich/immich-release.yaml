@@ -38,6 +38,12 @@ spec:
             intel.feature.node.kubernetes.io/gpu: "true"
         containers:
           app:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
             image:
               repository: ghcr.io/immich-app/immich-server
               tag: v2.7.5
@@ -111,6 +117,12 @@ spec:
             intel.feature.node.kubernetes.io/gpu: "true"
         containers:
           app:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 3Gi
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
               tag: v2.7.5-openvino

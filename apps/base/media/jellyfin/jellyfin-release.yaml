@@ -32,6 +32,12 @@ spec:
 
         containers:
           app:
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                memory: 4Gi
             image:
               repository: ghcr.io/jellyfin/jellyfin
               tag: 10.11.11
