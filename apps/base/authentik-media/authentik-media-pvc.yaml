@@ -2,6 +2,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: authentik-media
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
   labels:
     # Phase 5b of the volsync label-driven restore project.
     # ClusterPolicy volsync-pvc-backup-restore matches this label and
