@@ -1,0 +1,80 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app chaptarr
+  namespace: chaptarr
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      chaptarr:
+        type: deployment
+        replicas: 1
+        containers:
+          app:
+            # Community-maintained image — Chaptarr is a Readarr fork that handles
+            # audiobooks + ebooks in one instance. No official/GitHub image yet,
+            # only this Docker Hub build, and only a `latest` tag is published
+            # (nothing to pin — Renovate has no version stream to track here).
+            image:
+              repository: robertlordhood/chaptarr
+              tag: "latest"
+            env:
+              TZ: "America/Los_Angeles"
+              # Servarr defaults: PUID/PGID drive file ownership on /config.
+              PUID: "1000"
+              PGID: "1000"
+            # Servarr exposes /ping, but on first boot the app generates its DB +
+            # config which can take a bit; probes left off for the staging eval to
+            # avoid masking a real crash loop. Tighten to a /ping HTTP probe on
+            # 8787 once it's confirmed booting cleanly.
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+
+    service:
+      app:
+        enabled: true
+        controller: chaptarr
+        ports:
+          http:
+            # Readarr-lineage default web/API port.
+            port: 8787
+
+    persistence:
+      config:
+        existingClaim: chaptarr
+        globalMounts:
+          - path: /config
+      # NOTE: no media/downloads volumes wired for the eval — this just brings up
+      # the UI on local-path config storage so the app can be assessed. Add
+      # /audiobooks /books /downloads mounts (NFS/ceph) when promoting for real use.
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi

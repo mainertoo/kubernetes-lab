@@ -1,0 +1,18 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: chaptarr-ingressroute
+  namespace: chaptarr
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    # Hostname is hardcoded for the staging eval. On production promotion this
+    # becomes chaptarr.lab.mainertoo.com.
+    # NOTE: no authentik-sso middleware — Servarr apps have their own auth and an
+    # API key; SSO in front would break the API/agent clients during evaluation.
+    - match: Host(`chaptarr.staging.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: chaptarr
+          port: 8787
+  tls: {}

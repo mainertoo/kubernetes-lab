@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chaptarr
+  # POC NOTE (staging): using `local-path` because staging has no ceph-rbd yet.
+  # When staging's ceph-csi-rbd is provisioned (and on production promotion),
+  # swap storageClassName -> ceph-rbd and add the backup labels:
+  #   labels: { backup: daily, backup-engine: kopia }
+  # plus the dataSourceRef stanza, matching apps/base/donetick/donetick-pvc.yaml.
+spec:
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
