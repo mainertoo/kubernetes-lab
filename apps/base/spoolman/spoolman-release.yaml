@@ -45,6 +45,16 @@ spec:
               startup:
                 enabled: false
 
+    defaultPodOptions:
+      # spoolman runs as UID/GID 1000 and writes to /data. ceph-rbd PVCs mount
+      # root:root, so without fsGroup the non-root process can't write its data
+      # dir (check_write_permissions → SystemExit(1) crashloop). fsGroup makes
+      # the volume group-owned by 1000; OnRootMismatch avoids a recursive chown
+      # when the top-level dir is already correct.
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
     service:
       app:
         controller: spoolman
