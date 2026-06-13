@@ -1,6 +1,8 @@
 # CNPG Restore Ergonomics Refactor (planning doc)
 
-> **Status:** v7 — Codex review pass 6 incorporated 2026-05-20. Pending pass 7 for convergence verdict.
+> **✅ SHIPPED — implemented in PR #518 (merged 2026-05-20):** `scripts/dr-flip.sh` (+ `scripts/dr-flip.sh.bats`), the `v0..v11` lineage `externalClusters[]` entries in `components/cnpg-cluster/recovery/bootstrap-patch.yaml`, and the CI gates (`.github/workflows/cnpg-overlay-guard.yml`, `cnpg-cleanup-attestation.yml`). This doc is retained as the cited design + Codex-review reference (see `dr-flip.sh`, the cnpg CI workflows, and the `cnpg-v0-cleanup` PR template); the version history below is preserved for that purpose.
+>
+> **Status (historical):** v7 — Codex review pass 6 incorporated 2026-05-20. Pending pass 7 for convergence verdict.
 >
 > **v7 changes** (Codex pass-6: 2 High; both are v6 internal inconsistencies, not new design):
 > - §6: High — "escape hatch is automatic" claim WAS WRONG. The `--restore-from-lineage v0` flag is mandatory during migration window; v7 corrects the contradiction with §4 script spec and adds an explicit invocation example.

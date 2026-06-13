@@ -1,6 +1,8 @@
 # Pocket AI → Open Notebook Pipeline (planning doc)
 
-> **Status:** v12 — **RE-CONVERGED** at Codex pass 12 (2026-05-30). 0 Critical, 0 High; 2 Lows (P12-001 cardinality callout, P12-002 wording drift) folded in as pre-implementation patches. Embed-verification subsystem (v8+ additions, post-Phase 0e live findings) is now implementation-ready alongside the original v7-converged plan.
+> **✅ SHIPPED — live in production:** `apps/base/pocket-bridge/` (release, PVC, ServiceMonitor, PrometheusRule, NetworkPolicies, SOPS secret), activated via `apps/production/pocket-bridge/`, image built by `.github/workflows/pocket-bridge-image.yaml`. This doc is retained as the cited reference (alert table §8.2 → `docs/observability.md`; DR fallback §10 → `scripts/pocket-manual-ingest.sh`; D10 → `docs/backup-system-wiki.md`; single-replica rationale → `docs/ha-architecture.md`); the version history below is preserved for that purpose.
+>
+> **Status (historical):** v12 — **RE-CONVERGED** at Codex pass 12 (2026-05-30). 0 Critical, 0 High; 2 Lows (P12-001 cardinality callout, P12-002 wording drift) folded in as pre-implementation patches. Embed-verification subsystem (v8+ additions, post-Phase 0e live findings) is now implementation-ready alongside the original v7-converged plan.
 >
 > Convergence summary: original plan v1→v7 (7 passes), Phase 0e live findings added in v8, embed-verification subsystem re-convergence v8→v12 (5 more passes). Total: 12 passes across two convergence phases.
 >
