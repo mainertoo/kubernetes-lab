@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - flux-system
   - infrastructure.yaml
-  - apps.yaml
+  - apps-staging.yaml
   - infra-repositories.yaml
   # volsync intentionally omitted from staging — depends on
   # kube-prometheus-stack's ServiceMonitor CRD which staging doesn't

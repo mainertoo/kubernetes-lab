@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  # File renamed apps.yaml -> apps-staging.yaml for symmetry with
+  # clusters/production/apps-production.yaml. The CR metadata.name is
+  # deliberately KEPT as "apps" — renaming a Flux Kustomization prunes its
+  # children, which here would delete + recreate staging meshcentral (incl. its
+  # local-path PVC). Not worth it for a cosmetic rename.
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 10m
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./apps/staging
+  prune: true
+  wait: true
+  force: true
+  timeout: 5m0s
