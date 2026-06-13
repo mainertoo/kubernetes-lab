@@ -18,7 +18,7 @@ spec:
 
       containers:
         - name: alloy
-          image: grafana/alloy:latest
+          image: grafana/alloy:latest@sha256:f94b1c82957accb77cd11385fd5e3600758ef1b1ab79557c97319ad28590735a
           imagePullPolicy: IfNotPresent
 
           args:

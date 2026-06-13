@@ -36,7 +36,7 @@ spec:
               mountPath: /config
       containers:
         - name: zurg
-          image: ghcr.io/debridmediamanager/zurg:latest
+          image: ghcr.io/debridmediamanager/zurg:latest@sha256:924f1737814a72fddc87f90b2cb3056a0d25ecad4e8789d3d5294cf4e1aa0d07
           imagePullPolicy: Always
           volumeMounts:
             - name: merged-config

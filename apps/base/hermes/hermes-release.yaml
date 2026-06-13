@@ -43,7 +43,7 @@ spec:
           fix-ssh-key-perms:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: latest
+              tag: "latest@sha256:d0ba42c0777f3e9455694a74d3959fa0d46b07c3ab4597f7e36a785d9ad36b63"
             command: ["/bin/sh", "-c"]
             args:
               - |

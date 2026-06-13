@@ -35,7 +35,7 @@ spec:
             # (nothing to pin — Renovate has no version stream to track here).
             image:
               repository: robertlordhood/chaptarr
-              tag: "latest"
+              tag: "latest@sha256:4b79c55b61044ddc1c3bfa7812c559e7a76dc986d9fade45db3271d31881dc6f"
             env:
               TZ: "America/Los_Angeles"
               # Servarr defaults: PUID/PGID drive file ownership on /config.
