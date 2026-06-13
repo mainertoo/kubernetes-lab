@@ -2,6 +2,11 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: jackett-downloads
+  annotations:
+    # round-5 consolidation Phase 1 (temporary): protect this live PVC from GC
+    # while ownership transfers from the standalone jackett-downloads-pvc Flux
+    # Kustomization into the jackett app Kustomization. Removed in Phase 3.
+    kustomize.toolkit.fluxcd.io/prune: disabled
   # No backup labels: this PVC is a transient indexer downloads scratch dir
   # (Jackett→riven) that has never held data — the mover reported Successful
   # but wrote NO Kopia snapshot, so the oracle correctly read `fresh`.

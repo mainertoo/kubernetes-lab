@@ -2,6 +2,13 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: jackett-config
+  annotations:
+    # round-5 consolidation Phase 1 (temporary): protect this live PVC from GC
+    # while ownership transfers from the standalone jackett-config-pvc Flux
+    # Kustomization into the jackett app Kustomization. Without it, the
+    # standalone Kustomization's prune could delete the PVC mid-transfer.
+    # Removed in Phase 3 once the jackett app Kustomization owns it.
+    kustomize.toolkit.fluxcd.io/prune: disabled
   labels:
     # Phase 5b of the volsync label-driven restore project.
     # ClusterPolicy volsync-pvc-backup-restore matches this label and
