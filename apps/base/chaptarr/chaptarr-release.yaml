@@ -59,8 +59,9 @@ spec:
         controller: chaptarr
         ports:
           http:
-            # Readarr-lineage default web/API port.
-            port: 8787
+            # Chaptarr listens on 8789 (the fork bumped off Readarr's 8787 —
+            # confirmed via the container's "Now listening on: http://[::]:8789").
+            port: 8789
 
     persistence:
       config:
