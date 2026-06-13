@@ -10,7 +10,7 @@ resources:
   - authentik/
   - vaultwarden/kustomization.yaml
   - bentopdf/kustomization.yaml
-  - calibre/
+  - calibre/kustomization.yaml
   - home-assistant/zigbee2mqtt/kustomization.yaml
   - home-assistant/mosquitto/kustomization.yaml
   - home-assistant/esphome/kustomization.yaml

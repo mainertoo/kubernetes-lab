@@ -4,6 +4,7 @@ namespace: authentik
 
 resources:
   - authentik-namespace.yaml
+  - authentik-media-pvc.yaml
   - authentik-ingressroute.yaml
   - authentik-release.yaml
   - authentik-postgresql-secret.sops.yaml

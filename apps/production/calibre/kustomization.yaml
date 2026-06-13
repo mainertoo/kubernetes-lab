@@ -1,6 +1,47 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
+apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-resources:
-  - app.yaml
-  - config.yaml
-  - library.yaml
+metadata:
+  name: calibre
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/calibre
+  targetNamespace: media
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: calibre
+      APP_NAMESPACE: media
+
+      SUBDOMAIN: calibre
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      # Back to the standard 80 (now backed by the health sidecar)
+      GATUS_PORT: "80"
+
+      # service name is calibre
+      GATUS_APP: calibre
+      GATUS_STATUS_INTERNAL: "200"
+
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base

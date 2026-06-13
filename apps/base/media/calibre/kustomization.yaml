@@ -1,9 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: media
-# Calibre's PVCs are NOT defined here — they live in their own Flux Kustomizations:
-# apps/base/calibre-config/ and apps/base/calibre-library/ (wired via apps/production/calibre/).
 resources:
+  - calibre-pvc.yaml
+  - calibre-library-cephfs-pvc.yaml
   - calibre-secret.sops.yaml
   - calibre-release.yaml
   - calibre-ingressroute.yaml
