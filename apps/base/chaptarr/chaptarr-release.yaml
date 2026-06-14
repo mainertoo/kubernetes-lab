@@ -68,9 +68,15 @@ spec:
         existingClaim: chaptarr
         globalMounts:
           - path: /config
-      # NOTE: no media/downloads volumes wired for the eval — this just brings up
-      # the UI on local-path config storage so the app can be assessed. Add
-      # /audiobooks /books /downloads mounts (NFS/ceph) when promoting for real use.
+      # Throwaway eval library on the isolated staging-rbd pool (chaptarr-media
+      # PVC). Holds COPIES of the audiobook (ABS/QNAS) + ebook (CWA/calibre)
+      # libraries — Chaptarr only ever touches copies, never the originals. In
+      # the Chaptarr UI, add root folders pointing at /media/audiobooks and
+      # /media/ebooks. No downloads volume — eval is import/metadata only.
+      media:
+        existingClaim: chaptarr-media
+        globalMounts:
+          - path: /media
 
     resources:
       requests:
