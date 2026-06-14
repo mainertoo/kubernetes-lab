@@ -85,11 +85,17 @@ spec:
                     path: /identity
                     port: 32400
                   periodSeconds: 10
+                  # Plex can be slow to answer /identity during library/DB
+                  # work; a 1s timeout (the default) SIGKILLs it mid-task.
+                  timeoutSeconds: 10
+                  failureThreshold: 5
               readiness: *probes
               startup:
                 enabled: true
                 spec:
-                  failureThreshold: 30
+                  # Generous budget so a post-disruption start (e.g. DB repair
+                  # after a pod recreation) completes without being killed.
+                  failureThreshold: 60
                   periodSeconds: 10
 
     defaultPodOptions:
@@ -98,6 +104,11 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        # plex's /config is a large cephfs tree; without OnRootMismatch the
+        # kubelet recursively chowns it on EVERY pod start (minutes-long
+        # VolumePermissionChangeInProgress), which is what turned the #883
+        # rollout into a crashloop. Skip the chown when the root is already 1000.
+        fsGroupChangePolicy: OnRootMismatch
         supplementalGroups:
           - 991
 
