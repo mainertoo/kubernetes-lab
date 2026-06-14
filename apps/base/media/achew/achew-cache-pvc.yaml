@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: achew-cache
+  namespace: media
+  # HuggingFace ASR model cache (whisper title transcription). Reproducible —
+  # re-downloaded on demand — so no backup labels.
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi

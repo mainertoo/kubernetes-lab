@@ -1,0 +1,76 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: achew
+  namespace: media
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      achew:
+        containers:
+          app:
+            image:
+              repository: sirgibblets/achew
+              tag: 1.8.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              # Parallel audio workers. Unset = auto (by CPU/memory). Pin low to
+              # bound the blast radius of whisper transcription on shared nodes.
+              # - name: ACHEW_WORKER_COUNT
+              #   value: "2"
+            # NOTE: probes left disabled — Achew has no documented health path
+            # and uses an on-disk config store; tight liveness probes have
+            # corrupted SQLite on sibling media apps. Enable a generous readiness
+            # check once a known-good endpoint is confirmed.
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+
+    service:
+      app:
+        controller: achew
+        ports:
+          http:
+            port: 8000
+
+    persistence:
+      # ABS URL + API key + transcription/LLM settings (entered via the web UI
+      # on first run). Backed up daily — see achew-pvc.yaml.
+      config:
+        existingClaim: achew-config
+        globalMounts:
+          - path: /achew/app/config
+      # HuggingFace ASR model cache — large, reproducible. See achew-cache-pvc.yaml.
+      cache:
+        existingClaim: achew-cache
+        globalMounts:
+          - path: /root/.cache/huggingface/hub
+      # Scratch space where Achew downloads each audiobook from ABS for analysis.
+      # Kept off the container writable layer; sized by node ephemeral storage.
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp/achew
