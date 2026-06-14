@@ -4,5 +4,6 @@ namespace: chaptarr
 resources:
   - chaptarr-namespace.yaml
   - chaptarr-pvc.yaml
+  - chaptarr-media-pvc.yaml
   - chaptarr-release.yaml
   - chaptarr-ingressroute.yaml
