@@ -33,7 +33,7 @@ spec:
           main:
             image:
               repository: ghcr.io/sysadminsmedia/homebox
-              tag: "0.26.1"
+              tag: "0.26.2"
             env:
               TZ: America/Los_Angeles
               HBOX_MODE: production
