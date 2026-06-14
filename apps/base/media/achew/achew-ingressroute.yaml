@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: achew-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://achew.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Achew"
+    gethomepage.dev/description: "Audiobook Chapter Extraction Wizard"
+    gethomepage.dev/app: achew
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "sh-audiobookshelf.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`achew.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: achew
+          port: 8000
+          scheme: http
+  tls: {}

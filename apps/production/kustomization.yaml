@@ -1,6 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - media/achew/kustomization.yaml
   - mac-llama-egress/kustomization.yaml
   - open-webui/kustomization.yaml
   - pocket-bridge/kustomization.yaml
