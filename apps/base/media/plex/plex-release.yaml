@@ -6,6 +6,11 @@ metadata:
 spec:
   interval: 30m
   releaseName: plex
+  # plex's large cephfs /config does a slow fsGroup chown + DB init on a fresh
+  # pod (several minutes). The default 5m Helm timeout was shorter than that, so
+  # every upgrade "failed" and remediation rolled back to a broken revision in a
+  # loop. Give Helm enough patience to let the (probe-protected) pod come up.
+  timeout: 20m
 
   chartRef:
     kind: OCIRepository
