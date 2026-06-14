@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chaptarr-media
+  # THROWAWAY eval volume on the isolated staging-rbd pool (1 TiB quota). Holds
+  # COPIES of the audiobook (ABS → QNAS NFS) + ebook (CWA → calibre cephfs)
+  # libraries so the Chaptarr alpha only ever touches copies, never the
+  # originals. Deliberately NO backup labels — disposable; prune the app to
+  # reclaim the whole ~258 GiB.
+spec:
+  storageClassName: ceph-rbd
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 350Gi
