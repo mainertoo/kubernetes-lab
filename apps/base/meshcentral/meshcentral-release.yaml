@@ -43,10 +43,9 @@ spec:
               REVERSE_PROXY_TLS_PORT: "443"
               # NeDB (built-in) — fine for an AMT-only console (a handful of devices).
               USE_MONGODB: "false"
-              # ⚠️ Re-seed sequencing: kept "true" so the FIRST visit after the
-              # production cutover can create the admin account. FLIP TO "false"
-              # in a follow-up commit once that account exists (re-seed = fresh DB).
-              ALLOW_NEW_ACCOUNTS: "true"
+              # Admin account created 2026-06-15 after the prod re-seed; locked
+              # down so no further self-signups are possible.
+              ALLOW_NEW_ACCOUNTS: "false"
               IFRAME: "false"
               WEBRTC: "false"
               ALLOWPLUGINS: "false"
