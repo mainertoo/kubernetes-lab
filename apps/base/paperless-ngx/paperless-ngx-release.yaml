@@ -56,8 +56,11 @@ spec:
               # Redis inside this pod
               PAPERLESS_REDIS: redis://localhost:6379
 
-              # We’re *not* using external Tika
+              # Tika + Gotenberg run as sidecars in this pod (see below)
+              # so office formats (docx/odt/xlsx/email) can be ingested.
               PAPERLESS_TIKA_ENABLED: "1"
+              PAPERLESS_TIKA_ENDPOINT: http://localhost:9998
+              PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://localhost:3000
 
               PAPERLESS_TIME_ZONE: America/Los_Angeles
               PAPERLESS_URL: https://paperless.lab.mainertoo.com
@@ -79,6 +82,34 @@ spec:
             image:
               repository: docker.io/library/redis
               tag: "8.8.0"
+
+          # Apache Tika — parses office/email formats into text for paperless
+          tika:
+            image:
+              repository: docker.io/apache/tika
+              tag: 3.3.1.0-full
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+
+          # Gotenberg — converts office docs to PDF for paperless
+          gotenberg:
+            image:
+              repository: docker.io/gotenberg/gotenberg
+              tag: "8.34.0"
+            args:
+              - gotenberg
+              - --chromium-disable-javascript=true
+              - --chromium-allow-list=file:///tmp/.*
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
 
 
     service:
