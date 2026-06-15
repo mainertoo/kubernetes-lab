@@ -8,7 +8,7 @@
 #
 # gatus endpoints (via components/gatus):
 #   internal → http://hermes.hermes.svc.cluster.local:8642/health  (== 200)
-#   external → https://hermes.lab.mainertoo.com/health  (< 500; Authentik 302 ok)
+#   external → https://hermes.lab.mainertoo.com/health  (< 500; Hermes dashboard basic-auth may protect UI paths)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

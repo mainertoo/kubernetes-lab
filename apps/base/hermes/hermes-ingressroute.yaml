@@ -1,8 +1,9 @@
 ---
-# Web dashboard, internal-only via Traefik. Reachable off-LAN through Tailscale
-# split DNS (*.lab.mainertoo.com resolves on the tailnet), so no separate
-# Tailscale ingress is needed. Authentik forward-auth is the sole auth gate;
-# Hermes' own dashboard basic-auth was dropped (redundant behind Authentik).
+# Web dashboard / Hermes Desktop remote backend, internal-only via Traefik.
+# Reachable off-LAN through Tailscale split DNS (*.lab.mainertoo.com resolves on
+# the tailnet), so no separate Tailscale ingress is needed. Authentication is
+# handled by Hermes' own dashboard basic-auth provider so the native Desktop app
+# can obtain a dashboard session and WebSocket ticket directly.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -23,9 +24,6 @@ spec:
   routes:
     - match: Host(`hermes.lab.mainertoo.com`)
       kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
       services:
         # bjw-s names a SINGLE service after the release (`hermes`), not
         # `<release>-<key>` — the multi-service `-app` suffix only applies when

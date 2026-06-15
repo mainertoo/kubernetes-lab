@@ -74,22 +74,17 @@ spec:
             env:
               - name: TZ
                 value: America/Los_Angeles
-              # ---- Web dashboard (fronted by Authentik at the IngressRoute) ----
+              # ---- Web dashboard / Hermes Desktop remote backend ----
               - name: HERMES_DASHBOARD
                 value: "1"
               - name: HERMES_DASHBOARD_HOST
                 value: "0.0.0.0"
               - name: HERMES_DASHBOARD_PORT
                 value: "9119"
-              # The dashboard binds 0.0.0.0 (the ClusterIP Service must reach
-              # it), so Hermes' OAuth auth-gate would otherwise FAIL CLOSED
-              # without a registered provider. We dropped the bundled
-              # basic-auth provider in favour of a single gate: Authentik
-              # forward-auth at the IngressRoute. INSECURE=1 disables the
-              # dashboard's *own* auth gate — safe because :9119 is only
-              # reachable externally through the Authentik-gated IngressRoute.
-              - name: HERMES_DASHBOARD_INSECURE
-                value: "1"
+              # Do not set HERMES_DASHBOARD_INSECURE here. The dashboard binds
+              # non-loopback for the ClusterIP/IngressRoute path, so Hermes'
+              # own auth gate must be active for Desktop remote mode. Basic-auth
+              # username/password-hash/secret live in hermes-secret.sops.yaml.
               # ---- Gateway OpenAI-compatible API + /health ----
               - name: API_SERVER_ENABLED
                 value: "true"
