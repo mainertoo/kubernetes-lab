@@ -102,6 +102,7 @@ spec:
               tag: "8.34.0"
             args:
               - gotenberg
+              - --api-timeout=180s
               - --chromium-disable-javascript=true
               - --chromium-allow-list=file:///tmp/.*
             resources:
