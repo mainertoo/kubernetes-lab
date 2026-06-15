@@ -3,14 +3,21 @@ kind: IngressRoute
 metadata:
   name: meshcentral-ingressroute
   namespace: meshcentral
+  annotations:
+    gethomepage.dev/href: "https://meshcentral.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "MeshCentral"
+    gethomepage.dev/description: "Intel AMT / vPro out-of-band management"
+    gethomepage.dev/app: meshcentral
+    gethomepage.dev/group: "Infrastructure"
+    gethomepage.dev/icon: "sh-meshcentral.svg"
 spec:
   entryPoints: [websecure, web]
   routes:
-    # Hostname is hardcoded for the staging POC. On production promotion this
-    # becomes meshcentral.lab.mainertoo.com.
+    # Internal-only (.lab) — AMT management console, no external exposure.
     # NOTE: no authentik-sso middleware on purpose — MeshCentral has its own
     # auth, and SSO in front would break the agent/KVM websocket sessions.
-    - match: Host(`meshcentral.staging.mainertoo.com`)
+    - match: Host(`meshcentral.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: meshcentral

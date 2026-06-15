@@ -36,18 +36,27 @@ spec:
             # app-template v3 expects env as a MAP, not a list.
             env:
               TZ: "America/Los_Angeles"
-              # Public FQDN + reverse-proxy / TLS-offload (Traefik terminates TLS):
-              HOSTNAME: "meshcentral.staging.mainertoo.com"
-              REVERSE_PROXY: "meshcentral.staging.mainertoo.com"
+              # Internal .lab FQDN + reverse-proxy (Traefik terminates the public
+              # TLS; MeshCentral keeps its own self-signed cert on :443).
+              HOSTNAME: "meshcentral.lab.mainertoo.com"
+              REVERSE_PROXY: "meshcentral.lab.mainertoo.com"
               REVERSE_PROXY_TLS_PORT: "443"
-              # NeDB (built-in) — fine for an AMT-only POC (a handful of devices).
+              # NeDB (built-in) — fine for an AMT-only console (a handful of devices).
               USE_MONGODB: "false"
-              # Leave open so the FIRST visit can create the admin account;
-              # tighten to "false" once that account exists.
+              # ⚠️ Re-seed sequencing: kept "true" so the FIRST visit after the
+              # production cutover can create the admin account. FLIP TO "false"
+              # in a follow-up commit once that account exists (re-seed = fresh DB).
               ALLOW_NEW_ACCOUNTS: "true"
               IFRAME: "false"
               WEBRTC: "false"
               ALLOWPLUGINS: "false"
+              # Pin the session key so login sessions survive pod restarts
+              # (unset = MeshCentral regenerates it each boot, logging everyone out).
+              SESSION_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: meshcentral-secret
+                    key: SESSION_KEY
             # MeshCentral can take ~20-30s to generate certs/db on first boot;
             # probes left off for the POC to avoid masking real crash loops.
             probes:

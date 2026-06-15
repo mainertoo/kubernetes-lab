@@ -45,6 +45,7 @@ resources:
   - media/calibre-web-automated/kustomization.yaml
   - media/shelfmark/kustomization.yaml
   - mkdocs/kustomization.yaml
+  - meshcentral/kustomization.yaml
   - grocy/kustomization.yaml
   - mealie/kustomization.yaml
   - donetick/kustomization.yaml

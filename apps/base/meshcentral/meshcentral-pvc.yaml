@@ -2,14 +2,24 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: meshcentral
-  # POC NOTE (staging): using `local-path` because staging has no ceph-rbd yet.
-  # When staging's ceph-csi-rbd is provisioned (and on production promotion),
-  # swap storageClassName -> ceph-rbd and add the backup labels:
-  #   labels: { backup: daily, backup-engine: kopia }
-  # plus the dataSourceRef stanza, matching apps/base/donetick/donetick-pvc.yaml.
+  labels:
+    # Label-driven volsync backup: ClusterPolicy volsync-pvc-backup-restore-kopia
+    # matches these labels and generates the volsync-meshcentral Secret +
+    # meshcentral-backup RS + RD in this namespace. `daily` is plenty for an
+    # AMT-management console (low-churn: a handful of device records).
+    backup: daily
+    backup-engine: kopia
 spec:
-  storageClassName: local-path
+  storageClassName: ceph-rbd
   accessModes: [ReadWriteOnce]
+  # dataSourceRef is immutable on a bound PVC; we mirror the bootstrap ref to
+  # keep Flux's dry-run happy. Kyverno's CREATE-only mutate rule swaps it for
+  # meshcentral-backup at admission before bind. On a fresh install (no prior
+  # backup) the restore is a no-op and MeshCentral initializes a clean DB.
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: meshcentral-bootstrap
   resources:
     requests:
       storage: 2Gi
