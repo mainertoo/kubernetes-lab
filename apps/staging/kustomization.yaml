@@ -3,5 +3,5 @@ kind: Kustomization
 # Staging cluster app registry. Empty by default — add one line per app
 # to opt it into the staging cluster. Pattern matches apps/production/.
 resources:
-  - meshcentral/kustomization.yaml
+  # meshcentral promoted to production 2026-06-14 (apps/production/meshcentral)
   - chaptarr/kustomization.yaml

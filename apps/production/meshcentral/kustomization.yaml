@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# MeshCentral — Intel AMT/vPro management console for the three MS-01 Ceph
+# nodes (whistler/mammoth/zermatt). Promoted from the staging POC to production
+# 2026-06-14: ceph-rbd PVC + label-driven kopia backup, internal .lab host,
+# SOPS-pinned SESSION_KEY. Reaches the AMT IPs .207-.209 on the management LAN.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app meshcentral
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/meshcentral
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: *app
+      SUBDOMAIN: *app
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PATH: /
+      # MeshCentral serves its own self-signed TLS on :443 — internal check
+      # must use https + skip cert verification.
+      GATUS_SCHEME: https
+      GATUS_PORT: "443"
+      GATUS_INSECURE: "true"
