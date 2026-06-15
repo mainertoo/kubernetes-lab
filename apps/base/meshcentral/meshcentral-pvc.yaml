@@ -12,14 +12,14 @@ metadata:
 spec:
   storageClassName: ceph-rbd
   accessModes: [ReadWriteOnce]
-  # dataSourceRef is immutable on a bound PVC; we mirror the bootstrap ref to
-  # keep Flux's dry-run happy. Kyverno's CREATE-only mutate rule swaps it for
-  # meshcentral-backup at admission before bind. On a fresh install (no prior
-  # backup) the restore is a no-op and MeshCentral initializes a clean DB.
-  dataSourceRef:
-    apiGroup: volsync.backube
-    kind: ReplicationDestination
-    name: meshcentral-bootstrap
+  # NO dataSourceRef: this is a brand-new app with no prior backup. Kyverno's
+  # `add-datasource-if-backup-exists` mutate rule only fires when dataSourceRef
+  # is EMPTY *and* the oracle reports an existing backup — so omitting it means
+  # a fresh install provisions an empty volume (clean DB), while a future
+  # cluster-rebuild auto-restores. (Do NOT mirror a `<app>-bootstrap` ref here —
+  # that's a legacy Phase-5b pattern for already-bound migrated PVCs; on a fresh
+  # PVC it points at a nonexistent RD and the volume-populator hangs forever.
+  # Matches apps/base/dawarich/dawarich-media-pvc.yaml.)
   resources:
     requests:
       storage: 2Gi
