@@ -1,0 +1,86 @@
+# Authentik LDAP outpost — runs the LDAP listener that Jellyfin's LDAP plugin binds to.
+# A dedicated outpost is required (the embedded server outpost only serves proxy/forward-auth,
+# not LDAP). Externally managed (no Kubernetes Service Connection), so it authenticates to the
+# core with AUTHENTIK_TOKEN — the token Authentik generates for the "LDAP" outpost object that
+# the jellyfin-ldap blueprint creates. See authentik-ldap-outpost-token-secret.sops.yaml.
+#
+# Jellyfin reaches this at: ak-outpost-ldap.authentik.svc.cluster.local:389
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ak-outpost-ldap
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik-ldap-outpost
+    app.kubernetes.io/part-of: authentik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik-ldap-outpost
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: authentik-ldap-outpost
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: ldap
+          image: ghcr.io/goauthentik/ldap:2026.5.3
+          env:
+            - name: AUTHENTIK_HOST
+              value: http://authentik-server.authentik.svc.cluster.local:80
+            - name: AUTHENTIK_INSECURE   # in-cluster http to the core service
+              value: "true"
+            - name: AUTHENTIK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-ldap-outpost-token
+                  key: token
+          ports:
+            - name: ldap
+              containerPort: 3389
+            - name: ldaps
+              containerPort: 6636
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 5
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ak-outpost-ldap
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik-ldap-outpost
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: authentik-ldap-outpost
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: 3389
+    - name: ldaps
+      port: 636
+      targetPort: 6636
