@@ -149,6 +149,14 @@
       "enabled": true,
       "groupName": "bazarr (dev digest)",
       "groupSlug": "bazarr-dev"
+    },
+    {
+      "description": "hermes (nousresearch/hermes-agent) is pinned to the rolling :latest tag by digest (tag: latest@sha256:...). The generic latest-ignore rule above would suppress ALL updates including digest bumps, so the in-cluster backend silently goes stale and the Hermes Desktop client reports 'backend out of date'. Re-enable digest tracking so Renovate raises a PR each time latest is rebuilt; review/merge to adopt the new backend deliberately.",
+      "matchPackageNames": ["docker.io/nousresearch/hermes-agent"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": true,
+      "groupName": "hermes (latest digest)",
+      "groupSlug": "hermes-latest"
     }
   ]
 }
