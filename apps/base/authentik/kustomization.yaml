@@ -9,4 +9,7 @@ resources:
   - authentik-release.yaml
   - authentik-postgresql-secret.sops.yaml
   - authentik-blueprint-discord-signup-secret.sops.yaml
+  - authentik-blueprint-jellyfin-ldap-secret.sops.yaml
   - authentik-media-perms-job.yaml
+  - ldap-outpost.yaml
+  - authentik-ldap-outpost-token-secret.sops.yaml

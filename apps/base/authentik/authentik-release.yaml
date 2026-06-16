@@ -23,6 +23,7 @@ spec:
     blueprints:
       secrets:
         - authentik-blueprint-discord-signup
+        - authentik-blueprint-jellyfin-ldap
 
     global:
       postgresql:
