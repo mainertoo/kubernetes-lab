@@ -30,7 +30,7 @@ spec:
           main:
             image:
               repository: lscr.io/linuxserver/tautulli
-              tag: 2.17.1
+              tag: 2.17.2
               pullPolicy: IfNotPresent
 
             env:
