@@ -78,6 +78,18 @@ spec:
           http:
             port: 80
             targetPort: http
+          # Dispatcharr bakes its container port (9191) into every absolute URL it
+          # emits in the m3u/EPG/HDHR output (logos + stream-proxy URLs), via its
+          # internal nginx/gunicorn (build_absolute_uri_with_port → SERVER_PORT /
+          # X-Forwarded-Port, always 9191) — regardless of how the output is fetched.
+          # The web UI on :80 works, but those embedded :9191 URLs are unreachable
+          # in-cluster unless the Service also forwards 9191. Exposing it lets the
+          # in-cluster Jellyfin tuner (pointed at :9191/output/m3u|epg/Core) load
+          # channel icons and streams — the same way the LAN Plex/Jellyfin clients
+          # already reach :9191 directly.
+          stream:
+            port: 9191
+            targetPort: http
 
     persistence:
       data:
