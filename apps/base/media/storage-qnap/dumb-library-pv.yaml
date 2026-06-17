@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dumb-library-media-pv
+spec:
+  # STATIC cephfs PV: references the SAME backing subvolume as the dynamic
+  # `dumb-library` PVC in the `dumb` namespace, so the external Plex/Jellyfin
+  # in `media` read DUMB's combined_symlinks tree across the namespace
+  # boundary. `staticVolume: "true"` tells ceph-csi to mount rootPath as-is
+  # and NOT manage/delete the subvolume — the dumb-side dynamic PVC owns its
+  # lifecycle. Retain + staticVolume both ensure deleting this PV/PVC can
+  # never destroy DUMB's library.
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    name: dumb-library
+    namespace: media
+  csi:
+    driver: cephfs.csi.ceph.com
+    nodeStageSecretRef:
+      name: cephfs-secret
+      namespace: ceph-csi
+    volumeHandle: dumb-library-media-static
+    volumeAttributes:
+      clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+      fsName: k3s-fs
+      monitors: 192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789
+      staticVolume: "true"
+      rootPath: /volumes/csi/csi-vol-9c3caa2f-a65d-4230-b786-97556ccac473/498b5725-d15c-4ebf-ba40-95f4def5ac84
