@@ -140,6 +140,19 @@ spec:
               - path: /mnt/debrid
                 subPath: mnt-debrid
 
+      # Shared symlink library (cephfs RWX) exposed to the external
+      # Plex/Jellyfin in the `media` namespace. Phase 1a: mounted at a
+      # TEMP seed path so we can rsync the live combined_symlinks onto it
+      # with zero gap; Phase 1c flips this to overlay
+      # /mnt/debrid/combined_symlinks. DUMB internals are otherwise
+      # untouched.
+      dumb-library:
+        existingClaim: dumb-library
+        advancedMounts:
+          dumb:
+            app:
+              - path: /mnt/seed-library
+
       shm:
         type: emptyDir
         medium: Memory
