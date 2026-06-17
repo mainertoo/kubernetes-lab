@@ -10,3 +10,4 @@ resources:
   - dumb-lb-service.yaml
   - dumb-service-ingressroutes.yaml
   - dumb-rbd-pvc.yaml
+  - dumb-library-pvc.yaml
