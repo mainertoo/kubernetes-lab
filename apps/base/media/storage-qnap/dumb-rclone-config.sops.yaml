@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: dumb-rclone-config
+    namespace: media
+type: Opaque
+stringData:
+    rclone.conf: ENC[AES256_GCM,data:eelB0p6hQkZCS8p/Tub9GuaqrhK0TCkxt6jSTOQXo8DhnN7CeBc0IbG8fb4AKponqJGw3WKE1/aBx9LG6fZeoFeH5L+eXnJKWyuoPbLL0yLhbq2GRmFVxwH7xQGTcR0vXvrwYQc6OCQ2q3B9beH0oWhBes1rF2wZs1oquoRCmxuK7NjnddHPUK5tmj6udq4pyLoktZjctbvnwPIRuhHl6duZDbjapZFIRrBaQoisW/nmWiwSAcbPJY42L4IQjcblKVK4AZ9q8N3VlWvEwlFbnq14T6n+BLt/C8WsgA+Zdq7QewCpXLZDegDt6yc88tIyaXlK8WyymbKUVDdcefCB7DSbB+tjBol2AHyKWUy8XDQFme+znEZ/qMib7MvnIeQ2vGaqMmbOuIxifdPYP0Q0/biM0EtOuOVUaTt64rY+j/GbTX9N,iv:3glBCOXOgeuAjjc0+MCzI+W5S1L+SdFDlHAfrCGc+48=,tag:961cEe2vnLaUgPxZ3/bzww==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnQ0M1UUVvV3JQb2o2TUVK
+            UnZMVzZGdVhJL3hYNWVXMjlKakxqR3JuRFdZCmtWZTg2UFNPQ0N3bWs0eGlTc1E2
+            K3NZd2lZMlhwZzFxa1pNek1OUHA4ckEKLS0tIERtUldXdXQrU0JPRnMyaWM5Y0FN
+            L25IRjBuRW12akpERER6bHhRWWNkenMK6T7Vdzb20NWTt0XZ9ul7FOU1Q5G5uE2f
+            EnHZc5ApF1XK8iaYF8d6LX5Sa1/dXmbMb0zEFDAMoFNREuCutCUIAg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-06-17T23:04:23Z"
+    mac: ENC[AES256_GCM,data:E0JOVk0DE1pSW5+EPt6BMMLh8g5rdgcw7yNUphXjWP/khjLY3cQlJ9CzgXVNxnlV6PGVz35CSVMbQgss8ArlUlyKaCYlpBmzDgWN8PodsfkYxv1Iiv8RXVDnnlhOW+b3mKeOQhRNlMPBsJVzMVysEOekFxRc9pz2fey26gaA1jQ=,iv:rDSLiDU2p99xGZY71Ou6i/HdZ8eu4VmOjPwMQ2PVfzY=,tag:xBM0I0aXv2cM43YAf71qUQ==,type:str]
+    version: 3.13.1

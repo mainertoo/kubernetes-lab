@@ -5,3 +5,9 @@ resources:
   - qnap-media-pv.yaml
   - qnap-media-pvc.yaml
   - symlinks-cephfs-pvc.yaml
+  # Shared cephfs library from the DUMB stack (cross-namespace static PV +
+  # PVC) + the rclone WebDAV config the Plex/Jellyfin sidecars use to mount
+  # DUMB's nzbDAV/decypharr backends. See apps/base/dumb/dumb-library-pvc.yaml.
+  - dumb-library-pv.yaml
+  - dumb-library-pvc.yaml
+  - dumb-rclone-config.sops.yaml
