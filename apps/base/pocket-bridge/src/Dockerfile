@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 # Multi-stage non-root build; plan §9 security posture.
 
 FROM python:3.14-slim AS builder
