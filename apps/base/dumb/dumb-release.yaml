@@ -145,9 +145,9 @@ spec:
       # references this same backing subvolume. Overlays DUMB's
       # combined_symlinks dir (formerly on the RBD `dumb-storage` claim;
       # seeded 1:1 in phase 1b before this cutover so DUMB's own Plex sees
-      # no empty window). DUMB internals otherwise untouched — Riven keeps
-      # writing symlinks to the same path; only the backing storage moved
-      # to cephfs so it can be shared cross-namespace.
+      # no empty window). DUMB internals otherwise untouched — decypharr and
+      # nzbDAV keep writing symlinks to the same path; only the backing
+      # storage moved to cephfs so it can be shared cross-namespace.
       dumb-library:
         existingClaim: dumb-library
         advancedMounts:
