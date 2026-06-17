@@ -32,7 +32,7 @@ spec:
           image: ghcr.io/goauthentik/ldap:2026.5.3
           env:
             - name: AUTHENTIK_HOST
-              value: http://authentik-server.authentik.svc.cluster.local:80
+              value: http://authentik-server.authentik.svc.cluster.local/
             - name: AUTHENTIK_INSECURE   # in-cluster http to the core service
               value: "true"
             - name: AUTHENTIK_TOKEN
