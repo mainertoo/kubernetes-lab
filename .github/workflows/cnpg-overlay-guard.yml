@@ -24,7 +24,7 @@ jobs:
   base-without-overlay:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install yq
@@ -57,7 +57,7 @@ jobs:
   new-app-recovery-mode-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install yq
