@@ -109,6 +109,45 @@ Assistant; possibly HomeKit/Matter):
    via SSDP, pin its IP in the integration.
 7. After applying: **restart Apple Home hubs**; hard-reboot (10␣s unplug) smart devices.
 
+### Local-control integrations (LocalTuya / Meross LAN)
+
+Cloud-free devices controlled directly by Home Assistant work **as-is** under the tiered
+model, because they use a *pull* model — HA (Trusted) opens the connection down to the
+device (IoT) and the device answers on that established session, which the **Trusted→IoT
+allow** + automatic return-traffic already permit:
+
+- **LocalTuya** — HA initiates a connection to the device IP (Tuya local protocol, TCP
+  6668) using the device's local key; push updates ride the *same* HA-initiated connection.
+  **No inbound rule needed.**
+- **Meross LAN (HTTP/polling mode)** — HA polls the device over HTTP (port 80); HA
+  initiates. **No inbound rule needed.**
+- **Meross LAN (MQTT push mode)** — only if a local MQTT broker (e.g. Mosquitto on HA) is
+  used for instant state, the *device* connects inbound to the broker (IoT→Trusted), which
+  is blocked by default. Either add **one narrow allow: IoT → HA MQTT (TCP 1883)** (this is
+  the same "narrow IoT→HA allow for push integrations" noted above) **or** stay on
+  polling mode (zero extra rules, state updates a few seconds slower).
+
+**DHCP reservations required:** LocalTuya/Meross address devices by **IP + local key**, so
+give every locally-controlled device a **DHCP reservation (static lease) on VLAN 20** so the
+integration's pinned IP stays valid across reboots and the VLAN move.
+
+### IoT migration mechanics — reset vs. SSID-move
+
+Moving WiFi IoT devices to VLAN 20 does **not** require factory-resetting them if the SSID
+is *moved* rather than *replaced*:
+
+- **Preferred — move the SSID, not the devices:** stand up the VLAN-20 IoT SSID with the
+  **same name *and* password** the devices already use. Devices roam to it transparently,
+  pull a new VLAN-20 lease, and keep working — **no factory reset, no re-pairing, no new
+  local keys**. Only follow-up: each device gets a new IP (covered by the DHCP reservations
+  above) and a one-time reboot to grab the lease cleanly. Clean only when IoT devices are
+  already on a *dedicated* SSID (not mixed with phones/laptops); if mixed, move humans onto
+  the Trusted SSID first, then rebind the old SSID to VLAN 20.
+- **Fallback — new differently-named SSID:** cheap WiFi devices store one SSID with no UI to
+  change it, so they must be **factory-reset and re-onboarded** via the manufacturer app,
+  and LocalTuya/Meross re-pointed (a reset can rotate the device's local key). Budget this
+  only for stragglers that refuse to roam in the preferred path.
+
 ## Verification
 
 `scripts/unifi/netinfo.py verify` diffs live VLANs against this scheme (run on-LAN /
