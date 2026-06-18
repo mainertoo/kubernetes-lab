@@ -113,7 +113,7 @@ spec:
           rclone-nzbdav:
             image:
               repository: rclone/rclone
-              tag: 1.71.0
+              tag: 1.74.3
             command:
               - /bin/sh
               - -c
@@ -147,7 +147,7 @@ spec:
           rclone-decypharr:
             image:
               repository: rclone/rclone
-              tag: 1.71.0
+              tag: 1.74.3
             command:
               - /bin/sh
               - -c
