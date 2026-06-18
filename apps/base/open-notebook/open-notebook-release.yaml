@@ -39,7 +39,7 @@ spec:
                 memory: 2Gi
             image:
               repository: lfnovo/open_notebook
-              tag: 1.9.0-single
+              tag: 1.10.0-single
             env:
               TZ: America/Los_Angeles
               SURREAL_URL: ws://localhost:8000/rpc
