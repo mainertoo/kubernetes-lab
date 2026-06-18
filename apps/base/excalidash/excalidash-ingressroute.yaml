@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: excalidash-ingressroute
+  namespace: excalidash
+  annotations:
+    gethomepage.dev/href: "https://excalidash.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "ExcaliDash"
+    gethomepage.dev/description: "Self-hosted Excalidraw whiteboards"
+    gethomepage.dev/app: excalidash
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-excalidraw.svg"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`excalidash.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: excalidash
+          port: 80
+          scheme: http
+  tls: {}

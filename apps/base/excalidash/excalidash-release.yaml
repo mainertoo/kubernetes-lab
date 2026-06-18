@@ -1,0 +1,131 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: excalidash
+  namespace: excalidash
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      excalidash:
+        containers:
+          # nginx SPA + reverse proxy. Proxies /api/ and /socket.io/ to the
+          # backend over localhost (same pod). BACKEND_URL is substituted into
+          # nginx.conf at container startup.
+          app:
+            image:
+              repository: zimengxiong/excalidash-frontend
+              tag: v0.5.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: BACKEND_URL
+                value: 127.0.0.1:8000
+            probes:
+              liveness: &fe-probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 80
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness: *fe-probe
+              startup:
+                enabled: false
+
+          # Node/Prisma API. Owns the SQLite DB on the PVC and handles OIDC.
+          # Runs its entrypoint as root to chown the volume, then drops to the
+          # unprivileged 'nodejs' (uid 1001) user.
+          backend:
+            image:
+              repository: zimengxiong/excalidash-backend
+              tag: v0.5.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: NODE_ENV
+                value: production
+              - name: PORT
+                value: "8000"
+              - name: DATABASE_URL
+                value: file:/app/prisma/dev.db
+              # Trust Traefik's X-Forwarded-* so OIDC redirects/cookies are built
+              # against the external https host.
+              - name: TRUST_PROXY
+                value: "true"
+              - name: FRONTEND_URL
+                value: https://excalidash.lab.mainertoo.com
+              # SSO + local password fallback (bootstrap-safe).
+              - name: AUTH_MODE
+                value: hybrid
+              # --- Authentik OIDC (native) ---
+              - name: OIDC_PROVIDER_NAME
+                value: Authentik
+              - name: OIDC_ISSUER_URL
+                value: https://authentik.lab.mainertoo.com/application/o/excalidash/
+              - name: OIDC_REDIRECT_URI
+                value: https://excalidash.lab.mainertoo.com/api/auth/oidc/callback
+              - name: OIDC_SCOPES
+                value: openid profile email
+              # First user to log in via Authentik becomes admin.
+              - name: OIDC_FIRST_USER_ADMIN
+                value: "true"
+            envFrom:
+              # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, JWT_SECRET, CSRF_SECRET
+              - secretRef:
+                  name: excalidash-secret
+            probes:
+              liveness: &be-probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                  initialDelaySeconds: 20
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness: *be-probe
+              startup:
+                enabled: false
+
+    service:
+      app:
+        controller: excalidash
+        ports:
+          http:
+            port: 80
+
+    persistence:
+      config:
+        existingClaim: excalidash-config
+        # Mount only into the backend — the frontend is stateless nginx.
+        advancedMounts:
+          excalidash:
+            backend:
+              - path: /app/prisma
