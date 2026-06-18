@@ -91,6 +91,10 @@ spec:
                 value: https://excalidash.lab.mainertoo.com/api/auth/oidc/callback
               - name: OIDC_SCOPES
                 value: openid profile email
+              # Authentik does not assert the email_verified claim; trust it as
+              # the internal IdP rather than rejecting logins as unverified.
+              - name: OIDC_REQUIRE_EMAIL_VERIFIED
+                value: "false"
               # First user to log in via Authentik becomes admin.
               - name: OIDC_FIRST_USER_ADMIN
                 value: "true"
