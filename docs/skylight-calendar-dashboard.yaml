@@ -1,0 +1,126 @@
+# Skylight Family Calendar — Home Assistant Lovelace dashboard (DRAFT / template)
+#
+# Paste into a new dashboard (Settings → Dashboards → + Add → "Edit in YAML"),
+# or drop under lovelace.dashboards in configuration.yaml as a separate file.
+#
+# This is the COMPOSED build (Week Planner Card + standard cards) — most flexible
+# and fully config-driven. If you prefer the all-in-one card, swap the calendar
+# block for `custom:skylight-calendar-card` (see docs/skylight-calendar-plan.md).
+#
+# ── REQUIRED HACS cards ───────────────────────────────────────────────────────
+#   week-planner-card · kiosk-mode · button-card · bubble-card
+#   config-template-card · better-moment-card · weather-card (or core weather-forecast)
+#
+# ── REPLACE these entity IDs with your real ones ──────────────────────────────
+#   calendar.family_*            per-member Google calendars
+#   weather.home                 your weather entity
+#   todo.grocy_shopping_list     Grocy shopping list (todo or sensor.grocy_shopping_list)
+#   sensor.grocy_expiring_products
+#   calendar.mealie_meal_plan    Mealie meal-plan calendar (or todo.mealie_*)
+#   sensor.donetick_chore_*      Donetick per-chore sensors
+#   button.complete_*            Donetick complete buttons
+#   input_text.family_note       a text helper for the footer message board
+# ──────────────────────────────────────────────────────────────────────────────
+
+title: Family
+views:
+  - title: Calendar
+    path: calendar
+    type: sections
+    max_columns: 3
+    # kiosk-mode: hide HA chrome on the wall panel (per-view; targets this device)
+    kiosk_mode:
+      hide_header: true
+      hide_sidebar: true
+    sections:
+      # ── Header: date/time + weather ────────────────────────────────────────
+      - type: grid
+        column_span: 3
+        cards:
+          - type: custom:better-moment-card
+            format: "dddd, MMMM Do"
+            size: 2
+          - type: weather-forecast
+            entity: weather.home
+            forecast_type: daily
+            show_current: true
+            show_forecast: true
+
+      # ── Main calendar (week view, all family members color-coded) ───────────
+      - type: grid
+        column_span: 2
+        cards:
+          - type: custom:week-planner-card
+            title: This Week
+            days: 7
+            startingDay: today
+            weather:
+              entity: weather.home
+            calendars:
+              - entity: calendar.family_shared
+                color: "#3b82f6"
+              - entity: calendar.family_parent1
+                color: "#10b981"
+              - entity: calendar.family_parent2
+                color: "#f59e0b"
+              - entity: calendar.family_kids
+                color: "#ec4899"
+          # Oversized "add event" button → opens the more-info create dialog
+          - type: custom:button-card
+            name: + Add Event
+            size: 30px
+            styles:
+              card: [height: 64px, font-size: 20px]
+            tap_action:
+              action: perform-action
+              perform_action: calendar.create_event
+              # NOTE: a more-info/popup flow (browser_mod) is friendlier on touch —
+              # wire a bubble-card pop-up with start/end input_datetime helpers.
+
+      # ── Right rail: chores · shopping · meals ───────────────────────────────
+      - type: grid
+        column_span: 1
+        cards:
+          # Donetick assigned chores — auto-list every donetick chore sensor
+          - type: custom:auto-entities
+            card:
+              type: entities
+              title: Chores
+            filter:
+              include:
+                - entity_id: sensor.donetick_chore_*
+            sort:
+              method: state
+
+          # Grocy shopping list (todo card if exposed as a todo entity)
+          - type: todo-list
+            title: Shopping List
+            entity: todo.grocy_shopping_list
+
+          # Grocy expiring soon
+          - type: entities
+            title: Expiring Soon
+            entities:
+              - entity: sensor.grocy_expiring_products
+
+          # Mealie — what's for dinner this week
+          - type: calendar
+            title: Meals
+            initial_view: listWeek
+            entities:
+              - calendar.mealie_meal_plan
+
+      # ── Footer: family message board ────────────────────────────────────────
+      - type: grid
+        column_span: 3
+        cards:
+          - type: entities
+            title: Family Notes
+            entities:
+              - entity: input_text.family_note
+                name: " "
+
+  # ── Optional second view: per-person tap-through (Bubble pop-ups) ───────────
+  # Tap a person chip on the header to filter the calendar to just their events.
+  # Implement with bubble-card pop-ups + config-template-card binding an
+  # input_select.active_member to the week-planner-card `calendars` list.
