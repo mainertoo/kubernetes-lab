@@ -45,6 +45,81 @@ spec:
               - name: TZ
                 value: America/Los_Angeles
 
+          # rclone sidecars: mount DUMB's debrid WebDAV backends in-cluster so
+          # the combined_symlinks (read from the shared cephfs dumb-library PVC)
+          # resolve their targets here, independent of which node DUMB runs on.
+          # Each FUSE mount is established under the shared `debrid` emptyDir and
+          # propagated (Bidirectional) into the jellyfin app container (which
+          # mounts it HostToContainer). Only the sidecars are root/privileged.
+          # Mirrors apps/base/media/plex/plex-release.yaml.
+          rclone-nzbdav:
+            image:
+              repository: rclone/rclone
+              tag: 1.71.0
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                mkdir -p /mnt/debrid/nzbdav
+                exec rclone mount nzbdav: /mnt/debrid/nzbdav \
+                  --config=/cfg/rclone.conf \
+                  --allow-other \
+                  --dir-cache-time=10s \
+                  --poll-interval=0 \
+                  --vfs-cache-mode=full \
+                  --vfs-cache-max-size=2G \
+                  --vfs-cache-max-age=1h \
+                  --buffer-size=256M \
+                  --links \
+                  --use-cookies \
+                  --cache-dir=/cache
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+
+          rclone-decypharr:
+            image:
+              repository: rclone/rclone
+              tag: 1.71.0
+            command:
+              - /bin/sh
+              - -c
+            args:
+              - |
+                mkdir -p /mnt/debrid/decypharr
+                exec rclone mount decypharr: /mnt/debrid/decypharr \
+                  --config=/cfg/rclone.conf \
+                  --allow-other \
+                  --dir-cache-time=10s \
+                  --poll-interval=0 \
+                  --vfs-cache-mode=full \
+                  --vfs-cache-max-size=2G \
+                  --vfs-cache-max-age=1h \
+                  --buffer-size=256M \
+                  --links \
+                  --use-cookies \
+                  --cache-dir=/cache
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+
         initContainers:
           fix-config-perms:
             image:
@@ -143,3 +218,64 @@ spec:
         hostPath: /dev/dri
         globalMounts:
           - path: /dev/dri
+
+      # --- DUMB debrid library (Option B: in-cluster rclone sidecars) ---
+      # Shared scratch dir holding the rclone FUSE mounts; the sidecars mount
+      # it Bidirectional, the app sees their sub-mounts via HostToContainer.
+      debrid:
+        type: emptyDir
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /mnt/debrid
+                mountPropagation: HostToContainer
+            rclone-nzbdav:
+              - path: /mnt/debrid
+                mountPropagation: Bidirectional
+            rclone-decypharr:
+              - path: /mnt/debrid
+                mountPropagation: Bidirectional
+
+      # DUMB's combined_symlinks tree (shared cephfs, read-only). Mounted under
+      # /mnt/debrid so its symlink targets (/mnt/debrid/{nzbdav,decypharr}/...)
+      # resolve against the sidecar FUSE mounts.
+      dumb-library:
+        existingClaim: dumb-library
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /mnt/debrid/combined_symlinks
+                readOnly: true
+
+      # rclone WebDAV config (nzbdav creds + decypharr) — sidecars only.
+      rclone-config:
+        type: secret
+        name: dumb-rclone-config
+        advancedMounts:
+          jellyfin:
+            rclone-nzbdav:
+              - path: /cfg
+                readOnly: true
+            rclone-decypharr:
+              - path: /cfg
+                readOnly: true
+
+      debrid-fuse:
+        type: hostPath
+        hostPath: /dev/fuse
+        hostPathType: CharDevice
+        advancedMounts:
+          jellyfin:
+            rclone-nzbdav:
+              - path: /dev/fuse
+            rclone-decypharr:
+              - path: /dev/fuse
+
+      rclone-cache:
+        type: emptyDir
+        advancedMounts:
+          jellyfin:
+            rclone-nzbdav:
+              - path: /cache
+            rclone-decypharr:
+              - path: /cache
