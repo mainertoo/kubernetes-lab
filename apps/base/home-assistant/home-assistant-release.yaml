@@ -44,7 +44,7 @@ spec:
                 memory: 2Gi
             image:
               repository: homeassistant/home-assistant
-              tag: 2026.6.3
+              tag: 2026.6.4
             env:
               TZ: America/Los_Angeles
 
