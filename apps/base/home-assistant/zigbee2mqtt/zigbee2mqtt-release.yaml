@@ -63,6 +63,37 @@ spec:
               ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT: '["console"]'
               ZIGBEE2MQTT_CONFIG_ADVANCED_LAST_SEEN: "ISO_8601"
 
+            # The Zigbee coordinator is network-attached (tcp://192.168.1.55:6638).
+            # When that TCP socket drops, z2m stops its adapter (restart=false) but
+            # the container PID stays alive, so K8s never restarts it and the frontend
+            # on :8080 goes dead silently. An HTTP liveness probe on the frontend
+            # catches that wedge and restarts the container so it reconnects.
+            probes:
+              liveness: &fe-probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  initialDelaySeconds: 0
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 5
+              readiness: *fe-probe
+              # Give the coordinator-connect + frontend boot up to ~150s before
+              # liveness engages, so a slow/unreachable adapter at startup doesn't
+              # trigger a restart loop.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  periodSeconds: 5
+                  failureThreshold: 30
+
         pod:
           securityContext:
             runAsUser: 1000
