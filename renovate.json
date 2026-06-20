@@ -13,7 +13,8 @@
 
   "ignorePaths": [
     "**/archive/**",
-    "docker/cnpg-timescaledb/**"
+    "docker/cnpg-timescaledb/**",
+    "apps/base/firecrawl/chart/**"
   ],
 
   "flux": {

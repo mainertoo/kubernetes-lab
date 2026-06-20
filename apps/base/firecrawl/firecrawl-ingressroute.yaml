@@ -1,0 +1,20 @@
+---
+# Internal-only (tailnet) Traefik route to the Firecrawl API. A scraper must
+# never be publicly reachable, so this is websecure/web on the .lab domain
+# only — no Pangolin/cloudflared/external entrypoint.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: firecrawl
+  namespace: firecrawl
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`firecrawl.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: firecrawl-api
+          port: 3002
+  tls: {}
