@@ -250,6 +250,10 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
       purge_on_destroy,
       tags,
       disk[0].file_id,
+      # Disk storage is placed operationally (e.g. master-1's etcd was moved off a slow
+      # local NVMe to the k3s-rbd Ceph pool via `qm move-disk`). Ignore datastore_id so a
+      # later `terraform apply` does NOT drag the disk back onto var.storage_pool.
+      disk[0].datastore_id,
     ]
   }
 }

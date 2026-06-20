@@ -1,0 +1,159 @@
+---
+# Make K3s deploy metrics-server with 2 replicas (HA) instead of the bundled default of 1.
+#
+# Why: K3s ships metrics-server as a server AddOn manifest with NO `replicas:` field (so it
+# defaults to a single pod). metrics-server backs the aggregated API v1beta1.metrics.k8s.io;
+# when its one pod's node has a transient blip (control-plane stall, drain, upgrade, eviction)
+# the aggregated API momentarily reports unavailable and kube-prometheus-stack fires
+# KubeAggregatedAPIDown. Two replicas spread across nodes keep the aggregated API served
+# through any single-node hiccup. Mirrors the CoreDNS-HA override (tasks/coredns_ha.yml).
+#
+# Spread: the bundled manifest carries NO topology/affinity, so we inject a SOFT
+# topologySpreadConstraint (whenUnsatisfiable: ScheduleAnyway) — it prefers to place the two
+# pods on separate nodes but never blocks scheduling (no hard anti-affinity that could leave a
+# replica Pending). maxUnavailable is already 1 in the bundled RollingUpdate strategy.
+#
+# Mechanism: derive a copy of K3s's *current* bundled Deployment manifest with `replicas: 2`
+# and the spread constraint injected, write it as metrics-server-ha.yaml, and drop
+# metrics-server/metrics-server-deployment.yaml.skip so K3s stops re-applying (and reverting to
+# 1 replica) its bundled copy. Re-deriving from the on-node bundled manifest each run means it
+# auto-tracks the metrics-server image/args across K3s upgrades — which is why this task should
+# also be imported at the end of k3s_upgrade.yml.
+#
+# Object-ownership handoff: each file in the bundled metrics-server/ dir is its own AddOn
+# objectset (metrics-server-deployment, metrics-server-service, metrics-apiservice, ...). We
+# skip ONLY the Deployment file, so the Service / APIService / RBAC addons stay bundled and
+# untouched (no immutable-clusterIP handoff like CoreDNS). `.skip` keeps the bundled manifest
+# inert but does NOT transfer ownership of the Deployment it already created — and a Deployment
+# is unlike the Service: it's freely replaceable. So once, this task deletes the bundled
+# Deployment (+ its inert addon) and lets metrics-server-ha re-create + own it at 2 replicas.
+# Idempotent and a no-op once the Deployment is already owned by metrics-server-ha.
+#
+# Runs on K3s SERVER (master) nodes only — the manifests dir is server-only. Idempotent.
+
+- name: Stat the bundled metrics-server Deployment manifest
+  ansible.builtin.stat:
+    path: /var/lib/rancher/k3s/server/manifests/metrics-server/metrics-server-deployment.yaml
+  register: _ms_bundled
+
+- name: Configure metrics-server HA (skip nodes without the bundled manifest)
+  when: _ms_bundled.stat.exists
+  block:
+    - name: Guard — confirm the replicas-injection anchor still exists upstream
+      # The Deployment's `spec:` is uniquely followed by `  revisionHistoryLimit: 0`.
+      # If K3s changes the metrics-server manifest layout this fails loudly instead of
+      # silently producing a 1-replica (or malformed) manifest.
+      ansible.builtin.command:
+        cmd: "grep -qx '  revisionHistoryLimit: 0' /var/lib/rancher/k3s/server/manifests/metrics-server/metrics-server-deployment.yaml"
+      changed_when: false
+      register: _ms_anchor
+      failed_when: _ms_anchor.rc != 0
+
+    - name: Guard — confirm the pod-template spec anchor still exists upstream
+      # topologySpreadConstraints is injected after the Pod template's `    spec:` (4-space
+      # indent), uniquely followed by `      priorityClassName: "system-node-critical"`.
+      ansible.builtin.command:
+        cmd: "grep -qx '      priorityClassName: \"system-node-critical\"' /var/lib/rancher/k3s/server/manifests/metrics-server/metrics-server-deployment.yaml"
+      changed_when: false
+      register: _ms_pod_anchor
+      failed_when: _ms_pod_anchor.rc != 0
+
+    - name: Copy the bundled metrics-server Deployment as the HA base (tracks K3s's current version)
+      ansible.builtin.copy:
+        src: /var/lib/rancher/k3s/server/manifests/metrics-server/metrics-server-deployment.yaml
+        dest: /var/lib/rancher/k3s/server/manifests/metrics-server-ha.yaml
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Set the metrics-server Deployment to 2 replicas
+      ansible.builtin.lineinfile:
+        path: /var/lib/rancher/k3s/server/manifests/metrics-server-ha.yaml
+        insertbefore: '^  revisionHistoryLimit: 0$'
+        line: "  replicas: 2"
+        firstmatch: true
+        state: present
+
+    - name: Spread the 2 replicas across nodes (soft — never blocks scheduling)
+      # Double-quoted scalar with explicit \n + leading spaces: blockinfile inserts the lines
+      # verbatim and does NOT auto-indent, so the Pod-spec indentation (6 spaces for the key,
+      # 8/10/12/14 for nested fields) must be baked into the string. A literal `|` block would
+      # be stripped to column 0 and silently dropped by K3s as an unknown top-level field.
+      ansible.builtin.blockinfile:
+        path: /var/lib/rancher/k3s/server/manifests/metrics-server-ha.yaml
+        insertafter: '^      priorityClassName: "system-node-critical"$'
+        marker: '      # {mark} ANSIBLE metrics-server HA spread'
+        block: "      topologySpreadConstraints:\n        - maxSkew: 1\n          topologyKey: kubernetes.io/hostname\n          whenUnsatisfiable: ScheduleAnyway\n          labelSelector:\n            matchLabels:\n              k8s-app: metrics-server"
+
+    - name: Stop K3s re-applying (and reverting) the bundled 1-replica metrics-server Deployment
+      # `.skip` makes the K3s deploy controller leave the bundled deployment manifest alone
+      # (it does NOT delete the already-applied Deployment); our metrics-server-ha.yaml then
+      # owns the Deployment at 2 replicas. Only the Deployment file is skipped — the Service,
+      # APIService and RBAC manifests in the dir stay bundled.
+      ansible.builtin.copy:
+        dest: /var/lib/rancher/k3s/server/manifests/metrics-server/metrics-server-deployment.yaml.skip
+        content: |
+          # Managed by Ansible (tasks/metrics_server_ha.yml) — metrics-server runs via
+          # metrics-server-ha.yaml with replicas: 2 (HA).
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Hand the metrics-server Deployment over to metrics-server-ha (one-time)
+      # Cluster-scoped reconcile — run on a single master. A no-op once the Deployment is
+      # already owned by the metrics-server-ha objectset (silent on every upgrade-replay run).
+      run_once: true
+      block:
+        - name: Read the current metrics-server Deployment objectset owner
+          # argv form (not a `cmd:` string): Ansible shlex-splits `cmd:` in POSIX mode and
+          # would strip the backslash-escapes in the dotted annotation key before kubectl
+          # sees them, yielding an empty result. argv is passed literally.
+          ansible.builtin.command:
+            argv:
+              - k3s
+              - kubectl
+              - -n
+              - kube-system
+              - get
+              - deploy
+              - metrics-server
+              - -o
+              - 'jsonpath={.metadata.annotations.objectset\.rio\.cattle\.io/owner-name}'
+          register: _ms_owner
+          changed_when: false
+          failed_when: false
+
+        - name: Free the metrics-server Deployment from the bundled addon (brief one-time metrics gap)
+          # Only when the bundled `metrics-server-deployment` objectset still owns it. Delete the
+          # inert addon + the Deployment; metrics-server-ha recreates it (2 replicas) on its next
+          # reconcile, now under the metrics-server-ha objectset.
+          when: _ms_owner.stdout == 'metrics-server-deployment'
+          block:
+            - name: Remove the stale bundled metrics-server-deployment AddOn (kept inert by .skip)
+              ansible.builtin.command:
+                cmd: k3s kubectl -n kube-system delete addon metrics-server-deployment --ignore-not-found
+              changed_when: true
+
+            - name: Delete the orphaned 1-replica Deployment so metrics-server-ha can recreate and own it
+              ansible.builtin.command:
+                cmd: k3s kubectl -n kube-system delete deploy metrics-server --ignore-not-found
+              changed_when: true
+
+        - name: Wait until the Deployment exists and is owned by metrics-server-ha
+          ansible.builtin.command:
+            argv:
+              - k3s
+              - kubectl
+              - -n
+              - kube-system
+              - get
+              - deploy
+              - metrics-server
+              - -o
+              - 'jsonpath={.metadata.annotations.objectset\.rio\.cattle\.io/owner-name}'
+          register: _ms_owner_final
+          changed_when: false
+          retries: 30
+          delay: 5
+          until: _ms_owner_final.stdout == 'metrics-server-ha'
