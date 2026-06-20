@@ -1,0 +1,31 @@
+---
+# Tailnet-only exposure so off-cluster tailnet hosts (e.g. the DGX Spark running
+# vLLM/Hermes/Open WebUI) can reach Firecrawl at a stable, IP-independent name:
+#   https://firecrawl.<tailnet>.ts.net
+# This is parity with how SearXNG is on the tailnet, and survives home-network
+# VLAN/IP renumbering (no dependency on the .lab LAN IP or split-horizon DNS).
+#
+# NO `tailscale.com/funnel` — Firecrawl runs with USE_DB_AUTHENTICATION=false
+# (no auth), so it must NEVER be exposed to the public internet. Tailnet only.
+#
+# ⚠️ The MagicDNS first label `firecrawl` must be free on the tailnet on first
+# provisioning; no existing node claims it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: firecrawl-tailscale
+  namespace: firecrawl
+  annotations:
+    # Tags applied only on initial provisioning.
+    tailscale.com/tags: "tag:k8s"
+spec:
+  ingressClassName: tailscale
+  # First label of the MagicDNS name → https://firecrawl.<tailnet>.ts.net
+  tls:
+    - hosts:
+        - firecrawl
+  defaultBackend:
+    service:
+      name: firecrawl-api
+      port:
+        number: 3002
