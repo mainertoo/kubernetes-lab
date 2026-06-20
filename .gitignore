@@ -94,3 +94,10 @@ __pycache__/
 # Wallos populator — never commit financial CSVs or local creds (repo is public)
 scripts/wallos/*.csv
 scripts/wallos/credentials*.yaml
+
+# Secret-material types that have leaked before (repo is PUBLIC) — never commit.
+# Real secrets belong only in *.sops.yaml (encrypted). See .gitleaks.toml / CI.
+*.asc
+sops-private*
+kubeconfig*
+*.kubeconfig
