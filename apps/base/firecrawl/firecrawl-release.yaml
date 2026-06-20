@@ -1,0 +1,139 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firecrawl
+  namespace: firecrawl
+spec:
+  interval: 30m
+  releaseName: firecrawl
+
+  # Upstream Firecrawl chart, vendored via GitRepository (see
+  # infrastructure/repositories/git-firecrawl.yaml). The chart is NOT published
+  # to a Helm/OCI registry, so we point at the in-tree chart path and pin the
+  # source to a commit.
+  chart:
+    spec:
+      chart: examples/kubernetes/firecrawl-helm
+      sourceRef:
+        kind: GitRepository
+        name: firecrawl
+        namespace: flux-system
+      # Chart version is static (0.2.0); track the pinned source revision.
+      reconcileStrategy: Revision
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    # Default fullname would be "firecrawl-firecrawl" (<release>-<chart>).
+    # Override so Services are firecrawl-api / firecrawl-playwright / etc.
+    fullnameOverride: firecrawl
+
+    # Chart default is false (no requests/limits at all). Turn on so the
+    # per-component resource blocks below are actually rendered.
+    resources:
+      enabled: true
+
+    # ---- Images: official Firecrawl GHCR builds (cluster is x86) ----
+    # api + worker + nuq-worker all share this image/tag.
+    image:
+      repository: ghcr.io/firecrawl/firecrawl
+      tag: "2.10.19"
+      pullPolicy: IfNotPresent
+      dockerSecretEnabled: false
+
+    # playwright-service + nuq-postgres publish ONLY :latest upstream, so pin
+    # by digest (multi-arch index digests captured 2026-06-19; Renovate tracks
+    # digest pins, same pattern as the hermes release).
+    playwright:
+      repository: ghcr.io/firecrawl/playwright-service
+      tag: "latest@sha256:1f6eba6403207d501a63d9b1d4685b6316b4fc7968fe64a5839ab1bfec9d1c14"
+      pullPolicy: IfNotPresent
+      replicaCount: 1
+
+    nuqPostgres:
+      image:
+        repository: ghcr.io/firecrawl/nuq-postgres
+        tag: "latest@sha256:f9388bd25ae2e1f1d034518236f993ce236173c1d8800ce24092ea6643a95a33"
+        pullPolicy: IfNotPresent
+      # NuQ holds the job queue + crawl state only — regenerable, not precious.
+      # Run as emptyDir (persistence off): the chart mounts the volume at the
+      # postgres data root with NO PGDATA subPath, which collides with the
+      # ext4 lost+found on a ceph-rbd PVC and fails initdb. Ephemeral is fine
+      # for a scrape queue; revisit with a subPath PVC if persistence is needed.
+      persistence:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    # ---- Scope to the scrape + search core; drop the /extract LLM pipeline ----
+    api:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "2000m"
+          memory: 3Gi
+    worker:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1000m"
+          memory: 2Gi
+    nuqWorker:
+      replicaCount: 1            # chart default is 5; one is plenty for a homelab
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1000m"
+          memory: 2Gi
+    extractWorker:
+      enabled: false            # /extract LLM-extraction pipeline — not needed
+    nuqPrefetchWorker:
+      enabled: false            # precrawl prefetch optimizer — not needed
+    rabbitmq:
+      enabled: true             # tiny; kept to avoid a NuQ broker-dependency risk
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    # ---- Config ----
+    # Internal-only tool (Traefik tailnet ingress, no public exposure), so the
+    # self-hosted no-auth default is kept. Internal service URLs (redis,
+    # playwright, nuq-postgres) auto-template from fullname=firecrawl.
+    config:
+      USE_DB_AUTHENTICATION: "false"
+      LOGGING_LEVEL: "INFO"
+      # /search is backed by the existing SearXNG on the QNAS Docker host
+      # (LAN :8081). REQUIRES SearXNG to emit JSON (formats: [..., json]) —
+      # enabled QNAS-side; default SearXNG ships HTML-only.
+      SEARXNG_ENDPOINT: "http://192.168.1.252:8081"

@@ -13,3 +13,4 @@ resources:
   - helm-intel.yaml
   - helm-kyverno.yaml
   - helm-descheduler.yaml
+  - git-firecrawl.yaml

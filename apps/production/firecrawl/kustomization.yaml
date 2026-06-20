@@ -1,0 +1,38 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Firecrawl — self-hosted scrape + search API for the local-LLM stack (Qwen on
+# the DGX Spark). Upstream chart vendored via GitRepository (see
+# infrastructure/repositories/git-firecrawl.yaml). Internal-only
+# (firecrawl.lab.mainertoo.com). /search is backed by the QNAS SearXNG.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: firecrawl
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/firecrawl"
+  targetNamespace: firecrawl
+  prune: true
+  retryInterval: 2m
+  timeout: 15m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+  - "../../../components/gatus/internal"
+  postBuild:
+    substitute:
+      APP: firecrawl
+      APP_NAMESPACE: firecrawl
+      # Health is served by the api Service (firecrawl-api), not a "firecrawl"
+      # Service, so point Gatus at it explicitly.
+      GATUS_APP: firecrawl-api
+      GATUS_PORT: '3002'
+      GATUS_PATH: "/v0/health/liveness"
