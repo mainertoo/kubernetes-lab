@@ -138,6 +138,17 @@ spec:
               # Use in-cluster DNS so Hermes does not hairpin through ingress.
               - name: HASS_URL
                 value: "http://home-assistant-app.home-assistant.svc.cluster.local:8123"
+              # ---- Web search + extraction (Firecrawl) ----
+              # Enables Hermes' web_search + web_extract tools via the
+              # self-hosted Firecrawl API. In-cluster Service DNS (no tailnet
+              # hairpin; the Tailscale HTTPS URL doesn't resolve from a pod).
+              # With only FIRECRAWL_API_URL set, Hermes auto-selects Firecrawl
+              # for BOTH search and extract — and Firecrawl's /search is itself
+              # backed by SearXNG (via apps/base/searxng-egress), so this one
+              # URL covers both services. Non-secret; no API key needed
+              # (Firecrawl runs USE_DB_AUTHENTICATION=false).
+              - name: FIRECRAWL_API_URL
+                value: "http://firecrawl-api.firecrawl.svc.cluster.local:3002"
             envFrom:
               # API_SERVER_KEY + dashboard basic-auth creds + the Telegram/Discord
               # bot tokens. These are read as container env, so they come from a
