@@ -133,7 +133,10 @@ spec:
     config:
       USE_DB_AUTHENTICATION: "false"
       LOGGING_LEVEL: "INFO"
-      # /search is backed by the existing SearXNG on the QNAS Docker host
-      # (LAN :8081). REQUIRES SearXNG to emit JSON (formats: [..., json]) —
-      # enabled QNAS-side; default SearXNG ships HTML-only.
-      SEARXNG_ENDPOINT: "http://192.168.1.252:8081"
+      # /search is backed by the existing SearXNG on the QNAS Docker host.
+      # Reached over the tailnet via a tailscale-operator egress Service
+      # (apps/base/searxng-egress) rather than a LAN IP, so the route survives
+      # home-network VLAN/IP changes. SearXNG serves the app on :8080.
+      # REQUIRES SearXNG to emit JSON (formats: [..., json]); default ships
+      # HTML-only — applied on the QNAS via Portainer/gitops.
+      SEARXNG_ENDPOINT: "http://searxng.searxng-egress.svc.cluster.local:8080"

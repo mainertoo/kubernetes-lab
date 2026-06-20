@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No top-level `namespace:` — this app spans two namespaces:
+#   searxng-egress  (Service)
+#   tailscale       (NetworkPolicy on operator-managed proxy Pod)
+# Each resource carries its own metadata.namespace.
+resources:
+  - searxng-egress-namespace.yaml
+  - searxng-egress-service.yaml
+  - tailscale-proxy-networkpolicy.yaml
