@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Local secret-scan gate — blocks a commit if gitleaks finds a plaintext secret
+# in the STAGED changes. Mirrors the CI gate (.github/workflows/gitleaks.yml)
+# using the same .gitleaks.toml (SOPS ENC[...] ciphertext is allowlisted).
+#
+# Opt-in (not auto-installed; .git/hooks isn't version-controlled):
+#   git config core.hooksPath .githooks
+#   brew install gitleaks        # or: https://github.com/gitleaks/gitleaks
+#
+# Degrades gracefully: if gitleaks isn't installed it warns and lets the commit
+# through (CI is still the hard gate). Bypass a false positive with: git commit --no-verify
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠ gitleaks not installed — skipping local secret scan (CI still enforces it)."
+  echo "  install: brew install gitleaks"
+  exit 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+if gitleaks git --staged -c "$repo_root/.gitleaks.toml" --no-banner --redact; then
+  exit 0
+else
+  echo
+  echo "✗ gitleaks found a potential secret in your staged changes (see above)."
+  echo "  • Real secret? Remove it; put secrets only in *.sops.yaml (verify ENC[ before commit)."
+  echo "  • False positive? Bypass with:  git commit --no-verify"
+  exit 1
+fi

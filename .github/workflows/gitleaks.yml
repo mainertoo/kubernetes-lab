@@ -1,0 +1,34 @@
+name: gitleaks
+
+# Secret scanning for this PUBLIC repo. Scans the commits a PR ADDS (not full
+# history), so it blocks NEW plaintext secrets from landing without tripping on
+# pre-existing historical findings. SOPS ciphertext is allowlisted in
+# .gitleaks.toml (encrypted ENC[...] blobs are not plaintext secrets).
+on:
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitleaks-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: gitleaks (PR diff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history so the action can diff the PR's commit range.
+          fetch-depth: 0
+
+      - name: Scan PR commits for secrets
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Personal/public repo → no GITLEAKS_LICENSE needed (that's org-only).
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml

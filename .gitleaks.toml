@@ -1,0 +1,32 @@
+# gitleaks config for kubernetes-lab (PUBLIC repo).
+# Extends the upstream default ruleset and adds repo-specific allowlisting so
+# SOPS ciphertext doesn't drown out real findings.
+#
+# DESIGN: we deliberately do NOT allowlist whole `.sops.yaml` paths — that would
+# blind the scanner to a `.sops.yaml` that silently FAILED to encrypt (VS Code
+# auto-encrypt can skip; see the team's ".sops.yaml suffix ≠ encrypted" rule).
+# Instead we suppress only the encrypted `ENC[...]` blobs (matched at line
+# scope), so a plaintext secret sitting on a non-ENC line in a .sops.yaml is
+# STILL caught.
+
+title = "kubernetes-lab gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Suppress SOPS-encrypted values and known non-secret material"
+# regexTarget = line: allowlist any finding whose *line* contains SOPS ciphertext
+# (or the SOPS metadata mac), not just the matched secret substring.
+regexTarget = "line"
+regexes = [
+  '''ENC\[AES256_GCM,''',          # SOPS-encrypted value or comment (ciphertext)
+  '''sops_mac=ENC\[''',            # SOPS integrity MAC
+]
+# Only the SOPS *config* file (creation_rules + age PUBLIC keys — not secret).
+# NOTE: we intentionally do NOT allowlist `.decrypted~*` tempfiles — those are
+# real plaintext and must be FLAGGED if ever committed (they're gitignored to
+# prevent it).
+paths = [
+  '''^\.sops\.yaml$''',
+]
