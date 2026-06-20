@@ -8,18 +8,18 @@ spec:
   interval: 30m
   releaseName: firecrawl
 
-  # Upstream Firecrawl chart, vendored via GitRepository (see
-  # infrastructure/repositories/git-firecrawl.yaml). The chart is NOT published
-  # to a Helm/OCI registry, so we point at the in-tree chart path and pin the
-  # source to a commit.
+  # Upstream Firecrawl chart, VENDORED into this repo at ./chart (pinned copy
+  # from firecrawl commit 44a6a16, chart 0.2.0 — see chart/VENDORED.md).
+  # Firecrawl publishes no Helm/OCI chart artifact, and flux-local CI can only
+  # render charts from the flux-system source, so we source the local path via
+  # flux-system rather than an external GitRepository.
   chart:
     spec:
-      chart: examples/kubernetes/firecrawl-helm
+      chart: ./apps/base/firecrawl/chart
       sourceRef:
         kind: GitRepository
-        name: firecrawl
+        name: flux-system
         namespace: flux-system
-      # Chart version is static (0.2.0); track the pinned source revision.
       reconcileStrategy: Revision
 
   maxHistory: 2
