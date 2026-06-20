@@ -26,7 +26,7 @@ tags:
   - name: Laptop
     color: "#8b5cf6"
 
-# Homelab compute — the six Proxmox hosts.
+# Homelab compute — the six Proxmox hosts + the DGX Spark.
 items:
   - name: pve-mammoth
     location: Main Floor/Laundry Room/Server Closet
@@ -69,3 +69,10 @@ items:
     manufacturer: UGREEN
     modelNumber: DX4800
     description: Proxmox host — NAS (no Ceph)
+
+  - name: DGX Spark
+    location: Upstairs Floor/Office
+    tags: [Mini PC]
+    manufacturer: NVIDIA
+    modelNumber: DGX Spark (GB10)
+    description: AI dev workstation — GB10 Grace Blackwell, 128GB unified LPDDR5X · 192.168.1.214

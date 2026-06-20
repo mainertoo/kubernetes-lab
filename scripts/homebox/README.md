@@ -11,6 +11,11 @@ locations (nested tree)  ─┐
 tags / labels (flat)      ─┼─▶  items  (name + location path + tags)
 ```
 
+Targets the **Homebox 0.26 entities API** (`/v1/entities*`) — the unified model that
+replaced the separate `/v1/items*` + `/v1/locations*` endpoints. Items and locations
+are both entities, told apart by their `entityType` (`global.item` / `global.location`),
+and an item's location is its parent entity.
+
 Idempotency comes from **name-matching against the live server** — there's no state
 file. Re-applying only creates/updates what's missing or changed:
 
@@ -24,11 +29,11 @@ Renames aren't tracked (a renamed node = a new object). `pull` first to see curr
 
 ## Auth
 
-Homebox has **no API keys** — its OpenAPI spec only defines `Bearer` auth, obtainable
-solely via `POST /v1/users/login`. So the tool logs in with a **local** account
-(`HBOX_OPTIONS_ALLOW_LOCAL_LOGIN=true`) and uses that run's JWT. The account must
-belong to the **same Homebox group** as the inventory you're populating. OIDC/Authentik
-logins can't be scripted.
+Homebox 0.26 added static `hb_…` API keys, but this tool still uses the simpler
+`Bearer`-via-login path: it logs in with a **local** account
+(`HBOX_OPTIONS_ALLOW_LOCAL_LOGIN=true`) via `POST /v1/users/login` and uses that run's
+JWT. The account must belong to the **same Homebox group** as the inventory you're
+populating. OIDC/Authentik logins can't be scripted.
 
 Credentials come from `credentials.sops.yaml` (via `sops -d`) or env vars:
 
@@ -65,5 +70,7 @@ only (`pip3 install pyyaml`).
 
 See `inventory.yaml` for a worked example. Item fields beyond name/location/tags/
 quantity/description (`manufacturer`, `modelNumber`, `serialNumber`, `notes`,
-`insured`, `purchasePrice`, `purchaseFrom`, `purchaseTime`) are applied via a
-follow-up update after create.
+`insured`, `purchasePrice`, `purchaseFrom`, `purchaseDate`) are applied via a
+follow-up update after create. New entities are created without an `assetId`, so
+`apply --commit` runs `/v1/actions/ensure-asset-ids` afterwards to assign the next
+sequential `000-NNN`.
