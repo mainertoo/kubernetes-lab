@@ -5,3 +5,4 @@ resources:
   - firecrawl-namespace.yaml
   - firecrawl-release.yaml
   - firecrawl-ingressroute.yaml
+  - firecrawl-tailscale-ingress.yaml
