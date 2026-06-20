@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Tailscale egress to the SearXNG node on the QNAS (searxng.tuxedo-halosaur.
+# ts.net:8080), consumed by Firecrawl's /search backend. IP-independent route
+# (survives home-network VLAN/IP changes). Spans two namespaces (Service in
+# searxng-egress, NetPol in tailscale), so targetNamespace is omitted — each
+# resource self-namespaces.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: searxng-egress
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/searxng-egress"
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

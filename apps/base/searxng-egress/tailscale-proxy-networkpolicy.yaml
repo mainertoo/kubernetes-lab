@@ -1,0 +1,29 @@
+---
+# NetworkPolicy lives in the `tailscale` namespace (where the operator places
+# the egress-proxy Pod for the searxng Service), NOT in `searxng-egress`
+# (where the user-facing Service lives). Mirrors mac-llama-egress: select the
+# proxy Pod by its operator-applied labels and allow ingress only from the
+# consuming namespace.
+#   :8080 — SearXNG web/JSON API, consumed by firecrawl (/search backend)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tailscale-proxy-searxng-allowlist
+  namespace: tailscale
+spec:
+  podSelector:
+    matchLabels:
+      tailscale.com/managed: "true"
+      tailscale.com/parent-resource: searxng
+      tailscale.com/parent-resource-ns: searxng-egress
+      tailscale.com/parent-resource-type: svc
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firecrawl
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+  namespace: searxng-egress
+  annotations:
+    # Tailscale-operator egress to the SearXNG node on the QNAS (the
+    # tailscale-searxng sidecar, hostname `searxng`). Routing by tailnet FQDN
+    # (not LAN IP) keeps this stable across the home-network VLAN/IP changes.
+    # The operator forwards all TCP to the tailnet host; the consumer picks the
+    # port — SearXNG serves the app on :8080 (Tailscale Serve also fronts it on
+    # 443, but we use plain :8080 to avoid a cert-SNI mismatch through the proxy).
+    tailscale.com/tailnet-fqdn: searxng.tuxedo-halosaur.ts.net
+    tailscale.com/tags: tag:k8s-egress
+spec:
+  type: ExternalName
+  externalName: unused.tailscale-operator-target.invalid

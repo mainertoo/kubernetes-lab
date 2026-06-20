@@ -87,3 +87,4 @@ resources:
   - hermes/kustomization.yaml
   - mac-ssh-egress/kustomization.yaml
   - firecrawl/kustomization.yaml
+  - searxng-egress/kustomization.yaml
