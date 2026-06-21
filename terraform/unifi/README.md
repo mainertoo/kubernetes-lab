@@ -16,25 +16,28 @@ Provider: [`filipowm/unifi`](https://registry.terraform.io/providers/filipowm/un
   stay UI-managed so no Terraform mistake can touch critical infra.
 - State (`*.tfstate`) and `*.tfvars` are gitignored repo-wide; never commit them.
 
-## Why username/password (not the API key)
+## Auth — API key (not username/password)
 
-UniFi's official Integration API key is read-mostly today (write/config scope is
-rolling out through 2026), so it can read networks but cannot create them. The
-provider's write path uses a local-admin **username + password** against the
-controller's internal API. Create a dedicated local admin:
+This controller (UniFi Network 10.4.57) supports per-request **API-key** auth, which
+the `filipowm/unifi` provider drives against the internal write-path. We use it
+because it does **not** hit the login endpoint — so it avoids the login
+rate-limit/403 churn that the username/password path causes under Terraform's
+repeated plan/apply cycles. (Note: the *official* Integration API is read-only for
+config today; the provider does NOT use that surface — it uses the internal API,
+where the same key has full write scope.)
 
-> UniFi → Settings → Admins & Users → Add New Admin → **Restrict to local access
-> only**, give it a strong password and full Network-app management rights.
-> Username `claude-tf` (matches the creds template).
+The key is the existing UniFi key also used by `scripts/unifi/netinfo.py`. A local
+admin account (`claude-tf`) was created during bootstrap and is now an unused
+emergency fallback — keep it or delete it; auth no longer depends on it.
 
 ## Credentials
 
 Stored SOPS-encrypted at `scripts/unifi/credentials.sops.yaml` (same pattern as
-`scripts/proxmox/credentials.sops.yaml`). Bootstrap:
+`scripts/proxmox/credentials.sops.yaml`), holding `UNIFI_API_KEY`, `UNIFI_API`,
+`UNIFI_INSECURE`, `UNIFI_SITE`, and the SSID `TF_VAR_*_psk` passphrases. Re-encrypt
+after any edit and confirm:
 
 ```bash
-cp scripts/unifi/credentials.sops.yaml.example scripts/unifi/credentials.sops.yaml
-# edit: set the real UNIFI_PASSWORD
 sops --encrypt --in-place scripts/unifi/credentials.sops.yaml
 grep -q 'ENC\[' scripts/unifi/credentials.sops.yaml && echo "encrypted OK"
 ```
