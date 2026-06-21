@@ -33,7 +33,7 @@ spec:
           main:
             image:
               repository: vaultwarden/server
-              tag: testing
+              tag: 1.36.0
               pullPolicy: IfNotPresent
 
             env:
