@@ -59,11 +59,37 @@ Verify against the target scheme afterward:
 python3 scripts/unifi/netinfo.py verify
 ```
 
+## ⚠️ Provider gaps — run `vlan-postapply.py` after every apply
+
+The `filipowm/unifi` provider does NOT set two fields the UDM needs to bring a
+`corporate` network up as a routed/NAT'd LAN, so a freshly Terraform-created VLAN
+has **no DHCP and no internet** until they're set out-of-band:
+
+- **`is_nat`** must be `True` (else the gateway won't NAT/route the subnet)
+- **`gateway_type`** must be `"default"` (else the gateway never creates the
+  `.x.1` L3 interface or DHCP server → clients get `169.254.x` / no lease)
+
+Separately, this network historically ran flat on the untagged native VLAN, so
+AP-uplink and inter-switch-uplink **switch ports were `forward=native`
+(`tagged_vlan_mgmt=block_all`) and DROP tagged-VLAN frames**. Every infra port
+(AP links + switch/gateway uplinks) must be `forward=all`.
+
+Both are reconciled idempotently by **[`scripts/unifi/vlan-postapply.py`](../../scripts/unifi/vlan-postapply.py)**
+(dry-run by default; `--apply` to write, then ~90s for the force-provision to
+settle). Run it after any `apply` that (re)creates the VLAN networks. Terraform
+does not manage these fields, so it will not revert them (`plan` stays clean).
+
+```bash
+python3 scripts/unifi/vlan-postapply.py            # audit
+python3 scripts/unifi/vlan-postapply.py --apply    # remediate
+```
+
 ## Phases (see the migration runbook)
 
 | Phase | Files | Status |
 |-------|-------|--------|
-| A — VLANs | `vlans.tf` | scaffolded |
-| A — SSIDs | `wlans.tf` (todo) | — |
-| port trunks | `port_profiles.tf` (todo) | — |
-| B — firewall | `firewall.tf` (todo) | — |
+| A — VLANs | `vlans.tf` | ✅ applied |
+| A — SSIDs | `wlans.tf` | ✅ applied (guest + kids) |
+| B — firewall | `firewall.tf`, `firewall_policies.tf` | ✅ applied (zones + policies) |
+| C — retag `mainertoo_zone`→10 | — | pending (moves your devices) |
+| D — IoT relocation | — | pending (separate session) |
