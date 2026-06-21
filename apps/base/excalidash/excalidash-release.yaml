@@ -106,6 +106,12 @@ spec:
                   httpGet:
                     path: /health
                     port: 8000
+                    # Probe hits the pod directly (no Traefik), so present as
+                    # https — with TRUST_PROXY=true the backend skips the
+                    # http->https redirect and returns 200 instead of 302.
+                    httpHeaders:
+                      - name: X-Forwarded-Proto
+                        value: https
                   initialDelaySeconds: 20
                   periodSeconds: 30
                   timeoutSeconds: 5
