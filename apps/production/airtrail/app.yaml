@@ -1,0 +1,45 @@
+---
+# Flux Kustomization for the airtrail app.
+# The gatus/internal + gatus/external components establish both health-check
+# endpoints declaratively (auto-discovered ConfigMaps labelled gatus.io/enabled).
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app airtrail
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/airtrail
+  targetNamespace: airtrail
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+
+  # AirTrail reads the CNPG-generated airtrail-db-app Secret (DB_URL). A
+  # from-scratch GitOps restore must wait for the postgres Cluster to be Ready
+  # before the app starts and runs its Prisma migrations.
+  dependsOn:
+    - name: airtrail-db-cnpg
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+  postBuild:
+    substitute:
+      APP: *app
+      SUBDOMAIN: airtrail
+      GATUS_DOMAIN: mainertoo.com
+      GATUS_PORT: "3000"
+      GATUS_PATH: /
+      GATUS_STATUS_INTERNAL: "200"

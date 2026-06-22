@@ -1,0 +1,59 @@
+---
+# CloudNativePG-managed postgres cluster `airtrail-db` for the AirTrail app.
+# AirTrail uses plain PostgreSQL (Prisma migrations) — no postgis — so the
+# default CNPG community image applies. The app connects via the CNPG-generated
+# `airtrail-db-app` Secret (key `uri`), built in airtrail-release.yaml.
+#
+# Fresh deploy: initdb overlay creates database+owner `airtrail`. WAL archiving
+# and daily base backups stream to Garage S3 via the barman-cloud plugin.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: airtrail-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/empty
+  targetNamespace: airtrail
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  # Health-check the CNPG Cluster so the app Kustomization (dependsOn:
+  # airtrail-db-cnpg) properly waits for postgres to be Ready during a
+  # from-scratch GitOps restore.
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: airtrail-db
+      namespace: airtrail
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/cnpg-cluster/base
+    - ../../../components/cnpg-cluster/initdb
+  postBuild:
+    substitute:
+      APP: airtrail-db
+      APP_NAMESPACE: airtrail
+      CNPG_DB_NAME: airtrail
+      CNPG_DB_OWNER: airtrail
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+      CNPG_INSTANCES: "1"
+      # Daily base backup at 04:15 UTC — clear of the 04:00 default and the
+      # 04:30/04:45 joplin/qnap_pbs slots.
+      CNPG_BACKUP_SCHEDULE: "0 15 4 * * *"
+      CNPG_RETENTION: "30d"
+      CNPG_LINEAGE: v1
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base

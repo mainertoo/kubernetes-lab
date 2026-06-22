@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: airtrail-ingressroute
+  namespace: airtrail
+  annotations:
+    gethomepage.dev/href: "https://airtrail.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Airtrail"
+    gethomepage.dev/description: "Airtrail"
+    gethomepage.dev/app: airtrail
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-airtrail.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`airtrail.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: airtrail
+          port: 3000
+          scheme: http
+  tls: {}

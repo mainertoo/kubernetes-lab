@@ -1,0 +1,97 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: airtrail
+  namespace: airtrail
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      airtrail:
+        containers:
+          app:
+            image:
+              repository: johly/airtrail
+              tag: v3.10.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              # SvelteKit validates the Origin header (CSRF). Both the public
+              # (Pangolin) and the internal (Traefik) hostnames must be listed,
+              # comma-separated, or POSTs from one path get rejected.
+              - name: ORIGIN
+                value: https://airtrail.mainertoo.com,https://airtrail.lab.mainertoo.com
+              - name: UPLOAD_LOCATION
+                value: /app/uploads
+              # Connection string from the CNPG-generated airtrail-db-app Secret
+              # (key `uri` → postgresql://airtrail:<pw>@airtrail-db-rw:5432/airtrail).
+              - name: DB_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: airtrail-db-app
+                    key: uri
+              # Native OIDC against Authentik. Mobile clients can't complete an
+              # interactive forward-auth proxy flow, so SSO is wired in-app — NOT
+              # as a Traefik middleware. Public split-horizon issuer (reached via
+              # the VPS Pangolin), same pattern as Immich. CLIENT_ID/SECRET live
+              # in airtrail-secret (envFrom below).
+              - name: OAUTH_ENABLED
+                value: "true"
+              - name: OAUTH_ISSUER_URL
+                value: https://authentik.mainertoo.com/application/o/airtrail/.well-known/openid-configuration
+              - name: OAUTH_SCOPE
+                value: openid profile email
+              - name: OAUTH_AUTO_REGISTER
+                value: "true"
+            envFrom:
+              - secretRef:
+                  name: airtrail-secret
+            # NOTE: health probes are disabled by default — the generic / path
+            # may not return 200. Enable a real readiness/liveness check once
+            # you know the app's health endpoint.
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+        pod:
+          # AirTrail's image runs as UID:GID 1000:1000 and must own /app/uploads.
+          # ceph-rbd mounts root:root, so set fsGroup + OnRootMismatch to chown
+          # the volume only when needed (avoids a slow full re-chown every restart).
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: airtrail
+        ports:
+          http:
+            port: 3000
+
+    persistence:
+      uploads:
+        existingClaim: airtrail-uploads
+        globalMounts:
+          - path: /app/uploads
