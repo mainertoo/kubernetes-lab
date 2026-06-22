@@ -84,6 +84,22 @@ spec:
                 value: "llama-cpp-ignores-this-too"
               RAG_EMBEDDING_MODEL:
                 value: "ChristianAzinn/mxbai-embed-large-v1-gguf:Q8_0"
+              # Web search + page loading via the in-cluster self-hosted
+              # Firecrawl (apps/base/firecrawl). Firecrawl covers both: its
+              # /search proxies to the QNAS SearXNG (its SEARXNG_ENDPOINT),
+              # and it scrapes the result pages. firecrawl-api svc, :3002.
+              ENABLE_WEB_SEARCH:
+                value: "true"
+              WEB_SEARCH_ENGINE:
+                value: "firecrawl"
+              WEB_LOADER_ENGINE:
+                value: "firecrawl"
+              FIRECRAWL_API_BASE_URL:
+                value: "http://firecrawl-api.firecrawl.svc.cluster.local:3002"
+              # Self-hosted Firecrawl runs USE_DB_AUTHENTICATION=false, but
+              # Open WebUI requires a non-empty key value.
+              FIRECRAWL_API_KEY:
+                value: "self-hosted-no-auth"
 
             resources:
               requests:
