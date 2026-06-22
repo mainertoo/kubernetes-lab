@@ -15,7 +15,10 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./apps/base/empty
+  # Build target carries the airtrail Namespace so it exists before the
+  # cnpg-cluster Components render the Cluster/Secret into it (same pattern as
+  # apps/base/immich/db-cnpg). The app Kustomization dependsOn this one.
+  path: ./apps/base/airtrail/db-cnpg
   targetNamespace: airtrail
   prune: true
   retryInterval: 2m
