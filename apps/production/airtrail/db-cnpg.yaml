@@ -41,8 +41,8 @@ spec:
     name: flux-system
     namespace: flux-system
   components:
-    - ../../../components/cnpg-cluster/base
-    - ../../../components/cnpg-cluster/initdb
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
   postBuild:
     substitute:
       APP: airtrail-db
