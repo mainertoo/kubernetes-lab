@@ -36,11 +36,19 @@ spec:
             env:
               - name: TZ
                 value: America/Los_Angeles
-              # SvelteKit validates the Origin header (CSRF). Both the public
-              # (Pangolin) and the internal (Traefik) hostnames must be listed,
-              # comma-separated, or POSTs from one path get rejected.
+              # SvelteKit (adapter-node) validates the Origin header on every
+              # form POST (CSRF). ORIGIN must be a SINGLE origin — adapter-node
+              # does NOT split a comma list at runtime (the comma form only
+              # feeds csrf.trustedOrigins at BUILD time, dead in the prebuilt
+              # image), so a multi-host value 403s every login/create. Set to the
+              # public host (the app's primary face via Pangolin); the browser
+              # always sends that exact Origin on the page, so no proxy-header
+              # dependency. NOTE: logging in via the internal airtrail.lab host
+              # won't pass CSRF with this single value — use the public URL, or
+              # switch to PROTOCOL_HEADER/HOST_HEADER (forwarded-header) mode for
+              # dual-host support.
               - name: ORIGIN
-                value: https://airtrail.mainertoo.com,https://airtrail.lab.mainertoo.com
+                value: https://airtrail.mainertoo.com
               - name: UPLOAD_LOCATION
                 value: /app/uploads
               # Connection string from the CNPG-generated airtrail-db-app Secret
