@@ -10,7 +10,7 @@ spec:
   chart:
     spec:
       chart: rancher-backup
-      version: 109.0.4+up10.0.4
+      version: 109.0.5+up10.0.5
       sourceRef:
         kind: HelmRepository
         name: rancher-charts
