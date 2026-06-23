@@ -4,33 +4,40 @@
 #   Internal -> Internal/External/Gateway/Vpn/Dmz = ALLOW  (untouched)
 #   Internal -> {IoT,Cameras,Untrusted}           = BLOCK  (we override below)
 #   {IoT,Cameras,Untrusted} -> *                  = BLOCK  (we add allows below)
-# Return traffic for an ALLOW is handled statefully (established/related), so we
-# deliberately do NOT set auto_allow_return_traffic — that would let a segmented
-# zone INITIATE back into Internal, which we don't want.
+# UniFi ZBF is NOT purely stateful for cross-zone return traffic — an ALLOW only
+# permits the forward direction. Without auto_allow_return_traffic, the device's
+# REPLY (e.g. IoT->Internal) hits the "Block All" and the connection times out.
+# So Internal->{IoT,Untrusted,Cameras} MUST set auto_allow_return_traffic so Home
+# Assistant (and any Internal host) can actually talk to segmented devices. This
+# only allows ESTABLISHED return traffic — it does NOT let a segmented zone
+# initiate new connections into Internal.
 
 # adguard_dns ("192.168.1.50") is defined in vlans.tf and reused here.
 
 # --- Internal (Mgmt/Trusted/K8s/Ceph) may initiate into the segmented zones ---
 # (needed for Home Assistant -> IoT control, admin access, camera viewing).
 resource "unifi_firewall_zone_policy" "internal_to_iot" {
-  name        = "Internal to IoT"
-  action      = "ALLOW"
-  source      = { zone_id = data.unifi_firewall_zone.internal.id }
-  destination = { zone_id = unifi_firewall_zone.iot.id }
+  name                      = "Internal to IoT"
+  action                    = "ALLOW"
+  auto_allow_return_traffic = true
+  source                    = { zone_id = data.unifi_firewall_zone.internal.id }
+  destination               = { zone_id = unifi_firewall_zone.iot.id }
 }
 
 resource "unifi_firewall_zone_policy" "internal_to_untrusted" {
-  name        = "Internal to Untrusted"
-  action      = "ALLOW"
-  source      = { zone_id = data.unifi_firewall_zone.internal.id }
-  destination = { zone_id = unifi_firewall_zone.untrusted.id }
+  name                      = "Internal to Untrusted"
+  action                    = "ALLOW"
+  auto_allow_return_traffic = true
+  source                    = { zone_id = data.unifi_firewall_zone.internal.id }
+  destination               = { zone_id = unifi_firewall_zone.untrusted.id }
 }
 
 resource "unifi_firewall_zone_policy" "internal_to_cameras" {
-  name        = "Internal to Cameras"
-  action      = "ALLOW"
-  source      = { zone_id = data.unifi_firewall_zone.internal.id }
-  destination = { zone_id = unifi_firewall_zone.cameras.id }
+  name                      = "Internal to Cameras"
+  action                    = "ALLOW"
+  auto_allow_return_traffic = true
+  source                    = { zone_id = data.unifi_firewall_zone.internal.id }
+  destination               = { zone_id = unifi_firewall_zone.cameras.id }
 }
 
 # --- Internet (to External). Cameras intentionally OMITTED -> no internet. ---
