@@ -61,6 +61,15 @@ spec:
               - /data/credentials
               - --primary-interface
               - lan0
+              # Quiet the CHIP SDK's error-level "DNSSD packet parsing failed" flood:
+              # the UniFi mDNS reflector relays every non-Matter service (printers,
+              # AirPlay, etc.) onto lan0, and CHIP's minimal resolver logs an ERROR per
+              # packet it can't parse — cosmetic (it correctly ignores them), but
+              # thousands of lines/min. This silences only the SDK's logging; matter-
+              # server's own app logs (discovery/commissioning) use --log-level and are
+              # unaffected. Community-confirmed cosmetic (python-matter-server #307/#323).
+              - --log-level-sdk
+              - none
 
             env:
               TZ: America/Los_Angeles
