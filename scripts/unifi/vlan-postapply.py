@@ -13,8 +13,23 @@ VLAN, AP-uplink and inter-switch-uplink switch ports were left `forward=native`
 (`tagged_vlan_mgmt=block_all`), which DROPS tagged-VLAN frames. Every infra port
 (AP links + switch/gateway uplinks) must be `forward=all` to trunk the VLANs.
 
-This script reconciles both, idempotently. Run it after any `terraform apply`
-that (re)creates the VLAN networks. Read-only by default; pass --apply to write.
+Finally, Matter-over-WiFi works across VLANs only with routable IPv6 (ULA) +
+Router Advertisement/SLAAC on BOTH the controller and the device VLANs, plus the
+global mDNS reflector and IGMP snooping OFF (the Terry White "UniFi IoT VLAN
+Firewall Rules for Apple Home & Matter" recipe, cross-referenced in
+docs/network-vlan-design.md). The filipowm provider cannot manage IPv6 on a
+unifi_network (its update path errors `not found` in v1.0.0), so we set the ULA
+prefixes here:
+    VLAN 10 (Trusted) = Apple hubs / controllers
+    VLAN 20 (IoT)     = Matter devices (target isolation VLAN)
+    VLAN 1 / 90       = matter-server (Home Assistant, hostNetwork on lan0/eth0)
+                        needs its OWN routable ULA to reach the device VLANs.
+Without this, matter-server only has link-local IPv6, which does not route
+cross-VLAN -> commissioned Matter nodes show available=False / "No Response".
+
+This script reconciles all of the above, idempotently. Run it after any
+`terraform apply` that (re)creates the VLAN networks. Read-only by default;
+pass --apply to write.
 
 Auth: reuses the UniFi API key from apps/base/ui-toolkit/ui-toolkit-secret.sops.yaml
 (same as netinfo.py), or env UNIFI_API_KEY + UNIFI_API.
@@ -26,6 +41,19 @@ REPO = Path(__file__).resolve().parents[2]
 UI_SECRET = REPO / "apps/base/ui-toolkit/ui-toolkit-secret.sops.yaml"
 TARGET_VLANS = {10, 20, 30, 40, 50, 60}
 REQUIRED_NET_FIELDS = {"is_nat": True, "gateway_type": "default"}
+
+# Matter fabric: ULA prefix per VLAN (10/20 = fabric, 1/90 = matter-server's NICs).
+MATTER_ULA = {1: "fd00:1::1/64", 10: "fd00:10::1/64", 20: "fd00:20::1/64", 90: "fd00:90::1/64"}
+
+
+def _ipv6_fields(subnet):
+    return {
+        "ipv6_interface_type": "static",
+        "ipv6_subnet": subnet,
+        "ipv6_ra_enabled": True,
+        "ipv6_ra_priority": "high",
+        "ipv6_client_address_assignment": "slaac",
+    }
 
 
 def load_auth():
@@ -66,6 +94,35 @@ def fix_networks(c, apply):
                 n.update(REQUIRED_NET_FIELDS)
                 c.req(f"/proxy/network/api/s/default/rest/networkconf/{n['_id']}", n, "PUT")
             changed.append(n["vlan"])
+    return changed
+
+
+def fix_matter_ipv6(c, apply):
+    """Ensure ULA IPv6 + RA/SLAAC on the Matter-fabric VLANs, and verify the global
+    mDNS reflector + IGMP-off (required for cross-VLAN Matter discovery)."""
+    nets = c.req("/proxy/network/api/s/default/rest/networkconf")
+    changed = []
+    for n in nets:
+        v = n.get("vlan") or (1 if n.get("name") == "Default" else None)
+        if v not in MATTER_ULA:
+            continue
+        want = _ipv6_fields(MATTER_ULA[v])
+        bad = {k: val for k, val in want.items() if n.get(k) != val}
+        if bad:
+            print(f"  VLAN {v:3} {n['name']:14} IPv6 needs {sorted(bad)}")
+            if apply:
+                n.update(want)
+                c.req(f"/proxy/network/api/s/default/rest/networkconf/{n['_id']}", n, "PUT")
+            changed.append(v)
+    # mDNS reflector + IGMP are global settings; verify (read-only) — these are the
+    # discovery half of the recipe and must not regress.
+    settings = c.req("/proxy/network/api/s/default/get/setting")
+    mdns = next((s for s in settings if s.get("key") == "mdns"), {})
+    igmp = next((s for s in settings if s.get("key") == "igmp_snooping"), {})
+    if mdns.get("enabled_for") != "all":
+        print(f"  WARN: mDNS reflector enabled_for={mdns.get('enabled_for')!r} (want 'all' for Matter discovery)")
+    if igmp.get("enabled"):
+        print("  WARN: IGMP snooping is ON (Terry White recipe wants it OFF — it drops Matter/Apple discovery)")
     return changed
 
 
@@ -111,15 +168,17 @@ def main():
     mode = "APPLY" if args.apply else "DRY-RUN (use --apply to write)"
     print(f"== UniFi VLAN post-apply remediation [{mode}] ==\n[networks: is_nat/gateway_type]")
     nets = fix_networks(c, args.apply)
+    print("[Matter fabric: ULA IPv6 + RA/SLAAC + mDNS/IGMP check]")
+    v6 = fix_matter_ipv6(c, args.apply)
     print("[trunks: AP + inter-switch uplink ports]")
     devs = fix_trunks(c, args.apply)
-    if args.apply and (nets or devs):
-        # gateway must reprovision for network field changes; switches for trunks
-        macs = set(devs) | ({"d0:21:f9:d9:4c:03"} if nets else set())
+    if args.apply and (nets or devs or v6):
+        # gateway must reprovision for network field / IPv6 changes; switches for trunks
+        macs = set(devs) | ({"d0:21:f9:d9:4c:03"} if (nets or v6) else set())
         for m in macs:
             c.req("/proxy/network/api/s/default/cmd/devmgr", {"cmd": "force-provision", "mac": m}, "POST")
         print(f"\nforce-provisioned {len(macs)} device(s); allow ~90s to settle.")
-    if not nets and not devs:
+    if not nets and not devs and not v6:
         print("\nAll good — nothing to remediate.")
 
 
