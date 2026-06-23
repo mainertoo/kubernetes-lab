@@ -42,6 +42,26 @@ spec:
               repository: ghcr.io/matter-js/python-matter-server
               tag: 8.1.2
 
+            # hostNetwork exposes EVERY node interface (eth0/VLAN90, lan0/VLAN1,
+            # flannel.1, cni0, ~59 K8s veth pairs = 63 total) to CHIP's minimal mDNS
+            # resolver. It drowns in pod-to-pod/overlay multicast it can't parse and
+            # floods "DNSSD packet parsing failed", which kills device discovery so no
+            # NEW Matter device can be commissioned (existing nodes stay paired). Pin
+            # mDNS + link-local to the home-LAN NIC (lan0 / VLAN 1, where HA's macvlan
+            # also lives); reflected Matter mDNS from VLAN 10/20 lands there.
+            #
+            # NOTE: the image is Entrypoint=["matter-server"], CMD=["--storage-path",
+            # "/data","--paa-root-cert-dir","/data/credentials"]. Setting args REPLACES
+            # CMD, so those two flags MUST be repeated here or matter-server loses its
+            # fabric + PAA credentials.
+            args:
+              - --storage-path
+              - /data
+              - --paa-root-cert-dir
+              - /data/credentials
+              - --primary-interface
+              - lan0
+
             env:
               TZ: America/Los_Angeles
 
