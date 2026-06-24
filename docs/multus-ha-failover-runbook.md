@@ -1,7 +1,16 @@
 # Multus + Home Assistant failover runbook (staging-first)
 
-**Status:** PLAN — not yet executed. Survived two adversarial Codex passes; this revision folds
-in every blocker/high from both plus the resolved IP plan. One more confirm-pass, then stage it.
+> ⏸ **PAUSED 2026-06-24 for a UPS power update (graceful shutdown of all cluster nodes).**
+> All manifests are committed + INERT (nothing reconciles). **RESUME:** after the cluster is back
+> and verified healthy (nodes Ready, `flux get all -A` reconciled, ceph `HEALTH_OK`), merge PR
+> #1020, then run **Phase 1 activation** below: back up `10-flannel.conflist` per node → ready the
+> node-level rollback → uncomment the `infra-multus` block in
+> `clusters/staging/infrastructure.yaml` → verify `00-multus.conf` delegates to flannel + a fresh
+> pod still networks.
+
+**Status:** PLAN — not yet executed (PAUSED, see above). Design validated across three adversarial
+Codex passes (incl. a review of the real manifests); IP plan resolved + reservations applied;
+staging manifests built (rke2-multus v4.2.418) and inert.
 **Goal:** let Home Assistant + matter-server survive a worker-2 node failure by giving HA a
 **node-independent LAN IP** via a Multus macvlan interface (dropping `hostNetwork`), proven on
 staging before touching production.
