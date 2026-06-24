@@ -19,13 +19,18 @@ global mDNS reflector and IGMP snooping OFF (the Terry White "UniFi IoT VLAN
 Firewall Rules for Apple Home & Matter" recipe, cross-referenced in
 docs/network-vlan-design.md). The filipowm provider cannot manage IPv6 on a
 unifi_network (its update path errors `not found` in v1.0.0), so we set the ULA
-prefixes here:
-    VLAN 10 (Trusted) = Apple hubs / controllers
-    VLAN 20 (IoT)     = Matter devices (target isolation VLAN)
-    VLAN 1 / 90       = matter-server (Home Assistant, hostNetwork on lan0/eth0)
-                        needs its OWN routable ULA to reach the device VLANs.
+prefixes here, on the MINIMAL set of VLANs that actually need it:
+    VLAN 20 (IoT) = Matter devices live here
+    VLAN 1        = matter-server's --primary-interface (lan0); needs a routable
+                    ULA to reach the VLAN-20 devices.
 Without this, matter-server only has link-local IPv6, which does not route
 cross-VLAN -> commissioned Matter nodes show available=False / "No Response".
+
+Deliberately NOT VLAN 10 or 90: a ULA RA advertises a default IPv6 route with no
+internet behind it. General clients (Windows/Mac/iPhone) then try IPv6, fail, and
+show "no internet" / stall — VLAN 10 (Trusted) carries laptops+phones and VLAN 90
+carries the k3s nodes, so IPv6 stays OFF there. Matter devices still on VLAN 10
+(the sonoff bedside plugs) should be re-onboarded onto VLAN 20.
 
 This script reconciles all of the above, idempotently. Run it after any
 `terraform apply` that (re)creates the VLAN networks. Read-only by default;
@@ -42,8 +47,10 @@ UI_SECRET = REPO / "apps/base/ui-toolkit/ui-toolkit-secret.sops.yaml"
 TARGET_VLANS = {10, 20, 30, 40, 50, 60}
 REQUIRED_NET_FIELDS = {"is_nat": True, "gateway_type": "default"}
 
-# Matter fabric: ULA prefix per VLAN (10/20 = fabric, 1/90 = matter-server's NICs).
-MATTER_ULA = {1: "fd00:1::1/64", 10: "fd00:10::1/64", 20: "fd00:20::1/64", 90: "fd00:90::1/64"}
+# Matter fabric ULA prefixes — MINIMAL set ONLY: VLAN 20 (Matter devices) + VLAN 1
+# (matter-server's lan0 / --primary-interface). NOT VLAN 10 (Trusted client WiFi) or
+# VLAN 90 (k3s nodes): a no-internet ULA default route breaks general clients there.
+MATTER_ULA = {1: "fd00:1::1/64", 20: "fd00:20::1/64"}
 
 
 def _ipv6_fields(subnet):
