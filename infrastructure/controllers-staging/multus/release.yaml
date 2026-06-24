@@ -38,3 +38,8 @@ spec:
         binDir: /var/lib/rancher/k3s/data/cni/
         multusAutoconfigDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
         kubeconfig: /var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
+        # Explicit (also the chart default): on pod exit, remove the generated
+        # 00-multus.conf so flannel's conflist becomes primary again. NOTE: this
+        # is best-effort and does NOT cover a crash / partial install — the
+        # runbook's node-level flannel-conflist restore is still the real rollback.
+        cleanupConfigOnExit: true
