@@ -67,16 +67,19 @@ Staging TF does NOT set `worker_extra_nic` → staging workers have no `lan0`.
 
 ## Phase 1 — Install Multus on **staging** (own Flux Kustomization, health-gated)
 
-1. Vendor Multus thick-plugin manifests into `infrastructure/controllers-staging/multus/`
-   (pinned image **tag + digest**), with:
-   - `--cni-conf-dir=/var/lib/rancher/k3s/agent/etc/cni/net.d`,
-     `--cni-bin-dir=/var/lib/rancher/k3s/data/cni` + matching hostPath mounts.
-   - **flannel chaining made explicit:** set the Multus master/default-delegate to the rendered
-     `10-flannel.conflist` (use `--multus-master-cni-file-name=10-flannel.conflist` or a pinned
-     `00-multus.conf` that delegates to it) — do NOT rely on auto-pick ordering. Validate the
-     generated `00-multus.conf` content before trusting it.
-   - A dedicated Flux Kustomization, `wait: true` + `healthChecks` on the DaemonSet. Not bundled
-     with any app change.
+Use the **K3s-official `rke2-multus` Helm chart** (NOT a hand-vendored daemonset) — it sets the
+K3s CNI paths and auto-detects the existing flannel config as the default delegate, which is the
+supported path on K3s. Cluster is `v1.35.5+k3s1` (prod + staging), past the Oct-2024 cutoff, so
+the fixed bin dir `/var/lib/rancher/k3s/data/cni` is correct.
+1. Add the `rke2-charts` `HelmRepository` (`https://rke2-charts.rancher.io`) and a **pinned**
+   `rke2-multus` `HelmRelease` in `infrastructure/controllers-staging/multus/`, values:
+   - `config.cni_conf.confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d`
+   - `config.cni_conf.binDir: /var/lib/rancher/k3s/data/cni/`
+   - `config.cni_conf.multusAutoconfigDir: /var/lib/rancher/k3s/agent/etc/cni/net.d`
+     (this is the **flannel-chaining** mechanism — Multus auto-reads the existing
+     `10-flannel.conflist` as the default delegate; no manual `00-multus.conf` to maintain).
+   - A dedicated Flux `Kustomization`, `wait: true` + `healthChecks` on the multus DaemonSet. Not
+     bundled with any app change.
 2. **Verify:** DaemonSet Ready on all 3 staging nodes; `00-multus.conf` present + delegating to
    flannel; flannel conflist intact; **every** pod still networks (prove via a **freshly created**
    test pod: pod-to-pod + CoreDNS).
