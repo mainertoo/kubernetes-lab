@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rke2-multus
+  namespace: kube-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: rke2-multus
+      sourceRef:
+        kind: HelmRepository
+        name: rke2-charts
+        namespace: kube-system
+      version: "v4.2.418"  # Multus CNI v4.2.4 (appVersion); K3s-official chart
+  releaseName: rke2-multus
+  targetNamespace: kube-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The chart DEFAULTS to /etc/cni/net.d + /opt/cni/bin, which are WRONG on K3s
+    # and would silently half-install Multus. Override to the K3s paths. This
+    # cluster is v1.35.5+k3s1 (past the Oct-2024 cutoff), so the durable bin dir
+    # is /var/lib/rancher/k3s/data/cni — NOT data/current/bin (which vanishes on
+    # K3s upgrade). multusConfFile defaults to "auto" (auto-detects the existing
+    # 10-flannel.conflist as the default delegate = flannel chaining), and
+    # cniplugins.skipcnis defaults to "flannel" (does NOT reinstall/clobber K3s's
+    # flannel). thickPlugin + rke2-whereabouts stay disabled (chart defaults); we
+    # use the thin plugin (RKE2/K3s default, proven) and static IPAM, not whereabouts.
+    config:
+      fullnameOverride: multus
+      cni_conf:
+        confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+        binDir: /var/lib/rancher/k3s/data/cni/
+        multusAutoconfigDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+        kubeconfig: /var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
