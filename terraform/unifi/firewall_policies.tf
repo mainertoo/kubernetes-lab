@@ -12,7 +12,10 @@
 # only allows ESTABLISHED return traffic — it does NOT let a segmented zone
 # initiate new connections into Internal.
 
-# adguard_dns ("192.168.1.50") is defined in vlans.tf and reused here.
+# internal_dns (["192.168.1.50", "192.168.1.53"]) is defined in vlans.tf and reused
+# here — both AdGuard resolvers live in the Internal zone (.50 on pve-mac, .53 on
+# pve-ugreen/off-rack). The .1 gateway resolver is a Gateway-zone host, reached via
+# the predefined Gateway UDP allow, so it's not listed here.
 
 # --- Internal (Mgmt/Trusted/K8s/Ceph) may initiate into the segmented zones ---
 # (needed for Home Assistant -> IoT control, admin access, camera viewing).
@@ -62,7 +65,7 @@ resource "unifi_firewall_zone_policy" "iot_dns" {
   action      = "ALLOW"
   protocol    = "tcp_udp"
   source      = { zone_id = unifi_firewall_zone.iot.id }
-  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = [local.adguard_dns], port = "53" }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = local.internal_dns, port = "53" }
 }
 
 resource "unifi_firewall_zone_policy" "untrusted_dns" {
@@ -70,7 +73,7 @@ resource "unifi_firewall_zone_policy" "untrusted_dns" {
   action      = "ALLOW"
   protocol    = "tcp_udp"
   source      = { zone_id = unifi_firewall_zone.untrusted.id }
-  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = [local.adguard_dns], port = "53" }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = local.internal_dns, port = "53" }
 }
 
 resource "unifi_firewall_zone_policy" "cameras_dns" {
@@ -78,7 +81,7 @@ resource "unifi_firewall_zone_policy" "cameras_dns" {
   action      = "ALLOW"
   protocol    = "tcp_udp"
   source      = { zone_id = unifi_firewall_zone.cameras.id }
-  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = [local.adguard_dns], port = "53" }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = local.internal_dns, port = "53" }
 }
 
 # --- Block segmented zones from the gateway's MANAGEMENT services (router UI / SSH).
