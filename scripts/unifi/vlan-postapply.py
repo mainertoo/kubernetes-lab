@@ -136,26 +136,53 @@ def fix_matter_ipv6(c, apply):
 def fix_trunks(c, apply):
     devs = {d["mac"]: d for d in c.req("/proxy/network/api/s/default/stat/device")}
     infra = {m for m, d in devs.items() if d.get("type") in ("usw", "udm", "uap")}
+    # Authoritative downstream map: (upstream_mac, upstream_port) -> the device that
+    # uplinks through it. Built from each device's own uplink record, NOT LLDP (which
+    # can be empty/stale) — this is what reliably catches inter-switch DOWNlinks (e.g.
+    # a 2.5G switch port feeding a 16-port switch, which is_uplink does NOT flag).
+    downlink = {}
+    for d in devs.values():
+        up = d.get("uplink") or {}
+        if up.get("uplink_mac") and up.get("uplink_remote_port"):
+            downlink[(up["uplink_mac"], up["uplink_remote_port"])] = d
     fixed_devs = set()
     for d in devs.values():
         if d.get("type") not in ("usw", "udm"):
             continue
+        ovmap = {o.get("port_idx"): o for o in d.get("port_overrides", [])}
         to_fix = []
         for pt in d.get("port_table", []):
-            if pt.get("forward") != "native":
-                continue
+            pi = pt.get("port_idx")
+            o = ovmap.get(pi, {})
+            # Does this port carry an AP or another switch/gateway? (uplink map first,
+            # then is_uplink + LLDP as fallbacks.)
+            dn = downlink.get((d["mac"], pi))
             nbrs = {n.get("chassis_id", "").lower() for n in (pt.get("lldp_table") or [])}
-            if pt.get("is_uplink") or (nbrs & {x.lower() for x in infra}):
-                to_fix.append(pt.get("port_idx"))
+            feeds_infra = (
+                (dn is not None and dn.get("type") in ("uap", "usw", "udm"))
+                or pt.get("is_uplink")
+                or (nbrs & {x.lower() for x in infra})
+            )
+            if not feeds_infra:
+                continue
+            # Blocking tagged VLANs? Check the legacy `forward` field AND the
+            # authoritative `tagged_vlan_mgmt` (the field that actually governs tagged
+            # VLANs in current UniFi — block_all silently drops them even when
+            # forward != native), in both the effective port_table and the override.
+            if (pt.get("forward") == "native" or pt.get("tagged_vlan_mgmt") == "block_all"
+                    or o.get("forward") == "native" or o.get("tagged_vlan_mgmt") == "block_all"):
+                to_fix.append(pi)
         if not to_fix:
             continue
-        print(f"  {d.get('name')}: ports {to_fix} forward=native -> all")
+        print(f"  {d.get('name')}: ports {sorted(to_fix)} -> trunk all (forward=all, clear block_all)")
         if apply:
             ov = d.get("port_overrides", [])
             have = {o.get("port_idx") for o in ov}
             for o in ov:
                 if o.get("port_idx") in to_fix:
-                    o["forward"] = "all"; o.pop("tagged_vlan_mgmt", None)
+                    o["forward"] = "all"
+                    o.pop("tagged_vlan_mgmt", None)
+                    o.pop("excluded_networkconf_ids", None)
             for p in to_fix:
                 if p not in have:
                     ov.append({"port_idx": p, "forward": "all"})
