@@ -1,7 +1,16 @@
 # Multus + Home Assistant failover runbook (staging-first)
 
-**Status:** PLAN — not yet executed. Survived two adversarial Codex passes; this revision folds
-in every blocker/high from both plus the resolved IP plan. One more confirm-pass, then stage it.
+> ⏸ **PAUSED 2026-06-24 for a UPS power update (graceful shutdown of all cluster nodes).**
+> All manifests are committed + INERT (nothing reconciles). **RESUME:** after the cluster is back
+> and verified healthy (nodes Ready, `flux get all -A` reconciled, ceph `HEALTH_OK`), merge PR
+> #1020, then run **Phase 1 activation** below: back up `10-flannel.conflist` per node → ready the
+> node-level rollback → uncomment the `infra-multus` block in
+> `clusters/staging/infrastructure.yaml` → verify `00-multus.conf` delegates to flannel + a fresh
+> pod still networks.
+
+**Status:** PLAN — not yet executed (PAUSED, see above). Design validated across three adversarial
+Codex passes (incl. a review of the real manifests); IP plan resolved + reservations applied;
+staging manifests built (rke2-multus v4.2.418) and inert.
 **Goal:** let Home Assistant + matter-server survive a worker-2 node failure by giving HA a
 **node-independent LAN IP** via a Multus macvlan interface (dropping `hostNetwork`), proven on
 staging before touching production.
@@ -80,10 +89,16 @@ the fixed bin dir `/var/lib/rancher/k3s/data/cni` is correct.
      `10-flannel.conflist` as the default delegate; no manual `00-multus.conf` to maintain).
    - A dedicated Flux `Kustomization`, `wait: true` + `healthChecks` on the multus DaemonSet. Not
      bundled with any app change.
-2. **Verify:** DaemonSet Ready on all 3 staging nodes; `00-multus.conf` present + delegating to
+2. **Activation gate (the `multusConfFile: auto` race):** before/at activation, confirm
+   `10-flannel.conflist` already exists on **every** node. `auto` generates `00-multus.conf` from
+   whatever default CNI config it finds; if it runs before flannel's conflist is present it can
+   produce a delegate with no/wrong source. After the DaemonSet rolls, **inspect the generated
+   `00-multus.conf` on each node** and confirm its `delegates` point at flannel (not an empty or
+   fallback delegate) before trusting it.
+3. **Verify:** DaemonSet Ready on all 3 staging nodes; `00-multus.conf` present + delegating to
    flannel; flannel conflist intact; **every** pod still networks (prove via a **freshly created**
    test pod: pod-to-pod + CoreDNS).
-3. **Rollback:** node-level (see Rollback) — removing the DaemonSet alone is NOT sufficient.
+4. **Rollback:** node-level (see Rollback) — removing the DaemonSet alone is NOT sufficient.
 
 ## Phase 2 — Static-IP macvlan NAD + test pod on **staging**
 
@@ -108,8 +123,10 @@ Entry gate: Phase 0 (incl. L2 validation) + Phase 1 clean.
 
 ## Phase 4 — Promote to **production** (maintenance window, TWO commits)
 
-**Commit A — Multus only** in `infrastructure/controllers/multus/` (same pinned version/digest,
-same K3s dirs). Verify prod pods keep networking immediately (fresh-pod test per worker).
+**Commit A — Multus only** in `infrastructure/controllers/multus/` (same pinned **chart version**
+— `rke2-multus v4.2.418`, which pins the image build-tags; full digest-pinning is optional
+hardening, not required — and the same K3s dirs). Verify prod pods keep networking immediately
+(fresh-pod test per worker).
 
 **Commit B — HA migration** (only after Multus is observed Ready on every eligible worker; the HA
 + matter-server Kustomizations gain `dependsOn` the Multus Kustomization):

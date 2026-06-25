@@ -37,8 +37,8 @@ resources:
   - ../controllers/ceph-csi-base
   - ../controllers/ceph-csi-rbd
   - ./storage/ceph-rbd
-  # Multus (rke2-multus chart) — STAGED, NOT YET ACTIVE. The manifests live in
-  # ./multus/ for review; uncommenting the line below DEPLOYS Multus to staging
-  # (Phase 1 of docs/multus-ha-failover-runbook.md). Only do so after backing up
-  # 10-flannel.conflist on each node and having the node-level rollback ready.
-  # - ./multus
+  # NOTE: Multus (./multus/) is intentionally NOT in this aggregate tree. It has
+  # its own dedicated, health-gated Flux Kustomization (`infra-multus`, commented
+  # out in clusters/staging/infrastructure.yaml) so a broken Multus install fails
+  # reconciliation visibly instead of silently passing here. Phase 1 of
+  # docs/multus-ha-failover-runbook.md.

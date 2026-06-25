@@ -3,8 +3,9 @@ kind: Kustomization
 namespace: kube-system
 # rke2-multus (K3s-official Multus chart) — STAGING ONLY, Phase 1 of the
 # Multus + HA failover runbook (docs/multus-ha-failover-runbook.md).
-# Merging this DEPLOYS Multus to the staging cluster. Do not merge until the
-# runbook's Phase-1 prereqs are met (flannel conflist backed up, rollback ready).
+# Reconciled by the dedicated `infra-multus` Flux Kustomization (commented out in
+# clusters/staging/infrastructure.yaml) — nothing here deploys until that block is
+# uncommented. Activate only after the flannel conflist is backed up + rollback ready.
 resources:
   - repository.yaml
   - release.yaml

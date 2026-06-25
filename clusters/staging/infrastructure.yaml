@@ -60,3 +60,32 @@ spec:
 # ./infrastructure/controllers/kyverno/policies would fail dry-run
 # (no matching CRD). Add this Kustomization back if/when kyverno gets
 # opted into infrastructure/controllers-staging/kustomization.yaml.
+
+# ---
+# # Multus (rke2-multus) — Phase 1 of docs/multus-ha-failover-runbook.md.
+# # COMMENTED OUT = inert. Uncommenting this block ACTIVATES the Multus install
+# # on staging. Do so ONLY after: (a) backing up 10-flannel.conflist on every
+# # node, (b) confirming the node-level rollback is ready. Dedicated + health-
+# # gated (wait + DaemonSet healthCheck) so a broken Multus install FAILS this
+# # Kustomization instead of silently passing inside the aggregate infra-controllers.
+# apiVersion: kustomize.toolkit.fluxcd.io/v1
+# kind: Kustomization
+# metadata:
+#   name: infra-multus
+#   namespace: flux-system
+# spec:
+#   interval: 10m
+#   dependsOn:
+#     - name: infra-controllers
+#   path: ./infrastructure/controllers-staging/multus
+#   prune: true
+#   wait: true
+#   timeout: 8m
+#   sourceRef:
+#     kind: GitRepository
+#     name: flux-system
+#   healthChecks:
+#     - apiVersion: apps/v1
+#       kind: DaemonSet
+#       name: multus
+#       namespace: kube-system
