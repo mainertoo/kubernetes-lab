@@ -90,13 +90,14 @@ spec:
                 value: "true"
               - name: API_SERVER_HOST
                 value: "0.0.0.0"
-              # ---- SSH terminal backend → always-on ops node VM 701 (zwave-js) ----
+              # ---- SSH terminal backend → DGX Spark (spark-fef1, always-on) ----
               # backend selection itself lives in /opt/data/config.yaml
               # (terminal.backend: ssh), seeded at bootstrap. These connection
               # params are non-secret; the private key lives on the PVC and is
-              # authorized on VM 701 for the mainertoo account.
+              # authorized on the Spark for the mainertoo account (which also
+              # carries git + gh for the agent's GitHub work).
               - name: TERMINAL_SSH_HOST
-                value: "192.168.1.236"
+                value: "192.168.1.94"
               - name: TERMINAL_SSH_USER
                 value: "mainertoo"
               - name: TERMINAL_SSH_PORT
