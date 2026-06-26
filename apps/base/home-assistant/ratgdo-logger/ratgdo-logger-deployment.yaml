@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratgdo-logger
+  labels:
+    app.kubernetes.io/name: ratgdo-logger
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # RWO PVC — never two writers
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ratgdo-logger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ratgdo-logger
+    spec:
+      # hostNetwork mirrors the home-assistant pod so the same node route to the
+      # IoT VLAN (192.168.20.0/24) that HA uses to reach the ratgdo is guaranteed.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: capture
+          # renovate: image=ghcr.io/esphome/esphome — bundled aioesphomeapi is
+          # version-matched to the device firmware (esphome 2026.2.1).
+          image: ghcr.io/esphome/esphome:2026.2.1
+          command: ["python3", "/opt/capture/capture.py"]
+          env:
+            - name: RATGDO_HOST
+              value: "192.168.20.152"      # ratgdo32 fc5a30 = RIGHT garage door
+            - name: RATGDO_PORT
+              value: "6053"
+            - name: RATGDO_NAME
+              value: "garage-door-right"
+            - name: LOG_DIR
+              value: "/data"
+            - name: TZ
+              value: "America/Los_Angeles"
+          volumeMounts:
+            - name: script
+              mountPath: /opt/capture
+              readOnly: true
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: ratgdo-logger-script
+        - name: data
+          persistentVolumeClaim:
+            claimName: ratgdo-logger-data

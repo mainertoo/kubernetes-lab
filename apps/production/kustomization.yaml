@@ -19,6 +19,7 @@ resources:
   - home-assistant/esphome/kustomization.yaml
   - home-assistant/matter-server/kustomization.yaml
   - home-assistant/node-red/kustomization.yaml
+  - home-assistant/ratgdo-logger/kustomization.yaml
   - media/tracearr/
   - sparky-fitness/
   - media/riven/
