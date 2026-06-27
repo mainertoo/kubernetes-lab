@@ -1,79 +1,65 @@
 #!/usr/bin/env bash
+# ops-node-watchdog — Hermes ops-node (DGX Spark / spark-fef1) health check.
+#
+# DEPLOYMENT (host-local, reference copy lives here in the repo):
+#   - Installed on the Spark at ~/scripts/ops-node-watchdog.sh (user mainertoo).
+#   - Invoked every 6h by Hermes' `ops-node-watchdog` cron, whose in-pod wrapper
+#     (/opt/data/scripts/ops-node-watchdog-wrapper.sh) runs:
+#       ssh ops-01 'bash /home/mainertoo/scripts/ops-node-watchdog.sh'
+#     The `ops-01` SSH alias resolves to the Spark (see apps/base/hermes/
+#     ssh-ops-node.conf). Output is delivered to Discord only on alerts.
+#   - On a Spark rebuild, copy this file to ~/scripts/ and `chmod +x` it.
+#
+# Silent on success; prints alert lines only when something is wrong.
+# (Superseded the zwave-js-era watchdog when Hermes' ops node moved to the Spark.)
 set -u
-
 alerts=()
+add() { alerts+=("$1"); }
 
-add_alert() {
-  alerts+=("$1")
-}
+host=$(hostname 2>/dev/null || true)
+[[ "$host" == spark-fef1* ]] || add "unexpected watchdog host: ${host:-unknown} (expected spark-fef1)"
 
-run_check() {
-  local name="$1"
-  shift
-  local output
-  if ! output=$("$@" 2>&1); then
-    add_alert "$name failed: ${output//$'\n'/ | }"
-  fi
-}
+# Root disk >= 85%
+ru=$(df -P / | awk 'NR==2{gsub(/%/,"",$5);print $5}')
+if [[ -z "${ru:-}" ]]; then add "could not read root disk usage"
+elif (( ru >= 85 )); then add "root filesystem high: ${ru}%"; fi
 
-hostname_f=$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)
-if [[ "$hostname_f" != zwave-js* ]]; then
-  add_alert "unexpected watchdog host: ${hostname_f:-unknown}; expected zwave-js/ops-01"
+# Unified memory >= 95% (vLLM legitimately uses a lot; only flag extreme pressure)
+mp=$(free | awk '/Mem:/{if($2>0)printf "%d",($3/$2)*100}')
+[[ -n "${mp:-}" ]] && (( mp >= 95 )) && add "memory pressure: ${mp}% used"
+
+# Swap active
+if command -v swapon >/dev/null 2>&1; then
+  swapon --show=NAME --noheadings 2>/dev/null | grep -q . || add "no active swap"
 fi
 
-root_use=$(df -P / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')
-if [[ -z "${root_use:-}" ]]; then
-  add_alert "could not determine root filesystem usage"
-elif (( root_use >= 80 )); then
-  add_alert "root filesystem usage high: ${root_use}%"
-fi
-
-SWAPON_BIN=$(command -v swapon || command -v /sbin/swapon || true)
-if [[ -n "$SWAPON_BIN" ]]; then
-  if ! "$SWAPON_BIN" --show=NAME --noheadings | grep -qx '/swapfile'; then
-    add_alert "expected /swapfile is not active"
-  fi
-else
-  add_alert "swapon command not available"
-fi
-
+# Docker daemon + LLM containers healthy
 if command -v docker >/dev/null 2>&1; then
-  for c in zwave-js-ui portainer_agent; do
-    status=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || true)
-    if [[ "$status" != "running" ]]; then
-      add_alert "docker container $c not running (status=${status:-missing})"
-    fi
+  docker info >/dev/null 2>&1 || add "docker daemon not responding"
+  for c in vllm mxbai-embed; do
+    st=$(docker inspect -f '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$c" 2>/dev/null || echo missing)
+    case "$st" in
+      running/healthy|running) : ;;
+      missing) add "container $c missing" ;;
+      *) add "container $c not healthy: $st" ;;
+    esac
   done
 else
-  add_alert "docker command not available"
+  add "docker not installed"
 fi
 
-run_check "gh auth status" gh auth status
-gh_ssh_output=$(ssh -o BatchMode=yes -o ConnectTimeout=8 -T git@github.com 2>&1 || true)
-if ! grep -q "successfully authenticated" <<<"$gh_ssh_output"; then
-  add_alert "GitHub SSH auth failed: ${gh_ssh_output//$'\n'/ | }"
+# LLM endpoints respond
+curl -fsS -o /dev/null --max-time 8 http://localhost:8000/v1/models 2>/dev/null || add "vLLM :8000 not responding"
+curl -fsS -o /dev/null --max-time 8 http://localhost:8081/v1/models 2>/dev/null || add "mxbai-embed :8081 not responding"
+
+# GPU present
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi >/dev/null 2>&1 || add "nvidia-smi failed (GPU may have dropped)"
+else
+  add "nvidia-smi not available"
 fi
 
-run_check "kubectl get nodes" kubectl get nodes --request-timeout=10s --no-headers
-if command -v kubectl >/dev/null 2>&1; then
-  not_ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1":"$2}' | paste -sd, -)
-  if [[ -n "${not_ready:-}" ]]; then
-    add_alert "k3s nodes not Ready: $not_ready"
-  fi
-fi
-run_check "flux get kustomizations" flux get kustomizations -A
-
-for h in pve-s13 pve-mammoth pve-whistler pve-zermatt pve-ugreen pve-mac qnas pbs vps; do
-  run_check "ssh $h" ssh -o BatchMode=yes -o ConnectTimeout=5 "$h" 'hostname 2>/dev/null || uname -n'
-done
-
-if ((${#alerts[@]} > 0)); then
-  {
-    echo "OPS NODE WATCHDOG ALERT ($(date -Is))"
-    echo "Host: ${hostname_f:-unknown}"
-    echo
-    for a in "${alerts[@]}"; do
-      echo "- $a"
-    done
-  }
+if (( ${#alerts[@]} > 0 )); then
+  echo "⚠️ ops-node-watchdog (spark-fef1) — ${#alerts[@]} alert(s):"
+  for a in "${alerts[@]}"; do echo "  • $a"; done
 fi
