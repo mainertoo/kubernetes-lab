@@ -1,0 +1,68 @@
+---
+# Read-only cluster access for Hermes' homelab digest (runs on the DGX Spark
+# ops node). Lets the agent query cluster state — pods, Flux Kustomizations/
+# HelmReleases, cert-manager Certificates, events — WITHOUT any mutate
+# permission and WITHOUT read access to Secret values (the built-in `view`
+# ClusterRole deliberately excludes Secrets). The Spark holds a kubeconfig
+# built from this SA's token; the coding flow stays creds-free (flux-local).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes-readonly
+---
+# Long-lived token for the kubeconfig on the Spark. Empty data — Kubernetes
+# populates token + ca.crt at admission, so nothing secret is committed here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hermes-readonly-token
+  annotations:
+    kubernetes.io/service-account.name: hermes-readonly
+type: kubernetes.io/service-account-token
+---
+# `view` excludes Secrets but also doesn't aggregate every CRD. Grant read-only
+# on the operator CRDs the digest reports on. Still get/list/watch only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hermes-observability-readonly
+rules:
+  - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+      - helm.toolkit.fluxcd.io
+      - source.toolkit.fluxcd.io
+      - notification.toolkit.fluxcd.io
+      - image.toolkit.fluxcd.io
+      - cert-manager.io
+      - acme.cert-manager.io
+      - monitoring.coreos.com
+      - traefik.io
+      - storage.k8s.io
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-readonly-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: hermes-readonly
+    namespace: hermes
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-readonly-observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hermes-observability-readonly
+subjects:
+  - kind: ServiceAccount
+    name: hermes-readonly
+    namespace: hermes
