@@ -5,6 +5,7 @@ resources:
   - excalidash/kustomization.yaml
   - media/achew/kustomization.yaml
   - mac-llama-egress/kustomization.yaml
+  - spark-embed-egress/kustomization.yaml
   - open-webui/kustomization.yaml
   - pocket-bridge/kustomization.yaml
   - audiobookshelf/kustomization.yaml

@@ -1,0 +1,38 @@
+---
+# Stable in-cluster name for the DGX Spark's mxbai embeddings server
+# (llama.cpp, :8081 on the Spark) so consumers don't hardcode the LAN IP.
+#
+# Unlike mac-llama-egress (which goes over the tailnet via the
+# tailscale-operator), the Spark sits on the LAN at 192.168.1.94 and is
+# reachable directly from cluster Pods over 10GbE — verified from the
+# open-webui Pod (HTTP 200, 1024-dim embeddings). So this is a plain
+# selector-less Service + Endpoints pointing at the LAN IP, no egress
+# proxy and no NetworkPolicy required.
+#
+# Consumed by open-webui (RAG / web-search embeddings). The matching
+# Endpoints object MUST share the Service name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-embed
+  namespace: spark-egress
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: spark-embed
+  namespace: spark-egress
+subsets:
+  - addresses:
+      # DGX Spark LAN (10GbE, enP7s7) — stable across LAN renumber.
+      - ip: 192.168.1.94
+    ports:
+      - name: http
+        protocol: TCP
+        port: 8081

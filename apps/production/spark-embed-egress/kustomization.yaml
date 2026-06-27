@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Stable in-cluster name (spark-embed.spark-egress.svc) for the DGX Spark's
+# mxbai embeddings server (:8081), reached directly over the LAN. The
+# namespace is one of the rendered resources, so targetNamespace is omitted —
+# each resource self-namespaces.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: spark-embed-egress
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/spark-embed-egress"
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
