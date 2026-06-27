@@ -8,6 +8,7 @@ resources:
   - hermes-pvc.yaml
   - hermes-release.yaml
   - hermes-ingressroute.yaml
+  - hermes-readonly-rbac.yaml
 
 configMapGenerator:
   - name: hermes-ssh-config
