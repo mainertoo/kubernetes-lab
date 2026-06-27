@@ -104,6 +104,17 @@ spec:
                 value: "22"
               - name: TERMINAL_SSH_KEY
                 value: "/opt/data/.ssh/id_ed25519"
+              # ---- write_file safe root ----
+              # The agent's file tools (read_file/write_file/patch) operate on
+              # the terminal backend = the Spark, NOT in-pod. The image default
+              # HERMES_WRITE_SAFE_ROOT=/opt/data (HERMES_HOME) therefore blocks
+              # every Spark-side write (no /opt/data on the Spark). Scope it to
+              # the one dir a cron job writes to (the paper-trading ledger) so
+              # write_file works there while ~/.ssh, ~/.kube/config, ~/.local/bin
+              # and the coding repo stay out of write_file's reach. The shell
+              # tool is unaffected (not a real boundary — see file_safety.py).
+              - name: HERMES_WRITE_SAFE_ROOT
+                value: "/home/mainertoo/investment_simulation"
               # ---- Messaging platforms ----
               # Bot tokens (TELEGRAM_BOT_TOKEN / DISCORD_BOT_TOKEN) live in the
               # SOPS secret and arrive via envFrom; a platform auto-enables when
