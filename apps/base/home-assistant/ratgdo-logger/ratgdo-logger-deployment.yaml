@@ -28,7 +28,7 @@ spec:
         - name: capture
           # renovate: image=ghcr.io/esphome/esphome — bundled aioesphomeapi is
           # version-matched to the device firmware (esphome 2026.2.1).
-          image: ghcr.io/esphome/esphome:2026.2.4
+          image: ghcr.io/esphome/esphome:2026.6.2
           command: ["python3", "/opt/capture/capture.py"]
           env:
             - name: RATGDO_HOST
