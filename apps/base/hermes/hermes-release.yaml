@@ -43,7 +43,7 @@ spec:
           fix-ssh-key-perms:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: "latest@sha256:c49bd8bb5be46d21f153c8155e8125e9fdea7c3c98ffa813097fc68c21b02102"
+              tag: "latest@sha256:3d5f7838eb85c47ada110752dbe8ffd889c8549a3e23d149b2cf5627e226e6ca"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -57,7 +57,7 @@ spec:
               # PINNED to a digest so the floating `latest` tag can't silently
               # change the image's s6 / profile layout under us on a pod roll.
               # Renovate proposes digest bumps we can test before adopting.
-              tag: latest@sha256:c49bd8bb5be46d21f153c8155e8125e9fdea7c3c98ffa813097fc68c21b02102
+              tag: latest@sha256:3d5f7838eb85c47ada110752dbe8ffd889c8549a3e23d149b2cf5627e226e6ca
             # Image ENTRYPOINT is s6-overlay `/init … main-wrapper.sh` (starts as
             # root, drops to uid 10000). The CMD `gateway run` IS what starts the
             # always-on gateway: it registers the `default` profile and its
