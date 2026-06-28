@@ -1,0 +1,151 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: obsidian
+  namespace: obsidian
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      obsidian:
+        # Single-replica: the vault PVC (ceph-rbd, RWO) is shared between the
+        # app and syncthing containers, so they must co-schedule on one node.
+        replicas: 1
+        strategy: Recreate
+        containers:
+          # Browser-based Obsidian (KasmVNC/electron desktop). Traefik fronts
+          # the HTTP proxy port 3000 and provides the browser-facing HTTPS that
+          # KasmVNC/WebCodecs require.
+          app:
+            image:
+              repository: lscr.io/linuxserver/obsidian
+              tag: 1.12.7
+              pullPolicy: IfNotPresent
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+              limits:
+                # /dev/shm tmpfs (1Gi cap) counts against this limit, so leave
+                # headroom above the electron/chromium working set.
+                cpu: "2"
+                memory: 4Gi
+            # KasmVNC's / may not return a clean 200 during boot — health is
+            # surfaced via Gatus (internal endpoint) instead of pod probes.
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+
+          # Syncthing sidecar — peers to the QNAS Syncthing (the hub for
+          # phones/laptops) and replicates the shared vault volume. Sync port
+          # 22000 is exposed on a stable LAN IP via obsidian-syncthing-lb-service.yaml.
+          syncthing:
+            image:
+              repository: lscr.io/linuxserver/syncthing
+              tag: 2.1.1
+              pullPolicy: IfNotPresent
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+
+    service:
+      # bjw-s names services <release>-<key>, collapsing to the bare release
+      # name only when key == release. So key `obsidian` -> service `obsidian`
+      # (what the IngressRoute + Gatus internal endpoint target).
+      obsidian:
+        controller: obsidian
+        ports:
+          http:
+            port: 3000
+      # Syncthing web GUI -> obsidian-syncthing-gui service.
+      syncthing-gui:
+        controller: obsidian
+        ports:
+          gui:
+            port: 8384
+
+    persistence:
+      # Obsidian's KasmVNC/electron home (program settings, profile). NOT synced.
+      config:
+        existingClaim: obsidian-config
+        advancedMounts:
+          obsidian:
+            app:
+              - path: /config
+      # The vault — shared between Obsidian (edits it) and Syncthing (replicates it).
+      vault:
+        existingClaim: obsidian-vault
+        advancedMounts:
+          obsidian:
+            app:
+              - path: /config/vaults/main
+            syncthing:
+              - path: /vault
+      # Syncthing's own config (device ID + keys) — backed up so the device
+      # identity survives a pod/PVC rebuild without re-pairing.
+      syncthing-config:
+        existingClaim: obsidian-syncthing
+        advancedMounts:
+          obsidian:
+            syncthing:
+              - path: /config
+      # Electron needs a large /dev/shm.
+      shm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 1Gi
+        advancedMounts:
+          obsidian:
+            app:
+              - path: /dev/shm
+
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      securityContext:
+        # LinuxServer entrypoint starts as root and drops to PUID/PGID; fsGroup
+        # makes the ceph-rbd volumes writable by that group.
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"

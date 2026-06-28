@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: obsidian-syncthing-sync
+  namespace: obsidian
+  annotations:
+    # Stable LAN IP so the QNAS Syncthing (192.168.1.252) can dial this node
+    # at tcp://192.168.90.188:22000. Pinned from the mainertoo-l2-pool
+    # (192.168.90.180-199).
+    metallb.universe.tf/loadBalancerIPs: "192.168.90.188"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: sync-tcp
+      port: 22000
+      targetPort: 22000
+      protocol: TCP
+    - name: sync-udp
+      port: 22000
+      targetPort: 22000
+      protocol: UDP
+  # Target the obsidian controller pod (the syncthing sidecar runs in it).
+  selector:
+    app.kubernetes.io/controller: obsidian
+    app.kubernetes.io/instance: obsidian
+    app.kubernetes.io/name: obsidian

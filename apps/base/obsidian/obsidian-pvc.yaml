@@ -1,0 +1,53 @@
+---
+# Obsidian KasmVNC/electron home (program settings + profile).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: obsidian-config
+  namespace: obsidian
+  labels:
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 5Gi
+---
+# The note vault — shared (same node, RWO) between the obsidian and syncthing
+# containers and replicated to phones/laptops via the QNAS Syncthing hub.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: obsidian-vault
+  namespace: obsidian
+  labels:
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi
+---
+# Syncthing config — holds the cluster node's device ID + keys. Backed up so
+# the identity survives a rebuild (no re-pairing on the QNAS side).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: obsidian-syncthing
+  namespace: obsidian
+  labels:
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 1Gi

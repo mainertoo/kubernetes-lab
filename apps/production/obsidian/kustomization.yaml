@@ -1,0 +1,35 @@
+---
+# Flux Kustomization for the obsidian app.
+# Internal-only app (obsidian.lab.mainertoo.com, no public/Pangolin route), so
+# only the gatus/internal component is wired — no external check.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app obsidian
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/obsidian
+  targetNamespace: obsidian
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+  postBuild:
+    substitute:
+      APP: *app
+      GATUS_PORT: "3000"
+      GATUS_PATH: /
+      GATUS_STATUS_INTERNAL: "200"
