@@ -86,26 +86,44 @@ spec:
                 value: "llama-cpp-ignores-this-too"
               RAG_EMBEDDING_MODEL:
                 value: "ChristianAzinn/mxbai-embed-large-v1-gguf:Q8_0"
-              # mxbai-embed-large only has a 512-token context (llama.cpp
-              # physical batch 512); a chunk over that makes the embed server
-              # 500 the whole batch -> "No sources found". Cap chunks well
-              # under 512 tokens (and mxbai is only trained to 512 anyway, so
-              # smaller chunks are also better-quality embeddings).
+              # Chunking, tuned for the mxbai embedder's 512-token ceiling.
+              # Use the TOKEN splitter (not the default character splitter):
+              # it hard-caps every chunk at CHUNK_SIZE *tokens* regardless of
+              # separators, so even a page with a huge unbreakable blob (long
+              # data: URIs, link dumps) can't produce an oversized chunk that
+              # 500s the whole embed batch -> "No sources found". 320 tiktoken
+              # tokens leaves margin under mxbai's 512 even though mxbai's
+              # WordPiece tokenizer counts a bit higher than tiktoken's BPE.
+              RAG_TEXT_SPLITTER:
+                value: "token"
               CHUNK_SIZE:
-                value: "400"
+                value: "320"
               CHUNK_OVERLAP:
-                value: "50"
-              # Web-search robustness: inject the search-result snippets
-              # directly instead of scraping + embedding each result page.
-              # Bypasses (a) Firecrawl page scrapes that anti-bot-blocked
-              # news sites 500, and (b) the embedding step that 500s on
-              # oversized article chunks. Snippets already carry the answer
-              # text. Normal document RAG (file uploads) is unaffected and
-              # still embeds via the Spark mxbai server above.
+                value: "64"
+              # Pull more chunks into context for research-grade answers — the
+              # Spark Qwen3.6 endpoint serves a 262K context, so a larger
+              # top-k is cheap and improves synthesis across sources.
+              RAG_TOP_K:
+                value: "8"
+              # Full-page web research: load the actual result pages (not just
+              # search snippets) and run them through real retrieval. Both
+              # bypasses are OFF — the embed 500 is fixed at the root by the
+              # token splitter above, so we no longer trade depth for
+              # robustness. Snippets were shallow/contradictory; full pages +
+              # Spark embeddings + reranking give grounded answers.
+              # (Caveat: live, JS-rendered data like in-progress sports scores
+              # still isn't in scraped HTML — that needs a real-time tool, not
+              # web scraping.)
               BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
-                value: "true"
+                value: "false"
               BYPASS_WEB_SEARCH_WEB_LOADER:
-                value: "true"
+                value: "false"
+              # Breadth: fetch more results and scrape them concurrently so a
+              # few anti-bot 500s still leave plenty of usable sources.
+              WEB_SEARCH_RESULT_COUNT:
+                value: "6"
+              WEB_SEARCH_CONCURRENT_REQUESTS:
+                value: "6"
               # Web search + page loading via the in-cluster self-hosted
               # Firecrawl (apps/base/firecrawl). Firecrawl covers both: its
               # /search proxies to the QNAS SearXNG (its SEARXNG_ENDPOINT),
