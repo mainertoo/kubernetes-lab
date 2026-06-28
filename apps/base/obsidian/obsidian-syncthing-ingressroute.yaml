@@ -1,0 +1,22 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  # Cluster Syncthing GUI. NOTE: syncthing.lab.mainertoo.com is already the
+  # QNAS Syncthing GUI (Traefik file-provider), so this uses a distinct host.
+  name: obsidian-syncthing-ingressroute
+  namespace: obsidian
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`obsidian-syncthing.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: obsidian-syncthing-gui
+          port: 8384
+          scheme: http
+  tls: {}
