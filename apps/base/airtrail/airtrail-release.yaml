@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: johly/airtrail
-              tag: v3.10.0
+              tag: v3.11.1
             env:
               - name: TZ
                 value: America/Los_Angeles
