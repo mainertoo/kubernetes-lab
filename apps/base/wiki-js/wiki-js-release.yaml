@@ -45,6 +45,15 @@ spec:
                 mkdir -p /wiki/config /wiki/data
                 chown -R 1000:1000 /wiki/config /wiki/data || true
                 chmod -R g+rwX /wiki/config /wiki/data || true
+                # The blanket g+rwX above loosens the git-storage SSH key to
+                # 0660 — openssh then refuses it ("UNPROTECTED PRIVATE KEY
+                # FILE") and the mainertoo/wiki git mirror silently stops
+                # syncing (broken 2026-06-15 → 2026-07-14, found via the
+                # Hermes second-brain wiki mirror going stale). Same failure
+                # class as the Hermes doctor SSH key (PR #763). Re-tighten
+                # key material AFTER the blanket chmod, every start.
+                [ -d /wiki/data/secure ] && chmod 700 /wiki/data/secure || true
+                [ -f /wiki/data/secure/git-ssh.pem ] && chmod 600 /wiki/data/secure/git-ssh.pem || true
 
         containers:
           # 1) Wiki.js app
