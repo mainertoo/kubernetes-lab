@@ -36,7 +36,7 @@ fi
 # Docker daemon + LLM containers healthy
 if command -v docker >/dev/null 2>&1; then
   docker info >/dev/null 2>&1 || add "docker daemon not responding"
-  for c in vllm mxbai-embed; do
+  for c in vllm mxbai-embed syncthing; do
     st=$(docker inspect -f '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$c" 2>/dev/null || echo missing)
     case "$st" in
       running/healthy|running) : ;;
@@ -58,6 +58,10 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 else
   add "nvidia-smi not available"
 fi
+
+# Obsidian vault: surface Syncthing conflict files (agent memory integrity)
+cc=$(find /home/mainertoo/obsidian-vault -name "*.sync-conflict-*" 2>/dev/null | wc -l)
+(( cc > 0 )) && add "obsidian vault has $cc sync-conflict file(s)"
 
 if (( ${#alerts[@]} > 0 )); then
   echo "⚠️ ops-node-watchdog (spark-fef1) — ${#alerts[@]} alert(s):"
