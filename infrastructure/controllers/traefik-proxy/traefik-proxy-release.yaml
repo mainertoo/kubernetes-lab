@@ -11,7 +11,7 @@ spec:
         kind: HelmRepository
         name: traefik-proxy
         namespace: traefik-system
-      version: "41.0.0"
+      version: "41.0.2"
   valuesFrom:
     - kind: ConfigMap
       name: traefik-values
