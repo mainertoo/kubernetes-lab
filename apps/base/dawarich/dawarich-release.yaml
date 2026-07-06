@@ -113,7 +113,7 @@ spec:
                 memory: 2Gi
             image:
               repository: freikin/dawarich
-              tag: 1.9.1
+              tag: 1.9.2
               pullPolicy: IfNotPresent
             command:
               - web-entrypoint.sh
@@ -269,7 +269,7 @@ spec:
                 memory: 2Gi
             image:
               repository: freikin/dawarich
-              tag: 1.9.1
+              tag: 1.9.2
               pullPolicy: IfNotPresent
             command:
               - sidekiq-entrypoint.sh
