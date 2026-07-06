@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>beam — share</title>
+  <link rel="stylesheet" href="/static/beam.css">
+</head>
+<body>
+  <main>
+    <h1>beam</h1>
+    <form id="join">
+      <input id="code" placeholder="CODE" maxlength="8" autocapitalize="characters"
+             autocomplete="off" required>
+      <input id="name" placeholder="your name" maxlength="40">
+      <button>Join</button>
+    </form>
+    <section id="session" hidden>
+      <p id="status">joining…</p>
+      <button id="share" hidden>Share screen</button>
+      <!-- TODO(v1): phone modes — camera / photos / video file / URL cast (plan §7).
+           iPhone Safari has no getDisplayMedia; screen share is laptop-only (plan §1). -->
+    </section>
+  </main>
+
+  <script type="module" src="/static/sender.js"></script>
+</body>
+</html>

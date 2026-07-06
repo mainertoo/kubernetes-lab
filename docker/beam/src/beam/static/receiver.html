@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>beam — screen</title>
+  <link rel="stylesheet" href="/static/beam.css">
+</head>
+<body>
+  <main id="lobby">
+    <h1>beam</h1>
+    <button id="start">This is a screen</button>
+    <p class="hint">Starts a room and shows a join code. Nothing is installed.</p>
+  </main>
+
+  <main id="room" hidden>
+    <p>join at <strong id="joinurl"></strong> with code</p>
+    <p id="code" class="bigcode"></p>
+    <!-- TODO(v1): QR code — vendored lib only, CSP forbids CDNs (plan §5) -->
+    <ul id="approvals"></ul>
+    <p id="status">waiting for a sender…</p>
+  </main>
+
+  <video id="tv" autoplay playsinline hidden></video>
+  <button id="tapplay" class="overlay" hidden>tap to play</button>
+
+  <script type="module" src="/static/receiver.js"></script>
+</body>
+</html>
