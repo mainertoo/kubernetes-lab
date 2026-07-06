@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>beam — share</title>
+  <link rel="stylesheet" href="/static/beam.css">
+</head>
+<body>
+  <main>
+    <h1>beam</h1>
+    <form id="join">
+      <input id="code" placeholder="CODE" maxlength="8" autocapitalize="characters"
+             autocomplete="off" required>
+      <input id="name" placeholder="your name" maxlength="40">
+      <button>Join</button>
+    </form>
+    <section id="session" hidden>
+      <p id="status">joining…</p>
+      <button id="share" hidden>Share screen</button>
+      <!-- TODO(v1): phone modes — camera / photos / video file / URL cast (plan §7).
+           iPhone Safari has no getDisplayMedia; screen share is laptop-only (plan §1). -->
+    </section>
+  </main>
+
+  <script type="module">
+    import { fetchIceConfig, openSignaling, createPeer } from "/static/webrtc.js";
+
+    const $ = (id) => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    if (params.get("code")) $("code").value = params.get("code");
+
+    let signaling = null;
+    let peer = null;
+    let code = "";
+
+    $("join").onsubmit = (ev) => {
+      ev.preventDefault();
+      code = $("code").value.trim().toUpperCase();
+      $("join").hidden = true;
+      $("session").hidden = false;
+      signaling = openSignaling(code, onFrame);
+      signaling.ws.onopen = () =>
+        signaling.send({ type: "hello", role: "sender", name: $("name").value.trim() });
+      signaling.ws.onclose = () =>
+        ($("status").textContent = "disconnected — reload to rejoin");
+    };
+
+    async function onFrame(frame) {
+      if (frame.type === "room-state") {
+        if (frame.you.state === "pending") {
+          $("status").textContent = "waiting for the screen to allow you…";
+        } else if (frame.you.state === "approved" && !peer) {
+          $("status").textContent = "approved — pick what to share";
+          $("share").hidden = false;
+        }
+        return;
+      }
+      if (frame.type === "signal") {
+        if (peer) await peer.handleSignal(frame.payload);
+        return;
+      }
+      if (frame.type === "error") {
+        $("status").textContent = `${frame.code}: ${frame.message}`;
+      }
+    }
+
+    $("share").onclick = async () => {
+      const config = await fetchIceConfig(code);
+      peer = createPeer({
+        polite: true, // sender yields in glare (plan §3)
+        config,
+        sendSignal: (payload) => signaling.send({ type: "signal", payload }),
+        onPath: (p) => ($("status").textContent = `sharing (${p})`),
+        onState: (s) => {
+          if (s !== "connected") $("status").textContent = s;
+        },
+      });
+      // System audio arrives only on Chrome (Windows; macOS 14.2+ with Chrome 141+) — plan §1.
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      for (const track of stream.getTracks()) peer.pc.addTrack(track, stream);
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        $("status").textContent = "sharing stopped";
+        // TODO(v1): remove tracks + renegotiate instead of leaving a frozen last frame.
+      });
+    };
+  </script>
+</body>
+</html>
