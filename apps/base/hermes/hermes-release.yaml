@@ -109,12 +109,22 @@ spec:
               # the terminal backend = the Spark, NOT in-pod. The image default
               # HERMES_WRITE_SAFE_ROOT=/opt/data (HERMES_HOME) therefore blocks
               # every Spark-side write (no /opt/data on the Spark). Scope it to
-              # the one dir a cron job writes to (the paper-trading ledger) so
-              # write_file works there while ~/.ssh, ~/.kube/config, ~/.local/bin
-              # and the coding repo stay out of write_file's reach. The shell
-              # tool is unaffected (not a real boundary — see file_safety.py).
+              # the dirs the agent legitimately writes: the paper-trading
+              # ledger + the Obsidian vault replica (agent long-form memory).
+              # Multiple roots are os.pathsep-separated (file_safety.py).
+              # ~/.ssh, ~/.kube/config, ~/.local/bin and the coding repo stay
+              # out of write_file's reach. The shell tool is unaffected (not a
+              # real boundary — see file_safety.py).
               - name: HERMES_WRITE_SAFE_ROOT
-                value: "/home/mainertoo/investment_simulation"
+                value: "/home/mainertoo/investment_simulation:/home/mainertoo/obsidian-vault"
+              # ---- Obsidian vault (bundled `obsidian` note-taking skill) ----
+              # Spark-side path (file tools run there). The Syncthing folder
+              # root is ~/obsidian-vault (home_server docker-spark/syncthing
+              # stack); the vault the user created inside it is
+              # "Mainertoo Vault". Synced to the cluster obsidian app (web UI,
+              # volsync-backed PVC) + QNAS hub + devices.
+              - name: OBSIDIAN_VAULT_PATH
+                value: "/home/mainertoo/obsidian-vault/Mainertoo Vault"
               # ---- Messaging platforms ----
               # Bot tokens (TELEGRAM_BOT_TOKEN / DISCORD_BOT_TOKEN) live in the
               # SOPS secret and arrive via envFrom; a platform auto-enables when
