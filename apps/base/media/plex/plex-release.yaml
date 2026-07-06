@@ -72,7 +72,7 @@ spec:
                 memory: 4Gi
             image:
               repository: ghcr.io/linuxserver/plex
-              tag: 1.43.2.10687-563d026ea-ls310
+              tag: 1.43.2.10687-563d026ea-ls312
               pullPolicy: Always
             env:
               - name: TZ
