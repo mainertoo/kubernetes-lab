@@ -25,6 +25,15 @@ def test_codes_use_unambiguous_alphabet(registry):
         assert set(code) <= set(CODE_ALPHABET)
 
 
+def test_room_count_is_capped():
+    small = RoomRegistry(code_length=5, max_senders=1, max_rooms=3)
+    for _ in range(3):
+        small.create()
+    with pytest.raises(RoomError) as exc:
+        small.create()
+    assert exc.value.code == "room-full"
+
+
 def test_lookup_is_case_insensitive(registry, room):
     assert registry.get(room.code.lower()) is room
 

@@ -18,7 +18,7 @@ the plan's phase ladder.
 
 ```
 src/beam/
-  main.py       FastAPI app: pages, /api/rooms, /api/turn-credentials, /ws/{code}
+  main.py       FastAPI app: pages, /api/rooms, /ws/{code} (TURN creds are pushed over the WS)
   rooms.py      room registry + membership/approval state machine (pure logic, tested)
   protocol.py   wire-protocol models — keep in lockstep with plan §3 table
   turncreds.py  ephemeral coturn credentials (use-auth-secret HMAC)
@@ -47,4 +47,6 @@ Without a `BEAM_TURN_SECRET`, TURN is disabled and connections are LAN/host-cand
 | `BEAM_TURN_URIS` | *(empty)* | comma-separated `stun:`/`turn:` URIs handed to clients |
 | `BEAM_TURN_CRED_TTL_SECONDS` | `7200` | minted credential lifetime |
 | `BEAM_ROOM_TTL_SECONDS` | `900` | idle room reap |
-| `BEAM_MAX_SENDERS_PER_ROOM` | `4` | capacity guard |
+| `BEAM_MAX_SENDERS_PER_ROOM` | `1` | v0 is single-sender by design (plan §3) |
+| `BEAM_MAX_ROOMS` | `500` | global room cap |
+| `BEAM_MAX_FRAME_BYTES` | `65536` | oversized WS frames close the socket |

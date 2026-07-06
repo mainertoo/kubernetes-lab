@@ -1,16 +1,15 @@
 // Shared WebRTC + signaling glue for /screen and /s.
 // Perfect negotiation per the MDN pattern; the SENDER is the polite peer (plan §3).
 
-export async function fetchIceConfig(code) {
-  const res = await fetch(`/api/turn-credentials?code=${encodeURIComponent(code)}`);
-  if (!res.ok) throw new Error("failed to fetch ICE config");
-  const t = await res.json();
+// ICE config comes from a `turn` frame pushed over the signaling WS — the
+// receiver gets one on join, a sender on approval. No REST fetch (plan §4).
+export function buildIceConfig(turn) {
   const iceServers = [];
-  const stun = t.uris.filter((u) => u.startsWith("stun:"));
-  const turn = t.uris.filter((u) => u.startsWith("turn:") || u.startsWith("turns:"));
+  const stun = turn.uris.filter((u) => u.startsWith("stun:"));
+  const relays = turn.uris.filter((u) => u.startsWith("turn:") || u.startsWith("turns:"));
   if (stun.length) iceServers.push({ urls: stun });
-  if (turn.length && t.username) {
-    iceServers.push({ urls: turn, username: t.username, credential: t.credential });
+  if (relays.length && turn.username) {
+    iceServers.push({ urls: relays, username: turn.username, credential: turn.credential });
   }
   // ?relay=1 forces TURN — the hostile-venue acceptance test (plan §6).
   const forceRelay = new URLSearchParams(location.search).has("relay");
@@ -53,7 +52,8 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
 
   pc.onconnectionstatechange = () => {
     if (onState) onState(pc.connectionState);
-    // TODO(v1): ICE restart on "failed" + network-change handling (plan §7).
+    // TODO(v1): ICE restart on "failed" + network-change handling (plan §7):
+    // pc.restartIce() and renegotiate through the still-open signaling WS.
     if (pc.connectionState === "closed" || pc.connectionState === "failed") {
       clearInterval(pathTimer);
     }
@@ -84,7 +84,7 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
   }
 
   // Path indicator: "direct" vs "relayed" — the first thing to check at a
-  // misbehaving venue (plan §3).
+  // misbehaving venue (plan §3). Either side on a relay candidate = relayed.
   const pathTimer = setInterval(async () => {
     if (pc.connectionState !== "connected" || !onPath) return;
     const stats = await pc.getStats();
@@ -101,7 +101,11 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
     }
     if (!pair) return;
     const local = stats.get(pair.localCandidateId);
-    if (local) onPath(local.candidateType === "relay" ? "relayed" : "direct");
+    const remote = stats.get(pair.remoteCandidateId);
+    const relayed =
+      (local && local.candidateType === "relay") ||
+      (remote && remote.candidateType === "relay");
+    onPath(relayed ? "relayed" : "direct");
   }, 2000);
 
   return { pc, handleSignal };

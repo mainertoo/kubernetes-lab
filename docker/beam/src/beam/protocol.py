@@ -58,6 +58,12 @@ def signal_frame(from_id: str, payload: dict) -> dict:
     return {"type": "signal", "from": from_id, "payload": payload}
 
 
+def turn_frame(creds: dict) -> dict:
+    """ICE config, pushed over the WS to the receiver on join and to a sender on
+    approval. Never fetchable via unauthenticated REST (review round 1)."""
+    return {"type": "turn", **creds}
+
+
 def error_frame(code: str, message: str) -> dict:
     return {"type": "error", "code": code, "message": message}
 

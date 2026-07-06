@@ -1,7 +1,7 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-06): scaffold committed on `feat/beam-scaffold`, not deployed.**
-> Adversarial review: see §11 review log.
+> **STATUS (2026-07-06): scaffold + review-round-1 fixes committed on `feat/beam-scaffold`, not deployed.**
+> Adversarial review round 1 (Codex) complete — findings and dispositions in §11 review log.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
 
@@ -88,6 +88,7 @@ generated from this table — **this table is the contract; change both together
 | `hello` | client → server | `role` (`receiver`\|`sender`), `name`, `receiver_token?` | join. Receiver must present the `receiver_token` returned by `POST /api/rooms` (prevents receiver-slot races). One receiver per room; senders join as `pending`. |
 | `room-state` | server → client | `code`, `you` `{id, role, state}`, `peers` `[{id, role, name, state}]` | full snapshot, re-broadcast to all members on every membership/approval change. No deltas. |
 | `approve` | receiver → server | `peer_id`, `allow` | receiver's Allow/Deny tap for a pending sender. Deny closes that sender's socket with `error`. |
+| `turn` | server → client | `username`, `credential`, `ttl`, `uris` | ephemeral ICE/TURN config (§4), **pushed**: to the receiver right after its first `room-state`, to a sender immediately after approval (before the approved `room-state`). Only authenticated room members can ever hold relay credentials; there is no REST endpoint to mint them (review round 1). |
 | `signal` | both, relayed | `to?`, `payload` (opaque SDP offer/answer/ICE) | relayed **only** between the receiver and an **approved** sender. Sender omits `to` (implicit: receiver); receiver must set `to`. Server stamps `from`. Pending senders get `error`. |
 | `bye` | client → server | — | graceful leave. Receiver leaving closes the whole room (all peers notified via `error room-closed`). |
 | `ping` / `pong` | server → client / client → server | — | app-level keepalive every 25 s (Cloudflare idles quiet websockets at ~100 s). Two missed pongs → server closes the socket. |
@@ -96,15 +97,22 @@ generated from this table — **this table is the contract; change both together
 REST surface:
 
 - `POST /api/rooms` → `{code, receiver_token}`. Called by the receiver page. Rate-limited
-  per IP (v0 checklist).
-- `GET /api/turn-credentials?code={CODE}` → `{username, credential, ttl, uris}`. Only for
-  live rooms. Ephemeral HMAC credentials (§4); never a static secret in JS.
+  per IP (v0 checklist); global cap `BEAM_MAX_ROOMS=500`.
 - `GET /healthz` → 200. Probes + Gatus.
+
+There is deliberately **no** TURN-credentials REST endpoint — credentials ride the WS as
+`turn` frames, so only the receiver and approved senders can obtain relay access.
 
 Room lifecycle: codes are 5 chars from the unambiguous alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
 (no 0/O/1/I/L; ≈28.6 M combinations, and join attempts are rate-limited + approval-gated, so
 guessing buys a stranger an Allow/Deny prompt on my TV at worst). Rooms die when the receiver
 disconnects, or after `BEAM_ROOM_TTL_SECONDS` (default 900 s) idle.
+
+Transport guards (implemented): WS handshakes with a browser `Origin` outside the allow-list
+(`BEAM_PUBLIC_ORIGIN` + localhost dev origins) are rejected before accept — same-origin
+policy does not protect WebSockets; frames over `BEAM_MAX_FRAME_BYTES` (64 KiB) close the
+socket; `BEAM_MAX_SENDERS_PER_ROOM=1` for v0 (a second approved sender would be silently
+stranded by the receiver UI — raise it when v2 multi-sender lands).
 
 WebRTC negotiation: **perfect negotiation** (MDN pattern); the **sender is the polite peer**.
 Client logic in [`docker/beam/src/beam/static/webrtc.js`](../../docker/beam/src/beam/static/webrtc.js).
@@ -114,9 +122,12 @@ at when a venue misbehaves.
 
 ## 4. Connectivity: TURN design
 
-coturn with `use-auth-secret`: beam mints time-limited credentials per request —
-`username = "<unix-expiry>:beam"`, `credential = base64(HMAC-SHA1(TURN_SECRET, username))` —
-implemented in [`turncreds.py`](../../docker/beam/src/beam/turncreds.py), TTL 2 h. The same
+coturn with `use-auth-secret`: beam mints time-limited credentials per approved peer —
+`username = "<unix-expiry>:beam-<room>-<peerid>"` (per-peer label so coturn's `user-quota`
+isolates peers instead of everything minted in the same second),
+`credential = base64(HMAC-SHA1(TURN_SECRET, username))` — implemented in
+[`turncreds.py`](../../docker/beam/src/beam/turncreds.py), TTL 2 h, delivered only as WS
+`turn` frames (§3). The same
 `TURN_SECRET` lives in exactly two places: the beam k8s Secret (SOPS,
 `apps/base/beam/beam-secret.sops.yaml`) and the coturn stack env on the VPS. Rotating it is
 a two-place update; rooms survive (creds are minted per session).
@@ -151,7 +162,11 @@ services:
       - --denied-peer-ip=169.254.0.0-169.254.255.255
       - --denied-peer-ip=172.16.0.0-172.31.255.255
       - --denied-peer-ip=192.168.0.0-192.168.255.255
-      - --user-quota=8          # concurrent allocations per username
+      # IPv6 equivalents (review round 1) — or run the listeners IPv4-only:
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --user-quota=8          # concurrent allocations per username (= per peer, see §4)
       - --total-quota=32
       - --max-bps=6250000       # ~50 Mbit/s cap per allocation
 ```
@@ -168,10 +183,10 @@ build it the first time a real venue forces it, not before (§10).
 
 | Threat | Control |
 |---|---|
-| Room-code guessing / drive-by senders | 5-char code space + per-IP rate limits on `POST /api/rooms` and WS joins + **receiver approval tap required before any SDP is relayed** + room TTL |
-| TURN bandwidth theft (open-relay abuse) | no static creds in JS — ephemeral HMAC creds, 2 h TTL, minted only for live rooms; `denied-peer-ip` blocks relaying into RFC1918/CGNAT/loopback; per-user and total quotas; 50 Mbit/s per-allocation cap |
-| Signaling DoS | per-IP rate limits, `max_senders_per_room=4`, 10 s hello deadline, two-missed-pong reaping, room TTL sweep |
-| XSS via peer/room names | names are length-capped, HTML-escaped at render (`textContent`, never `innerHTML`); CSP `default-src 'self'` (no CDNs — QR lib et al. get vendored) |
+| Room-code guessing / drive-by senders | 5-char code space + **receiver approval tap before any SDP is relayed** + room TTL + WS Origin allow-list (implemented); per-IP rate limits on `POST /api/rooms` and WS joins remain the v0 gate (need trusted X-Forwarded-For); deny→rejoin prompt-spam cooldown lands v1 (review round 1) |
+| TURN bandwidth theft (open-relay abuse) | no REST minting — ephemeral HMAC creds (2 h TTL) are **pushed over the WS only to the receiver and approved senders**, per-peer usernames so quotas isolate; `denied-peer-ip` blocks RFC1918/CGNAT/loopback + IPv6 local ranges; per-user and total quotas; 50 Mbit/s per-allocation cap |
+| Signaling DoS | implemented: `max_rooms=500`, 64 KiB frame cap, `max_senders_per_room=1`, 10 s hello deadline, two-missed-pong reaping, TTL sweep; per-IP rate limits remain the v0 checklist item |
+| XSS via peer/room names | names length-capped, rendered via `textContent` only; CSP `default-src 'self'` **shipped** (all page JS is external `/static` files — no inline scripts, no CDNs; vendor future libs) |
 | Media interception | DTLS-SRTP end-to-end between browsers; TURN relays ciphertext; signaling only over wss |
 | Admin surface abuse | v0 ships **no** admin routes. v1 `/admin` goes behind the existing `authentik-sso` forwardAuth Middleware (`traefik-system`) as a **separate IngressRoute route block** — public room paths must NOT sit behind forward-auth (the Immich lesson: forward-auth in front of API/WS surfaces breaks native clients) |
 | Secrets hygiene (public repo) | only `TURN_SECRET` exists; SOPS-encrypted in-cluster + Portainer env on VPS. Nothing else secret by design. This plan file contains none. |
@@ -179,8 +194,9 @@ build it the first time a real venue forces it, not before (§10).
 ## 6. v0 deployment checklist (the frontier)
 
 Build/test (local):
-- [ ] `cd docker/beam && uv run --extra dev pytest` green
+- [x] `cd docker/beam && uv run --extra dev pytest` green (31 tests incl. transport suite)
 - [ ] `docker build docker/beam` succeeds; `/healthz` 200 in container
+- [ ] pin base image by digest + install from `uv.lock` in the Dockerfile (review round 1)
 
 Publish:
 - [ ] merge scaffold PR (workflow `build-beam.yml` pushes `ghcr.io/mainertoo/beam` on
@@ -209,6 +225,10 @@ Cluster app:
 - [ ] PR → flux-local CI green → merge → `flux reconcile` → page loads over TLS
 
 Acceptance (definition of v0-done):
+- [ ] security gates (review round 1): cross-origin WS rejected in prod (test with a forged
+      `Origin`), CSP present on all pages, TURN creds unobtainable without an approved WS
+      session, per-IP rate limit on `POST /api/rooms` active and exercised
+- [ ] idle WS through the CF tunnel survives > 5 min (25 s app pings vs ~100 s CF idle)
 - [ ] LAN test: two machines same network → connect, path indicator **direct**, screen+audio
       visible, glass-to-glass latency subjectively < ~400 ms
 - [ ] Forced-relay test: `?relay=1` on both pages (`iceTransportPolicy: "relay"`) → still
@@ -261,6 +281,7 @@ Acceptance (definition of v0-done):
 | SFU (>3 receivers) | someone actually asks for it | LiveKit if ever; not before |
 | HA / multi-replica signaling | never, probably | rooms are 30-second re-creatable |
 | iOS broadcast extension | v3 | prove demand with v1 phone modes first |
+| Dockerfile digest-pin + `uv.lock`-frozen install | before first public deploy (§6) | uv multi-stage build; Renovate manages the digest |
 
 ## 11. Adversarial review
 
@@ -285,7 +306,43 @@ deferred-with-trigger). Then update the STATUS block.
 
 ### Review log
 
-- *(empty — round 1 pending)*
+#### Round 1 — 2026-07-06 · Codex adversarial review of fd22d4a8
+*(codex-companion session `019f3895-6f70-75a3-8c98-486858e3927a` — full transcript via `codex resume`)*
+
+Verbatim executive summary:
+
+> - Public room, WebSocket, and TURN credential endpoints have no rate/origin/participant
+>   controls, enabling room spam, WS abuse, and TURN bandwidth theft.
+> - TURN credentials are minted for any live room code and all clients share the same
+>   `expiry:beam` username label, weakening coturn quota isolation.
+> - Client WebRTC path detection can mislabel relayed paths as direct and has no ICE
+>   restart path.
+> - The scaffold is not PR-tested by the dedicated image workflow; production Flux CI does
+>   not cover `docker/beam/**`.
+> - v0 acceptance criteria omit several security gates promised elsewhere in the plan.
+
+Dispositions (fixes verified by the 31-test suite + live WS smoke with TURN enabled):
+
+| # | Finding (severity) | Disposition |
+|---|---|---|
+| 1 | Unauthenticated TURN minting via `GET /api/turn-credentials`; shared `expiry:beam` username (High) | **Fixed structurally** — REST endpoint deleted; creds pushed as WS `turn` frames to receiver-on-join / sender-on-approval only; per-peer usernames `expiry:beam-<room>-<peer>` |
+| 2 | No WS Origin validation → cross-site WS joins from hostile pages (High) | **Fixed** — Origin allow-list enforced before `accept()` (4403); origin-less native clients still pass |
+| 3 | Unbounded rooms/connections/frames (High) | **Partially fixed** — `max_rooms=500`, 64 KiB frame cap, single-sender rooms; **per-IP rate limits are a blocking v0 acceptance gate** (need trusted X-Forwarded-For) |
+| 4 | coturn deny list IPv4-only (Medium) | **Fixed in plan** — IPv6 loopback/ULA/link-local denies added to staged compose |
+| 5 | CSP promised but absent (Low) | **Fixed** — CSP + nosniff + no-referrer shipped; inline page scripts extracted to `/static/*.js` so `script-src 'self'` holds |
+| 6 | No ICE restart/recovery path (High) | **Deferred to v1 deliberately** — `pc.restartIce()` + renegotiation over the still-open WS; TODO marked at the failure hook in webrtc.js |
+| 7 | Path indicator checks local candidate only → relay mislabeled as direct (Medium) | **Fixed** — relayed if either local or remote candidate is `relay` |
+| 8 | Receiver UI strands a second approved sender (Medium) | **Fixed structurally** — `max_senders_per_room=1` for v0; raise with the v2 multi-sender UI |
+| 9 | Receiver autoplay can fail into a silent black TV (Medium) | **Fixed** — `video.play()` promise handled; tap-to-play overlay fallback |
+| 10 | iPhone sender offered a share button that can only throw (Low) | **Fixed** — `getDisplayMedia` feature-detect with explanatory status |
+| 11 | `build-beam.yml` lacks PR trigger (Medium) | **Fixed** — `pull_request` on `docker/beam/**`; push skipped on PRs |
+| 12 | Unpinned base image / lockfile-bypassing install (Medium) | **Deferred with trigger** — §6 checklist item before first public deploy (uv multi-stage + digest pin) |
+| 13 | Deny → instant rejoin prompt spam (Medium) | **Accepted for v0** — approval gate + capacity bound the blast radius; cooldown lands with v1 rate limiting |
+| 14 | Only pure room logic unit-tested (Medium) | **Fixed** — `tests/test_transport.py` over real test websockets: origin gate, approval flow, `turn` delivery order, deny close, caps, room closure |
+| 15 | §6 acceptance omitted the promised security gates; CF idle + VPS port range unverifiable from repo (Medium/Low) | **Fixed in plan** — security-gate + CF-idle acceptance items added; live-verification items retained |
+
+Process note: the review agent checked out `master` mid-session and the working tree had to
+be restored from the branch — future in-repo review runs get an isolated worktree.
 
 ---
 

@@ -61,3 +61,12 @@ video {
   background: #000;
   object-fit: contain;
 }
+
+.overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.6rem;
+  z-index: 10;
+}

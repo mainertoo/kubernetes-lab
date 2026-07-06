@@ -6,6 +6,9 @@ on:
     branches: [master]
     paths:
       - "docker/beam/**"
+  pull_request:
+    paths:
+      - "docker/beam/**"
   workflow_dispatch:
 
 env:

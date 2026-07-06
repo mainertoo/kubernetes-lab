@@ -131,9 +131,10 @@ class Room:
 
 
 class RoomRegistry:
-    def __init__(self, code_length: int = 5, max_senders: int = 4):
+    def __init__(self, code_length: int = 5, max_senders: int = 4, max_rooms: int = 500):
         self.code_length = code_length
         self.max_senders = max_senders
+        self.max_rooms = max_rooms
         self.rooms: dict[str, Room] = {}
 
     def _new_code(self) -> str:
@@ -144,6 +145,10 @@ class RoomRegistry:
         raise RoomError("room-full", "code space exhausted")  # pragma: no cover
 
     def create(self) -> Room:
+        # Global memory cap — room spam otherwise accumulates until the TTL
+        # sweep (review round 1). Per-IP limits are the v0 checklist item.
+        if len(self.rooms) >= self.max_rooms:
+            raise RoomError("room-full", "too many active rooms")
         room = Room(
             code=self._new_code(),
             receiver_token=secrets.token_urlsafe(16),

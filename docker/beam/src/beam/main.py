@@ -10,8 +10,8 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
@@ -26,6 +26,7 @@ from .protocol import (
     parse_client_message,
     room_state_frame,
     signal_frame,
+    turn_frame,
 )
 from .rooms import Peer, Room, RoomError, RoomRegistry
 from .turncreds import mint_turn_credentials
@@ -35,6 +36,7 @@ log = logging.getLogger("beam")
 registry = RoomRegistry(
     code_length=settings.room_code_length,
     max_senders=settings.max_senders_per_room,
+    max_rooms=settings.max_rooms,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -52,7 +54,20 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="beam", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# TODO(v1): CSP middleware — default-src 'self'; vendor any JS libs (plan §5).
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    # 'self' covers same-origin fetch AND ws(s): in current browsers. All JS is
+    # served from /static — no inline scripts, no CDNs; vendor any future libs.
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
+        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    )
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 @app.get("/healthz")
@@ -77,22 +92,26 @@ async def sender_page():
 
 @app.post("/api/rooms")
 async def create_room():
-    # TODO(v0): per-IP rate limit before public exposure (plan §5).
+    # TODO(v0): per-IP rate limit before public exposure (plan §5) — needs the
+    # real client IP, i.e. trusted X-Forwarded-For from Traefik/cloudflared.
     room = registry.create()
     return {"code": room.code, "receiver_token": room.receiver_token}
 
 
-@app.get("/api/turn-credentials")
-async def turn_credentials(code: str):
-    room = registry.get(code)
-    if room is None:
-        return JSONResponse(error_frame("room-not-found", "no such room"), status_code=404)
+def _turn_payload(room: Room, peer: Peer) -> dict:
+    """ICE config for one peer. Username embeds room + peer id so coturn's
+    user-quota isolates per peer instead of per second (review round 1)."""
     uris = settings.turn_uri_list
     if not settings.turn_secret:
-        # TURN disabled (dev): hand out stun: URIs only so LAN paths still form.
+        # TURN disabled (dev): stun: URIs only, LAN paths still form.
         return {"username": "", "credential": "", "ttl": 0,
                 "uris": [u for u in uris if u.startswith("stun:")]}
-    return mint_turn_credentials(settings.turn_secret, uris, settings.turn_cred_ttl_seconds)
+    return mint_turn_credentials(
+        settings.turn_secret,
+        uris,
+        settings.turn_cred_ttl_seconds,
+        label=f"beam-{room.code}-{peer.id}",
+    )
 
 
 # --- websocket plumbing -------------------------------------------------------
@@ -135,15 +154,27 @@ async def _pinger(ws: WebSocket, peer: Peer) -> None:
         await _send(ws, PING_FRAME)
 
 
+async def _receive_frame(ws: WebSocket) -> str:
+    raw = await ws.receive_text()
+    if len(raw) > settings.max_frame_bytes:
+        raise RoomError("bad-message", "frame too large")
+    return raw
+
+
 @app.websocket("/ws/{code}")
 async def ws_endpoint(ws: WebSocket, code: str):
+    origin = ws.headers.get("origin")
+    if origin is not None and origin not in settings.allowed_ws_origins:
+        # Browser cross-site WS (SOP does not apply) — reject before accept.
+        await ws.close(code=4403)
+        return
     await ws.accept()
     room: Room | None = None
     peer: Peer | None = None
     ping_task: asyncio.Task | None = None
     try:
         hello = parse_client_message(
-            await asyncio.wait_for(ws.receive_text(), settings.hello_deadline_seconds)
+            await asyncio.wait_for(_receive_frame(ws), settings.hello_deadline_seconds)
         )
         if not isinstance(hello, Hello):
             await _close_with_error(ws, "bad-message", "first frame must be hello")
@@ -158,16 +189,22 @@ async def ws_endpoint(ws: WebSocket, code: str):
             peer = room.add_sender(hello.name)
         peer.ws = ws
         await _broadcast_state(room)
+        if peer.role == "receiver":
+            await _send(ws, turn_frame(_turn_payload(room, peer)))
         ping_task = asyncio.create_task(_pinger(ws, peer))
 
         while True:
-            msg = parse_client_message(await ws.receive_text())
+            msg = parse_client_message(await _receive_frame(ws))
             try:
                 if isinstance(msg, Pong):
                     peer.missed_pongs = 0
                 elif isinstance(msg, Approve):
                     target = room.approve(peer, msg.peer_id, msg.allow)
-                    if not msg.allow:
+                    if msg.allow:
+                        # Creds only exist for approved peers; sent before the
+                        # room-state flip so the client has ICE config in hand.
+                        await _send(target.ws, turn_frame(_turn_payload(room, target)))
+                    else:
                         await _close_with_error(target.ws, "denied", "receiver denied the request")
                     await _broadcast_state(room)
                 elif isinstance(msg, Signal):
@@ -183,7 +220,7 @@ async def ws_endpoint(ws: WebSocket, code: str):
     except (WebSocketDisconnect, TimeoutError):
         pass
     except RoomError as exc:
-        # Join-time failures (bad token, room full) close the socket.
+        # Join-time failures (bad token, room full, oversized frame) close the socket.
         await _close_with_error(ws, exc.code, exc.message)
     except Exception:
         log.exception("ws error in room %s", code)
