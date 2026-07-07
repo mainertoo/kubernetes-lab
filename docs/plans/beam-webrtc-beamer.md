@@ -229,14 +229,17 @@ Cluster app:
 - [x] `apps/base/beam/beam-secret.sops.yaml` created (SOPS-encrypted; inert until the app
       kustomization references it). `BEAM_TURN_URIS`/`BEAM_PUBLIC_ORIGIN` are non-secret and
       land as plain HelmRelease env at new-app time
-- [ ] Gatus: `components/gatus/external` with `APP=beam`, `GATUS_DOMAIN=mainertoo.com`,
-      `GATUS_PATH=/healthz`; confirm the Discord alert actually fires once (break it on purpose)
-- [ ] **Pangolin UI (VPS): add resource `beam.mainertoo.com` → target
-      `beam.beam.svc.cluster.local:8080`, with Pangolin's resource auth DISABLED** (rooms
-      are public by design — beam's own approval gate is the control; Pangolin resources
-      default to auth-protected, so this must be explicitly switched off). Correction:
-      the earlier "Cloudflare tunnel" wording was wrong — public apps here ride
-      Pangolin → newt → Service, per the new-app convention
+- [~] Gatus internal+external wired and both green (`GATUS_PATH=/healthz`). Finding: the
+      external component's `[STATUS] < 500` condition treats hard outages (STATUS 0) as
+      healthy — beam's wrong-connector window stayed "green" through a TLS failure.
+      Fixed by adding `[CONNECTED] == true` to `components/gatus/external`. Still open:
+      one deliberate break to watch the Discord alert actually arrive
+- [x] Pangolin resource `beam.mainertoo.com` → `beam.beam.svc.cluster.local:8080`, auth
+      disabled — live 2026-07-07 (gotcha: the resource must be attached to the
+      **in-cluster newt** connector/site; any other site can't resolve `svc.cluster.local`
+      and returns bad gateway). Verified from outside: `/healthz` 200 over valid TLS, CSP
+      present, **wss signaling through Pangolin works** (room created, `room-state` +
+      `turn` frames received with the real relay URIs + minted creds)
 - [ ] PR → flux-local CI green → merge → `flux reconcile` → page loads over TLS
 
 Acceptance (definition of v0-done):

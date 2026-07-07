@@ -4,6 +4,11 @@ endpoints:
     url: "https://${SUBDOMAIN:=${APP}}.${GATUS_DOMAIN}${GATUS_PATH:=/}"
     interval: 1m
     conditions:
+      # Hard outages (DNS/TCP/TLS failures) leave STATUS at 0, which passes
+      # "[STATUS] < 500" — so connectivity must be asserted separately or the
+      # check can never alert on a total outage (seen live: beam behind a
+      # misconfigured Pangolin connector stayed "healthy" through a TLS error).
+      - "[CONNECTED] == true"
       # If Authentik sits in front, allow any non-5xx
       - "[STATUS] < 500"
     alerts:
