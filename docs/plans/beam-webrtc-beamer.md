@@ -1,7 +1,8 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-06): merged to master (PR #1072); image published; coturn LIVE on the
-> VPS (Portainer stack 102) with relay verified end-to-end. Next: `/new-app beam` cluster wiring.**
+> **STATUS (2026-07-06): coturn LIVE + relay-verified; cluster app scaffolded on
+> `feat/beam-app`. Remaining: merge the app PR, add the Pangolin resource (auth OFF),
+> then §6 acceptance tests.**
 > Adversarial review round 1 (Codex) complete — findings and dispositions in §11 review log.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
@@ -217,19 +218,25 @@ TURN (VPS):
       argv verified correct via `docker inspect`
 
 Cluster app:
-- [ ] `/new-app beam` — image `ghcr.io/mainertoo/beam`, port 8080, no PVC, probes `/healthz`,
-      host `beam.mainertoo.com`. Apply the known scaffolding fixes from memory:
-      service key must render Service name `beam` to match the IngressRoute; two
-      kustomization.yaml files (base + production overlay); IngressRoute matches the
-      **public** host with `entryPoints: [websecure, web]`, `tls: {}` (pocket-bridge is the
-      exemplar); NO forward-auth on `/`
+- [x] `/new-app beam` scaffolded 2026-07-06 (branch `feat/beam-app`): bjw-s HelmRelease
+      (image pinned to `sha-…` tag, real `/healthz` probes, `envFrom: beam-secret`,
+      `BEAM_PUBLIC_ORIGIN` + `BEAM_TURN_URIS` plain env), IngressRoute on the **public**
+      host `beam.mainertoo.com` (no forward-auth — rooms are public by design; a `.lab`
+      host would be rejected by beam's WS Origin allow-list), namespace, two
+      kustomization.yaml files, Gatus internal+external via components with
+      `GATUS_PATH=/healthz`. Single-service bjw-s release ⇒ Service named bare `beam`
+      (vaultwarden precedent)
 - [x] `apps/base/beam/beam-secret.sops.yaml` created (SOPS-encrypted; inert until the app
       kustomization references it). `BEAM_TURN_URIS`/`BEAM_PUBLIC_ORIGIN` are non-secret and
       land as plain HelmRelease env at new-app time
 - [ ] Gatus: `components/gatus/external` with `APP=beam`, `GATUS_DOMAIN=mainertoo.com`,
       `GATUS_PATH=/healthz`; confirm the Discord alert actually fires once (break it on purpose)
-- [ ] Cloudflare tunnel dashboard: public hostname `beam.mainertoo.com` → Traefik (same
-      target as existing public hostnames)
+- [ ] **Pangolin UI (VPS): add resource `beam.mainertoo.com` → target
+      `beam.beam.svc.cluster.local:8080`, with Pangolin's resource auth DISABLED** (rooms
+      are public by design — beam's own approval gate is the control; Pangolin resources
+      default to auth-protected, so this must be explicitly switched off). Correction:
+      the earlier "Cloudflare tunnel" wording was wrong — public apps here ride
+      Pangolin → newt → Service, per the new-app convention
 - [ ] PR → flux-local CI green → merge → `flux reconcile` → page loads over TLS
 
 Acceptance (definition of v0-done):
