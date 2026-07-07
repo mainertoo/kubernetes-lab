@@ -1,6 +1,7 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-06): scaffold + review-round-1 fixes committed on `feat/beam-scaffold`, not deployed.**
+> **STATUS (2026-07-06): merged to master (PR #1072); image published; coturn LIVE on the
+> VPS (Portainer stack 102) with relay verified end-to-end. Next: `/new-app beam` cluster wiring.**
 > Adversarial review round 1 (Codex) complete — findings and dispositions in §11 review log.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
@@ -132,8 +133,9 @@ isolates peers instead of everything minted in the same second),
 `apps/base/beam/beam-secret.sops.yaml`) and the coturn stack env on the VPS. Rotating it is
 a two-place update; rooms survive (creds are minted per session).
 
-Staged coturn stack — **destination: `mainertoo/home_server` repo → Portainer git stack on
-the VPS** (do not hand-edit the live host; per repo convention). Compose, complete:
+**Deployed 2026-07-06**: `home_server:docker-vps/coturn/docker-compose.yml` → Portainer git
+stack id 102 on endpoint 11 (docker-vps), auto-update 5m, `TURN_SECRET` as stack env. The
+block below mirrors it for reference (source of truth is `home_server`):
 
 ```yaml
 # home_server: stacks/coturn/docker-compose.yml   (staged here until copied)
@@ -199,15 +201,20 @@ Build/test (local):
 - [ ] pin base image by digest + install from `uv.lock` in the Dockerfile (review round 1)
 
 Publish:
-- [ ] merge scaffold PR (workflow `build-beam.yml` pushes `ghcr.io/mainertoo/beam` on
-      changes under `docker/beam/**`)
+- [x] merge scaffold PR (#1072, 2026-07-06) — `ghcr.io/mainertoo/beam:latest` published and
+      verified public/anonymous-pullable (no imagePullSecrets needed)
 
 TURN (VPS):
-- [ ] generate `TURN_SECRET` (`openssl rand -hex 32`); copy compose from §4 into
-      `home_server` repo; deploy Portainer stack with env; open VPS firewall ports
-- [ ] DNS: `turn.mainertoo.com` A → VPS IP, **DNS-only/grey cloud**
-- [ ] verify relay allocation with ephemeral creds (Trickle-ICE test page or
-      `turnutils_uclient -u <minted-user> -w <minted-pass> turn.mainertoo.com`)
+- [x] `TURN_SECRET` generated → SOPS-encrypted at `apps/base/beam/beam-secret.sops.yaml` +
+      set as Portainer stack env; compose at `home_server:docker-vps/coturn/` (stack 102,
+      endpoint 11, auto-update 5m); ufw opened 3478/tcp+udp + 49160:49200/udp — mandatory,
+      host-network stacks don't get Docker's usual ufw bypass
+- [x] DNS: `turn.mainertoo.com` already resolves to the VPS IP **unproxied** (existing
+      record/wildcard) — verified raw IP, not CF edge
+- [x] relay allocation verified 2026-07-06: ephemeral HMAC creds (minted with beam's exact
+      algorithm) + `turnutils_uclient -y` from a k3s pod → 20/20 msgs relayed, 0 % loss,
+      ~65 ms RTT. Benign quirk: coturn image logs one empty "Unknown argument" at start;
+      argv verified correct via `docker inspect`
 
 Cluster app:
 - [ ] `/new-app beam` — image `ghcr.io/mainertoo/beam`, port 8080, no PVC, probes `/healthz`,
@@ -216,8 +223,9 @@ Cluster app:
       kustomization.yaml files (base + production overlay); IngressRoute matches the
       **public** host with `entryPoints: [websecure, web]`, `tls: {}` (pocket-bridge is the
       exemplar); NO forward-auth on `/`
-- [ ] `apps/base/beam/beam-secret.sops.yaml`: `BEAM_TURN_SECRET` (+ `BEAM_TURN_URIS`,
-      `BEAM_PUBLIC_ORIGIN` as plain values)
+- [x] `apps/base/beam/beam-secret.sops.yaml` created (SOPS-encrypted; inert until the app
+      kustomization references it). `BEAM_TURN_URIS`/`BEAM_PUBLIC_ORIGIN` are non-secret and
+      land as plain HelmRelease env at new-app time
 - [ ] Gatus: `components/gatus/external` with `APP=beam`, `GATUS_DOMAIN=mainertoo.com`,
       `GATUS_PATH=/healthz`; confirm the Discord alert actually fires once (break it on purpose)
 - [ ] Cloudflare tunnel dashboard: public hostname `beam.mainertoo.com` → Traefik (same
