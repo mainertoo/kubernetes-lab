@@ -1,0 +1,31 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: beam-ingressroute
+  namespace: beam
+  annotations:
+    gethomepage.dev/href: "https://beam.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Beam"
+    gethomepage.dev/description: "Cast your screen to any browser"
+    gethomepage.dev/app: beam
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "mdi-cast"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    # PUBLIC host on purpose (pocket-bridge/authentik pattern): one canonical
+    # origin everywhere — beam's WS Origin allow-list admits only
+    # BEAM_PUBLIC_ORIGIN, so a .lab host would be rejected at the socket.
+    # LAN clients reach Traefik via split-horizon DNS; WAN goes Pangolin →
+    # service. NO forward-auth here: rooms are public by design (plan §5),
+    # the receiver approval tap is the gate.
+    - match: Host(`beam.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: beam
+          port: 8080
+          scheme: http
+  tls: {}
