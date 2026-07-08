@@ -22,8 +22,15 @@ metadata:
 subsets:
   - addresses:
       # NOTE: These MUST be Ceph MGR nodes exposing Prometheus metrics on :9283.
+      # The mgr prometheus module ONLY serves data on the *active* mgr; standbys
+      # answer HTTP 200 with an empty body (up=1, 0 samples). List ALL mgr nodes
+      # so scraping survives an mgr failover to any of them.
+      #   192.168.99.12 = pve-whistler
+      #   192.168.99.13 = pve-zermatt
+      #   192.168.99.14 = pve-mammoth
       - ip: 192.168.99.12
       - ip: 192.168.99.13
+      - ip: 192.168.99.14
     ports:
       - name: http-metrics
         port: 9283
