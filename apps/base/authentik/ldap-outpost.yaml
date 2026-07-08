@@ -29,7 +29,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: ldap
-          image: ghcr.io/goauthentik/ldap:2026.5.3
+          image: ghcr.io/goauthentik/ldap:2026.5.4
           env:
             - name: AUTHENTIK_HOST
               value: http://authentik-server.authentik.svc.cluster.local/
