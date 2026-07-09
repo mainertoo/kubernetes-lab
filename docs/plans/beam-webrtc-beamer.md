@@ -268,12 +268,14 @@ Acceptance (definition of v0-done):
 
 - **Unit (exists in scaffold):** room state machine (join/approve/deny/capacity/routing/TTL)
   and TURN credential minting (format, expiry, HMAC cross-check) — `docker/beam/tests/`.
-- **E2E (v0, CI-able):** Playwright, two headless Chromium contexts + the app;
-  `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream
-  --auto-select-desktop-capture-source=Entire screen` makes `getDisplayMedia` non-interactive.
-  Assert: room join, approval gate blocks SDP before Allow, `connectionState == "connected"`,
-  candidate-pair type as expected, receiver `<video>` has flowing frames
-  (`getStats` framesReceived increasing).
+- **E2E (exists: [`docker/beam/e2e/e2e_beam.py`](../../docker/beam/e2e/e2e_beam.py)):**
+  Playwright, two headless contexts against any base URL (local or prod);
+  `uv run --with playwright python e2e_beam.py [base] [--relay]`. Asserts join → approval →
+  share → receiver `<video>` frames actually advancing + the sender's path indicator.
+  Note: Chrome Headless Shell cannot display-capture, so the harness shims
+  `getDisplayMedia → getUserMedia` (fake camera) — identical WebRTC pipeline. Paid for
+  itself on first run: caught the `[hidden]`-vs-`display:inline-block` CSS bug that
+  blocked the v0 acceptance test.
 - **TURN verification:** forced-relay page param (above) + `turnutils_uclient` from any host.
 - **Manual venue matrix (living):** home LAN / phone-hotspot / office — record path type and
   subjective latency in this doc per venue class.
@@ -361,6 +363,19 @@ Dispositions (fixes verified by the 31-test suite + live WS smoke with TURN enab
 
 Process note: the review agent checked out `master` mid-session and the working tree had to
 be restored from the branch — future in-repo review runs get an isolated worktree.
+
+#### Round 2 — 2026-07-09 · v0 acceptance debugging (self, via the e2e harness)
+
+User's first live test: "tap to play stuck mid-screen" + black receiver. Findings, all fixed
+on `fix/beam-v0-ux`:
+
+| Finding | Fix |
+|---|---|
+| `button { display: inline-block }` in beam.css overrides the UA's `[hidden] → display:none` — every "hidden" button (tap-to-play, sender Share) was visible since page load and **intercepted clicks** (the harness caught Allow being unclickable) | `[hidden] { display: none !important; }` reset |
+| Receiver switched to the video view on `ontrack`, which fires at SDP time — before any media flows — hiding all status/diagnostics behind a black video | view switch on `loadedmetadata` (real frames); persistent HUD overlay (state · path · hints) |
+| Connected-but-black (sender capturing black: macOS Screen Recording permission, occluded window) was indistinguishable from failure | 8 s no-frames watchdog names the likely cause on screen |
+| Canceled share picker left a half-configured RTCPeerConnection | capture before peer creation; cancel is clean |
+| tap-to-play hid itself even when `play()` failed again | hides only on successful play |
 
 ---
 

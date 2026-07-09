@@ -48,6 +48,9 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
   };
 
   pc.onicecandidate = ({ candidate }) => sendSignal({ candidate });
+  // 701s here with the TURN uris = credential/quota trouble at the relay.
+  pc.onicecandidateerror = (e) =>
+    console.warn("ICE candidate error", e.errorCode, e.errorText || "", e.url || "");
   if (onTrack) pc.ontrack = onTrack;
 
   pc.onconnectionstatechange = () => {

@@ -1,5 +1,10 @@
 * { box-sizing: border-box; }
 
+/* Author display rules below would otherwise defeat the UA's [hidden] →
+   display:none (author styles always win) — every "hidden" button was
+   visible and intercepting clicks. Review: v0 acceptance bug. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -69,4 +74,17 @@ video {
   transform: translate(-50%, -50%);
   font-size: 1.6rem;
   z-index: 10;
+}
+
+/* always-visible connection readout, sits on top of the video */
+#hud {
+  position: fixed;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 9;
+  font-size: 0.85rem;
+  color: #8b949e;
+  background: rgba(13, 17, 23, 0.75);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
 }
