@@ -17,8 +17,15 @@ metadata:
   namespace: ceph-dashboard
 subsets:
   - addresses:
-      # - ip: 192.168.99.12
-      - ip: 192.168.99.13
+      # The Ceph dashboard runs ONLY on the ACTIVE mgr. Standby mgrs return
+      # HTTP 303 redirecting to the active mgr's internal URL
+      # (https://<active>:8443/), which a browser cannot reach through the
+      # ingress. So this MUST point at exactly the active mgr — do NOT list all
+      # three like ceph-mgr-metrics does. Re-pin on mgr failover.
+      #   192.168.99.12 = pve-whistler  (standby)
+      #   192.168.99.13 = pve-zermatt   (standby)
+      #   192.168.99.14 = pve-mammoth   (active as of 2026-07-08)  <-- current
+      - ip: 192.168.99.14
     ports:
       - name: https
         port: 8443
