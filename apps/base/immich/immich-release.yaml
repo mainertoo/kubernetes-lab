@@ -46,7 +46,7 @@ spec:
                 memory: 4Gi
             image:
               repository: ghcr.io/immich-app/immich-server
-              tag: v2.7.5
+              tag: v3.0.2
             env:
               - name: TZ
                 value: America/Los_Angeles
@@ -125,7 +125,7 @@ spec:
                 memory: 3Gi
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v2.7.5-openvino
+              tag: v3.0.2-openvino
             env:
               - name: TZ
                 value: America/Los_Angeles
