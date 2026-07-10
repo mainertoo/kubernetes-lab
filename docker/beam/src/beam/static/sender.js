@@ -60,17 +60,27 @@ $("share").onclick = async () => {
     $("status").textContent = "no ICE config yet — wait a beat and retry";
     return;
   }
-  peer = createPeer({
-    polite: true, // sender yields in glare (plan §3)
-    config: buildIceConfig(turn),
-    sendSignal: (payload) => signaling.send({ type: "signal", payload }),
-    onPath: (p) => ($("status").textContent = `sharing (${p})`),
-    onState: (s) => {
-      if (s !== "connected") $("status").textContent = s;
-    },
-  });
+  // Capture BEFORE creating the peer — a canceled picker must not leak a
+  // half-configured RTCPeerConnection (v0 acceptance fix).
   // System audio arrives only on Chrome (Windows; macOS 14.2+ with Chrome 141+) — plan §1.
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch {
+    $("status").textContent = "share canceled — pick what to share when ready";
+    return;
+  }
+  if (!peer) {
+    peer = createPeer({
+      polite: true, // sender yields in glare (plan §3)
+      config: buildIceConfig(turn),
+      sendSignal: (payload) => signaling.send({ type: "signal", payload }),
+      onPath: (p) => ($("status").textContent = `sharing (${p})`),
+      onState: (s) => {
+        if (s !== "connected") $("status").textContent = s;
+      },
+    });
+  }
   for (const track of stream.getTracks()) peer.pc.addTrack(track, stream);
   stream.getVideoTracks()[0].addEventListener("ended", () => {
     $("status").textContent = "sharing stopped";

@@ -10,6 +10,35 @@ let peer = null;
 let peerReady = null;
 let activeSenderId = null;
 let turn = null; // `turn` frame pushed by the server right after our join
+let connState = "";
+let path = "";
+
+// Small always-visible readout on top of everything — the first thing to
+// read when a venue misbehaves (v0 acceptance lesson: the old UI hid all
+// status the moment a track was negotiated).
+function hud(extra = "") {
+  const el = $("hud");
+  el.hidden = false;
+  el.textContent = [connState, path, extra].filter(Boolean).join(" · ");
+}
+
+// ontrack fires at SDP time, long before media flows — switch views only
+// once real frames have dimensions.
+function showVideoIfReady() {
+  const tv = $("tv");
+  if (tv.videoWidth > 0) {
+    tv.hidden = false;
+    $("room").hidden = true;
+    hud();
+  }
+}
+
+function tryPlay() {
+  const tv = $("tv");
+  tv.play()
+    .then(() => ($("tapplay").hidden = true))
+    .catch(() => ($("tapplay").hidden = false));
+}
 
 // The click is the user gesture that unlocks autoplay-with-audio (plan §1).
 $("start").onclick = async () => {
@@ -20,12 +49,16 @@ $("start").onclick = async () => {
   $("code").textContent = code;
   $("joinurl").textContent = `${location.host}/s`;
   // TODO(v0): screen wake lock (navigator.wakeLock) + re-acquire on visibilitychange.
-  // TODO(v1): go fullscreen when the first track arrives.
+  // TODO(v1): go fullscreen when the first frames arrive.
 
   signaling = openSignaling(code, onFrame);
   signaling.ws.onopen = () =>
     signaling.send({ type: "hello", role: "receiver", name: "screen", receiver_token });
-  signaling.ws.onclose = () => ($("status").textContent = "room closed — reload to restart");
+  signaling.ws.onclose = () => {
+    $("status").textContent = "room closed — reload to restart";
+    connState = "room closed — reload";
+    hud();
+  };
 
   async function onFrame(frame) {
     if (frame.type === "turn") {
@@ -51,22 +84,39 @@ $("start").onclick = async () => {
         $("status").textContent = "no ICE config — reload";
         throw new Error("turn frame missing");
       }
+      const tv = $("tv");
+      tv.addEventListener("loadedmetadata", () => {
+        showVideoIfReady();
+        tryPlay();
+      });
       peer = createPeer({
         polite: false, // the sender is the polite peer (plan §3)
         config: buildIceConfig(turn),
         sendSignal: (payload) => signaling.send({ type: "signal", to: activeSenderId, payload }),
         onTrack: ({ streams }) => {
-          const tv = $("tv");
-          tv.srcObject = streams[0];
-          tv.hidden = false;
-          $("room").hidden = true;
-          // Autoplay can still be refused (e.g. stale gesture) — recoverable UI
-          // beats a silently black TV (review round 1).
-          tv.play().catch(() => ($("tapplay").hidden = false));
+          if (tv.srcObject !== streams[0]) tv.srcObject = streams[0];
         },
-        onPath: (p) => ($("status").textContent = p),
+        onPath: (p) => {
+          path = p;
+          hud();
+        },
         onState: (s) => {
-          if (s !== "connected") $("status").textContent = s;
+          connState = s;
+          $("status").textContent = s;
+          hud();
+          if (s === "connected") {
+            // Connected but black = sender is capturing black frames
+            // (macOS: browser lacks Screen Recording permission; or an
+            // occluded/minimized window was picked).
+            setTimeout(() => {
+              if ($("tv").videoWidth === 0) {
+                const hint =
+                  "connected, but no video frames arriving — the sender is likely capturing black (macOS: grant the browser Screen Recording permission, or pick a non-minimized window/screen)";
+                $("status").textContent = hint;
+                hud("no frames — check sender capture");
+              }
+            }, 8000);
+          }
         },
       });
     })();
@@ -93,7 +143,4 @@ $("start").onclick = async () => {
   }
 };
 
-$("tapplay").onclick = () => {
-  $("tv").play();
-  $("tapplay").hidden = true;
-};
+$("tapplay").onclick = () => tryPlay();
