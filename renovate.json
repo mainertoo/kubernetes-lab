@@ -158,6 +158,14 @@
       "enabled": true,
       "groupName": "hermes (latest digest)",
       "groupSlug": "hermes-latest"
+    },
+    {
+      "description": "pocket-bridge (self-built, ghcr.io/mainertoo/pocket-bridge) is pinned to :latest by digest (tag: latest@sha256:...). The pocket-bridge-image.yaml workflow rebuilds :latest on every src/** merge to master, but the generic latest-ignore rule suppresses the digest bump — so the deployed image silently goes stale (the PR #1139 probe/annotation fix landed in src but only reached the cluster once the digest was hand-bumped). Track digest changes so Renovate raises a PR each rebuild; review/merge to deploy.",
+      "matchPackageNames": ["ghcr.io/mainertoo/pocket-bridge"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": true,
+      "groupName": "pocket-bridge (latest digest)",
+      "groupSlug": "pocket-bridge-latest"
     }
   ]
 }
