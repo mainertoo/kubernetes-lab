@@ -178,14 +178,6 @@ class OpenNotebookClient:
         self._require(r, 200, "get_note")
         return r.json()
 
-    # ---- commands (§7.8 stale scanner) -------------------------------------
-    async def list_commands_jobs(self) -> list[dict[str, Any]]:
-        r = await self._client.get("/api/commands/jobs")
-        self._require(r, 200, "list_commands_jobs")
-        items = r.json()
-        # Bridge-side cap per plan v9 F8-008
-        return items[:200] if isinstance(items, list) else []
-
     # ---- internal -----------------------------------------------------------
     def _require(self, r: httpx.Response, expected: int, op: str) -> None:
         if r.status_code != expected:

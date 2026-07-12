@@ -23,7 +23,6 @@ from admin import build_admin_app
 from open_notebook import OpenNotebookClient
 from pocket import PocketAPIClient
 from poller import (
-    open_notebook_stale_commands_probe,
     periodic_stale_scanner,
     start_recovery_scan,
 )
@@ -91,9 +90,8 @@ async def amain() -> None:
         asyncio.create_task(_serve(webhook_app, cfg.webhook_port)),
         asyncio.create_task(_serve(admin_app, cfg.admin_port)),
         asyncio.create_task(_serve(metrics_app, cfg.metrics_port)),
-        # §7.8 Layer B + commands probe
+        # §7.8 Layer B — also publishes the open_notebook_stale_commands_total gauge
         asyncio.create_task(periodic_stale_scanner(cfg=cfg, sm=sm, on=on)),
-        asyncio.create_task(open_notebook_stale_commands_probe(on=on)),
         asyncio.create_task(_refresh_health(sm, on)),
     ]
 
