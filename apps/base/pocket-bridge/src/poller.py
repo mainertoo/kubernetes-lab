@@ -181,6 +181,13 @@ async def periodic_stale_scanner(
 
 
 async def _scan_once(cfg: Config, sm: StateMachine, on: OpenNotebookClient) -> None:
+    # Also publishes open_notebook_stale_commands_total (F8-008): the dedicated
+    # /api/commands/jobs probe was removed because that endpoint returns [] on
+    # open_notebook 1.10.0 (F7-Live-003). Instead we count recordings still stuck
+    # in embed_pending past the embed window using the source GET already done
+    # here — a live proxy for "worker not draining its command queue" that
+    # auto-clears to 0 once the backlog embeds.
+    stuck = 0
     async for state_key in sm.scan_state_keys():
         state_val = await sm.r.get(state_key)
         if state_val is None:
@@ -209,31 +216,12 @@ async def _scan_once(cfg: Config, sm: StateMachine, on: OpenNotebookClient) -> N
             continue
         age = await sm.get_embed_pending_age_s(rid)
         if age > 15 * 60:
+            # Still embed_pending past the embed window → worker likely wedged.
+            stuck += 1
             already = await sm.has_stalled_marker(rid)
             if not already:
                 M.open_notebook_embed_stalled_total.labels(
                     recording_id=rid, reason="periodic_scan"
                 ).inc()
                 await sm.set_stalled_marker_if_absent(rid)
-
-
-async def open_notebook_stale_commands_probe(
-    *, on: OpenNotebookClient, interval_seconds: int = 60
-) -> None:
-    """Plan §7.8 / F8-008 — periodic probe of Open Notebook's command queue.
-
-    Updates `open_notebook_stale_commands_total` gauge. Threshold for "stale" =
-    status=new AND created > 5min ago. Catches the worker-stuck failure mode
-    documented in feedback_open_notebook_worker_stuck_pod_restart.
-    """
-    log.info("open notebook stale-commands probe started")
-    while True:
-        await asyncio.sleep(interval_seconds)
-        try:
-            jobs = await on.list_commands_jobs()
-        except Exception:
-            log.warning("stale-commands probe: list_commands_jobs failed", exc_info=False)
-            continue
-        # Count items still status=new (no `created` server-side filter; client cap of 200)
-        stale = sum(1 for j in jobs if j.get("status") == "new")
-        M.open_notebook_stale_commands_total.set(stale)
+    M.open_notebook_stale_commands_total.set(stuck)

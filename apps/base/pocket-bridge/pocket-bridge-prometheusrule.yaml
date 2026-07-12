@@ -88,17 +88,19 @@ spec:
           annotations:
             description: "pocket-bridge worker detected lease ownership loss and aborted — Redis instability or stalled worker. Investigate refresh latency."
 
-        - alert: MacLlamaEmbeddingsUnreachable
-          # Bridge probes the embeddings backend indirectly via open_notebook_up;
-          # this alert watches Open Notebook source POSTs failing. (open_notebook_up=1
-          # + this firing means Open Notebook is up but its embeddings backend —
-          # mac-llama :8081 via the llama-egress proxy — is unreachable.)
+        - alert: PocketBridgeSourcePostFailing
+          # Watches bridge → Open Notebook source POSTs failing. A source POST
+          # returns 200 as soon as Open Notebook accepts the job
+          # (async_processing=true), so this fires when Open Notebook itself is
+          # rejecting/erroring — NOT when the embeddings backend is down (that
+          # surfaces later as PocketBridgeEmbedStalled). Embeddings run on the
+          # DGX Spark (192.168.1.94:8081), not the Mac.
           expr: rate(open_notebook_write_total{operation="source_post",result="fail"}[10m]) > 0.1
           for: 10m
           labels:
             severity: warning
           annotations:
-            description: "pocket-bridge source POST failures elevated for 10m+. If embed_stalled also firing, suspect the mac-llama embeddings endpoint (:8081) unreachable via the llama-egress proxy."
+            description: "pocket-bridge source POST failures to Open Notebook elevated for 10m+. If PocketBridgeEmbedStalled is also firing, suspect the DGX Spark mxbai embeddings endpoint (192.168.1.94:8081) unreachable, or the Open Notebook command worker wedged."
 
         - alert: PocketBridgeNotebookNoteCount
           # v7 F6-003 — single-shot GET /api/notes degrading at scale
@@ -116,16 +118,19 @@ spec:
           labels:
             severity: critical
           annotations:
-            description: "Recording {{ $labels.recording_id }} reached embed_pending state but vector embedding never confirmed within the ~12min window (reason={{ $labels.reason }}). Recover via /admin/replay repair_embeddings_only=true. Usually the mac-llama embeddings endpoint (:8081) was unreachable during the window."
+            description: "Recording {{ $labels.recording_id }} reached embed_pending state but vector embedding never confirmed within the ~12min window (reason={{ $labels.reason }}). Most common cause is Open Notebook's surreal-commands-worker wedged (commands stuck status=new) — recover with `kubectl rollout restart deploy/open-notebook -n open-notebook`; otherwise the DGX Spark mxbai embeddings endpoint (192.168.1.94:8081) was unreachable during the window. Backlog can also be replayed via /admin/replay repair_embeddings_only=true."
 
         - alert: PocketBridgeOpenNotebookCommandStalled
-          # v8 F7-Live-003 — Open Notebook surreal-commands-worker stuck
+          # v8 F7-Live-003 — Open Notebook surreal-commands-worker stuck.
+          # Gauge is derived from the bridge's embed_pending backlog (recordings
+          # stuck past the embed window): /api/commands/jobs returns [] on
+          # open_notebook 1.10.0, so queue depth can't be read directly.
           expr: open_notebook_stale_commands_total > 0
           for: 10m
           labels:
             severity: critical
           annotations:
-            description: "Open Notebook's surreal-commands-worker has {{ $value }} stale `status=new` commands for 10m+. Recovery: `kubectl rollout restart deploy/open-notebook -n open-notebook`."
+            description: "{{ $value }} recording(s) stuck in embed_pending past the embed window for 10m+ — Open Notebook's surreal-commands-worker is likely wedged (commands not draining). Recovery: `kubectl rollout restart deploy/open-notebook -n open-notebook`."
 
         - alert: PocketBridgeNoScrape
           # v3 F2-004 belt-and-braces — Prometheus stops seeing the metrics port

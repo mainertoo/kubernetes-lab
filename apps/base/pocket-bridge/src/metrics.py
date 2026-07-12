@@ -73,7 +73,10 @@ open_notebook_notes_per_notebook = Gauge(
 )
 open_notebook_stale_commands_total = Gauge(
     "open_notebook_stale_commands_total",
-    "Open Notebook commands with status=new and age > 5min",
+    # /api/commands/jobs returns [] on open_notebook 1.10.0 (F7-Live-003), so this
+    # is derived from the bridge's own embed_pending backlog — recordings stuck
+    # past the embed window — as a live proxy for the worker not draining its queue.
+    "Recordings stuck in embed_pending past the embed window (Open Notebook worker not draining commands)",
 )
 
 # §7.6 lease + ownership
