@@ -54,8 +54,9 @@ spec:
           bridge:
             image:
               repository: ghcr.io/mainertoo/pocket-bridge
-              # Renovate will bump this to the latest sha-XXXX tag automatically.
-              tag: "latest@sha256:78c8dcba0a090717d430cbfb98cad928533fe6f64ff16d1dcc154e34be03ec90"
+              # Pinned to :latest by digest; Renovate raises a digest-bump PR on
+              # each src/** rebuild (see the pocket-bridge rule in renovate.json).
+              tag: "latest@sha256:fd60c4e49d0e7e0d6f187650e4e0ab6608da10d0e16be83c5e3ef2899bea1ad6"
               # Always (not IfNotPresent) because we use `:latest`. With
               # IfNotPresent, kubelet trusts its cached :latest forever even
               # when the registry digest changes — Pod restart pulls nothing,
