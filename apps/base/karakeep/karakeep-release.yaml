@@ -136,7 +136,7 @@ spec:
           app:
             image:
               repository: getmeili/meilisearch
-              tag: v1.41.0
+              tag: v1.49.0
             env:
               - name: MEILI_NO_ANALYTICS
                 value: "true"
