@@ -1,0 +1,36 @@
+---
+# Stable in-cluster name for the DGX Spark's vLLM chat/completions server
+# (Qwen3.6-35B, :8000 on the Spark) so consumers don't hardcode the LAN IP.
+#
+# Same shape as spark-embed (:8081): the Spark sits on the LAN at 192.168.1.94
+# and is reachable directly from cluster Pods over 10GbE, so this is a plain
+# selector-less Service + Endpoints — no egress proxy and no NetworkPolicy.
+#
+# Consumed by karakeep (OpenAI-compatible auto-tagging at
+# http://spark-llm.spark-egress.svc.cluster.local:8000/v1). The matching
+# Endpoints object MUST share the Service name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-llm
+  namespace: spark-egress
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: spark-llm
+  namespace: spark-egress
+subsets:
+  - addresses:
+      # DGX Spark LAN (10GbE, enP7s7) — stable across LAN renumber.
+      - ip: 192.168.1.94
+    ports:
+      - name: http
+        protocol: TCP
+        port: 8000
