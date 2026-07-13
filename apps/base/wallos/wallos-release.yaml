@@ -33,7 +33,7 @@ spec:
           main:
             image:
               repository: bellamy/wallos
-              tag: "5.0.0"
+              tag: "v5.0.1"
             env:
               TZ: America/Los_Angeles
               PUID: "1000"
