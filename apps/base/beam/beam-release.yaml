@@ -39,9 +39,11 @@ spec:
               - name: BEAM_PUBLIC_ORIGIN
                 value: https://beam.mainertoo.com
               # handed to browsers as ICE config; coturn lives on the VPS
-              # (home_server:docker-vps/coturn) — plan §4
+              # (home_server:docker-vps/coturn) — plan §4. The turns: entry is
+              # TURN-over-TLS on 443 via Traefik SNI routing (plan §10 trigger,
+              # 2026-07-13) — the escape hatch for venues that only allow HTTPS out.
               - name: BEAM_TURN_URIS
-                value: stun:turn.mainertoo.com:3478,turn:turn.mainertoo.com:3478?transport=udp,turn:turn.mainertoo.com:3478?transport=tcp
+                value: stun:turn.mainertoo.com:3478,turn:turn.mainertoo.com:3478?transport=udp,turn:turn.mainertoo.com:3478?transport=tcp,turns:turn.mainertoo.com:443?transport=tcp
             envFrom:
               # BEAM_TURN_SECRET — same value as the coturn stack env (rotate together)
               - secretRef:

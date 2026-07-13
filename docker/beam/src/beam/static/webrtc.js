@@ -30,10 +30,26 @@ export function openSignaling(code, onFrame) {
   return { ws, send: (obj) => ws.send(JSON.stringify(obj)) };
 }
 
-export function createPeer({ polite, config, sendSignal, onTrack, onPath, onState }) {
+export function createPeer({ polite, config, sendSignal, onTrack, onPath, onState, onDiagnostic }) {
   const pc = new RTCPeerConnection(config);
   let makingOffer = false;
   let ignoreOffer = false;
+  let sawRelayCandidate = false;
+
+  // Venue-blocked detection: if TURN servers were configured but gathering
+  // finished without a single relay candidate, this network blocks the relay
+  // (2026-07-13 field case: venue allowed only tcp/443 out) — say so instead
+  // of failing silently.
+  pc.onicegatheringstatechange = () => {
+    if (pc.iceGatheringState !== "complete" || sawRelayCandidate) return;
+    const hasRelayServers = (config.iceServers || []).some((s) =>
+      [].concat(s.urls).some((u) => u.startsWith("turn")));
+    if (hasRelayServers && onDiagnostic) {
+      onDiagnostic(
+        "relay unreachable from this network — cross-network connections will fail (the venue may block WebRTC; try a phone hotspot)"
+      );
+    }
+  };
 
   pc.onnegotiationneeded = async () => {
     try {
@@ -47,7 +63,10 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
     }
   };
 
-  pc.onicecandidate = ({ candidate }) => sendSignal({ candidate });
+  pc.onicecandidate = ({ candidate }) => {
+    if (candidate && candidate.candidate.includes(" typ relay")) sawRelayCandidate = true;
+    sendSignal({ candidate });
+  };
   // 701s here with the TURN uris = credential/quota trouble at the relay.
   pc.onicecandidateerror = (e) =>
     console.warn("ICE candidate error", e.errorCode, e.errorText || "", e.url || "");

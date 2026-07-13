@@ -1,9 +1,9 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-06): coturn LIVE + relay-verified; cluster app scaffolded on
-> `feat/beam-app`. Remaining: merge the app PR, add the Pangolin resource (auth OFF),
-> then §6 acceptance tests.**
-> Adversarial review round 1 (Codex) complete — findings and dispositions in §11 review log.
+> **STATUS (2026-07-13): everything deployed and edge-verified — app, Pangolin edge,
+> coturn (UDP/TCP 3478 + TURNS on 443 for hostile venues). Remaining: the human
+> two-device acceptance pass (§6) + one deliberate Gatus-alert break test.**
+> Adversarial reviews: round 1 (Codex) + round 2 (v0 acceptance debugging) in §11.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
 
@@ -178,9 +178,17 @@ VPS firewall additions: `3478/tcp`, `3478/udp`, `49160–49200/udp` in. beam's c
 config (`BEAM_TURN_URIS`):
 `stun:turn.mainertoo.com:3478,turn:turn.mainertoo.com:3478?transport=udp,turn:turn.mainertoo.com:3478?transport=tcp`.
 
-Deliberately deferred: **TURNS on tcp/443** (the deep escape for venues that allow only
-HTTPS egress). Traefik owns 443 on the VPS, so this needs a second IP or SNI muxing —
-build it the first time a real venue forces it, not before (§10).
+**TURNS on tcp/443 — LIVE 2026-07-13** (the §10 trigger fired at a real venue allowing only
+HTTPS egress): Traefik on the VPS terminates TLS by SNI (`turn.mainertoo.com`, LE cert) on
+its existing 443 entrypoint and forwards plain TURN-TCP to coturn:3478. Config file
+`turns-tcp.yml` hot-loaded from the Pangolin Traefik config dir (live copy on `/flash`,
+documentation copy in `home_server:docker-vps/pangolin/traefik/`). Client ICE config gained
+`turns:turn.mainertoo.com:443?transport=tcp`, tried last by ICE (TCP media: fine for
+slides/playback, softer for high motion). Verified with a STUN-over-TLS exchange from the
+blocking venue itself. Note: coturn sees the Traefik container IP for 443-path clients
+(raw TCP, no PROXY protocol) — per-peer usernames keep quotas correct anyway. Clients also
+now surface a "relay unreachable from this network" diagnostic when TURN servers are
+configured but gathering yields no relay candidate.
 
 ## 5. Security model
 
@@ -296,7 +304,7 @@ Acceptance (definition of v0-done):
 
 | Decision | Deferred until | Leaning |
 |---|---|---|
-| TURNS on tcp/443 (2nd VPS IP or SNI mux) | first real venue that blocks 3478/relay-range egress | 2nd IP; SNI muxing with Traefik is fragile |
+| ~~TURNS on tcp/443~~ **RESOLVED 2026-07-13** | trigger fired: real venue with 443-only egress (22/3478/8443 all blocked) | shipped as Traefik `HostSNI` TCP router on the existing 443 — no 2nd IP; SNI muxing turned out clean, not fragile (§4) |
 | file-mode video transport: DataChannel chunks vs ranged HTTP upload via beam | v2 | DataChannel (keeps beam media-free; backpressure via `bufferedAmount`) |
 | SFU (>3 receivers) | someone actually asks for it | LiveKit if ever; not before |
 | HA / multi-replica signaling | never, probably | rooms are 30-second re-creatable |
