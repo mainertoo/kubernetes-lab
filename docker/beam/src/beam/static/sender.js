@@ -79,6 +79,7 @@ $("share").onclick = async () => {
       onState: (s) => {
         if (s !== "connected") $("status").textContent = s;
       },
+      onDiagnostic: (m) => ($("status").textContent = m),
     });
   }
   for (const track of stream.getTracks()) peer.pc.addTrack(track, stream);

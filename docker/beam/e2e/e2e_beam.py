@@ -23,8 +23,10 @@ async def main():
                 "--autoplay-policy=no-user-gesture-required",
             ],
         )
-        rx = await (await browser.new_context(ignore_https_errors=False)).new_page()
-        tx_ctx = await browser.new_context()
+        # bypass_csp: beam ships script-src 'self' (no unsafe-eval) — right for
+        # users, but it blocks the harness's evaluate() string injections.
+        rx = await (await browser.new_context(bypass_csp=True)).new_page()
+        tx_ctx = await browser.new_context(bypass_csp=True)
         # Headless Shell has no display-capture; the fake camera exercises the
         # identical WebRTC pipeline (encode → ICE → decode → frames).
         await tx_ctx.add_init_script(

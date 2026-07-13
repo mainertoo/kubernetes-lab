@@ -100,6 +100,10 @@ $("start").onclick = async () => {
           path = p;
           hud();
         },
+        onDiagnostic: (m) => {
+          $("status").textContent = m;
+          hud("relay unreachable");
+        },
         onState: (s) => {
           connState = s;
           $("status").textContent = s;
