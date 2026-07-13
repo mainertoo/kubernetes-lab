@@ -1,0 +1,38 @@
+---
+# Flux Kustomization for the karakeep app.
+# The gatus/internal + gatus/external components establish both health-check
+# endpoints declaratively (auto-discovered ConfigMaps labelled gatus.io/enabled).
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app karakeep
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/karakeep
+  targetNamespace: karakeep
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+  postBuild:
+    substitute:
+      APP: *app
+      SUBDOMAIN: karakeep
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PORT: "3000"
+      GATUS_PATH: /api/health
+      GATUS_STATUS_INTERNAL: "200"

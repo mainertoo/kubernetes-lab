@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - spark-embed-egress-namespace.yaml
   - spark-embed-service.yaml
+  - spark-llm-service.yaml
