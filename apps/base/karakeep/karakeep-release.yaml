@@ -67,6 +67,16 @@ spec:
                 value: nvidia/Qwen3.6-35B-A3B-NVFP4
               - name: INFERENCE_CONTEXT_LENGTH
                 value: "32768"
+              # Qwen3.6 is a REASONING model: it emits a large <think> block
+              # before the answer. With too small an output budget the thinking
+              # exhausts it and Karakeep gets empty content ("Got no message
+              # content from OpenAI") → failed/retried tag jobs. Neither
+              # reasoning_effort nor /no_think are honoured by this vLLM build,
+              # and Karakeep can't send chat_template_kwargs:{enable_thinking:
+              # false}, so the only reachable fix is a large output budget so
+              # the reasoning always completes before emitting content.
+              - name: INFERENCE_MAX_OUTPUT_TOKENS
+                value: "24000"
             envFrom:
               # NEXTAUTH_SECRET, MEILI_MASTER_KEY, OAUTH_CLIENT_ID/SECRET,
               # OPENAI_API_KEY (dummy — vLLM ignores the value but needs presence)
