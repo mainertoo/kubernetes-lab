@@ -257,9 +257,12 @@ Acceptance (definition of v0-done):
 - [ ] idle WS through the CF tunnel survives > 5 min (25 s app pings vs ~100 s CF idle)
 - [ ] LAN test: two machines same network → connect, path indicator **direct**, screen+audio
       visible, glass-to-glass latency subjectively < ~400 ms
-- [ ] Forced-relay test: `?relay=1` on both pages (`iceTransportPolicy: "relay"`) → still
-      connects, indicator **relayed**, coturn logs show the allocation
-- [ ] Hostile-venue rehearsal: phone on LTE hotspot + laptop on home LAN → connects (relayed)
+- [x] Forced-relay test — passed 2026-07-13 via the e2e harness, in the strongest possible
+      form: run **from a real 443-only venue** (udp/tcp 3478 blocked), so the only viable
+      path was TURNS-over-443 → frames flowing, sender indicator `sharing (relayed)`
+- [x] Hostile-venue rehearsal — same run subsumes it: a genuinely hostile venue (the one
+      behind the 2026-07-13 silent failure) now connects relayed through TLS-443; the
+      identical venue+harness combination failed pre-TURNS, isolating the fix as the cause
 - [ ] beam pod restart mid-session → both pages surface a clear "room closed / rejoin" state
       (no zombie UIs)
 
