@@ -32,6 +32,12 @@ spec:
     substitute:
       APP: *app
       SUBDOMAIN: karakeep
+      # Multi-service bjw-s release → the web Service is "karakeep-app", not
+      # "karakeep". The internal Gatus check builds its URL from GATUS_APP
+      # (defaults to APP), so without this it probes karakeep.karakeep.svc
+      # which has no endpoints → STATUS 0. (Same reason the IngressRoute targets
+      # karakeep-app.)
+      GATUS_APP: karakeep-app
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PORT: "3000"
       GATUS_PATH: /api/health
