@@ -136,6 +136,16 @@ spec:
           app:
             image:
               repository: getmeili/meilisearch
+              # A Meilisearch version bump REQUIRES a one-time index migration:
+              # Meili refuses to start on an index written by a different engine
+              # version (the v1.41→v1.49 update crashlooped "database version
+              # (1.41.0) is incompatible with engine (1.49.0)" until /meili_data
+              # was wiped). The karakeep-meilisearch PVC is intentionally
+              # un-backed-up, so when merging a Meili bump: scale meili to 0 →
+              # wipe /meili_data → scale to 1 → Karakeep Admin "Reindex all
+              # bookmarks" (rebuilds from the SQLite DB; bookmarks live in /data,
+              # nothing lost). Renovate flags these bumps with the
+              # meili-index-migration label (see renovate.json) — it stays enabled.
               tag: v1.49.0
             env:
               - name: MEILI_NO_ANALYTICS
