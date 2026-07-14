@@ -166,6 +166,11 @@
       "enabled": true,
       "groupName": "pocket-bridge (latest digest)",
       "groupSlug": "pocket-bridge-latest"
+    },
+    {
+      "description": "Meilisearch (karakeep's search index): a version bump REQUIRES a one-time index migration — Meili refuses to start on an index written by a different engine version (the v1.41.0→v1.49.0 update crashlooped 'database version incompatible' until /meili_data was wiped). Renovate stays ENABLED so these updates keep surfacing as normal; the meili-index-migration label + the comment in karakeep-release.yaml flag the required wipe+reindex so the PR isn't merged blind. On merge: scale meili to 0 → wipe /meili_data → scale to 1 → Karakeep Admin 'Reindex all bookmarks'.",
+      "matchPackagePatterns": ["getmeili/meilisearch"],
+      "addLabels": ["meili-index-migration"]
     }
   ]
 }
