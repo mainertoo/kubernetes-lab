@@ -17,9 +17,22 @@
     </form>
     <section id="session" hidden>
       <p id="status">joining…</p>
-      <button id="share" hidden>Share screen</button>
-      <!-- TODO(v1): phone modes — camera / photos / video file / URL cast (plan §7).
-           iPhone Safari has no getDisplayMedia; screen share is laptop-only (plan §1). -->
+      <p id="path" class="hint"></p>
+      <div id="modes" hidden>
+        <button id="share" hidden>Share screen</button>
+        <button id="camera">Camera</button>
+        <button id="flip" hidden>Flip</button>
+        <!-- label-wrapped hidden inputs: tapping the label opens the OS picker -->
+        <label class="button">Photos<input id="photopick" type="file"
+               accept="image/*" multiple hidden></label>
+        <label class="button">Video<input id="videopick" type="file"
+               accept="video/*" hidden></label>
+      </div>
+      <div id="photonav" hidden>
+        <button id="prev">&lsaquo; prev</button>
+        <span id="pcount" class="hint"></span>
+        <button id="next">next &rsaquo;</button>
+      </div>
     </section>
   </main>
 

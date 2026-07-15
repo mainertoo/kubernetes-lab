@@ -1,4 +1,6 @@
-// Receiver (/screen): create a room, show the code, approve senders, play the stream.
+// Receiver (/screen): create a room, show the code, approve senders, then show
+// whatever arrives — a live stream (screen/camera), cast photos, or a video
+// file (v1 phone modes; files arrive over a DataChannel, never via the server).
 // External file (not inline) so CSP script-src 'self' holds (plan §5).
 
 import { buildIceConfig, openSignaling, createPeer } from "/static/webrtc.js";
@@ -12,25 +14,32 @@ let activeSenderId = null;
 let turn = null; // `turn` frame pushed by the server right after our join
 let connState = "";
 let path = "";
+let expectingStream = false; // gates the connected-but-black watchdog
+let lastUrl = null; // revoke old blob URLs
+let wakeLock = null;
 
 // Small always-visible readout on top of everything — the first thing to
-// read when a venue misbehaves (v0 acceptance lesson: the old UI hid all
-// status the moment a track was negotiated).
+// read when a venue misbehaves.
 function hud(extra = "") {
   const el = $("hud");
   el.hidden = false;
   el.textContent = [connState, path, extra].filter(Boolean).join(" · ");
 }
 
-// ontrack fires at SDP time, long before media flows — switch views only
-// once real frames have dimensions.
-function showVideoIfReady() {
+// One thing on screen at a time; first real content hides the room card.
+function showContent(kind) {
   const tv = $("tv");
-  if (tv.videoWidth > 0) {
+  const photo = $("photo");
+  if (kind === "photo") {
+    tv.hidden = true;
+    if (!tv.paused) tv.pause();
+    photo.hidden = false;
+  } else {
+    photo.hidden = true;
     tv.hidden = false;
-    $("room").hidden = true;
-    hud();
   }
+  $("room").hidden = true;
+  hud();
 }
 
 function tryPlay() {
@@ -40,6 +49,18 @@ function tryPlay() {
     .catch(() => ($("tapplay").hidden = false));
 }
 
+// The TV must not sleep mid-session (v0 checklist item).
+async function lockScreen() {
+  try {
+    wakeLock = await navigator.wakeLock?.request("screen");
+  } catch {
+    /* unsupported or denied — cosmetic */
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && wakeLock !== null) lockScreen();
+});
+
 // The click is the user gesture that unlocks autoplay-with-audio (plan §1).
 $("start").onclick = async () => {
   const res = await fetch("/api/rooms", { method: "POST" });
@@ -48,8 +69,7 @@ $("start").onclick = async () => {
   $("room").hidden = false;
   $("code").textContent = code;
   $("joinurl").textContent = `${location.host}/s`;
-  // TODO(v0): screen wake lock (navigator.wakeLock) + re-acquire on visibilitychange.
-  // TODO(v1): go fullscreen when the first frames arrive.
+  lockScreen();
 
   signaling = openSignaling(code, onFrame);
   signaling.ws.onopen = () =>
@@ -86,37 +106,40 @@ $("start").onclick = async () => {
       }
       const tv = $("tv");
       tv.addEventListener("loadedmetadata", () => {
-        showVideoIfReady();
-        tryPlay();
+        if (tv.videoWidth > 0) {
+          showContent("video");
+          tryPlay();
+        }
       });
       peer = createPeer({
         polite: false, // the sender is the polite peer (plan §3)
         config: buildIceConfig(turn),
         sendSignal: (payload) => signaling.send({ type: "signal", to: activeSenderId, payload }),
         onTrack: ({ streams }) => {
+          expectingStream = true;
+          if (tv.src) {
+            tv.removeAttribute("src"); // srcObject wins only if src is clear
+            tv.load();
+          }
           if (tv.srcObject !== streams[0]) tv.srcObject = streams[0];
         },
+        onDataChannel: attachFileChannel,
         onPath: (p) => {
           path = p;
           hud();
-        },
-        onDiagnostic: (m) => {
-          $("status").textContent = m;
-          hud("relay unreachable");
         },
         onState: (s) => {
           connState = s;
           $("status").textContent = s;
           hud();
           if (s === "connected") {
-            // Connected but black = sender is capturing black frames
-            // (macOS: browser lacks Screen Recording permission; or an
-            // occluded/minimized window was picked).
             setTimeout(() => {
-              if ($("tv").videoWidth === 0) {
-                const hint =
+              // Connected but black = sender capturing black frames (macOS
+              // Screen Recording permission, occluded window). Only relevant
+              // when a live stream is expected — photo mode is exempt.
+              if (expectingStream && $("tv").srcObject && $("tv").videoWidth === 0) {
+                $("status").textContent =
                   "connected, but no video frames arriving — the sender is likely capturing black (macOS: grant the browser Screen Recording permission, or pick a non-minimized window/screen)";
-                $("status").textContent = hint;
                 hud("no frames — check sender capture");
               }
             }, 8000);
@@ -146,5 +169,50 @@ $("start").onclick = async () => {
     }
   }
 };
+
+// --- file receive (photos / video files) over the DataChannel -----------------
+
+function attachFileChannel(dc) {
+  dc.binaryType = "arraybuffer";
+  let cur = null; // { meta, parts, received }
+  dc.onmessage = (ev) => {
+    if (typeof ev.data === "string") {
+      const m = JSON.parse(ev.data);
+      if (m.t === "file-start") {
+        cur = { meta: m, parts: [], received: 0 };
+      } else if (m.t === "file-end" && cur) {
+        showFile(cur);
+        cur = null;
+      }
+      return;
+    }
+    if (!cur) return;
+    cur.parts.push(ev.data);
+    cur.received += ev.data.byteLength;
+    if (cur.meta.size > 0) {
+      hud(`receiving ${cur.meta.kind} ${Math.round((100 * cur.received) / cur.meta.size)}%`);
+    }
+  };
+}
+
+function showFile({ meta, parts }) {
+  const blob = new Blob(parts, { type: meta.mime || "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl = url;
+  if (meta.kind === "photo") {
+    expectingStream = false;
+    const photo = $("photo");
+    photo.onload = () => showContent("photo");
+    photo.src = url;
+  } else {
+    expectingStream = false; // blob playback, not a live stream
+    const tv = $("tv");
+    tv.srcObject = null;
+    tv.src = url;
+    showContent("video");
+    tryPlay();
+  }
+}
 
 $("tapplay").onclick = () => tryPlay();
