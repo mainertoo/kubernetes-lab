@@ -125,7 +125,7 @@ spec:
                 memory: 3Gi
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v3.0.2-openvino
+              tag: v3.0.3-openvino
             env:
               - name: TZ
                 value: America/Los_Angeles
