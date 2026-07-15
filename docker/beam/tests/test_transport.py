@@ -54,6 +54,10 @@ def test_csp_header_on_pages(client):
     assert "img-src 'self' data: blob:" in csp
     assert "media-src 'self' blob:" in csp
     assert res.headers["x-content-type-options"] == "nosniff"
+    # Stale cached JS burned two field tests — every asset must revalidate.
+    assert res.headers["cache-control"] == "no-cache"
+    static = client.get("/static/webrtc.js")
+    assert static.headers["cache-control"] == "no-cache"
 
 
 def test_cross_origin_ws_rejected_before_accept(client):

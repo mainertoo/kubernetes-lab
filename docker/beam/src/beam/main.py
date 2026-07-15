@@ -70,6 +70,10 @@ async def security_headers(request: Request, call_next):
     )
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
+    # no-cache = "revalidate before use", not "don't store": every load does a
+    # conditional request and gets a 304 unless the image changed. Heuristic
+    # caching served week-old JS after deploys and burned two field tests.
+    resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 
