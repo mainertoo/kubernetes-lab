@@ -47,7 +47,12 @@ def recv_type(ws, wanted):
 
 def test_csp_header_on_pages(client):
     res = client.get("/screen")
-    assert "default-src 'self'" in res.headers["content-security-policy"]
+    csp = res.headers["content-security-policy"]
+    assert "default-src 'self'" in csp
+    # Cast photos/videos render from blob: URLs (DataChannel transfers) — a
+    # missing blob: silently blanks them (v1 field bug: photos, not videos).
+    assert "img-src 'self' data: blob:" in csp
+    assert "media-src 'self' blob:" in csp
     assert res.headers["x-content-type-options"] == "nosniff"
 
 

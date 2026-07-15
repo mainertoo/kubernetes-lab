@@ -60,9 +60,12 @@ async def security_headers(request: Request, call_next):
     resp = await call_next(request)
     # 'self' covers same-origin fetch AND ws(s): in current browsers. All JS is
     # served from /static — no inline scripts, no CDNs; vendor any future libs.
+    # blob: in img-src AND media-src — cast photos/videos arrive over the
+    # DataChannel and render from blob URLs (v1 field bug: videos played but
+    # photos were silently CSP-blocked because img-src lacked blob:).
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
-        "img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
+        "img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     )
     resp.headers["X-Content-Type-Options"] = "nosniff"

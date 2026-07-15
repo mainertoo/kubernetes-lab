@@ -55,7 +55,16 @@ async def main():
         rx.on("console", lambda m: print(f"  [rx console] {m.type}: {m.text}") if m.type == "error" else None)
         tx.on("console", lambda m: print(f"  [tx console] {m.type}: {m.text}") if m.type == "error" else None)
 
-        await rx.goto(f"{BASE}/screen{RELAY}")
+        # bypass_csp disables CSP *enforcement* in the harness, so assert the
+        # policy statically — blob: must be allowed for cast photos AND videos
+        # (v1 field bug: img-src lacked blob:, photos silently blanked).
+        resp = await rx.goto(f"{BASE}/screen{RELAY}")
+        csp = (resp.headers.get("content-security-policy") or "") if resp else ""
+        csp_ok = "img-src 'self' data: blob:" in csp and "media-src 'self' blob:" in csp
+        print(f"csp blob directives: {'OK' if csp_ok else 'MISSING — cast media will blank'}")
+        if not csp_ok:
+            await browser.close()
+            sys.exit(1)
         await rx.click("#start")
         await rx.wait_for_function("document.getElementById('code').textContent.trim().length >= 4")
         code = (await rx.text_content("#code")).strip()
