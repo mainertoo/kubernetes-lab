@@ -30,7 +30,9 @@ export function openSignaling(code, onFrame) {
   return { ws, send: (obj) => ws.send(JSON.stringify(obj)) };
 }
 
-export function createPeer({ polite, config, sendSignal, onTrack, onPath, onState, onDiagnostic }) {
+export function createPeer({
+  polite, config, sendSignal, onTrack, onPath, onState, onDiagnostic, onDataChannel,
+}) {
   const pc = new RTCPeerConnection(config);
   let makingOffer = false;
   let ignoreOffer = false;
@@ -71,6 +73,7 @@ export function createPeer({ polite, config, sendSignal, onTrack, onPath, onStat
   pc.onicecandidateerror = (e) =>
     console.warn("ICE candidate error", e.errorCode, e.errorText || "", e.url || "");
   if (onTrack) pc.ontrack = onTrack;
+  if (onDataChannel) pc.ondatachannel = (ev) => onDataChannel(ev.channel);
 
   pc.onconnectionstatechange = () => {
     if (onState) onState(pc.connectionState);

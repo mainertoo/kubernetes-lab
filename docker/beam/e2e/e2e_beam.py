@@ -1,12 +1,30 @@
 """Two-headless-browser e2e against a live beam: join, approve, share fake screen,
-assert frames actually render on the receiver. Usage:
+assert frames actually render on the receiver, then cast a photo over the
+DataChannel and assert it displays. Usage:
   python e2e_beam.py [base-url] [--relay]
 """
 
 import asyncio
+import struct
 import sys
+import zlib
 
 from playwright.async_api import async_playwright
+
+
+def make_png(w: int = 8, h: int = 8) -> bytes:
+    """Minimal valid RGBA PNG (solid red) — no imaging deps needed."""
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        c = tag + data
+        return struct.pack("!I", len(data)) + c + struct.pack("!I", zlib.crc32(c) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + b"\xff\x00\x00\xff" * w for _ in range(h))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack("!IIBBBBB", w, h, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 BASE = next((a for a in sys.argv[1:] if not a.startswith("--")), "https://beam.mainertoo.com")
 RELAY = "?relay=1" if "--relay" in sys.argv else ""
@@ -63,15 +81,35 @@ async def main():
         s2 = await rx.evaluate(
             "() => { const v = document.getElementById('tv'); return {t: v.currentTime}; }"
         )
-        sender_status = (await tx.text_content("#status") or "").strip()
+        sender_path = (await tx.text_content("#path") or "").strip()
         print(f"receiver video: {s1['w']}x{s1['h']} paused={s1['paused']} t {s1['t']:.1f} -> {s2['t']:.1f}")
-        print(f"sender status: '{sender_status}'")
+        print(f"sender path: '{sender_path}'")
 
         ok = s1["w"] > 0 and s2["t"] > s1["t"] and not s1["paused"]
-        path_ok = ("relayed" in sender_status) if RELAY else ("(direct)" in sender_status or "(relayed)" in sender_status)
-        print(f"FRAMES FLOWING: {'YES' if ok else 'NO'}   PATH: {'OK' if path_ok else 'UNEXPECTED'}")
+        path_ok = ("relayed" in sender_path) if RELAY else ("direct" in sender_path or "relayed" in sender_path)
+
+        # v1 phone mode: cast a photo over the DataChannel, assert it renders.
+        await tx.set_input_files(
+            "#photopick",
+            files=[{"name": "e2e.png", "mimeType": "image/png", "buffer": make_png()}],
+        )
+        try:
+            await rx.wait_for_function(
+                "() => { const i = document.getElementById('photo');"
+                " return !i.hidden && i.naturalWidth > 0; }",
+                timeout=20000,
+            )
+            photo_ok = True
+        except Exception:
+            photo_ok = False
+        print(f"photo cast: {'OK' if photo_ok else 'FAILED'}")
+
+        print(
+            f"FRAMES FLOWING: {'YES' if ok else 'NO'}   PATH: {'OK' if path_ok else 'UNEXPECTED'}"
+            f"   PHOTO: {'OK' if photo_ok else 'FAILED'}"
+        )
         await browser.close()
-        sys.exit(0 if ok and path_ok else 1)
+        sys.exit(0 if ok and path_ok and photo_ok else 1)
 
 
 asyncio.run(main())

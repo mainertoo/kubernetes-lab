@@ -58,7 +58,7 @@ li { margin: 0.5rem 0; }
 
 #status { color: #8b949e; }
 
-video {
+video, #photo {
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -66,6 +66,17 @@ video {
   background: #000;
   object-fit: contain;
 }
+
+#modes, #photonav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+label.button { cursor: pointer; }
 
 .overlay {
   position: fixed;

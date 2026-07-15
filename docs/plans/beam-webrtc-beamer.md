@@ -1,8 +1,9 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-13): everything deployed and edge-verified — app, Pangolin edge,
-> coturn (UDP/TCP 3478 + TURNS on 443 for hostile venues). Remaining: the human
-> two-device acceptance pass (§6) + one deliberate Gatus-alert break test.**
+> **STATUS (2026-07-15): v0 field-proven (laptop→TV through a hostile venue over
+> TURNS-443, real screens). v1 phone modes (camera / photos / video-file over
+> DataChannel) built on `feat/beam-v1-phone-modes`. Next milestone after v1 lands:
+> v3 iPhone screen mirroring (ReplayKit — needs an Apple Developer account, see §7).**
 > Adversarial reviews: round 1 (Codex) + round 2 (v0 acceptance debugging) in §11.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
@@ -271,9 +272,19 @@ Acceptance (definition of v0-done):
 | Phase | Scope | Acceptance |
 |---|---|---|
 | **v0** | rooms + QR-less join by code; laptop screen+system-audio → TV; TURN fallback; path indicator; fullscreen receiver | §6 checklist all green |
-| **v1** | phone camera + photo casting; video-file casting (stream mode); sender approval UX polish; QR on receiver (vendored lib); screen wake-lock; per-IP rate limiting; reconnect/ICE-restart on network change | photo night + present-at-work both work end-to-end |
-| **v2** | file-mode video playback (transfer + native `<video>`, decision in §10); URL casting; multi-receiver (≤3); `/admin` (rooms list, kick) behind `authentik-sso`; stats overlay | movie file plays at native quality; two screens simultaneously |
-| **v3 (stretch)** | iOS ReplayKit broadcast-upload extension feeding the same rooms → true iPhone screen mirroring | phone OS screen visible on a venue TV |
+| **v1** | ~~phone camera + photo casting; video-file casting~~ **shipped 2026-07-15** (camera w/ flip, photo slideshow w/ prev/next, video-file — all over a `beam-files` DataChannel, client↔client, server untouched; receiver wake-lock too). Note: video is **file-transfer + native playback**, not stream mode — iOS Safari has no `captureStream()` on media elements, and native playback is higher quality anyway. Still open in v1: QR on receiver (vendored lib), per-IP rate limiting, reconnect/ICE-restart, cache-busting for `/static` (stale-JS burned a field test 2026-07-14) | photo night + present-at-work both work end-to-end |
+| **v2** | URL casting; multi-receiver (≤3); `/admin` (rooms list, kick) behind `authentik-sso`; stats overlay | movie file plays at native quality; two screens simultaneously |
+| **v3 (committed 2026-07-15, next after v1 lands)** | iOS ReplayKit broadcast-upload extension feeding the same rooms → true iPhone screen mirroring | phone OS screen visible on a venue TV |
+
+v3 shape and prerequisites (decided when the user committed to it): a small SwiftUI host app
++ a Broadcast Upload Extension (ReplayKit) that joins a beam room as a sender — speaking the
+§3 signaling protocol over `wss` and publishing H.264 via an embedded WebRTC stack (either
+libwebrtc via SPM binary, or a lighter RTC stack). Beam-side work is minimal (the protocol
+already treats it as just another sender); the effort is almost entirely Swift.
+**Prerequisites: an Apple Developer Program membership ($99/yr) for the App Group +
+broadcast-extension entitlements and on-device install; Xcode on the Mac (present).**
+Extension memory limit is 50 MB — encode settings must be conservative. Prove-out order:
+join/signal from Swift first, camera track second, ReplayKit frames last.
 
 ## 8. Testing strategy
 
@@ -308,7 +319,7 @@ Acceptance (definition of v0-done):
 | Decision | Deferred until | Leaning |
 |---|---|---|
 | ~~TURNS on tcp/443~~ **RESOLVED 2026-07-13** | trigger fired: real venue with 443-only egress (22/3478/8443 all blocked) | shipped as Traefik `HostSNI` TCP router on the existing 443 — no 2nd IP; SNI muxing turned out clean, not fragile (§4) |
-| file-mode video transport: DataChannel chunks vs ranged HTTP upload via beam | v2 | DataChannel (keeps beam media-free; backpressure via `bufferedAmount`) |
+| ~~file-mode video transport~~ **RESOLVED 2026-07-15** | pulled forward into v1 | DataChannel chunks (64 KiB, `bufferedAmount` backpressure, 8 MiB high-water) — beam stays media-free; `captureStream()` stream-mode rejected (absent on iOS Safari media elements) |
 | SFU (>3 receivers) | someone actually asks for it | LiveKit if ever; not before |
 | HA / multi-replica signaling | never, probably | rooms are 30-second re-creatable |
 | iOS broadcast extension | v3 | prove demand with v1 phone modes first |

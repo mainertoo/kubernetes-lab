@@ -1,6 +1,6 @@
 [project]
 name = "beam"
-version = "0.0.1"
+version = "0.1.0"
 description = "Self-hosted WebRTC screen beamer — signaling server + web UI"
 readme = "README.md"
 requires-python = ">=3.12"
