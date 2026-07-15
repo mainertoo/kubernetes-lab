@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/mainertoo/beam
-              tag: sha-5fecc3d9c0553bd4984b9677e5f7ec227740a810
+              tag: sha-6c53142f56c09e911de84269eda3e98bea514cb1
             env:
               - name: TZ
                 value: America/Los_Angeles
