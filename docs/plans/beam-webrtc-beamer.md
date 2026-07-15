@@ -14,6 +14,12 @@ Goal: walk into any location (work, a friend's house), get my phone/laptop conte
 TV-attached computer there, with **nothing pre-installed on that computer** — just a browser
 opening `beam.mainertoo.com`.
 
+**Declared mission (2026-07-15): live sports.** The end-game is beaming games — the IPTV
+streams that apps like IBO Player Pro play — onto whatever screen is available. That makes
+v2 stream casting the flagship milestone (play the stream directly on the receiver; never
+re-encode through a phone), with app mirroring (v3 ReplayKit) as the fallback for
+sources that can't be cast as URLs.
+
 Decisions already litigated (do not re-open without new facts):
 
 - **A web page cannot be an AirPlay receiver.** Browsers cannot advertise mDNS/Bonjour,
@@ -272,8 +278,8 @@ Acceptance (definition of v0-done):
 | Phase | Scope | Acceptance |
 |---|---|---|
 | **v0** | rooms + QR-less join by code; laptop screen+system-audio → TV; TURN fallback; path indicator; fullscreen receiver | §6 checklist all green |
-| **v1** | ~~phone camera + photo casting; video-file casting~~ **shipped 2026-07-15** (camera w/ flip, photo slideshow w/ prev/next, video-file — all over a `beam-files` DataChannel, client↔client, server untouched; receiver wake-lock too). Note: video is **file-transfer + native playback**, not stream mode — iOS Safari has no `captureStream()` on media elements, and native playback is higher quality anyway. Still open in v1: QR on receiver (vendored lib), per-IP rate limiting, reconnect/ICE-restart, cache-busting for `/static` (stale-JS burned a field test 2026-07-14) | photo night + present-at-work both work end-to-end |
-| **v2** | URL casting; multi-receiver (≤3); `/admin` (rooms list, kick) behind `authentik-sso`; stats overlay | movie file plays at native quality; two screens simultaneously |
+| **v1** | ~~phone camera + photo casting; video-file casting~~ **shipped 2026-07-15** (camera w/ flip, photo slideshow w/ prev/next, video-file — all over a `beam-files` DataChannel, client↔client, server untouched; receiver wake-lock too). Note: video is **file-transfer + native playback**, not stream mode — iOS Safari has no `captureStream()` on media elements, and native playback is higher quality anyway. Still open in v1: QR on receiver (vendored lib), per-IP rate limiting, reconnect/ICE-restart. ~~cache-busting~~ done 2026-07-15 (`Cache-Control: no-cache` everywhere — ETag revalidation, 304s when unchanged) | photo night + present-at-work both work end-to-end |
+| **v2 — STREAM CASTING (the sports milestone)** | The declared mission is beaming live sports (IPTV — the streams apps like IBO Player Pro play). Don't mirror the app; **cast the stream URL and let the receiver play it directly** at full quality with the phone as a remote. Design: (1) receiver stream player — vendored hls.js (`.m3u8`) + mpegts.js (raw `.ts` live streams), Safari-native HLS fallback, CSP stays CDN-free; (2) sender "Cast stream" mode — paste/pick a URL, sent as a control message over the existing DataChannel (server sees nothing); (3) the CORS + mixed-content bridge — IPTV upstreams are plain-http and CORS-less, so browsers refuse them from an https page: add a beam `GET /stream/{signed-token}` reverse-proxy endpoint, tokens minted over the WS to approved senders only (same trust pattern as `turn` frames), short TTL. Bends the "server never carries media" invariant knowingly — one game ≈ 5–8 Mbit/s through the pod, and ~10 GB/game through the VPS when the receiver is remote (watch the RackNerd allowance; CF-proxied hostname is the relief valve if it hurts); (4) channel-picker fed from the Dispatcharr M3U (the same source IBO uses) as a stretch. Also still here: multi-receiver (≤3); `/admin` behind `authentik-sso`; stats overlay | a live game plays full-quality on a remote TV with the phone as remote; movie file plays at native quality |
 | **v3 (committed 2026-07-15, next after v1 lands)** | iOS ReplayKit broadcast-upload extension feeding the same rooms → true iPhone screen mirroring | phone OS screen visible on a venue TV |
 
 v3 shape and prerequisites (decided when the user committed to it): a small SwiftUI host app
