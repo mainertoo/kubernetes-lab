@@ -45,6 +45,16 @@ spec:
               - name: TZ
                 value: America/Los_Angeles
 
+            # Grant the app container access to the Intel iGPU render node
+            # (/dev/dri/renderD128) for hardware transcoding (QSV/VAAPI). The
+            # hostPath /dev/dri mount makes the device nodes visible, but a
+            # non-privileged container's device cgroup blocks I/O on them
+            # ("Operation not permitted") so libva/QSV device init fails (-22).
+            # Mirrors plex/dispatcharr, which run privileged for the same iGPU.
+            # The pod still runs as UID 1000 (see defaultPodOptions).
+            securityContext:
+              privileged: true
+
           # rclone sidecars: mount DUMB's debrid WebDAV backends in-cluster so
           # the combined_symlinks (read from the shared cephfs dumb-library PVC)
           # resolve their targets here, independent of which node DUMB runs on.
