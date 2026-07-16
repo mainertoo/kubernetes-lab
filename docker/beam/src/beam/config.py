@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     max_rooms: int = 500
     max_frame_bytes: int = 65536
 
+    # v2 stream casting (the sports feature). The proxy fetches user-supplied
+    # IPTV URLs server-side — see streams.py for the SSRF model.
+    stream_proxy_enabled: bool = True
+    stream_ttl_seconds: int = 900
+    max_active_streams: int = 200
+    stream_connect_timeout: float = 10.0
+    stream_read_timeout: float = 30.0
+
     model_config = {"env_prefix": "BEAM_"}
 
     @property

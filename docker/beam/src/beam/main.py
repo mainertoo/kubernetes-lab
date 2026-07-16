@@ -10,8 +10,9 @@ import json
 import logging
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
@@ -19,6 +20,7 @@ from .protocol import (
     PING_FRAME,
     Approve,
     Bye,
+    CastStream,
     Hello,
     Pong,
     Signal,
@@ -26,9 +28,12 @@ from .protocol import (
     parse_client_message,
     room_state_frame,
     signal_frame,
+    stream_frame,
     turn_frame,
 )
+from .proxy import decode_target, proxy_fetch
 from .rooms import Peer, Room, RoomError, RoomRegistry
+from .streams import StreamError, StreamRegistry
 from .turncreds import mint_turn_credentials
 
 log = logging.getLogger("beam")
@@ -38,17 +43,35 @@ registry = RoomRegistry(
     max_senders=settings.max_senders_per_room,
     max_rooms=settings.max_rooms,
 )
+streams = StreamRegistry(
+    ttl_seconds=settings.stream_ttl_seconds,
+    max_active=settings.max_active_streams,
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+# Shared HTTP client for the stream proxy — set in lifespan.
+http_client: httpx.AsyncClient | None = None
 
 
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(
+        follow_redirects=False,  # proxy._open follows manually, revalidating each hop
+        timeout=httpx.Timeout(
+            connect=settings.stream_connect_timeout,
+            read=settings.stream_read_timeout,
+            write=settings.stream_read_timeout,
+            pool=settings.stream_connect_timeout,
+        ),
+    )
     sweeper = asyncio.create_task(_sweep_loop())
     yield
     sweeper.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await sweeper
+    await http_client.aclose()
 
 
 app = FastAPI(title="beam", docs_url=None, redoc_url=None, lifespan=lifespan)
@@ -105,6 +128,45 @@ async def create_room():
     return {"code": room.code, "receiver_token": room.receiver_token}
 
 
+# --- stream proxy (v2) --------------------------------------------------------
+# Unauthenticated by URL, but a valid token is only obtainable by an approved
+# sender over the WS (streams.py) and is unguessable + short-lived. Anyone who
+# can hit these already has a live token, i.e. is in the room.
+
+
+async def _proxy(token: str, target_url: str, range_header: str | None) -> Response:
+    if not settings.stream_proxy_enabled or http_client is None:
+        return JSONResponse({"error": "stream proxy disabled"}, status_code=404)
+    try:
+        cast = streams.get(token)
+        return await proxy_fetch(http_client, cast, target_url, range_header)
+    except StreamError as exc:
+        status = 404 if exc.code == "stream-not-found" else 400
+        return JSONResponse({"error": exc.code, "message": exc.message}, status_code=status)
+    except (httpx.HTTPError, httpx.StreamError):
+        return JSONResponse({"error": "upstream-error"}, status_code=502)
+
+
+@app.get("/stream/{token}")
+async def stream_root(token: str, request: Request):
+    try:
+        cast = streams.get(token)
+    except StreamError as exc:
+        return JSONResponse({"error": exc.code}, status_code=404)
+    return await _proxy(token, cast.url, request.headers.get("range"))
+
+
+@app.get("/stream/{token}/s")
+async def stream_child(token: str, u: str, request: Request):
+    # `u` is a base64url upstream URL emitted by our own m3u8 rewriter; it is
+    # re-validated (scheme + public host) inside proxy_fetch before any fetch.
+    try:
+        target = decode_target(u)
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse({"error": "bad-target"}, status_code=400)
+    return await _proxy(token, target, request.headers.get("range"))
+
+
 def _turn_payload(room: Room, peer: Peer) -> dict:
     """ICE config for one peer. Username embeds room + peer id so coturn's
     user-quota isolates per peer instead of per second (review round 1)."""
@@ -146,6 +208,7 @@ async def _sweep_loop() -> None:
         await asyncio.sleep(60)
         for room in registry.sweep(settings.room_ttl_seconds):
             log.info("reaping idle room %s", room.code)
+            streams.drop_room(room.code)
             for peer in list(room.peers.values()):
                 await _close_with_error(peer.ws, "room-closed", "room expired")
 
@@ -217,6 +280,18 @@ async def ws_endpoint(ws: WebSocket, code: str):
                 elif isinstance(msg, Signal):
                     target = room.route(peer, msg.to)
                     await _send(target.ws, signal_frame(peer.id, msg.payload))
+                elif isinstance(msg, CastStream):
+                    # Only an approved sender may cast; the receiver plays it.
+                    if peer.role != "sender" or peer.state != "approved":
+                        raise RoomError("not-approved", "not allowed to cast")
+                    receiver = room.receiver
+                    if receiver is None:
+                        raise RoomError("room-closed", "no screen to cast to")
+                    try:
+                        cast = streams.mint(room.code, msg.url)
+                    except StreamError as exc:
+                        raise RoomError(exc.code, exc.message) from exc
+                    await _send(receiver.ws, stream_frame(cast.token, cast.kind))
                 elif isinstance(msg, Bye):
                     break
                 elif isinstance(msg, Hello):
@@ -240,6 +315,7 @@ async def ws_endpoint(ws: WebSocket, code: str):
             if peer.role == "receiver":
                 # Receiver gone → the room is over.
                 registry.close(room.code)
+                streams.drop_room(room.code)
                 for p in list(room.peers.values()):
                     await _close_with_error(p.ws, "room-closed", "the screen left")
             else:

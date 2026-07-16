@@ -1,10 +1,11 @@
 # beam — self-hosted WebRTC screen beamer
 
-> **STATUS (2026-07-15): v0 field-proven (laptop→TV through a hostile venue over
-> TURNS-443, real screens). v1 phone modes (camera / photos / video-file over
-> DataChannel) built on `feat/beam-v1-phone-modes`. Next milestone after v1 lands:
-> v3 iPhone screen mirroring (ReplayKit — needs an Apple Developer account, see §7).**
-> Adversarial reviews: round 1 (Codex) + round 2 (v0 acceptance debugging) in §11.
+> **STATUS (2026-07-15): v0 + v1 field-verified. v2 STREAM CASTING (the sports
+> feature — cast an IPTV URL, receiver plays it directly via an SSRF-guarded HLS/TS
+> proxy) built on `feat/beam-v2-stream-casting`; Codex review round 3 pending before
+> merge. Next after v2: v3 iPhone screen mirroring (ReplayKit — needs an Apple
+> Developer account, see §7).**
+> Adversarial reviews: round 1 (Codex) + round 2 (v0 acceptance) + round 3 (v2 proxy) in §11.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
 
@@ -99,6 +100,8 @@ generated from this table — **this table is the contract; change both together
 | `approve` | receiver → server | `peer_id`, `allow` | receiver's Allow/Deny tap for a pending sender. Deny closes that sender's socket with `error`. |
 | `turn` | server → client | `username`, `credential`, `ttl`, `uris` | ephemeral ICE/TURN config (§4), **pushed**: to the receiver right after its first `room-state`, to a sender immediately after approval (before the approved `room-state`). Only authenticated room members can ever hold relay credentials; there is no REST endpoint to mint them (review round 1). |
 | `signal` | both, relayed | `to?`, `payload` (opaque SDP offer/answer/ICE) | relayed **only** between the receiver and an **approved** sender. Sender omits `to` (implicit: receiver); receiver must set `to`. Server stamps `from`. Pending senders get `error`. |
+| `cast-stream` | sender → server | `url` (≤2048) | v2 stream casting. Approved-sender-only; server validates the URL (scheme + public-IP SSRF guard, `streams.py`), mints an opaque room-scoped token, and the raw URL stays server-side. Pending/receiver → `error`. |
+| `stream` | server → receiver | `token`, `kind` (`hls`\|`mpegts`\|`auto`) | tells the receiver to play `/stream/{token}` (proxied). Sent only to the room's receiver after a successful `cast-stream`. |
 | `bye` | client → server | — | graceful leave. Receiver leaving closes the whole room (all peers notified via `error room-closed`). |
 | `ping` / `pong` | server → client / client → server | — | app-level keepalive every 25 s (Cloudflare idles quiet websockets at ~100 s). Two missed pongs → server closes the socket. |
 | `error` | server → client | `code`, `message` | machine-readable `code`: `room-not-found`, `room-full`, `not-approved`, `denied`, `room-closed`, `bad-message`. |
@@ -279,7 +282,7 @@ Acceptance (definition of v0-done):
 |---|---|---|
 | **v0** | rooms + QR-less join by code; laptop screen+system-audio → TV; TURN fallback; path indicator; fullscreen receiver | §6 checklist all green |
 | **v1** | ~~phone camera + photo casting; video-file casting~~ **shipped 2026-07-15** (camera w/ flip, photo slideshow w/ prev/next, video-file — all over a `beam-files` DataChannel, client↔client, server untouched; receiver wake-lock too). Note: video is **file-transfer + native playback**, not stream mode — iOS Safari has no `captureStream()` on media elements, and native playback is higher quality anyway. Still open in v1: QR on receiver (vendored lib), per-IP rate limiting, reconnect/ICE-restart. ~~cache-busting~~ done 2026-07-15 (`Cache-Control: no-cache` everywhere — ETag revalidation, 304s when unchanged) | photo night + present-at-work both work end-to-end |
-| **v2 — STREAM CASTING (the sports milestone)** | The declared mission is beaming live sports (IPTV — the streams apps like IBO Player Pro play). Don't mirror the app; **cast the stream URL and let the receiver play it directly** at full quality with the phone as a remote. Design: (1) receiver stream player — vendored hls.js (`.m3u8`) + mpegts.js (raw `.ts` live streams), Safari-native HLS fallback, CSP stays CDN-free; (2) sender "Cast stream" mode — paste/pick a URL, sent as a control message over the existing DataChannel (server sees nothing); (3) the CORS + mixed-content bridge — IPTV upstreams are plain-http and CORS-less, so browsers refuse them from an https page: add a beam `GET /stream/{signed-token}` reverse-proxy endpoint, tokens minted over the WS to approved senders only (same trust pattern as `turn` frames), short TTL. Bends the "server never carries media" invariant knowingly — one game ≈ 5–8 Mbit/s through the pod, and ~10 GB/game through the VPS when the receiver is remote (watch the RackNerd allowance; CF-proxied hostname is the relief valve if it hurts); (4) channel-picker fed from the Dispatcharr M3U (the same source IBO uses) as a stretch. Also still here: multi-receiver (≤3); `/admin` behind `authentik-sso`; stats overlay | a live game plays full-quality on a remote TV with the phone as remote; movie file plays at native quality |
+| **v2 — STREAM CASTING (the sports milestone)** | **Core built 2026-07-15** (`feat/beam-v2-stream-casting`): sender "Cast stream" mode → `cast-stream` URL over the WS; server mints a room-scoped opaque token (raw URL + creds stay server-side, never logged); receiver plays `/stream/{token}` via vendored **hls.js** / **mpegts.js** (lazy-loaded, CSP stays CDN-free; auto-fallback HLS→TS). **Reverse proxy** (`proxy.py`) bridges CORS + mixed-content: fetches upstream, rewrites m3u8 children back through itself, streams TS. **SSRF guard** (`streams.py`): every fetched URL — cast root, m3u8 children, redirect hops — must resolve to a **public** IP (blocks RFC1918/loopback/link-local/CGNAT-tailnet/v6-local/reserved); scheme http(s) only. Knowingly bends "server never carries media" — ~5–8 Mbit/s/game through the pod, ~10 GB/game through the VPS when the receiver is remote (watch RackNerd allowance; CF-proxied hostname is the relief valve). Impl notes: the URL rides the **WS not the DataChannel** (server must see it to proxy — corrected from the original design); one live cast per room supersedes prior tokens. **Deferred**: Dispatcharr M3U channel picker (stretch), multi-receiver (≤3), `/admin` behind `authentik-sso`, stats overlay. Pending: Codex review round 3 (§11) before merge | a live game plays full-quality on a remote TV with the phone as remote; movie file plays at native quality |
 | **v3 (committed 2026-07-15, next after v1 lands)** | iOS ReplayKit broadcast-upload extension feeding the same rooms → true iPhone screen mirroring | phone OS screen visible on a venue TV |
 
 v3 shape and prerequisites (decided when the user committed to it): a small SwiftUI host app

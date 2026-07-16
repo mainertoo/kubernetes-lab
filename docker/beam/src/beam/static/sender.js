@@ -64,6 +64,24 @@ async function onFrame(frame) {
   }
 }
 
+// --- stream casting (v2): tell the screen to play an IPTV URL directly --------
+// The URL goes to the server (which proxies it — plan §2/§10), never to the
+// receiver browser. No WebRTC/DataChannel involved; the phone is just a remote.
+
+$("streambtn").onclick = () => {
+  const f = $("streamform");
+  f.hidden = !f.hidden;
+  if (!f.hidden) $("streamurl").focus();
+};
+
+$("streamform").onsubmit = (ev) => {
+  ev.preventDefault();
+  const url = $("streamurl").value.trim();
+  if (!url) return;
+  signaling.send({ type: "cast-stream", url });
+  $("status").textContent = "casting stream to the screen…";
+};
+
 function ensurePeer() {
   if (!turn) throw new Error("no ICE config yet");
   if (!peer) {

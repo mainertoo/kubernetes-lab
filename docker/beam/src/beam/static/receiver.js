@@ -91,6 +91,7 @@ $("start").onclick = async () => {
       if (frame.from === activeSenderId) await peer.handleSignal(frame.payload);
       return;
     }
+    if (frame.type === "stream") return playStream(frame.token, frame.kind);
     if (frame.type === "error") {
       $("status").textContent = `${frame.code}: ${frame.message}`;
     }
@@ -212,6 +213,101 @@ function showFile({ meta, parts }) {
     tv.src = url;
     showContent("video");
     tryPlay();
+  }
+}
+
+// --- stream casting (v2): play a proxied IPTV URL directly on the TV ----------
+
+let streamEngine = null; // active Hls / mpegts player, so we can tear it down
+const scriptCache = {};
+
+// Vendored players load on demand — screen mirroring stays light (plan §5:
+// 'self' only, no CDNs). Injected <script> is CSP-clean (script-src 'self').
+function loadScript(src) {
+  scriptCache[src] ??= new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = src;
+    el.onload = resolve;
+    el.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.head.append(el);
+  });
+  return scriptCache[src];
+}
+
+function teardownStream() {
+  if (streamEngine) {
+    try {
+      streamEngine.destroy();
+    } catch {
+      /* best effort */
+    }
+    streamEngine = null;
+  }
+}
+
+async function playHls(url, tv) {
+  await loadScript("/static/vendor/hls.min.js");
+  if (window.Hls?.isSupported()) {
+    const hls = new window.Hls({ lowLatencyMode: true });
+    streamEngine = hls;
+    hls.loadSource(url);
+    hls.attachMedia(tv);
+    return new Promise((resolve, reject) => {
+      hls.on(window.Hls.Events.MANIFEST_PARSED, resolve);
+      hls.on(window.Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) reject(new Error(`hls ${data.type}: ${data.details}`));
+      });
+    });
+  }
+  // Safari plays HLS natively; the proxy serves the right content-type.
+  tv.src = url;
+}
+
+async function playMpegts(url, tv) {
+  await loadScript("/static/vendor/mpegts.min.js");
+  if (!window.mpegts?.isSupported()) throw new Error("mpegts unsupported here");
+  const player = window.mpegts.createPlayer({ type: "mpegts", isLive: true, url });
+  streamEngine = player;
+  player.attachMediaElement(tv);
+  player.load();
+}
+
+async function playStream(token, kind) {
+  expectingStream = false; // not a WebRTC track — the black-frame watchdog is N/A
+  teardownStream();
+  if (peer) {
+    // Streaming supersedes a live share; free the WebRTC media element.
+    const tv = $("tv");
+    tv.srcObject = null;
+  }
+  const tv = $("tv");
+  tv.removeAttribute("src");
+  tv.load();
+  const url = `/stream/${token}`;
+  showContent("video");
+  hud("loading stream…");
+  try {
+    if (kind === "mpegts") {
+      await playMpegts(url, tv);
+    } else {
+      // hls or auto: try HLS, fall back to mpegts for raw-TS streams.
+      try {
+        await playHls(url, tv);
+      } catch (err) {
+        if (kind === "auto") {
+          teardownStream();
+          await playMpegts(url, tv);
+        } else {
+          throw err;
+        }
+      }
+    }
+    hud("streaming");
+    tryPlay();
+  } catch (err) {
+    console.error("stream failed", err);
+    $("status").textContent = "stream failed to load — check the URL and try again";
+    hud("stream failed");
   }
 }
 

@@ -30,6 +30,14 @@ class Signal(BaseModel):
     payload: dict[str, Any]
 
 
+class CastStream(BaseModel):
+    # v2 stream casting: an approved sender asks beam to proxy an IPTV URL to
+    # the receiver. The URL stays server-side (streams.py); only a token is
+    # relayed. Length-capped — real IPTV URLs (with creds) fit easily.
+    type: Literal["cast-stream"]
+    url: str = Field(min_length=1, max_length=2048)
+
+
 class Bye(BaseModel):
     type: Literal["bye"]
 
@@ -38,7 +46,9 @@ class Pong(BaseModel):
     type: Literal["pong"]
 
 
-ClientMessage = Annotated[Union[Hello, Approve, Signal, Bye, Pong], Field(discriminator="type")]
+ClientMessage = Annotated[
+    Union[Hello, Approve, Signal, CastStream, Bye, Pong], Field(discriminator="type")
+]
 
 _adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 
@@ -62,6 +72,12 @@ def turn_frame(creds: dict) -> dict:
     """ICE config, pushed over the WS to the receiver on join and to a sender on
     approval. Never fetchable via unauthenticated REST (review round 1)."""
     return {"type": "turn", **creds}
+
+
+def stream_frame(token: str, kind: str) -> dict:
+    """Tells the receiver to play a proxied stream at /stream/{token}. `kind`
+    is the player hint: hls | mpegts | auto (v2)."""
+    return {"type": "stream", "token": token, "kind": kind}
 
 
 def error_frame(code: str, message: str) -> dict:

@@ -27,7 +27,13 @@
                accept="image/*" multiple hidden></label>
         <label class="button">Video<input id="videopick" type="file"
                accept="video/*" hidden></label>
+        <button id="streambtn">Cast stream</button>
       </div>
+      <form id="streamform" hidden>
+        <input id="streamurl" type="url" inputmode="url" autocomplete="off"
+               placeholder="stream URL (.m3u8 or .ts)">
+        <button>Play on screen</button>
+      </form>
       <div id="photonav" hidden>
         <button id="prev">&lsaquo; prev</button>
         <span id="pcount" class="hint"></span>
