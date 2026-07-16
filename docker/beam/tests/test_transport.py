@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from beam.main import app, registry
+from beam.main import app, registry, streams
 
 GOOD_ORIGIN = {"origin": "http://localhost:8080"}
 EVIL_ORIGIN = {"origin": "https://evil.example"}
@@ -18,8 +18,25 @@ EVIL_ORIGIN = {"origin": "https://evil.example"}
 def client():
     with TestClient(app) as c:
         registry.rooms.clear()
+        streams.casts.clear()
         yield c
         registry.rooms.clear()
+        streams.casts.clear()
+
+
+def approved_sender(client, rx, room):
+    """Join a sender and get it approved; returns (tx_context, sender_id).
+    Caller enters tx_context."""
+    tx = client.websocket_connect(f"/ws/{room['code']}")
+    ws = tx.__enter__()
+    hello(ws, "sender", name="phone")
+    sender_id = recv_type(ws, "room-state")["you"]["id"]
+    recv_type(rx, "room-state")
+    rx.send_json({"type": "approve", "peer_id": sender_id, "allow": True})
+    recv_type(ws, "turn")
+    recv_type(ws, "room-state")
+    recv_type(rx, "room-state")
+    return tx, ws, sender_id
 
 
 def make_room(client):
@@ -192,3 +209,75 @@ def test_receiver_leaving_closes_room(client):
             err = recv_type(tx, "error")
             assert err["code"] == "room-closed"
     assert registry.get(room["code"]) is None
+
+
+# --- stream casting (v2) ------------------------------------------------------
+
+
+def test_approved_sender_can_cast_stream(client):
+    room = make_room(client)
+    with client.websocket_connect(f"/ws/{room['code']}") as rx:
+        hello(rx, "receiver", token=room["receiver_token"])
+        recv_type(rx, "room-state")
+        recv_type(rx, "turn")
+        tx, ws, _ = approved_sender(client, rx, room)
+        try:
+            # public literal IP → no DNS, passes the SSRF guard
+            ws.send_json({"type": "cast-stream", "url": "http://1.1.1.1/live.m3u8"})
+            frame = recv_type(rx, "stream")
+            assert frame["kind"] == "hls" and frame["token"]
+            assert streams.get(frame["token"]).url == "http://1.1.1.1/live.m3u8"
+        finally:
+            tx.__exit__(None, None, None)
+
+
+def test_pending_sender_cannot_cast(client):
+    room = make_room(client)
+    with client.websocket_connect(f"/ws/{room['code']}") as rx:
+        hello(rx, "receiver", token=room["receiver_token"])
+        recv_type(rx, "room-state")
+        recv_type(rx, "turn")
+        with client.websocket_connect(f"/ws/{room['code']}") as tx:
+            hello(tx, "sender")
+            recv_type(tx, "room-state")  # pending
+            tx.send_json({"type": "cast-stream", "url": "http://1.1.1.1/live.m3u8"})
+            assert recv_type(tx, "error")["code"] == "not-approved"
+
+
+def test_cast_rejects_private_url(client):
+    room = make_room(client)
+    with client.websocket_connect(f"/ws/{room['code']}") as rx:
+        hello(rx, "receiver", token=room["receiver_token"])
+        recv_type(rx, "room-state")
+        recv_type(rx, "turn")
+        tx, ws, _ = approved_sender(client, rx, room)
+        try:
+            ws.send_json({"type": "cast-stream", "url": "http://169.254.169.254/meta"})
+            assert recv_type(ws, "error")["code"] == "bad-stream"
+        finally:
+            tx.__exit__(None, None, None)
+
+
+def test_stream_endpoint_unknown_token_404(client):
+    assert client.get("/stream/nope-nope-nope").status_code == 404
+
+
+def test_child_fetch_requires_valid_signature(client):
+    # open-relay gate: a valid token holder still cannot fetch an arbitrary URL
+    # of their own — only signed children beam emitted from a real playlist
+    import base64
+
+    room = make_room(client)
+    with client.websocket_connect(f"/ws/{room['code']}") as rx:
+        hello(rx, "receiver", token=room["receiver_token"])
+        recv_type(rx, "room-state")
+        recv_type(rx, "turn")
+        tx, ws, _ = approved_sender(client, rx, room)
+        try:
+            ws.send_json({"type": "cast-stream", "url": "http://1.1.1.1/live.m3u8"})
+            token = recv_type(rx, "stream")["token"]
+        finally:
+            tx.__exit__(None, None, None)
+    evil = base64.urlsafe_b64encode(b"http://8.8.8.8/10gb.bin").decode().rstrip("=")
+    assert client.get(f"/stream/{token}/s?u={evil}&sig=deadbeef").status_code == 403
+    assert client.get(f"/stream/{token}/s?u={evil}").status_code == 422  # sig required
