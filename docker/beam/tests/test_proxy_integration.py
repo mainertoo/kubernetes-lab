@@ -14,6 +14,7 @@ import ipaddress
 import pytest
 from fastapi.testclient import TestClient
 
+from beam import proxy as proxy_mod
 from beam import streams as streams_mod
 from beam.main import app, streams
 from beam.proxy import decode_target
@@ -51,18 +52,22 @@ def origin(monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
 
-    real = streams_mod.host_is_public
+    real = streams_mod.resolve_public_ips
 
     def allow_loopback(host):
+        h = host.strip("[]").rstrip(".")
         try:
-            if ipaddress.ip_address(host).is_loopback:
-                return True
+            if ipaddress.ip_address(h).is_loopback:
+                return [h]
         except ValueError:
             pass
         return real(host)
 
-    # validate_target reads host_is_public from the streams module namespace
-    monkeypatch.setattr(streams_mod, "host_is_public", allow_loopback)
+    # resolve_public_ips is the single source of truth: host_is_public /
+    # validate_target call it in the streams module, the IP-pinning backend
+    # calls it in the proxy module — patch both refs.
+    monkeypatch.setattr(streams_mod, "resolve_public_ips", allow_loopback)
+    monkeypatch.setattr(proxy_mod, "resolve_public_ips", allow_loopback)
     yield f"http://127.0.0.1:{port}"
     srv.shutdown()
 

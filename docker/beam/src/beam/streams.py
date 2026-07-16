@@ -40,33 +40,61 @@ class StreamError(Exception):
         self.message = message
 
 
-def host_is_public(host: str) -> bool:
-    """True only if EVERY address `host` resolves to is a public, routable IP.
-    Fail-closed: resolution failure or any internal address → False."""
+def _is_internal(ip: ipaddress._BaseAddress) -> bool:
+    # Unwrap IPv4-mapped IPv6 (::ffff:10.0.0.1) so the v4 checks apply.
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+        or (ip.version == 4 and ip in _CGNAT4)
+    )
+
+
+def resolve_public_ips(host: str) -> list[str]:
+    """Resolve `host`, returning its IP literals ONLY if every one is public.
+    Raises StreamError otherwise (fail-closed on resolution failure).
+
+    This is the single source of truth for "is this address safe to fetch". It
+    is called both for the early `validate_target` check AND — authoritatively —
+    by the IP-pinning HTTP backend (proxy.py), which dials the exact literal
+    returned here. Because the proxy connects to a validated IP rather than
+    re-resolving the hostname, DNS rebinding (public at validation, private at
+    connect) cannot steer it at an internal address (Codex review round 3)."""
     if not host:
-        return False
+        raise StreamError("bad-stream", "no host")
+    h = host.rstrip(".")  # trailing-dot hostnames resolve the same; normalize
+    if h.startswith("[") and h.endswith("]"):
+        h = h[1:-1]  # strip IPv6 brackets
     try:
-        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        return False
-    if not infos:
-        return False
+        infos = socket.getaddrinfo(h, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise StreamError("bad-stream", "cannot resolve host") from exc
+    ips = []
     for info in infos:
         try:
             ip = ipaddress.ip_address(info[4][0])
-        except ValueError:
-            return False
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-            or ip in _CGNAT4
-        ):
-            return False
-    return True
+        except ValueError as exc:
+            raise StreamError("bad-stream", "unparseable address") from exc
+        if _is_internal(ip):
+            raise StreamError("bad-stream", "resolves to a non-public address")
+        ips.append(str(ip))
+    if not ips:
+        raise StreamError("bad-stream", "no addresses")
+    return ips
+
+
+def host_is_public(host: str) -> bool:
+    try:
+        resolve_public_ips(host)
+        return True
+    except StreamError:
+        return False
 
 
 def validate_target(url: str) -> str:
@@ -137,6 +165,11 @@ class StreamRegistry:
             if cast is not None:
                 del self.casts[cast.token]
             raise StreamError("stream-not-found", "no such stream (or it expired)")
+        # Sliding TTL: every fetch keeps a watched stream alive; a token leaked
+        # after the receiver stops watching dies within one TTL. The stream
+        # deliberately OUTLIVES the sender's WS (the phone-as-remote-can-sleep
+        # goal), so we do NOT drop on sender disconnect — Codex review round 3.
+        cast.created_at = now
         return cast
 
     def drop_room(self, room_code: str) -> None:

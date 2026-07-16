@@ -1,9 +1,24 @@
+from urllib.parse import parse_qs, urlsplit
+
+import httpcore
 import httpx
 import pytest
 
 from beam import proxy
-from beam.proxy import decode_target, proxy_fetch, rewrite_m3u8
+from beam.proxy import (
+    PinnedBackend,
+    _encode,
+    decode_target,
+    proxy_fetch,
+    rewrite_m3u8,
+    verify_child,
+)
 from beam.streams import StreamCast, StreamError
+
+
+def child_target(line: str) -> str:
+    """Decode the upstream URL from a rewritten '/stream/TOK/s?u=..&sig=..' line."""
+    return decode_target(parse_qs(urlsplit(line).query)["u"][0])
 
 MASTER = """#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=1280000
@@ -36,11 +51,9 @@ def test_decode_target_roundtrip():
 
 def test_rewrite_rewrites_bare_uris_and_resolves_relative():
     out = rewrite_m3u8(MASTER, "http://origin.example.com/hls/master.m3u8", "TOK")
-    # every non-comment line becomes a proxied child
     lines = [l for l in out.splitlines() if l and not l.startswith("#")]
-    assert all(l.startswith("/stream/TOK/s?u=") for l in lines)
-    # relative resolves against the playlist base; absolute preserved
-    decoded = [decode_target(l.split("u=")[1]) for l in lines]
+    assert all(l.startswith("/stream/TOK/s?u=") and "&sig=" in l for l in lines)
+    decoded = [child_target(l) for l in lines]
     assert "http://origin.example.com/hls/720p/index.m3u8" in decoded
     assert "http://cdn.example.com/1080p/index.m3u8" in decoded
 
@@ -48,13 +61,49 @@ def test_rewrite_rewrites_bare_uris_and_resolves_relative():
 def test_rewrite_rewrites_uri_attributes():
     out = rewrite_m3u8(MEDIA, "http://origin.example.com/live/media.m3u8", "TOK")
     assert 'URI="/stream/TOK/s?u=' in out  # KEY + MAP rewritten
-    # comment/tag structure preserved
     assert "#EXT-X-KEY:METHOD=AES-128" in out
     assert "#EXTINF:6.0," in out
-    # the AES key URI resolves relative to the playlist
     key_line = next(l for l in out.splitlines() if l.startswith("#EXT-X-KEY"))
-    enc = key_line.split('URI="')[1].split('"')[0].split("u=")[1]
-    assert decode_target(enc) == "http://origin.example.com/live/key.bin"
+    key_uri = key_line.split('URI="')[1].split('"')[0]
+    assert child_target(key_uri) == "http://origin.example.com/live/key.bin"
+
+
+def test_child_urls_are_signed_and_verify():
+    out = rewrite_m3u8("#EXTM3U\nseg0.ts\n", "http://1.1.1.1/live.m3u8", "TOK")
+    child = next(l for l in out.splitlines() if l.startswith("/stream/"))
+    q = parse_qs(urlsplit(child).query)
+    assert verify_child(q["u"][0], q["sig"][0]) == "http://1.1.1.1/seg0.ts"
+
+
+def test_verify_child_rejects_forged_and_missing_sig():
+    # a token holder cannot craft their own target — open-relay gate
+    with pytest.raises(StreamError):
+        verify_child(_encode("http://evil.example/10gb.bin"), "deadbeefdeadbeefdeadbeefdeadbeef")
+    with pytest.raises(StreamError):
+        verify_child(_encode("http://evil.example/10gb.bin"), "")
+
+
+async def test_pinned_backend_dials_the_validated_ip(monkeypatch):
+    dialed = {}
+
+    async def fake_connect(self, host, port, timeout=None, local_address=None, socket_options=None):
+        dialed["host"] = host
+        return object()
+
+    monkeypatch.setattr(httpcore.AnyIOBackend, "connect_tcp", fake_connect)
+    monkeypatch.setattr(proxy, "resolve_public_ips", lambda h: ["93.184.216.34"])
+    await PinnedBackend().connect_tcp("rebind.example.com", 80)
+    # dialed the validated IP literal, NOT the (rebindable) hostname
+    assert dialed["host"] == "93.184.216.34"
+
+
+async def test_pinned_backend_blocks_rebind(monkeypatch):
+    def boom(host):
+        raise StreamError("bad-stream", "resolves to a non-public address")
+
+    monkeypatch.setattr(proxy, "resolve_public_ips", boom)
+    with pytest.raises(StreamError):
+        await PinnedBackend().connect_tcp("rebind.example.com", 80)
 
 
 async def _run(handler, cast, url, range_header=None):

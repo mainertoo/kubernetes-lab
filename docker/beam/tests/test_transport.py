@@ -260,3 +260,24 @@ def test_cast_rejects_private_url(client):
 
 def test_stream_endpoint_unknown_token_404(client):
     assert client.get("/stream/nope-nope-nope").status_code == 404
+
+
+def test_child_fetch_requires_valid_signature(client):
+    # open-relay gate: a valid token holder still cannot fetch an arbitrary URL
+    # of their own — only signed children beam emitted from a real playlist
+    import base64
+
+    room = make_room(client)
+    with client.websocket_connect(f"/ws/{room['code']}") as rx:
+        hello(rx, "receiver", token=room["receiver_token"])
+        recv_type(rx, "room-state")
+        recv_type(rx, "turn")
+        tx, ws, _ = approved_sender(client, rx, room)
+        try:
+            ws.send_json({"type": "cast-stream", "url": "http://1.1.1.1/live.m3u8"})
+            token = recv_type(rx, "stream")["token"]
+        finally:
+            tx.__exit__(None, None, None)
+    evil = base64.urlsafe_b64encode(b"http://8.8.8.8/10gb.bin").decode().rstrip("=")
+    assert client.get(f"/stream/{token}/s?u={evil}&sig=deadbeef").status_code == 403
+    assert client.get(f"/stream/{token}/s?u={evil}").status_code == 422  # sig required

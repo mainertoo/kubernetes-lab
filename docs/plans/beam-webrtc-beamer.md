@@ -2,9 +2,9 @@
 
 > **STATUS (2026-07-15): v0 + v1 field-verified. v2 STREAM CASTING (the sports
 > feature — cast an IPTV URL, receiver plays it directly via an SSRF-guarded HLS/TS
-> proxy) built on `feat/beam-v2-stream-casting`; Codex review round 3 pending before
-> merge. Next after v2: v3 iPhone screen mirroring (ReplayKit — needs an Apple
-> Developer account, see §7).**
+> proxy) built on `feat/beam-v2-stream-casting`. Codex review round 3 (SSRF) DONE —
+> 3 findings fixed incl. a Critical DNS-rebind bypass (§11). Next after v2: v3 iPhone
+> screen mirroring (ReplayKit — needs an Apple Developer account, see §7).**
 > Adversarial reviews: round 1 (Codex) + round 2 (v0 acceptance) + round 3 (v2 proxy) in §11.
 > **Resume here:** read this doc top to bottom, then continue at §6 "v0 deployment
 > checklist" — unchecked boxes are the frontier. Code scaffold: [`docker/beam/`](../../docker/beam/).
@@ -407,6 +407,23 @@ on `fix/beam-v0-ux`:
 | Connected-but-black (sender capturing black: macOS Screen Recording permission, occluded window) was indistinguishable from failure | 8 s no-frames watchdog names the likely cause on screen |
 | Canceled share picker left a half-configured RTCPeerConnection | capture before peer creation; cancel is clean |
 | tap-to-play hid itself even when `play()` failed again | hides only on successful play |
+
+#### Round 3 — 2026-07-15 · Codex security review of the v2 stream proxy
+*(codex session `019f6899-d1df-7cf2-a036-f771f81be982`)*
+
+The v2 proxy fetches user-supplied URLs → reviewed for SSRF before merge. Three findings,
+all fixed on `feat/beam-v2-stream-casting`:
+
+| # | Finding (severity) | Fix (verified by tests) |
+|---|---|---|
+| 1 | **DNS rebinding (Critical)** — `host_is_public` validates via `getaddrinfo`, but httpx re-resolves at connect; a malicious DNS answers public-then-private (TOCTOU) → proxy connects to an internal address | `PinnedBackend` (proxy.py): the HTTP transport resolves+validates once via `resolve_public_ips` and dials the **exact validated IP literal**, so there is no rebindable second resolution. TLS SNI/cert still use the hostname. Covered: backend dials the IP not the host; raises on a rebind |
+| 2 | **Open-relay (Medium)** — a token holder could pass any public URL as `/stream/{token}/s?u=…`, using beam's egress for arbitrary fetches (bandwidth theft) | child `u=` params are **HMAC-signed** by the rewriter (`_SIG_KEY`, per-process); the endpoint rejects any `u=` beam didn't emit from a real playlist. Cross-host CDN segments still work (they were in the playlist). Covered: forged/missing sig → 403 |
+| 3 | **Token outlives sender (Low)** — cast token stayed valid after the sender disconnected | **sliding TTL**: each fetch refreshes it, so a watched stream lives and a leaked token dies within one TTL of the receiver stopping. Deliberately NOT dropped on sender disconnect — the stream must outlive the phone sleeping (the "phone is just a remote" goal) |
+
+Also hardened from the SSRF-variant sweep: IPv4-mapped IPv6 (`::ffff:10.x`) unwrapped, trailing-dot
+hostnames + IPv6 brackets normalized before the check. Guard blocks RFC1918/loopback/link-local/
+CGNAT-tailnet/v6-local/reserved/multicast/unspecified; http(s) only. 79 tests (incl. a real-socket
+master→media→segment chain through the pinned backend).
 
 ---
 

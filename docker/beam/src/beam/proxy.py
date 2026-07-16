@@ -10,13 +10,17 @@ internal address (see streams.py for the SSRF model).
 """
 
 import base64
+import hashlib
+import hmac
 import re
+import secrets
 from urllib.parse import quote, urljoin, urlsplit
 
+import httpcore
 import httpx
 from fastapi.responses import Response, StreamingResponse
 
-from .streams import StreamCast, StreamError, validate_target
+from .streams import StreamCast, StreamError, resolve_public_ips, validate_target
 
 # Some IPTV origins 403 non-player user-agents.
 IPTV_UA = "VLC/3.0.20 LibVLC/3.0.20"
@@ -24,7 +28,28 @@ MAX_REDIRECTS = 5
 MAX_PLAYLIST_BYTES = 4 * 1024 * 1024
 PASSTHROUGH_HEADERS = ("content-type", "content-length", "content-range", "accept-ranges")
 
+# Per-process key signing the child URLs we emit. Child (`/s?u=`) fetches must
+# carry a matching sig, so a token holder can't point the proxy at an arbitrary
+# URL of their own — only at URLs beam produced by rewriting a real playlist
+# the sender legitimately cast (closes the open-relay vector, Codex round 3).
+# In-memory like everything else: a restart invalidates old sigs, receiver
+# re-casts. SSRF is separately closed by the IP-pinned backend below.
+_SIG_KEY = secrets.token_bytes(32)
+
 _URI_ATTR = re.compile(r'URI="([^"]*)"')
+
+
+class PinnedBackend(httpcore.AnyIOBackend):
+    """Resolve + validate the host, then dial the exact validated IP so httpx
+    never performs a second (rebindable) resolution. This is the authoritative
+    SSRF guard — every connection the proxy makes goes through here."""
+
+    async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        ips = resolve_public_ips(host)  # raises StreamError on any non-public IP
+        return await super().connect_tcp(
+            ips[0], port, timeout=timeout,
+            local_address=local_address, socket_options=socket_options,
+        )
 
 
 def _encode(url: str) -> str:
@@ -36,9 +61,22 @@ def decode_target(b64: str) -> str:
     return base64.urlsafe_b64decode(b64 + pad).decode()
 
 
+def _sign(url: str) -> str:
+    return hmac.new(_SIG_KEY, url.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def verify_child(u_b64: str, sig: str) -> str:
+    """Decode a child `u=` param and confirm we signed it. Raises StreamError
+    on a bad/absent signature — the anti-open-relay gate."""
+    target = decode_target(u_b64)
+    if not hmac.compare_digest(_sign(target), sig or ""):
+        raise StreamError("bad-target", "unsigned or tampered child URL")
+    return target
+
+
 def _child(token: str, absolute: str) -> str:
-    # Absolute-path proxy URL: unambiguous regardless of playlist depth.
-    return f"/stream/{token}/s?u={quote(_encode(absolute), safe='')}"
+    # Absolute-path proxy URL (unambiguous at any playlist depth) + HMAC sig.
+    return f"/stream/{token}/s?u={quote(_encode(absolute), safe='')}&sig={_sign(absolute)}"
 
 
 def rewrite_m3u8(body: str, base_url: str, token: str) -> str:

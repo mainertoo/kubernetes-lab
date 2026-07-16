@@ -3,7 +3,14 @@ import socket
 import pytest
 
 from beam import streams
-from beam.streams import StreamError, StreamRegistry, guess_kind, host_is_public, validate_target
+from beam.streams import (
+    StreamError,
+    StreamRegistry,
+    guess_kind,
+    host_is_public,
+    resolve_public_ips,
+    validate_target,
+)
 
 
 def fake_getaddrinfo(ip_map):
@@ -30,6 +37,24 @@ def test_public_ip_literals_allowed(ip):
 def test_documentation_ranges_blocked():
     # TEST-NET (192.0.2/24, 198.51.100/24, 203.0.113/24) is reserved, not routable
     assert host_is_public("203.0.113.5") is False
+
+
+def test_ipv4_mapped_ipv6_private_blocked():
+    assert host_is_public("::ffff:10.0.0.1") is False
+    assert host_is_public("::ffff:127.0.0.1") is False
+
+
+def test_trailing_dot_normalized():
+    # "1.1.1.1." resolves the same as "1.1.1.1"; must not sneak past
+    assert host_is_public("1.1.1.1.") is True
+    assert host_is_public("10.0.0.1.") is False
+
+
+def test_resolve_public_ips_returns_literals_for_pinning():
+    ips = resolve_public_ips("1.1.1.1")
+    assert ips == ["1.1.1.1"]
+    with pytest.raises(StreamError):
+        resolve_public_ips("10.0.0.1")
 
 
 @pytest.mark.parametrize(

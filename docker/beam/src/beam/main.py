@@ -31,7 +31,7 @@ from .protocol import (
     stream_frame,
     turn_frame,
 )
-from .proxy import decode_target, proxy_fetch
+from .proxy import PinnedBackend, proxy_fetch, verify_child
 from .rooms import Peer, Room, RoomError, RoomRegistry
 from .streams import StreamError, StreamRegistry
 from .turncreds import mint_turn_credentials
@@ -57,7 +57,13 @@ http_client: httpx.AsyncClient | None = None
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI):
     global http_client
+    # IP-pinning transport: the proxy dials only addresses resolve_public_ips
+    # validated, closing DNS-rebinding SSRF (Codex review round 3). Private
+    # _pool attr is httpx-internal but stable; test_proxy pins the behaviour.
+    transport = httpx.AsyncHTTPTransport(retries=0)
+    transport._pool._network_backend = PinnedBackend()
     http_client = httpx.AsyncClient(
+        transport=transport,
         follow_redirects=False,  # proxy._open follows manually, revalidating each hop
         timeout=httpx.Timeout(
             connect=settings.stream_connect_timeout,
@@ -157,11 +163,14 @@ async def stream_root(token: str, request: Request):
 
 
 @app.get("/stream/{token}/s")
-async def stream_child(token: str, u: str, request: Request):
-    # `u` is a base64url upstream URL emitted by our own m3u8 rewriter; it is
-    # re-validated (scheme + public host) inside proxy_fetch before any fetch.
+async def stream_child(token: str, u: str, sig: str, request: Request):
+    # `u` must be a URL our own rewriter emitted (HMAC-signed) — a token holder
+    # cannot craft an arbitrary target (anti-open-relay). It is ALSO re-validated
+    # (scheme + public host) and IP-pinned inside the fetch.
     try:
-        target = decode_target(u)
+        target = verify_child(u, sig)
+    except StreamError:
+        return JSONResponse({"error": "bad-target"}, status_code=403)
     except (ValueError, UnicodeDecodeError):
         return JSONResponse({"error": "bad-target"}, status_code=400)
     return await _proxy(token, target, request.headers.get("range"))
