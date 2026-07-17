@@ -55,7 +55,7 @@ spec:
               # Pinned to the rolling :dev tag by digest so a new dev build can't
               # silently roll in on restart (past profiler crashloop). Renovate
               # tracks the dev digest and PRs new builds — bump deliberately.
-              tag: dev@sha256:7a628835980916a68d3ae880abe58d80bc423ad1a51ace7260e0e378dbed0933
+              tag: dev@sha256:2bb677d29955f573abb07cfb8215d2744bfb7896375313b3e890de7fb33d1130
               pullPolicy: IfNotPresent
 
             envFrom:
