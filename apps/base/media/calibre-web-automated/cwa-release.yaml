@@ -80,6 +80,55 @@ spec:
               - secretRef:
                   name: cwa-secret
 
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                # memory-only limit (house style) — no CPU limit so epub
+                # conversion / duplicate scans can burst without throttling.
+                memory: 1Gi
+
+            probes:
+              # HTTP (not TCP): the 2026-07-23 outage was a socket-open /
+              # app-hung deadlock in the after-import cwa-duplicates scan that a
+              # TCP probe would pass straight through. /health is an
+              # unauthenticated 200 endpoint.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8083
+                  # generous — SQLite on CephFS (NETWORK_SHARE_MODE); avoid
+                  # SIGKILL mid-write. ~3 min of hard hang before restart.
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8083
+                  initialDelaySeconds: 15
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8083
+                  # up to 5 min for first-run DB migration on CephFS
+                  periodSeconds: 10
+                  failureThreshold: 30
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
