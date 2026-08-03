@@ -32,7 +32,7 @@ spec:
           main:
             image:
               repository: tombursch/kitchenowl
-              tag: v0.7.9
+              tag: v0.7.10
               pullPolicy: IfNotPresent
             env:
               - name: TZ
