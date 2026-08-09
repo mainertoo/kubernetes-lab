@@ -11,6 +11,13 @@
   "suppressNotifications": ["prIgnoreNotification"],
   "rebaseWhen": "conflicted",
 
+  "description": [
+    "PR rate limits are raised above Renovate's defaults (prHourlyLimit 2, prConcurrentLimit 10). The hosted Mend app settled into roughly one run per day for this repo, so the default 2-per-hour cap meant exactly 2 PRs per day while ~40 detected updates sat parked in the dashboard's Rate-Limited section indefinitely -- new updates arrived faster than the queue drained, and mid-list entries (e.g. seerr v3.3.0 -> v3.4.1, 25th of 43) never surfaced at all.",
+    "8/run drains the backlog over a few runs. Deliberately not 0/unlimited: every PR triggers the flux-local kube-flux-diff workflow, and a 43-PR flood would mean 43 concurrent CI runs."
+  ],
+  "prHourlyLimit": 8,
+  "prConcurrentLimit": 25,
+
   "ignorePaths": [
     "**/archive/**",
     "docker/cnpg-timescaledb/**",
