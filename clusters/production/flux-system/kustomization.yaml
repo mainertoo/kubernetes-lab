@@ -20,6 +20,22 @@ patches:
   # gives ~45s recovery on node failure -- comparable to the hot-
   # standby benefit since source-controller's emptyDir cache is
   # wiped on pod death anyway.
+  #
+  # The kustomize/helm controllers also get their CPU limit raised
+  # from the upstream 1000m to 2. Flux is built with Go 1.26, whose
+  # container-aware GOMAXPROCS reads the cgroup CPU limit but clamps
+  # it to a FLOOR OF 2 -- so with a 1-core quota the runtime always
+  # has 2 Ps and burns the whole 100ms CFS quota in 50ms whenever
+  # both are busy. That makes CPUThrottlingHigh fire (84% throttled
+  # periods on kustomize-controller) after every Flux version bump,
+  # when the fresh leader re-reconciles all ~110 Kustomizations at
+  # once -- even though real usage peaks at ~0.33 cores. Matching the
+  # quota to GOMAXPROCS=2 removes the false alert; requests stay at
+  # 100m so scheduling is unchanged. Lowering GOMAXPROCS instead is
+  # not an option: 2 is the runtime's minimum.
+  #
+  # source-controller (10% peak) and notification-controller (3%)
+  # stay at 1000m -- both are well under the 25% alert threshold.
   - target:
       kind: Deployment
       name: kustomize-controller
@@ -27,6 +43,9 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2"
       - op: add
         path: /spec/template/spec/topologySpreadConstraints
         value:
@@ -43,6 +62,9 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2"
       - op: add
         path: /spec/template/spec/topologySpreadConstraints
         value:
