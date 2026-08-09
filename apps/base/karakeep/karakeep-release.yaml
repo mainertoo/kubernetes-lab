@@ -141,11 +141,43 @@ spec:
               # version (the v1.41→v1.49 update crashlooped "database version
               # (1.41.0) is incompatible with engine (1.49.0)" until /meili_data
               # was wiped). The karakeep-meilisearch PVC is intentionally
-              # un-backed-up, so when merging a Meili bump: scale meili to 0 →
-              # wipe /meili_data → scale to 1 → Karakeep Admin "Reindex all
-              # bookmarks" (rebuilds from the SQLite DB; bookmarks live in /data,
-              # nothing lost). Renovate flags these bumps with the
+              # un-backed-up — the index rebuilds from the SQLite DB in /data,
+              # so nothing is lost. Renovate flags these bumps with the
               # meili-index-migration label (see renovate.json) — it stays enabled.
+              #
+              # RUNBOOK (validated v1.41→v1.49 2026-07-13, v1.49→v1.52 2026-08-09).
+              # The bump will have already FAILED by the time you run this: the
+              # Helm upgrade times out on Deployment/karakeep-meilisearch
+              # 'InProgress', rolls back, and leaves the HelmRelease
+              # Stalled=True/RetriesExceeded — which does NOT retry on its own.
+              #
+              #   flux suspend hr karakeep -n karakeep        # stop Flux racing the wipe
+              #   kubectl -n karakeep scale deploy/karakeep-meilisearch --replicas=0
+              #   # wipe /meili_data via a busybox pod mounting the karakeep-meilisearch PVC
+              #   flux resume hr karakeep -n karakeep
+              #   flux reconcile hr karakeep -n karakeep --reset   # --reset clears Stalled
+              #   kubectl -n karakeep rollout restart deploy/karakeep-web   # (1) see below
+              #   # Karakeep Admin → "Reindex all bookmarks"
+              #   kubectl -n karakeep rollout restart deploy/karakeep-web   # (2) see below
+              #
+              # Do NOT scale meili back to 1 by hand — the HR upgrade does it, and
+              # brings the pod up on the NEW image against the empty index.
+              #
+              # BOTH web restarts are required, for DIFFERENT reasons, and each
+              # failure mode is silent (reindex returns HTTP 200 either way):
+              #  (1) BEFORE reindex: a web pod that predates the wipe holds a stale
+              #      Meili client and indexes NOTHING.
+              #  (2) AFTER reindex: the search-indexing worker initialises at pod
+              #      start. The index does not exist until the reindex click
+              #      recreates it, so a worker started before that no-ops and never
+              #      drains the queue. Symptom: 292 rows in /data/queue.db queue
+              #      'searching_indexing' stuck status=pending numRunsLeft=6
+              #      (= never attempted), and no documentAdditionOrUpdate tasks in
+              #      Meili's /tasks. The restart makes it drain in ~6 min.
+              #
+              # Verify (needs MEILI_MASTER_KEY from karakeep-secret):
+              #   curl -H "Authorization: Bearer $KEY" <meili>:7700/stats
+              # numberOfDocuments must match the pre-wipe baseline (292 @ 2026-08-09).
               tag: v1.52.0
             env:
               - name: MEILI_NO_ANALYTICS
