@@ -146,7 +146,7 @@ spec:
               # bookmarks" (rebuilds from the SQLite DB; bookmarks live in /data,
               # nothing lost). Renovate flags these bumps with the
               # meili-index-migration label (see renovate.json) — it stays enabled.
-              tag: v1.49.0
+              tag: v1.52.0
             env:
               - name: MEILI_NO_ANALYTICS
                 value: "true"
