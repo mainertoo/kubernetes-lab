@@ -58,9 +58,11 @@ spec:
               - name: OAUTH_ALLOW_DANGEROUS_EMAIL_ACCOUNT_LINKING
                 value: "true"
               # ── AI auto-tagging via the DGX Spark (Qwen, OpenAI-compatible) ──
-              # Embeddings/semantic-search live on a separate Spark model+port;
-              # Karakeep only supports one OpenAI base URL, so text auto-tagging
-              # is wired here and embeddings are left off for now.
+              # Chat/tagging inference. Embeddings run on a SEPARATE Spark model
+              # and port and are configured via the EMBEDDING_* block below --
+              # Karakeep >=0.33 supports independent embedding overrides, which
+              # is what unblocked semantic search here (0.32 had a single
+              # OpenAI base URL, so embeddings had to stay off).
               - name: OPENAI_BASE_URL
                 value: http://spark-llm.spark-egress.svc.cluster.local:8000/v1
               - name: INFERENCE_TEXT_MODEL
@@ -77,6 +79,46 @@ spec:
               # the reasoning always completes before emitting content.
               - name: INFERENCE_MAX_OUTPUT_TOKENS
                 value: "24000"
+              # ── Embeddings / semantic search (Karakeep >=0.33) ───────────────
+              # Points at the Spark's SEPARATE embedding server (mxbai on :8081)
+              # rather than the Qwen chat endpoint on :8000. Karakeep falls back
+              # to the OPENAI_* pair for any EMBEDDING_* value left unset, so the
+              # base URL MUST be given explicitly or embeddings would be sent to
+              # the chat model and fail. EMBEDDING_OPENAI_API_KEY is intentionally
+              # omitted -- it falls back to the dummy OPENAI_API_KEY, which
+              # llama.cpp ignores.
+              #
+              # The vector store is Meilisearch itself (plugin "MeiliSearchVector"),
+              # which requires meili >=1.13 -- satisfied by v1.52.0.
+              #
+              # ⚠️ BOTH numbers below MUST be set; Karakeep's defaults are wrong
+              # for this model and the schema would silently accept them:
+              #   EMBEDDING_DIMENSIONS     upstream default 1536, mxbai emits 1024
+              #   EMBEDDING_CONTEXT_LENGTH upstream default 8000, mxbai's trained
+              #                            window (n_ctx_train) is only 512
+              # Verified against the live endpoint: a /v1/embeddings call returns
+              # exactly 1024 floats. ⚠️ Changing the model or its dimensions after
+              # even ONE bookmark is embedded forces a FULL regeneration of all
+              # embeddings (Admin → Background Jobs → Embeddings).
+              #
+              # EMBEDDING_TEXT_MODEL_DIMENSION_OVERRIDE is deliberately NOT set:
+              # it makes Karakeep send a `dimensions` request param, which this
+              # llama.cpp build does not accept (mxbai is fixed at 1024 anyway).
+              #
+              # Auto-indexing must be explicit here. Upstream enables it by
+              # default ONLY for a stock OpenAI setup -- the guard is
+              # `!OLLAMA_BASE_URL && !OPENAI_BASE_URL && !!OPENAI_API_KEY`, and
+              # OPENAI_BASE_URL is set above, so it would otherwise stay off.
+              - name: EMBEDDING_OPENAI_BASE_URL
+                value: http://spark-embed.spark-egress.svc.cluster.local:8081/v1
+              - name: EMBEDDING_TEXT_MODEL
+                value: ChristianAzinn/mxbai-embed-large-v1-gguf:Q8_0
+              - name: EMBEDDING_DIMENSIONS
+                value: "1024"
+              - name: EMBEDDING_CONTEXT_LENGTH
+                value: "512"
+              - name: EMBEDDING_ENABLE_AUTO_INDEXING
+                value: "true"
             envFrom:
               # NEXTAUTH_SECRET, MEILI_MASTER_KEY, OAUTH_CLIENT_ID/SECRET,
               # OPENAI_API_KEY (dummy — vLLM ignores the value but needs presence)
