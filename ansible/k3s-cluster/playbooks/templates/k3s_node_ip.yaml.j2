@@ -1,0 +1,45 @@
+# /etc/rancher/k3s/config.yaml.d/20-node-ip.yaml
+# Managed by Ansible (k3s_node_config.yml). Manual edits will be overwritten.
+#
+# K3s merges all YAML files in /etc/rancher/k3s/config.yaml.d/ over the base
+# /etc/rancher/k3s/config.yaml, so this never touches the base config (which
+# holds `disable: [traefik, servicelb]` and `write-kubeconfig-mode: "0644"`).
+#
+# WHY THIS EXISTS
+# ---------------
+# With no explicit node-ip, K3s auto-detects the node's addresses and hands
+# kubelet a dual-stack --node-ip. Any *extra* global address the host picks up
+# then becomes a secondary node InternalIP — and node InternalIPs are load-
+# bearing: prometheus-operator generates the kubelet scrape Endpoints straight
+# from them, so an address nothing can route to breaks scraping cluster-wide.
+#
+# That is exactly what happened on 2026-08-12. The three workers carry a second
+# NIC (lan0) on the untagged Default LAN, where the UDM has long had IPv6 RA
+# enabled with a static ULA prefix (fd00:1::1/64). systemd-networkd SLAAC'd
+# fd00:1::.../64 onto lan0, K3s fed it to kubelet as a secondary node IP, and
+# Prometheus started failing every scrape against it with "network is
+# unreachable" — surfacing as `TargetDown 33.33% of kubelet targets` plus one
+# `KubeletInstanceUnreachable` per worker, while every node still read Ready.
+#
+# Pinning node-ip to the cluster-VLAN address makes each node advertise exactly
+# one InternalIP no matter what else appears on its interfaces. That matters
+# because the RA had been running for weeks without incident — what changed to
+# make K3s suddenly publish the address was never determined, so the cluster
+# should simply not care.
+#
+# ORDERING TRAP
+# -------------
+# Do NOT delete a stray address from the host before this file is in place and
+# k3s has restarted. kubelet validates its configured node IPs against the live
+# interfaces; when a *secondary* node IP disappears it rejects the entire node-
+# status update every 10s —
+#
+#   kubelet_node_status.go:665] "Failed to set some node status fields"
+#   err="failed to validate secondaryNodeIP: node IP ... not found in the
+#        host's network interfaces"
+#
+# — and can then never drop the stale address on its own. The node keeps
+# reporting Ready throughout (the Lease heartbeat is a separate path), so this
+# is easy to miss. Correct order is: write this file -> restart k3s -> only
+# then clean up the address.
+node-ip: {{ k3s_node_ip }}

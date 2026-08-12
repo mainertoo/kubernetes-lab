@@ -45,3 +45,20 @@ metallb_pool_range: "192.168.90.180-192.168.90.199"
 # trip over its own apiserver restart. See staging's bootstrap log from
 # 2026-05-21 for the failure mode.
 k3s_apiserver_extra_args: []
+
+# Second-NIC (lan0) addresses, keyed by the node's cluster-VLAN address —
+# which is also its inventory hostname, since dynamic.sh emits terraform's
+# ip_address as the host entry.
+#
+# The three workers each carry a lan0 interface on the untagged Default LAN
+# so they can reach the QNAP NFS exports at 192.168.1.252 (nfs-qnap-media
+# StorageClass, immich-media-pv, qnap-media-pv) and the DGX Spark endpoint at
+# 192.168.1.94. Masters have no second NIC and are deliberately absent here;
+# k3s_lan0_netplan.yml ends early on any host missing from this map.
+#
+# Consumed only by k3s_lan0_netplan.yml, which asserts these match what is
+# already live on each interface before rewriting netplan.
+lan0_addresses:
+  "192.168.90.164": "192.168.1.246/24"
+  "192.168.90.165": "192.168.1.247/24"
+  "192.168.90.166": "192.168.1.248/24"

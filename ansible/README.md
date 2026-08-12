@@ -26,9 +26,13 @@ ansible/k3s-cluster/
     ├── kubevip_install.yml              # control-plane VIP DaemonSet
     ├── metallb_install.yml              # MetalLB v0.14.9 + L2 IPAddressPool
     ├── k3s_server_config.yml            # (one-off / config drift helper)
+    ├── k3s_node_config.yml              # pins node-ip on every node (serial, health-gated)
+    ├── k3s_lan0_netplan.yml             # owns the lan0 netplan; pins accept-ra off
     └── templates/
         ├── kubevip_daemonset.yml.j2
-        └── metallb_config.yml.j2
+        ├── metallb_config.yml.j2
+        ├── k3s_node_ip.yaml.j2
+        └── netplan_lan0.yaml.j2
 ```
 
 The inventory `dynamic.sh` scripts shell out to `terraform output` against
@@ -83,6 +87,7 @@ cluster-specific values. The full set:
 | `kube_vip_ip` | Control-plane VIP. Production `.160`, staging `.170`. |
 | `kubevip_image`, `kubevip_interface` | DaemonSet image + interface name. |
 | `metallb_pool_range` | The IP range MetalLB hands out. Production `.180-.199`, staging `.200-.219` (non-overlapping). |
+| `lan0_addresses` | Map of cluster-VLAN IP → second-NIC CIDR, for nodes that carry a `lan0` on the Default LAN. Production's three workers only; `{}` in staging. Consumed solely by `k3s_lan0_netplan.yml`. |
 
 If you need to override one of these for a single play (testing a new
 version, etc.), pass `-e k3s_version=v1.34.6+k3s1` on the command line
@@ -127,6 +132,65 @@ in `/etc/systemd/system/k3s-agent.service.env`.
 Tears down via the official scripts (`k3s-uninstall.sh` for masters,
 `k3s-agent-uninstall.sh` for workers). Both clean up service units,
 data directories, and CNI state — not just the binary.
+
+### `k3s_node_config.yml`
+
+Pins `node-ip` to each node's cluster-VLAN address via
+`/etc/rancher/k3s/config.yaml.d/20-node-ip.yaml`. Two plays (masters then
+workers), each `serial: 1`.
+
+Why it exists: with no explicit `node-ip`, K3s auto-detects addresses and hands
+kubelet a dual-stack `--node-ip`, so any extra global address the host picks up
+becomes a *secondary* node InternalIP. Node InternalIPs are load-bearing —
+prometheus-operator builds the kubelet scrape Endpoints from them. On
+2026-08-12 the workers SLAAC'd an IPv6 ULA off `lan0` (the Default LAN has RA
+enabled on the UDM), and every kubelet target went unscrapable: `TargetDown
+33.33%` plus one `KubeletInstanceUnreachable` per worker, while all six nodes
+still read `Ready`. Pinning `node-ip` makes each node advertise exactly one
+InternalIP regardless.
+
+Per node: assert the resolved IP is bare IPv4 → assert it's actually on the
+host → write the drop-in → restart `k3s`/`k3s-agent` → wait for health → wait
+until the node advertises exactly one InternalIP, equal to the pinned address.
+That last gate is the real check; a node that comes back wrong stops the run.
+
+No cordon/drain — this only rewrites a config file and restarts the service,
+and the Ready window held unbroken across all three workers on 2026-08-12. Be
+aware `k3s_server_config.yml` pins `default-not-ready-toleration-seconds=30`,
+so a node that *did* sit NotReady past 30s would start shedding pods.
+
+⚠️ **Ordering trap.** Never delete a stray address from a host before this
+playbook has pinned `node-ip` and restarted k3s. kubelet validates configured
+node IPs against live interfaces; when a *secondary* node IP vanishes it
+rejects the whole node-status update every 10s (`failed to validate
+secondaryNodeIP`) and can never drop the stale entry on its own — while still
+reporting `Ready`, because the Lease heartbeat is a separate path. Only a
+kubelet restart clears it.
+
+### `k3s_lan0_netplan.yml`
+
+Takes ownership of `/etc/netplan/60-lan0-iot.yaml` on nodes listed in
+`lan0_addresses`, and pins `accept-ra: false` so they stop SLAACing an IPv6
+address off the Default LAN. Defence in depth — `k3s_node_config.yml` is what
+actually protects the cluster; this stops the address existing at all.
+
+**Run it after `k3s_node_config.yml`.** In that order a leftover address is
+harmless. In the reverse order you hit the ordering trap above.
+
+`lan0` is load-bearing: it carries the QNAP NFS exports at `192.168.1.252`
+(the `nfs-qnap-media` StorageClass, `immich-media-pv`, `qnap-media-pv`) and the
+DGX Spark endpoint at `192.168.1.94`. So the play refuses to write netplan
+unless the address in `lan0_addresses` matches what is already live on the
+interface — a stale map fails loudly instead of quietly renumbering a node off
+its storage. Override with `-e lan0_force_address=true` only when deliberately
+renumbering. Ansible reaches these hosts over `eth0`, so a `lan0` misstep never
+costs the connection needed to fix it.
+
+Note the kernel sysctl is a red herring when debugging this:
+`net.ipv6.conf.lan0.accept_ra` reads `0` while networkd happily configures
+SLAAC addresses, because netplan delegates RA handling to systemd-networkd,
+which does it in userspace. `accept-ra:` in netplan (→ `IPv6AcceptRA=no`) is
+the knob that matters.
 
 ### `kubevip_install.yml`
 
