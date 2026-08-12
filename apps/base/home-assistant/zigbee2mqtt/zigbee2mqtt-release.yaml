@@ -59,6 +59,24 @@ spec:
               ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true"
               ZIGBEE2MQTT_CONFIG_PERMIT_JOIN: "false"
 
+              # Per-device availability. Without this, z2m only publishes the
+              # bridge's own state, so HA entities go `unavailable` when the
+              # bridge dies but NEVER when a device falls off the mesh — a dead
+              # leak sensor or shut-off valve keeps reporting its last state and
+              # looks healthy. Needed for the water-leak offline watchdog.
+              #
+              # active  = mains/router devices, pinged every N minutes.
+              # passive = battery end devices (the Aqara leak sensors and the
+              #           T1 valve), flagged offline after N minutes of silence.
+              #           z2m's default is 1500 (25 h), far too slow to trust for
+              #           leak protection; 720 (12 h) is a deliberately
+              #           conservative first step — tighten toward ~180 once we
+              #           know the T1's real heartbeat interval and have
+              #           confirmed it doesn't flap.
+              ZIGBEE2MQTT_CONFIG_AVAILABILITY_ENABLED: "true"
+              ZIGBEE2MQTT_CONFIG_AVAILABILITY_ACTIVE_TIMEOUT: "10"
+              ZIGBEE2MQTT_CONFIG_AVAILABILITY_PASSIVE_TIMEOUT: "720"
+
               ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL: "info"
               ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT: '["console"]'
               ZIGBEE2MQTT_CONFIG_ADVANCED_LAST_SEEN: "ISO_8601"
