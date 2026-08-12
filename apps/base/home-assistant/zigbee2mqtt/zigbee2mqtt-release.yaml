@@ -57,7 +57,6 @@ spec:
               ZIGBEE2MQTT_CONFIG_MQTT_INCLUDE_DEVICE_INFORMATION: "true"
 
               ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true"
-              ZIGBEE2MQTT_CONFIG_PERMIT_JOIN: "false"
 
               # Per-device availability. Without this, z2m only publishes the
               # bridge's own state, so HA entities go `unavailable` when the
