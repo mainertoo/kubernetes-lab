@@ -95,15 +95,7 @@ spec:
 
                 # Mobile application
 
-
-
-                http:
-                  use_x_forwarded_for: true
-                  trusted_proxies:
-                    - 10.42.0.0/16
-                    - 10.43.0.0/16
-                    - 192.168.90.0/24
-                    - 192.168.1.0/24
+                # No http: block — see the note by the "ensure blocks" section below.
 
                 openid:
                   client_id: !secret authentik_client_id
@@ -136,19 +128,20 @@ spec:
                 # If the user edits config manually, do NOT overwrite it.
                 # Only ensure required top-level blocks exist.
 
-                # Ensure http block exists (and includes trusted_proxies)
-                if ! grep -qE '^[[:space:]]*http:' "$CONFIG_FILE"; then
-                  cat >> "$CONFIG_FILE" <<'EOF'
-
-                http:
-                  use_x_forwarded_for: true
-                  trusted_proxies:
-                    - 10.42.0.0/16
-                    - 10.43.0.0/16
-                    - 192.168.90.0/24
-                    - 192.168.1.0/24
-                EOF
-                fi
+                # Deliberately NO http: block.
+                #
+                # HA deprecated HTTP YAML config (hard stop in 2027.2.0) and has already
+                # migrated ours into /config/.storage/http — that file now holds
+                # use_x_forwarded_for: true plus all four trusted_proxies CIDRs, with
+                # "yaml_migration_done": true. Re-asserting the YAML block here would
+                # resurrect the deprecation repair issue on every pod restart.
+                #
+                # Those settings now live on the config PVC, which is backed up daily
+                # (backup: daily + backup-engine: kopia), so they survive a restore.
+                # On a genuinely bare rebuild with no PVC restore, set trusted_proxies
+                # under Settings > System > Network BEFORE putting HA behind Traefik —
+                # otherwise every request appears to originate from the ingress pod IP,
+                # which breaks IP banning and per-client login tracking.
 
                 # Ensure openid block exists
                 if ! grep -qE '^[[:space:]]*openid:' "$CONFIG_FILE"; then
