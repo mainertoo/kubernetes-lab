@@ -109,6 +109,30 @@ spec:
               # default ONLY for a stock OpenAI setup -- the guard is
               # `!OLLAMA_BASE_URL && !OPENAI_BASE_URL && !!OPENAI_API_KEY`, and
               # OPENAI_BASE_URL is set above, so it would otherwise stay off.
+              #
+              # ⚠️ AUTO-INDEXING DOES NOT BACKFILL. It only enqueues work when a
+              # bookmark is CREATED or UPDATED, so turning embeddings on does
+              # nothing at all for bookmarks that already exist. Enabling this
+              # (2026-08-10) therefore produced ZERO embeddings: the newest
+              # bookmark here was created 2026-06-20 / modified 2026-07-13, so no
+              # trigger event has occurred since. Diagnosed 2026-08-11 -- the
+              # config, the Spark endpoint and the workers were all fine.
+              #
+              # A first-time enable needs the SAME one-time backfill as a model
+              # change: Admin → Background Jobs → "Regenerate Embeddings for all
+              # bookmarks" (tRPC admin.regenerateAllBookmarkEmbeddings).
+              #
+              # This fails SILENTLY -- nothing errors, nothing retries, and
+              # full-text search keeps working, so semantic search just quietly
+              # returns weaker results. Confirm it actually ran (needs
+              # MEILI_MASTER_KEY from karakeep-secret; both are on the meili pod):
+              #   curl -H "Authorization: Bearer $KEY" <meili>:7700/stats
+              #     → indexes.bookmarks.numberOfEmbeddings must be > 0
+              #   curl -H "Authorization: Bearer $KEY" \
+              #        <meili>:7700/indexes/bookmarks/settings/embedders
+              #     → `{}` means Karakeep has never written a single embedding
+              #       (it registers the embedder on first write), i.e. the
+              #       backfill was never run. This is the fastest tell.
               - name: EMBEDDING_OPENAI_BASE_URL
                 value: http://spark-embed.spark-egress.svc.cluster.local:8081/v1
               - name: EMBEDDING_TEXT_MODEL
