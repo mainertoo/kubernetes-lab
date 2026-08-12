@@ -220,7 +220,7 @@ spec:
               # Verify (needs MEILI_MASTER_KEY from karakeep-secret):
               #   curl -H "Authorization: Bearer $KEY" <meili>:7700/stats
               # numberOfDocuments must match the pre-wipe baseline (292 @ 2026-08-09).
-              tag: v1.52.0
+              tag: v1.52.3
             env:
               - name: MEILI_NO_ANALYTICS
                 value: "true"
