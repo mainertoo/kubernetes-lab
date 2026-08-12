@@ -164,6 +164,14 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        # jellyfin's /config is a 150Gi cephfs tree; without this the kubelet
+        # recursively chowns it on EVERY pod start (minutes of
+        # VolumePermissionChangeInProgress before the app container even
+        # starts), so an unrelated sidecar image bump reads as an outage.
+        # Mirrors plex. The first start after this lands still does one full
+        # walk — the kubelet sets setgid on the root as it goes, and every
+        # start after that short-circuits.
+        fsGroupChangePolicy: OnRootMismatch
         supplementalGroups:
           - 991
 
