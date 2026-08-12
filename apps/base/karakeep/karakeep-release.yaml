@@ -119,20 +119,43 @@ spec:
               # config, the Spark endpoint and the workers were all fine.
               #
               # A first-time enable needs the SAME one-time backfill as a model
-              # change: Admin → Background Jobs → "Regenerate Embeddings for all
-              # bookmarks" (tRPC admin.regenerateAllBookmarkEmbeddings).
+              # change, and it takes TWO steps -- the second is easy to miss:
+              #
+              #   1. Admin → Background Jobs → "Regenerate Embeddings for All
+              #      Bookmarks" (tRPC admin.regenerateAllBookmarkEmbeddings).
+              #      This creates the bookmarks_vectors index, configures the
+              #      embedder, and enqueues one job per bookmark.
+              #   2. kubectl -n karakeep rollout restart deploy/karakeep-web
+              #
+              # ⚠️ Step 2 is REQUIRED on a first enable. The embeddings worker
+              # binds its index at POD START. Step 1 is what creates
+              # bookmarks_vectors, so any pod older than that click booted
+              # against an index that did not exist and no-ops forever: the jobs
+              # sit pending with numRunsLeft still at max (= never attempted),
+              # and nothing errors. Same shape as the search-indexing worker in
+              # the Meili fallback runbook below. After the restart the queue
+              # drains immediately (292 bookmarks in ~9 min, 2026-08-12).
               #
               # This fails SILENTLY -- nothing errors, nothing retries, and
               # full-text search keeps working, so semantic search just quietly
-              # returns weaker results. Confirm it actually ran (needs
-              # MEILI_MASTER_KEY from karakeep-secret; both are on the meili pod):
+              # returns weaker results.
+              #
+              # ⚠️ VECTORS LIVE IN A SEPARATE INDEX: `bookmarks_vectors`, NOT
+              # `bookmarks`. Checking embedders on `bookmarks` returns `{}`
+              # forever no matter how healthy things are -- a useless check.
+              # Verify (needs MEILI_MASTER_KEY from karakeep-secret; both are on
+              # the meili pod):
               #   curl -H "Authorization: Bearer $KEY" <meili>:7700/stats
-              #     → indexes.bookmarks.numberOfEmbeddings must be > 0
+              #     → indexes.bookmarks_vectors.numberOfEmbeddings must be > 0
+              #       and should equal indexes.bookmarks.numberOfDocuments
               #   curl -H "Authorization: Bearer $KEY" \
-              #        <meili>:7700/indexes/bookmarks/settings/embedders
-              #     → `{}` means Karakeep has never written a single embedding
-              #       (it registers the embedder on first write), i.e. the
-              #       backfill was never run. This is the fastest tell.
+              #        <meili>:7700/indexes/bookmarks_vectors/settings/embedders
+              #     → {"default":{"source":"userProvided","dimensions":1024}}
+              #       `{}` (or a 404 on the index) = the backfill never ran.
+              # Distinguish "never ran" from "ran but stuck" via the job queue in
+              # web:/data/queue.db -- 0 rows in `tasks` means step 1 was never
+              # done; rows in queue 'embeddings_queue' pending at max
+              # numRunsLeft means step 1 ran and you still owe step 2.
               - name: EMBEDDING_OPENAI_BASE_URL
                 value: http://spark-embed.spark-egress.svc.cluster.local:8081/v1
               - name: EMBEDDING_TEXT_MODEL
