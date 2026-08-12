@@ -1,0 +1,39 @@
+# /etc/netplan/60-lan0-iot.yaml
+# Managed by Ansible (k3s_lan0_netplan.yml). Manual edits will be overwritten.
+#
+# lan0 is the node's SECOND NIC, on the untagged Default LAN (192.168.1.0/24).
+# It is load-bearing — do not "clean it up":
+#   - the QNAP NFS exports behind the nfs-qnap-media StorageClass live at
+#     192.168.1.252 (immich-media-pv, qnap-media-pv, and the subdir provisioner)
+#   - the DGX Spark vLLM endpoint at 192.168.1.94 is reached over it
+#
+# The interface itself (match on MAC + set-name: lan0) is created by cloud-init
+# in 50-cloud-init.yaml. This file only assigns its address — netplan merges
+# both definitions, and the higher-numbered file wins on conflicting keys.
+#
+# WHY accept-ra IS PINNED OFF
+# ---------------------------
+# The Default LAN has IPv6 RA enabled on the UDM with a static ULA prefix
+# (fd00:1::1/64), so anything on it that accepts RAs SLAACs a global IPv6
+# address. On 2026-08-12 that address became a secondary node InternalIP and
+# broke every kubelet scrape target in the cluster — see
+# templates/k3s_node_ip.yaml.j2 for the full story.
+#
+# Note the kernel sysctl is a red herring here: net.ipv6.conf.lan0.accept_ra
+# reads 0 while networkd happily configures SLAAC addresses, because netplan
+# hands RA handling to systemd-networkd, which does it in userspace. The knob
+# that actually matters is this one — netplan renders it as IPv6AcceptRA=no.
+#
+# This is defence in depth, not the primary fix. node-ip is pinned in
+# k3s_node_config.yml so the cluster is unaffected even if an address does
+# appear; this just stops the address appearing at all.
+network:
+  version: 2
+  ethernets:
+    lan0:
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      addresses:
+        - {{ lan0_address }}
+      optional: true

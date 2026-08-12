@@ -1,0 +1,222 @@
+---
+# Pin every K3s node's advertised node IP to its cluster-VLAN address.
+#
+# Run with:
+#   ansible-playbook -i ansible/k3s-cluster/inventory/production/dynamic.sh \
+#     ansible/k3s-cluster/playbooks/k3s_node_config.yml
+#
+# See templates/k3s_node_ip.yaml.j2 for the full rationale (2026-08-12 incident:
+# a SLAAC IPv6 ULA on the workers' second NIC became a secondary node InternalIP
+# and broke every kubelet scrape target).
+#
+# The node IP is the inventory hostname: dynamic.sh emits each VM's cluster-VLAN
+# address from terraform as the host entry, so inventory_hostname IS the address
+# we want kubelet to advertise. Both asserts below exist to make that assumption
+# fail loudly rather than silently pin something wrong.
+#
+# NO DRAIN. Unlike k3s_upgrade.yml this only rewrites a config file and restarts
+# the service — pods keep running through it and the node's Ready window is
+# unbroken in practice (verified across all three workers on 2026-08-12). Worth
+# knowing: k3s_server_config.yml pins default-not-ready-toleration-seconds=30,
+# so a node that DID sit NotReady past 30s would start shedding pods. Each play
+# is serial:1 and gates on the node reporting a single InternalIP before moving
+# on, so a node that comes back wrong stops the run instead of rolling onward.
+
+- name: Pin node-ip on K3s servers
+  hosts: master
+  become: yes
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    k3s_node_name: "{{ ansible_hostname | default(inventory_hostname) }}"
+  tasks:
+    - name: Resolve this node's cluster-VLAN IP
+      # A fact, not a play var. Play vars that reference ansible_host get
+      # re-evaluated against the *delegate* inside a delegate_to task, so the
+      # verification steps would end up comparing against the master's address
+      # instead of this node's. A fact stays bound to inventory_hostname.
+      ansible.builtin.set_fact:
+        k3s_node_ip: "{{ ansible_host | default(inventory_hostname) }}"
+
+    - name: Assert the resolved node IP is a bare IPv4 address
+      ansible.builtin.assert:
+        that:
+          - k3s_node_ip is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+        fail_msg: >-
+          Resolved node IP '{{ k3s_node_ip }}' is not a bare IPv4 address.
+          This playbook assumes the dynamic inventory emits each node's
+          cluster-VLAN IP as its host entry. Fix the inventory (or set
+          ansible_host per node) before pinning node-ip.
+
+    - name: Read this host's global IPv4 addresses
+      ansible.builtin.command: ip -4 -o addr show scope global
+      register: host_v4
+      changed_when: false
+      check_mode: false
+
+    - name: Assert the node IP is actually configured on this host
+      ansible.builtin.assert:
+        that:
+          - host_v4.stdout is search('inet ' ~ (k3s_node_ip | regex_escape) ~ '/')
+        fail_msg: >-
+          {{ k3s_node_ip }} is not present on any interface of this host.
+          Pinning it would leave kubelet unable to validate its node IP.
+
+    - name: Ensure /etc/rancher/k3s/config.yaml.d exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/config.yaml.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Remove the hand-placed node-ip drop-in superseded by this playbook
+      # The 2026-08-12 hotfix wrote 10-node-ip.yaml by hand on the workers.
+      # Both this and the template task notify the same handler, so converging
+      # a hand-fixed node costs one restart, not two.
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/config.yaml.d/10-node-ip.yaml
+        state: absent
+      notify: Restart k3s server
+
+    - name: Drop node-ip pin into config.yaml.d
+      ansible.builtin.template:
+        src: templates/k3s_node_ip.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml.d/20-node-ip.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart k3s server
+
+    - name: Apply pending handlers before moving to the next master
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for the local K3s API server to come back online
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:6443/livez"
+        validate_certs: no
+        status_code: [200, 401]
+      register: k3s_health
+      retries: 30
+      delay: 4
+      until: k3s_health.status in [200, 401]
+      check_mode: false
+
+    - name: Wait for this node to advertise exactly one InternalIP
+      ansible.builtin.shell: |
+        k3s kubectl get node {{ k3s_node_name }} \
+          -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}'
+      register: node_internal_ips
+      changed_when: false
+      check_mode: false
+      retries: 24
+      delay: 5
+      until: (node_internal_ips.stdout_lines | select() | list) == [k3s_node_ip]
+
+  handlers:
+    - name: Restart k3s server
+      ansible.builtin.systemd:
+        name: k3s
+        state: restarted
+
+
+- name: Pin node-ip on K3s agents
+  hosts: worker
+  become: yes
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    first_master: "{{ groups['master'][0] }}"
+    k3s_node_name: "{{ ansible_hostname | default(inventory_hostname) }}"
+  tasks:
+    - name: Resolve this node's cluster-VLAN IP
+      # Must be a fact — the InternalIP check below is delegated to a master,
+      # and ansible_host would resolve to that master inside a delegated task.
+      ansible.builtin.set_fact:
+        k3s_node_ip: "{{ ansible_host | default(inventory_hostname) }}"
+
+    - name: Assert the resolved node IP is a bare IPv4 address
+      ansible.builtin.assert:
+        that:
+          - k3s_node_ip is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+        fail_msg: >-
+          Resolved node IP '{{ k3s_node_ip }}' is not a bare IPv4 address.
+          See the master play for what this assumption depends on.
+
+    - name: Read this host's global IPv4 addresses
+      ansible.builtin.command: ip -4 -o addr show scope global
+      register: host_v4
+      changed_when: false
+      check_mode: false
+
+    - name: Assert the node IP is actually configured on this host
+      ansible.builtin.assert:
+        that:
+          - host_v4.stdout is search('inet ' ~ (k3s_node_ip | regex_escape) ~ '/')
+        fail_msg: >-
+          {{ k3s_node_ip }} is not present on any interface of this host.
+          Pinning it would leave kubelet unable to validate its node IP.
+
+    - name: Ensure /etc/rancher/k3s/config.yaml.d exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/config.yaml.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Remove the hand-placed node-ip drop-in superseded by this playbook
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/config.yaml.d/10-node-ip.yaml
+        state: absent
+      notify: Restart k3s agent
+
+    - name: Drop node-ip pin into config.yaml.d
+      ansible.builtin.template:
+        src: templates/k3s_node_ip.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml.d/20-node-ip.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart k3s agent
+
+    - name: Apply pending handlers before moving to the next worker
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for k3s-agent to be active
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+      register: k3s_agent_svc
+      retries: 30
+      delay: 4
+      until: k3s_agent_svc is success
+
+    - name: Wait for this worker to report Ready against the API
+      ansible.builtin.shell: |
+        k3s kubectl get node {{ k3s_node_name }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: node_ready
+      changed_when: false
+      check_mode: false
+      retries: 60
+      delay: 5
+      until: node_ready.stdout == "True"
+      delegate_to: "{{ first_master }}"
+
+    - name: Wait for this worker to advertise exactly one InternalIP
+      ansible.builtin.shell: |
+        k3s kubectl get node {{ k3s_node_name }} \
+          -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}'
+      register: node_internal_ips
+      changed_when: false
+      check_mode: false
+      retries: 24
+      delay: 5
+      until: (node_internal_ips.stdout_lines | select() | list) == [k3s_node_ip]
+      delegate_to: "{{ first_master }}"
+
+  handlers:
+    - name: Restart k3s agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: restarted

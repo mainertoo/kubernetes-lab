@@ -39,3 +39,10 @@ metallb_pool_range: "192.168.90.200-192.168.90.219"
 # you're explicitly testing an alpha feature gate. See the bug found
 # 2026-05-21 during the staging cluster bootstrap.
 k3s_apiserver_extra_args: []
+
+# No staging node has a second NIC — every host is single-homed on the cluster
+# VLAN (192.168.90.167-169), so none of them is exposed to the Default LAN's
+# IPv6 router advertisements the way production's workers are. Left empty so
+# k3s_lan0_netplan.yml is a clean no-op here rather than something you have to
+# remember not to run. Add entries if a staging node ever gains a lan0.
+lan0_addresses: {}
