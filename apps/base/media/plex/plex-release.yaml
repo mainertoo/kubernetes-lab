@@ -51,11 +51,24 @@ spec:
             command:
               - /bin/sh
               - -c
+            # Both the walk and the mode here are load-bearing. The kubelet's
+            # OnRootMismatch check (see defaultPodOptions) only short-circuits
+            # when the volume root has gid == fsGroup AND mode & (0770|setgid).
+            # A recursive `chmod 0775` strips the setgid bit off the root, so
+            # the kubelet fell back to a full recursive chown of this 150Gi
+            # cephfs tree on EVERY pod start (~13min, VolumePermissionChangeIn
+            # Progress) — which is what kept blowing the Deployment's 600s
+            # progressDeadline and putting the HelmRelease in a rollback loop.
+            # So: only walk the tree when the root is genuinely wrong, and set
+            # the mode on the root alone, with setgid intact.
             args:
               - |
-                echo "Fixing perms on /config..."
-                chown -R 1000:1000 /config || true
-                chmod -R 0775 /config || true
+                echo "Checking perms on /config..."
+                if [ "$(stat -c '%u:%g' /config)" != "1000:1000" ]; then
+                  echo "Root ownership mismatch, fixing recursively..."
+                  chown -R 1000:1000 /config || true
+                fi
+                chmod 2775 /config || true
                 echo "Done."
             securityContext:
               runAsUser: 0
