@@ -202,7 +202,18 @@ spec:
         containers:
           app:
             image:
-              repository: gcr.io/zenika-hub/alpine-chrome
+              # Zenika's GCR mirror (gcr.io/zenika-hub/alpine-chrome) stopped
+              # serving anonymous pulls — its token endpoint returns 403 while
+              # gcr.io/google-containers/pause still returns 200, so it is them,
+              # not us. The image only kept working because it was cached on the
+              # nodes; a container-image prune on 2026-08-12 removed the copies
+              # and the pod went ImagePullBackOff.
+              #
+              # docker.io/zenika/alpine-chrome is the project's own Docker Hub
+              # repo, public, multi-arch (linux/amd64 + linux/arm64), and still
+              # publishing — 124 is its newest numeric tag, so Renovate keeps an
+              # upgrade path. Same upstream project, different registry.
+              repository: docker.io/zenika/alpine-chrome
               tag: "124"
             args:
               - --no-sandbox
