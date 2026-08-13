@@ -88,7 +88,7 @@ spec:
           main:
             image:
               repository: ghcr.io/calibrain/shelfmark
-              tag: v1.3.6
+              tag: v1.3.7
               pullPolicy: IfNotPresent
 
             env:
