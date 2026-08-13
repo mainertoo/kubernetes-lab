@@ -135,9 +135,40 @@ data directories, and CNI state — not just the binary.
 
 ### `k3s_node_config.yml`
 
-Pins `node-ip` to each node's cluster-VLAN address via
-`/etc/rancher/k3s/config.yaml.d/20-node-ip.yaml`. Two plays (masters then
-workers), each `serial: 1`.
+Writes the node-level K3s config drop-ins. Two plays (masters then workers),
+each `serial: 1`:
+
+| drop-in | purpose |
+|---|---|
+| `20-node-ip.yaml` | pins `node-ip` to the node's cluster-VLAN address |
+| `30-image-gc.yaml` | lowers kubelet's image-GC ceiling to 70% (from 85%) |
+
+#### `30-image-gc.yaml` — image garbage collection
+
+containerd never GCs images itself, and kubelet only reclaims once the image
+filesystem passes `imageGCHighThresholdPercent` (default **85**). The nodes sat
+at 81-83% for months — parked just under the trigger — accumulating every image
+Renovate ever bumped and every digest a rolling tag orphaned. By 2026-08-12
+worker-1 held **375 images / 301 GB**, of which only 74 were in use.
+
+That filled worker-1's 400 G VM disk, which stopped the nightly `vzdump` from
+skipping zero blocks (44 s → 28 min of sustained reads), saturated pve-mammoth's
+SPCC, starved `mon.pve-mammoth` and surfaced as `BLUESTORE_SLOW_OP_ALERT`. See
+`operations/common-incidents/2026-08-12-containerd-bloat-backup-ceph-slowops`
+on the wiki.
+
+> ⚠️ **`low` must be < `high`.** Defaults are high=85 / low=80, so setting only
+> `image-gc-high-threshold=70` leaves low > high and **kubelet refuses to
+> start**. The template sets both (70 / 60).
+>
+> ⚠️ **Not a no-op on the masters.** They run 48 G disks and were at 72-74% with
+> 20-26 GB of containerd images when this landed, so GC fires there on first
+> apply. Intended — but a cached image whose upstream has withdrawn public
+> access will not come back. Two such were found on 2026-08-12 (a Patreon-gated
+> ghcr package, and Zenika's retired GCR mirror); both are resolved, but audit
+> before assuming a reclaim is free.
+
+#### `20-node-ip.yaml` — node IP pinning
 
 Why it exists: with no explicit `node-ip`, K3s auto-detects addresses and hands
 kubelet a dual-stack `--node-ip`, so any extra global address the host picks up

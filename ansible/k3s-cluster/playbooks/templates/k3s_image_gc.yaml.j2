@@ -1,0 +1,40 @@
+# /etc/rancher/k3s/config.yaml.d/30-image-gc.yaml
+# Managed by Ansible (k3s_node_config.yml). Manual edits will be overwritten.
+#
+# WHY THIS EXISTS
+# ---------------
+# containerd never garbage-collects images on its own, and kubelet's image GC
+# only fires once the image filesystem crosses imageGCHighThresholdPercent —
+# which defaults to 85. The nodes sat at 81-83% for months: parked just under
+# the trigger, accumulating every image Renovate ever bumped and every digest a
+# rolling tag ever orphaned. By 2026-08-12 worker-1 held **375 images / 301 GB**
+# with only 74 referenced by any container.
+#
+# That was not merely wasted disk. worker-1's VM disk is a 400 G raw file on
+# pve-mammoth's local SPCC, so a full guest disk stopped the nightly vzdump from
+# skipping zero blocks — the backup went from 44 s to 28 minutes of sustained
+# reads, saturated the drive, starved mon.pve-mammoth, and surfaced as
+# BLUESTORE_SLOW_OP_ALERT on osd.0. See the incident record on the wiki:
+# operations/common-incidents/2026-08-12-containerd-bloat-backup-ceph-slowops
+#
+# Lowering the ceiling to 70 makes kubelet reclaim on its own long before the
+# guest disk fills, so the cleanup stops depending on someone noticing.
+#
+# ⚠️ low MUST be < high. The defaults are high=85 / low=80, so setting only
+# `image-gc-high-threshold=70` leaves low=80 > high=70 and **kubelet refuses to
+# start**. Always set both.
+#
+# Reclaim band: GC triggers at 70% and frees until the image filesystem is back
+# under 60%. kubelet only removes images that are NOT in use by any container,
+# oldest-unused first, and respects imageMinimumGCAge (default 2m).
+#
+# ⚠️ Note for the masters: they run on 48 G disks and were at 72-74% with
+# 20-26 GB of containerd images when this landed, so GC fires there immediately
+# on first apply. That is the intended effect — but it is not a no-op, and a
+# cached image whose upstream has withdrawn public access will not come back.
+# Two such images were found on 2026-08-12 (a Patreon-gated ghcr package and
+# Zenika's retired GCR mirror); both are resolved, but audit before assuming a
+# reclaim is free.
+kubelet-arg:
+  - "image-gc-high-threshold=70"
+  - "image-gc-low-threshold=60"
