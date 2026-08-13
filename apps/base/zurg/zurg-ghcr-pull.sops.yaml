@@ -1,6 +1,6 @@
 apiVersion: v1
 data:
-    .dockerconfigjson: ENC[AES256_GCM,data:ibIpkhslm05tJBeFCcVruRoXN1DbX/koB8WezBXlLHjg3qDjMi4oVjtkGW0SuNH9I8CGBIuvHGZ4Czr5O4XogM1cDw7oWT1aQ/APA3/KN4JNHVccvRiT75LdFZqL9roTfzl+qmXG90PROtlGvOU7ku7nkxnEqAmXcLNd+ZB2W8l5dJ1pRjIyF6dmv5rliM7AJ8zSfpUo9i2pHBFqVcP2j5WULG2+h4+qWlXtvg==,iv:czAJ1HVzm5lqdNfme4Eb/4Nnhp41B5SZEOnN6C52ghg=,tag:IHydEwG/TRJOIHhAHEV4YQ==,type:str]
+    .dockerconfigjson: ENC[AES256_GCM,data:/3ehg2NO3ApDXKVLl4LNK4bbmBVbkW+3FSHcNuL1kFFpMbu0UYyT/0KZq9UhUMiHdpuzpnTn2lj36SUz+HoHZTUbUbBNcOZnS+7i10MptSpQu5dzbfz3Iq8FeRDcG/5U5jxZaylPoG6DOSs/R2K/3r628/AMLjmdzDGkkNo5Xtroil4kqkxaDXHun15FYkiLiysJYa4S8KDy13UpQDdTZYqcv6fCxwHpvNU9qmgWaMJZY234lqB+4SeuzKbul0ebzOwFwURxxkQeMG6BTeOpfnMTKo7gXQG7FQ6gHhGWKFDKCVAAvWwuya/kQildxlcD,iv:iMThw2qJVBuZYP6xXFBXwKB8UtkKQFpk755B1fNvo5A=,tag:MQeXEL6JoWjGRWCjKDT9fA==,type:str]
 kind: Secret
 metadata:
     name: zurg-ghcr-pull
@@ -8,16 +8,16 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 sops:
     age:
-        - recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
-          enc: |
+        - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFYUJWOFRwbHZWMEs4Y1lF
-            cmVBbkJaUVI3b25RQmVhNjN6dXhwTjE5eWt3CndNQTlJdEFBVWg2RFVtSzFHeWQ2
-            N1cxckx4YmxBYkNGdVlwZWs5TWtKMUkKLS0tIDMvcVFNYTlJYTlLd0VMbGtMbEdR
-            WG1iT0tzclBkQ3FhaWhqcXV1Z3NMUTAKZ9LtIXD+phnwbREzz32elRKbJghZZr6i
-            HEBiKUIAbCZBqDp8fCnS2q2LIRuKOtIcLvMXNzFZ3ZX0ddngv4a9JA==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1VWx2NmRyUjFZMmVLQk9X
+            RVFWaTlNb1FMdXlSTDJzOE9rN1pXdHVhY2dRCm15WW5TbGp5RmtpWnpzYytnakRu
+            TGo2YUFmRWtxaUhCMmcxYnRSRE5SK28KLS0tIGNMcHBZVGhDSmNCZzYyVGhabzFY
+            SmpSMXduNXp3SjN1czh4SXp0bklYdkkKkvTu9r9IDYQQi//Mdf/NH92/6e5sSuyD
+            bYh543DQgkr6SnH2d8UGg2KoKW1NlgPzvrUHbzAw2pYPLK8MBmIjdw==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-11-30T16:02:41Z"
-    mac: ENC[AES256_GCM,data:INGyf5sU2LQWWTlYgovt9WA3XVkOrJnkrHqcmpfSoiekGO3LJ1QezUp8ywpzpfPRD+0/wv3b8wtENjbrENcrStI8jPAXF08ML+f7/UULqRojFYQOrE3+5fn/dlCV9rpwrhBbuQCFbVmyMHwE9Xv+MjAeYGkTrk4Hcif401lPNJA=,iv:98yBrEapV8INWKLcM+1WM9yUaVvdYkCHrVbmC3cktF0=,tag:yy+VKSktPYLf5XH/6dP24Q==,type:str]
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
     encrypted_regex: ^(data|stringData)$
-    version: 3.11.0
+    lastmodified: "2026-08-13T03:39:11Z"
+    mac: ENC[AES256_GCM,data:N2y+JpKWsyTRlWlEE9I2WG1VPiaEfUcU+jgPZ07aj/CXNFs+tRb0ElUytUf96ZfHvIA9c5Y+Q5CNXqacI0VjON3Lbm1hVh4X9Di0jNqw/niMMeIrXxAbB8FgcfYSjOh4yZu9Ze/DolD/2XtMBlsAHaBAlT000dTH/2PXzt3vIKE=,iv:l1JjE1VQcocUNscFBGRDjdwbcrUTpIYo59TJTmYpkic=,tag:l/fT1w/a+kijqYpL4LXsTg==,type:str]
+    version: 3.13.1
