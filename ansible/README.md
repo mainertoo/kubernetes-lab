@@ -170,9 +170,25 @@ kubelet restart clears it.
 ### `k3s_lan0_netplan.yml`
 
 Takes ownership of `/etc/netplan/60-lan0-iot.yaml` on nodes listed in
-`lan0_addresses`, and pins `accept-ra: false` so they stop SLAACing an IPv6
-address off the Default LAN. Defence in depth — `k3s_node_config.yml` is what
-actually protects the cluster; this stops the address existing at all.
+`lan0_addresses`, so the second NIC's definition lives in the repo rather than
+only on the boxes.
+
+> ⚠️ **`accept-ra` must stay `true`.** It was pinned `false` on 2026-08-12 as
+> defence-in-depth against the SLAAC ULA that broke the kubelet scrape targets,
+> and that took the living-room **Matter** dimmer offline the same evening. The
+> Default LAN's router advertisement is the nodes' **only IPv6 default route**,
+> and Home Assistant / matter-server (both `hostNetwork`) need it to reach Matter
+> devices on the IoT VLAN at `fd00:20::/64`. Matter is IPv6-only, so without it
+> the CASE handshake fails — while mDNS discovery keeps working via the UDM's
+> reflector, which makes it look like a device fault. Symptom: `Discovered on
+> mDNS` immediately followed by `Unable to establish CASE session`. Reverted
+> 2026-08-13; the dimmer recovered within 40 s.
+>
+> The kubelet problem is solved *independently* by pinning `node-ip` in
+> `k3s_node_config.yml`. With that pin the nodes carry their `fd00:1::…` ULAs and
+> still advertise exactly one IPv4 InternalIP — verified 2026-08-13 with 0
+> kubelet node-status errors and 18/18 Prometheus kubelet targets up. Pin
+> `node-ip`; don't disable RA.
 
 **Run it after `k3s_node_config.yml`.** In that order a leftover address is
 harmless. In the reverse order you hit the ordering trap above.
