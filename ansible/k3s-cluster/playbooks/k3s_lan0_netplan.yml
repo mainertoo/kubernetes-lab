@@ -1,16 +1,23 @@
 ---
-# Bring the second-NIC (lan0 / Default LAN) netplan under Ansible and pin
-# accept-ra off, so the node never SLAACs an IPv6 address off that LAN.
+# Bring the second-NIC (lan0 / Default LAN) netplan under Ansible.
 #
 # Run with:
 #   ansible-playbook -i ansible/k3s-cluster/inventory/production/dynamic.sh \
 #     ansible/k3s-cluster/playbooks/k3s_lan0_netplan.yml
 #
-# Run this AFTER k3s_node_config.yml. That one pins node-ip, which is what
-# actually protects the cluster; this one stops the stray address existing.
-# In that order a leftover address is harmless. In the other order, removing
-# an address kubelet still has configured as a secondary node IP wedges its
-# node-status updates — see templates/k3s_node_ip.yaml.j2.
+# ⚠️ This playbook deliberately keeps `accept-ra: true`. It briefly pinned RA
+# off (2026-08-12) as defence-in-depth against the SLAAC ULA that broke the
+# kubelet scrape targets — that was a mistake. The Default LAN's RA is the
+# nodes' only IPv6 default route, and Home Assistant / matter-server (both
+# hostNetwork) need it to reach Matter devices on the IoT VLAN at fd00:20::/64.
+# Turning it off took the living-room Matter dimmer offline. See the template
+# header for the full rationale and the symptom to recognise.
+#
+# The kubelet problem is solved by pinning node-ip in k3s_node_config.yml, which
+# is independent of RA — run that one first and the nodes can safely carry their
+# ULAs. In the reverse order, removing an address kubelet still has configured
+# as a secondary node IP wedges its node-status updates; see
+# templates/k3s_node_ip.yaml.j2.
 #
 # Only hosts listed in the cluster's `lan0_addresses` map are touched;
 # everything else ends early. Staging has no second-NIC nodes, so this is a
@@ -94,28 +101,30 @@
       delay: 3
       until: lan0_after.stdout is search('inet ' ~ (lan0_address | regex_escape))
 
-    - name: Check whether an RA-assigned IPv6 address is still lingering on lan0
-      # accept-ra: false stops NEW router advertisements being honoured; an
-      # address already held keeps its existing lifetime until networkd drops
-      # it. Not fatal, so don't fail the run over it.
-      ansible.builtin.command: ip -6 -o addr show dev lan0 scope global
+    - name: Wait for the RA-assigned IPv6 address and default route on lan0
+      # These are REQUIRED, not incidental: the RA-provided default route is the
+      # node's only path to Matter devices on the IoT VLAN (fd00:20::/64), which
+      # Home Assistant / matter-server reach over hostNetwork. Losing it takes
+      # every off-link Matter device offline. Safe to carry the ULA because
+      # k3s_node_config.yml pins node-ip, so kubelet ignores it.
+      ansible.builtin.shell: |
+        set -o pipefail
+        echo "addr=$(ip -6 -o addr show dev lan0 scope global | wc -l) route=$(ip -6 route show default dev lan0 | wc -l)"
+      args:
+        executable: /bin/bash
       register: lan0_v6
       changed_when: false
-      failed_when: false
       check_mode: false
-      retries: 5
-      delay: 3
-      until: lan0_v6.stdout | trim | length == 0
+      retries: 10
+      delay: 6
+      until: lan0_v6.stdout is search('addr=[1-9]') and lan0_v6.stdout is search('route=[1-9]')
 
-    - name: Report a lingering IPv6 address on lan0
+    - name: Report the IPv6 state Matter depends on
       ansible.builtin.debug:
         msg: >-
-          lan0 on {{ inventory_hostname }} still holds a global IPv6 address
-          ({{ lan0_v6.stdout | trim }}). It will lapse with its RA lifetime, or
-          you can drop it now with `ip -6 addr del <addr> dev lan0`. Safe only
-          because k3s_node_config.yml has pinned node-ip — without that pin,
-          deleting it wedges kubelet's node-status updates.
-      when: lan0_v6.stdout | trim | length > 0
+          lan0 on {{ inventory_hostname }} has its RA-assigned global IPv6 and a
+          default route ({{ lan0_v6.stdout | trim }}) — Matter devices on
+          fd00:20::/64 are reachable from this node.
 
   handlers:
     - name: Apply netplan

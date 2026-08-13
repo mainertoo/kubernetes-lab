@@ -6,34 +6,44 @@
 #   - the QNAP NFS exports behind the nfs-qnap-media StorageClass live at
 #     192.168.1.252 (immich-media-pv, qnap-media-pv, and the subdir provisioner)
 #   - the DGX Spark vLLM endpoint at 192.168.1.94 is reached over it
+#   - it carries the node's only IPv6 default route — see below
 #
 # The interface itself (match on MAC + set-name: lan0) is created by cloud-init
 # in 50-cloud-init.yaml. This file only assigns its address — netplan merges
 # both definitions, and the higher-numbered file wins on conflicting keys.
 #
-# WHY accept-ra IS PINNED OFF
-# ---------------------------
-# The Default LAN has IPv6 RA enabled on the UDM with a static ULA prefix
-# (fd00:1::1/64), so anything on it that accepts RAs SLAACs a global IPv6
-# address. On 2026-08-12 that address became a secondary node InternalIP and
-# broke every kubelet scrape target in the cluster — see
-# templates/k3s_node_ip.yaml.j2 for the full story.
+# ⚠️ accept-ra MUST STAY TRUE — do not "harden" this off
+# ------------------------------------------------------
+# The Default LAN's router advertisement is the ONLY source of an IPv6 default
+# route on these nodes (`default via fe80::…d9:4c:0c dev lan0 proto ra`).
+# Home Assistant and matter-server run with hostNetwork on a worker, and Matter
+# is IPv6-only: the CASE handshake needs to reach devices on the IoT VLAN at
+# fd00:20::/64. Without the RA the node has no global IPv6 and no route, so
+# every Matter device off-link goes unavailable — mDNS discovery still works
+# (the UDM reflects it), which makes it look like a device fault rather than a
+# routing one. Symptom: `Discovered on mDNS` immediately followed by
+# `Unable to establish CASE session`.
 #
-# Note the kernel sysctl is a red herring here: net.ipv6.conf.lan0.accept_ra
-# reads 0 while networkd happily configures SLAAC addresses, because netplan
-# hands RA handling to systemd-networkd, which does it in userspace. The knob
-# that actually matters is this one — netplan renders it as IPv6AcceptRA=no.
+# This was set to `false` on 2026-08-12 as defence-in-depth after a SLAAC ULA
+# broke the kubelet scrape targets, and it took the living-room Matter dimmer
+# offline that evening. Reverted 2026-08-13 after confirming the dimmer
+# recovered within 40 s of the RA returning.
 #
-# This is defence in depth, not the primary fix. node-ip is pinned in
-# k3s_node_config.yml so the cluster is unaffected even if an address does
-# appear; this just stops the address appearing at all.
+# The kubelet problem is already solved properly, and independently, by pinning
+# node-ip in k3s_node_config.yml — with that pin the nodes carry their
+# fd00:1::… ULAs again and still advertise exactly one IPv4 InternalIP.
+# Verified 2026-08-13: ULAs present on all three workers, 0 kubelet
+# node-status errors, 18/18 Prometheus kubelet targets up.
+#
+# So: node-ip pinning is the fix; turning off accept-ra was a mistake that
+# broke a different subsystem. Leave RA on.
 network:
   version: 2
   ethernets:
     lan0:
       dhcp4: false
       dhcp6: false
-      accept-ra: false
+      accept-ra: true
       addresses:
         - {{ lan0_address }}
       optional: true
