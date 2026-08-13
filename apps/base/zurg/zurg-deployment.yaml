@@ -36,7 +36,19 @@ spec:
               mountPath: /config
       containers:
         - name: zurg
-          image: ghcr.io/debridmediamanager/zurg:latest@sha256:924f1737814a72fddc87f90b2cb3056a0d25ecad4e8789d3d5294cf4e1aa0d07
+          # Tracks the NIGHTLY channel. There is no rolling `:nightly` tag —
+          # nightlies are published as dated tags (2026.08.13.0235-nightly) and
+          # `:latest` is repointed at the newest one (verified 2026-08-12:
+          # :latest and 2026.08.13.0235-nightly both resolve to sha256:6751ecc1…).
+          # So an UNPINNED :latest is the only way to follow nightly automatically.
+          #
+          # Deliberately not digest-pinned: Renovate has no ghcr hostRules, so it
+          # cannot see this private package and would never raise a bump PR — a
+          # pin would mean bumping by hand every day at the upstream cadence.
+          # Trade-off accepted: with imagePullPolicy Always, each pod restart
+          # pulls whatever nightly is current, so an untested build can land on a
+          # restart and the repo does not record which digest is deployed.
+          image: ghcr.io/debridmediamanager/zurg:latest
           imagePullPolicy: Always
           volumeMounts:
             - name: merged-config
