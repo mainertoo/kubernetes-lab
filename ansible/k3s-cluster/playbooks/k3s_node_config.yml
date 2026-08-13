@@ -88,6 +88,15 @@
         mode: "0644"
       notify: Restart k3s server
 
+    - name: Drop kubelet image-GC thresholds into config.yaml.d
+      ansible.builtin.template:
+        src: templates/k3s_image_gc.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml.d/30-image-gc.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart k3s server
+
     - name: Apply pending handlers before moving to the next master
       ansible.builtin.meta: flush_handlers
 
@@ -175,6 +184,15 @@
       ansible.builtin.template:
         src: templates/k3s_node_ip.yaml.j2
         dest: /etc/rancher/k3s/config.yaml.d/20-node-ip.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart k3s agent
+
+    - name: Drop kubelet image-GC thresholds into config.yaml.d
+      ansible.builtin.template:
+        src: templates/k3s_image_gc.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml.d/30-image-gc.yaml
         owner: root
         group: root
         mode: "0644"
