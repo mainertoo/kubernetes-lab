@@ -32,6 +32,13 @@ show "no internet" / stall — VLAN 10 (Trusted) carries laptops+phones and VLAN
 carries the k3s nodes, so IPv6 stays OFF there. Matter devices still on VLAN 10
 (the sonoff bedside plugs) should be re-onboarded onto VLAN 20.
 
+Lastly, Samsung SmartTVs refuse the WebSocket pairing handshake unless the client
+appears to be on the TV's own subnet, so Home Assistant (which reaches the IoT
+VLAN from 192.168.90.165) cannot pair with a TV on VLAN 20 — it gets
+"auth_missing" with no popup ever shown. A narrow SNAT masquerades HA to the IoT
+gateway address for tcp/8002 only. The provider has no SNAT resource (only
+unifi_port_forward = DNAT), so Terraform cannot manage it either. See SAMSUNG_SNAT.
+
 This script reconciles all of the above, idempotently. Run it after any
 `terraform apply` that (re)creates the VLAN networks. Read-only by default;
 pass --apply to write.
@@ -51,6 +58,41 @@ REQUIRED_NET_FIELDS = {"is_nat": True, "gateway_type": "default"}
 # (matter-server's lan0 / --primary-interface). NOT VLAN 10 (Trusted client WiFi) or
 # VLAN 90 (k3s nodes): a no-internet ULA default route breaks general clients there.
 MATTER_ULA = {1: "fd00:1::1/64", 20: "fd00:20::1/64"}
+
+# Samsung SmartTV SNAT. Samsung refuses the WebSocket *pairing* handshake unless the
+# client appears to be on the TV's own subnet — see the samsungtv code owner in
+# home-assistant/core#104092: "Samsung SmartTV does not allow WebSocket connections
+# across different subnets or VLANs ... It may be possible to bypass this issue by
+# using IP masquerading or a proxy." Home Assistant runs hostNetwork and reaches the
+# IoT VLAN from eth0 (`ip route get 192.168.20.x` -> src 192.168.90.165), so the TVs
+# see a VLAN-90 source and answer ms.channel.timeOut on :8002 and
+# ms.channel.unauthorized on :8001 — HA reports "auth_missing" with NO popup shown.
+# Masquerading HA to the VLAN-20 gateway address satisfies the check.
+#
+# Deliberately narrow: HA's single IP -> tcp/8002 only. HA tries WEBSOCKET_PORTS
+# (8002, 8001) in order and returns on the first success, so 8002 alone is enough and
+# nothing else on the IoT VLAN is touched.
+SAMSUNG_SNAT = {
+    "description": "HA -> Samsung TV control (Samsung requires same-subnet source)",
+    "enabled": True,
+    "exclude": False,
+    "ip_version": "IPV4",
+    "is_predefined": False,
+    "logging": False,
+    "protocol": "tcp",
+    "setting_preference": "auto",
+    "type": "SNAT",
+    "out_interface": "IOT_NETWORK_ID",       # resolved at runtime from vlan 20
+    "ip_address": "192.168.20.1",            # translated source = IoT gateway
+    "source_filter": {
+        "filter_type": "ADDRESS_AND_PORT", "address": "192.168.90.165",
+        "firewall_group_ids": [], "invert_address": False, "invert_port": False,
+    },
+    "destination_filter": {
+        "filter_type": "ADDRESS_AND_PORT", "address": "192.168.20.0/24", "port": "8002",
+        "firewall_group_ids": [], "invert_address": False, "invert_port": False,
+    },
+}
 
 
 def _ipv6_fields(subnet):
@@ -133,6 +175,49 @@ def fix_matter_ipv6(c, apply):
     return changed
 
 
+def fix_samsung_snat(c, apply):
+    """Ensure the HA -> Samsung TV SNAT rule exists (see SAMSUNG_SNAT above).
+
+    The filipowm provider has no SNAT resource (only unifi_port_forward = DNAT), so
+    Terraform cannot manage this — hence it lives here.
+
+    API traps on /v2/api/site/<site>/nat, all discovered the hard way:
+      * filter_type enum is [NONE, FIREWALL_GROUPS, IID_AND_PORT, NETWORK_CONF,
+        ADDRESS_AND_PORT] — plain "ADDRESS" is NOT valid.
+      * an EMPTY-STRING "port" is rejected as "Invalid Port or Port Range"; omit the
+        key entirely when you don't want a port filter. The error names the port even
+        when the real problem is the *source* filter, which is thoroughly misleading.
+      * create returns HTTP **201**, not 200.
+    """
+    nat_path = "/proxy/network/v2/api/site/default/nat"
+    rules = c.req(nat_path)
+    want = json.loads(json.dumps(SAMSUNG_SNAT))
+    nets = c.req("/proxy/network/api/s/default/rest/networkconf")
+    iot = next((n for n in nets if n.get("vlan") == 20), None)
+    if not iot:
+        print("  WARN: no VLAN 20 network found; skipping Samsung SNAT")
+        return []
+    want["out_interface"] = iot["_id"]
+    for r in rules:
+        if r.get("type") == "SNAT" and r.get("description") == want["description"]:
+            drift = {k: (r.get(k), want[k]) for k in
+                     ("enabled", "ip_address", "protocol", "out_interface")
+                     if r.get(k) != want[k]}
+            if drift:
+                print(f"  Samsung SNAT exists but drifted: {drift}")
+                if apply:
+                    r.update({k: want[k] for k in drift})
+                    c.req(f"{nat_path}/{r['_id']}", r, "PUT")
+                return ["samsung-snat"]
+            print("  Samsung SNAT present and correct")
+            return []
+    print(f"  Samsung SNAT MISSING -> {want['source_filter']['address']} to "
+          f"{want['destination_filter']['address']}:{want['destination_filter']['port']}")
+    if apply:
+        c.req(nat_path, want, "POST")
+    return ["samsung-snat"]
+
+
 def fix_trunks(c, apply):
     devs = {d["mac"]: d for d in c.req("/proxy/network/api/s/default/stat/device")}
     infra = {m for m, d in devs.items() if d.get("type") in ("usw", "udm", "uap")}
@@ -204,6 +289,8 @@ def main():
     nets = fix_networks(c, args.apply)
     print("[Matter fabric: ULA IPv6 + RA/SLAAC + mDNS/IGMP check]")
     v6 = fix_matter_ipv6(c, args.apply)
+    print("[Samsung TV SNAT: HA -> IoT same-subnet masquerade]")
+    snat = fix_samsung_snat(c, args.apply)
     print("[trunks: AP + inter-switch uplink ports]")
     devs = fix_trunks(c, args.apply)
     if args.apply and (nets or devs or v6):
@@ -212,7 +299,7 @@ def main():
         for m in macs:
             c.req("/proxy/network/api/s/default/cmd/devmgr", {"cmd": "force-provision", "mac": m}, "POST")
         print(f"\nforce-provisioned {len(macs)} device(s); allow ~90s to settle.")
-    if not nets and not devs and not v6:
+    if not nets and not devs and not v6 and not snat:
         print("\nAll good — nothing to remediate.")
 
 
