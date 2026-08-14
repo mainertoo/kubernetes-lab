@@ -67,14 +67,28 @@ spec:
               # active  = mains/router devices, pinged every N minutes.
               # passive = battery end devices (the Aqara leak sensors and the
               #           T1 valve), flagged offline after N minutes of silence.
-              #           z2m's default is 1500 (25 h), far too slow to trust for
-              #           leak protection; 720 (12 h) is a deliberately
-              #           conservative first step — tighten toward ~180 once we
-              #           know the T1's real heartbeat interval and have
-              #           confirmed it doesn't flap.
+              #           z2m's default is 1500 (25 h) — far too slow to trust for
+              #           leak protection. 720 (12 h) was a deliberately
+              #           conservative first step while the T1 valve's heartbeat
+              #           interval was unknown.
+              #
+              # 2026-08-13: TIGHTENED 720 -> 180 on measured evidence. Report
+              # intervals over a 12 h window (2161 publishes, from the z2m log):
+              #
+              #     Aqara leak sensors x6   median 50 min   MAX 101 min
+              #     T1 valve                median  3 min   MAX  51 min
+              #     mains routers           median  1 min   MAX  11 min
+              #
+              # Worst observed gap is 101 min, so 180 keeps ~1.8x headroom and
+              # tolerates ~3 consecutive missed heartbeats before flagging a
+              # device offline. Nothing exceeded 180 in the window.
+              #
+              # If false "leak protection degraded" alerts start appearing, raise
+              # this first — re-run the same measurement before assuming a device
+              # is genuinely dead.
               ZIGBEE2MQTT_CONFIG_AVAILABILITY_ENABLED: "true"
               ZIGBEE2MQTT_CONFIG_AVAILABILITY_ACTIVE_TIMEOUT: "10"
-              ZIGBEE2MQTT_CONFIG_AVAILABILITY_PASSIVE_TIMEOUT: "720"
+              ZIGBEE2MQTT_CONFIG_AVAILABILITY_PASSIVE_TIMEOUT: "180"
 
               ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL: "info"
               ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT: '["console"]'
