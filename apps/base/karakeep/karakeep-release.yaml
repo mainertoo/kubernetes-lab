@@ -248,7 +248,7 @@ spec:
               # in-place, so ordinary Renovate bumps just work. See the env block
               # for the caveat. If it ever fails, fall back to the wipe runbook
               # at the bottom of this block.
-              tag: v1.53.0
+              tag: v1.53.1
             env:
               - name: MEILI_NO_ANALYTICS
                 value: "true"
