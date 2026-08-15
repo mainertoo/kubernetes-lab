@@ -32,6 +32,24 @@ Resources that both the rbd and cephfs drivers depend on:
 
 This folder MUST reconcile before the driver folders. The parent `infrastructure/controllers/kustomization.yaml` lists `ceph-csi-base` ahead of `ceph-csi-rbd` and `ceph-csi-cephfs`.
 
+#### `cephFS.kernelMountOptions: recover_session=clean`
+
+Without this, a CephFS client that gets **blocklisted** by the MDS never recovers: the kernel mount stays permanently dead and every `stat()` against it returns `EACCES`. Kubelet then fails every container that touches the volume with
+
+```
+failed to generate spec: failed to stat ".../volumes/kubernetes.io~csi/pvc-.../mount": permission denied
+```
+
+and the only remedy is rebooting the node to clear the stale mounts.
+
+This is not hypothetical — on 2026-08-15 a one-second network flap on `vmbr9` killed the active `k3s-fs` MDS. The promoted standby waited out `mds_reconnect_timeout` (45s), the workers' clients missed the window, and it evicted and blocklisted **all 141 CephFS sessions across all three workers** at once. Authentik was among the casualties, and because Traefik's forwardAuth middleware returns 500 when Authentik is down, every SSO-protected route in the cluster 500'd — apps that were otherwise perfectly healthy.
+
+`recover_session=clean` makes the kernel client detect the blocklist, drop its state, and automatically remount clean instead of dying. The tradeoff is that in-flight dirty data is lost and open file handles get `EIO` — but that is strictly better than a mount that needs a node reboot.
+
+Requires kernel ≥ 5.4 (nodes run 6.17) and ceph-csi ≥ 3.7 (running v3.17.0).
+
+**This only affects mounts made after the change** — existing mounts keep the options they were staged with, so the setting lands on a node only once its CephFS volumes are re-staged (in practice, after a node reboot).
+
 ### `ceph-csi-rbd/` and `ceph-csi-cephfs/`
 
 Each driver folder follows the same shape:

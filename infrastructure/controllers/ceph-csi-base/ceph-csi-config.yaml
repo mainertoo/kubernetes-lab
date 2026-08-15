@@ -12,6 +12,9 @@ data:
           "192.168.99.12:6789",
           "192.168.99.13:6789",
           "192.168.99.14:6789"
-        ]
+        ],
+        "cephFS": {
+          "kernelMountOptions": "recover_session=clean"
+        }
       }
     ]
