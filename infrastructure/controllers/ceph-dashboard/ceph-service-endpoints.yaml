@@ -22,10 +22,14 @@ subsets:
       # (https://<active>:8443/), which a browser cannot reach through the
       # ingress. So this MUST point at exactly the active mgr — do NOT list all
       # three like ceph-mgr-metrics does. Re-pin on mgr failover.
-      #   192.168.99.12 = pve-whistler  (standby)
+      #
+      # Confirm the active mgr before changing this:
+      #   ceph mgr services | grep dashboard     -> "https://<active-ip>:8443/"
+      #
+      #   192.168.99.12 = pve-whistler  (active as of 2026-08-15)  <-- current
       #   192.168.99.13 = pve-zermatt   (standby)
-      #   192.168.99.14 = pve-mammoth   (active as of 2026-07-08)  <-- current
-      - ip: 192.168.99.14
+      #   192.168.99.14 = pve-mammoth   (standby)
+      - ip: 192.168.99.12
     ports:
       - name: https
         port: 8443
