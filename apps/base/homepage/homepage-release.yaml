@@ -33,8 +33,17 @@ spec:
             env:
               - name: TZ
                 value: America/Los_Angeles
+              # v2.0.0 enforces Host-header validation and rejects anything not
+              # listed here with "Host validation failed", returning non-200.
+              # The two external names cover browsers via Traefik/Pangolin; the
+              # in-cluster names are required by the Gatus INTERNAL probe, which
+              # hits http://homepage.homepage.svc.cluster.local:3000/ and asserts
+              # STATUS == 200. Without them the external check stays green while
+              # the internal one is permanently red — which is exactly how this
+              # surfaced. Both the bare and :3000 forms are listed because the
+              # rejected Host headers logged both.
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: homepage.lab.mainertoo.com,portal.mainertoo.com
+                value: homepage.lab.mainertoo.com,portal.mainertoo.com,homepage.homepage.svc.cluster.local:3000,homepage.homepage:3000,homepage.homepage.svc.cluster.local,homepage.homepage
 
         initContainers:
           init-config:
