@@ -31,7 +31,7 @@ spec:
           main:
             image:
               repository: ghcr.io/linuxserver/jackett
-              tag: 0.24.2414
+              tag: 0.24.2416
               pullPolicy: IfNotPresent
 
             env:
