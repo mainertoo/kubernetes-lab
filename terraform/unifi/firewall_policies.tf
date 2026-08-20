@@ -108,6 +108,30 @@ resource "unifi_firewall_zone_policy" "iot_block_gw_mgmt" {
   destination = { zone_id = data.unifi_firewall_zone.gateway.id }
 }
 
+# --- IoT (VLAN 20) -> Spoolman, via the Traefik LB in the K8s pool (VLAN 90, Internal
+#     zone). The QIDI Max 4 runs Klipper/Moonraker; Moonraker's [spoolman] component
+#     connects OUTBOUND from the printer to Spoolman's API to decrement spool weight as
+#     a print runs. That direction is IoT->Internal, which the predefined default blocks.
+#     Narrow single-host allow, same shape as the DNS rules above — and a single IP, so
+#     it sidesteps the provider's no-range/no-CIDR limit that deferred the Kids rule.
+#     No auto_allow_return_traffic needed: Traefik's reply is Internal->IoT, already
+#     covered by internal_to_iot above (same reason the DNS allows work without it).
+#     DNS for spoolman.lab.mainertoo.com already resolves via the iot_dns rule.
+resource "unifi_firewall_zone_policy" "iot_to_spoolman" {
+  name        = "IoT to Spoolman (Traefik)"
+  action      = "ALLOW"
+  protocol    = "tcp"
+  source      = { zone_id = unifi_firewall_zone.iot.id }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = [local.traefik_lb], port = "443" }
+}
+
+locals {
+  # Traefik's MetalLB address (metallb-system/mainertoo-l2-pool 192.168.90.180-.199).
+  # Everything on *.lab.mainertoo.com is fronted here, so this one host is all a
+  # segmented zone needs to reach an in-cluster service by name over TLS.
+  traefik_lb = "192.168.90.180"
+}
+
 # --- Kids (VLAN 40) -> MetalLB media pool: DEFERRED to a follow-up. The provider's
 #     ips field takes pure IPs only (no range/CIDR), so the .180-.199 pool needs a
 #     UniFi address group (unifi_firewall_group + ip_group_id). Add once the exact
