@@ -86,7 +86,7 @@ spec:
           redis:
             image:
               repository: docker.io/library/redis
-              tag: "8.10.0"
+              tag: "8.10.1"
 
           # Apache Tika — parses office/email formats into text for paperless
           tika:
