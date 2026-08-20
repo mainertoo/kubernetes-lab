@@ -5,5 +5,6 @@ resources:
   - mkdocs-namespace.yaml
   - mkdocs-git-secret.sops.yaml
   - mkdocs-content-pvc.yaml
+  - mkdocs-nginx-configmap.yaml
   - mkdocs-release.yaml
   - mkdocs-ingressroute.yaml

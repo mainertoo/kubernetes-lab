@@ -48,6 +48,12 @@ spec:
               GITSYNC_SSH_KEY_FILE: "/etc/git-secret/ssh"
               GITSYNC_SSH_KNOWN_HOSTS: "true"
               GITSYNC_SSH_KNOWN_HOSTS_FILE: "/etc/git-secret/known_hosts"
+              # Default max-failures=0 aborts the container on the FIRST failed
+              # sync. On 2026-08-20 16:55Z a transient resolver blip
+              #   "ssh: Could not resolve hostname github.com"
+              # was enough to kill it (exit 1). Retry forever instead; the very
+              # first sync must still succeed, so a real misconfig still fails.
+              GITSYNC_MAX_FAILURES: "-1"
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -66,13 +72,44 @@ spec:
             command:
               - /bin/sh
               - -c
+              # Rebuilds ONLY when git-sync lands a new SHA, then publishes by
+              # swapping the `current` symlink with rename(2) — so nginx always
+              # has a complete document root.
+              #
+              # Previously this ran `mkdocs build -d /site --clean` every 60s.
+              # `--clean` empties /site first, so ~1440 times a day there was a
+              # window where nginx returned 403 (no directory index). newt marks
+              # a 403 target unhealthy -> Pangolin 503 -> Gatus alert.
+              #
+              # NOTE: shell variables are `$$VAR` because Flux
+              # postBuild.substitute blanks unmatched `$VAR`. `$(...)` is safe.
               - |
+                set -u
+                CFG=/repo/current/guides/mkdocs.yml
+                published=""
                 while true; do
-                  if [ -f /repo/current/guides/mkdocs.yml ]; then
-                    mkdocs build -f /repo/current/guides/mkdocs.yml -d /site --clean \
-                      || echo "[build] mkdocs build failed; will retry"
+                  if [ -f "$$CFG" ]; then
+                    rev=$(readlink /repo/current 2>/dev/null || true)
+                    rev=$${rev##*/}
+                    if [ -n "$$rev" ] && [ "$$rev" != "$$published" ]; then
+                      out=/site/build-$$rev
+                      rm -rf "$$out"
+                      if mkdocs build -f "$$CFG" -d "$$out" --clean; then
+                        ln -sfn "build-$$rev" /site/.current.new
+                        mv -fT /site/.current.new /site/current
+                        published="$$rev"
+                        echo "[build] published $$rev"
+                        for old in /site/build-*; do
+                          [ -d "$$old" ] || continue
+                          [ "$$old" = "$$out" ] || rm -rf "$$old"
+                        done
+                      else
+                        echo "[build] build failed for $$rev; keeping previous site"
+                        rm -rf "$$out"
+                      fi
+                    fi
                   else
-                    echo "[build] waiting for git-sync (/repo/current/guides/mkdocs.yml)"
+                    echo "[build] waiting for git-sync ($$CFG)"
                   fi
                   sleep 60
                 done
@@ -138,6 +175,16 @@ spec:
               - path: /site
             web:
               - path: /usr/share/nginx/html
+                readOnly: true
+
+      # nginx vhost pointing at the `current` symlink the build loop swaps.
+      nginx-config:
+        type: configMap
+        name: mkdocs-nginx-config
+        advancedMounts:
+          mkdocs:
+            web:
+              - path: /etc/nginx/conf.d
                 readOnly: true
 
       # Read-only deploy key + pinned github.com known_hosts for git-sync.

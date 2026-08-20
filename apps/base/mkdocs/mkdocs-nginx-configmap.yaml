@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mkdocs-nginx-config
+  namespace: mkdocs
+data:
+  # Serves the guides site through the `current` symlink rather than the volume
+  # root. The build loop swaps that symlink with rename(2), so the document root
+  # always resolves to a complete site — it is never briefly empty.
+  #
+  # Why this exists: the build loop used to run `mkdocs build -d /site --clean`
+  # every 60s. `--clean` empties /site first, and in that window nginx answered
+  #   "directory index of /usr/share/nginx/html/ is forbidden"  -> HTTP 403
+  # newt health-checks this Service and marks a 403 target unhealthy, so
+  # Pangolin served 503 for guides.mainertoo.com and Gatus alerted (2026-08-20).
+  #
+  # NOTE: `$$uri` is escaped for Flux postBuild.substitute — a bare `$uri` is
+  # treated as an unmatched variable and blanked. See apps/production/mkdocs.
+  default.conf: |
+    server {
+        listen       8080;
+        listen  [::]:8080;
+        server_name  localhost;
+
+        root   /usr/share/nginx/html/current;
+        index  index.html;
+
+        location / {
+            try_files $$uri $$uri/ =404;
+        }
+    }
