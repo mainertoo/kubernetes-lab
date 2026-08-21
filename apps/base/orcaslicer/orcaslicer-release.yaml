@@ -26,6 +26,22 @@ spec:
     keepHistory: false
 
   values:
+    # All three workers carry a Raptor Lake iGPU with a working /dev/dri/renderD128,
+    # and the masters are control-plane tainted, so no nodeSelector is needed — the
+    # pod can only land somewhere that has the device. Deliberately NOT requesting
+    # gpu.intel.com/i915 either: the device plugin advertises a single exclusive slot
+    # per node, and a 24/7 desktop session would hold one hostage for no benefit.
+    # Same hostPath approach as plex / immich / scrypted / dispatcharr.
+    defaultPodOptions:
+      securityContext:
+        # DRI device ownership on the workers:
+        #   /dev/dri/card*      -> GID 44  (video)
+        #   /dev/dri/renderD128 -> GID 991 (render)   <- what OrcaSlicer's GL needs
+        # Granting the two groups avoids the privileged: true the older siblings use.
+        supplementalGroups:
+          - 44
+          - 991
+
     controllers:
       orcaslicer:
         # KasmVNC streams a single desktop session — a second replica would be a
@@ -46,6 +62,14 @@ spec:
                 value: "1000"
               - name: TITLE
                 value: OrcaSlicer
+              # Hardware GL for the 3D viewport. Without this the image falls back
+              # to Mesa llvmpipe software rendering, which is painful for a
+              # browser-streamed 3D app.
+              - name: DRINODE
+                value: /dev/dri/renderD128
+              # Raptor Lake / Gen12+ — matches the dispatcharr precedent.
+              - name: LIBVA_DRIVER_NAME
+                value: iHD
             # CUSTOM_USER / PASSWORD guard the KasmVNC session itself. The image
             # defaults to abc/abc, so these are set explicitly even though
             # Authentik already fronts the route — defence in depth, and it stops
@@ -109,3 +133,8 @@ spec:
         sizeLimit: 1Gi
         globalMounts:
           - path: /dev/shm
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        globalMounts:
+          - path: /dev/dri
