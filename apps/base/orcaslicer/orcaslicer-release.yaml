@@ -28,10 +28,15 @@ spec:
   values:
     # All three workers carry a Raptor Lake iGPU with a working /dev/dri/renderD128,
     # and the masters are control-plane tainted, so no nodeSelector is needed — the
-    # pod can only land somewhere that has the device. Deliberately NOT requesting
-    # gpu.intel.com/i915 either: the device plugin advertises a single exclusive slot
-    # per node, and a 24/7 desktop session would hold one hostage for no benefit.
-    # Same hostPath approach as plex / immich / scrypted / dispatcharr.
+    # pod can only land somewhere that has the device.
+    #
+    # GPU access goes through the Intel device plugin, NOT a hostPath mount. A
+    # hostPath makes the device nodes visible but grants no device-cgroup
+    # permission: opening renderD128 then fails EPERM even as root. That is why
+    # plex / immich / scrypted / dispatcharr all pair their hostPath with
+    # privileged: true. The plugin injects the device with the right cgroup
+    # permissions instead, so this stays unprivileged. Cost is one exclusive i915
+    # slot on whichever worker it lands on (3 available, nothing else requests any).
     defaultPodOptions:
       securityContext:
         # DRI device ownership on the workers:
@@ -107,11 +112,15 @@ spec:
               requests:
                 cpu: 500m
                 memory: 2Gi
+                # The device plugin — not the hostPath — is what actually grants
+                # device-cgroup permission to open /dev/dri/renderD128.
+                gpu.intel.com/i915: "1"
               limits:
                 # Slicing is the CPU-hungry part and it threads well — this is the
                 # whole point of slicing on cluster hardware instead of a laptop.
                 cpu: "4"
                 memory: 8Gi
+                gpu.intel.com/i915: "1"
 
     service:
       app:
@@ -133,8 +142,3 @@ spec:
         sizeLimit: 1Gi
         globalMounts:
           - path: /dev/shm
-      dri:
-        type: hostPath
-        hostPath: /dev/dri
-        globalMounts:
-          - path: /dev/dri
