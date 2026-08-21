@@ -1,0 +1,140 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: orcaslicer
+  namespace: orcaslicer
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    # All three workers carry a Raptor Lake iGPU with a working /dev/dri/renderD128,
+    # and the masters are control-plane tainted, so no nodeSelector is needed — the
+    # pod can only land somewhere that has the device. Deliberately NOT requesting
+    # gpu.intel.com/i915 either: the device plugin advertises a single exclusive slot
+    # per node, and a 24/7 desktop session would hold one hostage for no benefit.
+    # Same hostPath approach as plex / immich / scrypted / dispatcharr.
+    defaultPodOptions:
+      securityContext:
+        # DRI device ownership on the workers:
+        #   /dev/dri/card*      -> GID 44  (video)
+        #   /dev/dri/renderD128 -> GID 991 (render)   <- what OrcaSlicer's GL needs
+        # Granting the two groups avoids the privileged: true the older siblings use.
+        supplementalGroups:
+          - 44
+          - 991
+
+    controllers:
+      orcaslicer:
+        # KasmVNC streams a single desktop session — a second replica would be a
+        # second, unshared desktop. Keep it at one, and Recreate so the RWO
+        # ceph-rbd claim detaches cleanly before the new pod attaches.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: lscr.io/linuxserver/orcaslicer
+              tag: v2.4.2-ls35
+            env:
+              - name: TZ
+                value: America/Edmonton
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+              - name: TITLE
+                value: OrcaSlicer
+              # Hardware GL for the 3D viewport. Without this the image falls back
+              # to Mesa llvmpipe software rendering, which is painful for a
+              # browser-streamed 3D app.
+              - name: DRINODE
+                value: /dev/dri/renderD128
+              # Raptor Lake / Gen12+ — matches the dispatcharr precedent.
+              - name: LIBVA_DRIVER_NAME
+                value: iHD
+            # CUSTOM_USER / PASSWORD guard the KasmVNC session itself. The image
+            # defaults to abc/abc, so these are set explicitly even though
+            # Authentik already fronts the route — defence in depth, and it stops
+            # a default credential ever reaching the pod's own listener.
+            envFrom:
+              - secretRef:
+                  name: orcaslicer-secret
+            # The web UI answers on 3000 but sits behind KasmVNC's own basic auth,
+            # so an HTTP GET probe would see 401 and flap. TCP is the honest check
+            # here: it proves the desktop session is listening.
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 3000
+                  initialDelaySeconds: 45
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 3000
+                  initialDelaySeconds: 20
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+              limits:
+                # Slicing is the CPU-hungry part and it threads well — this is the
+                # whole point of slicing on cluster hardware instead of a laptop.
+                cpu: "4"
+                memory: 8Gi
+
+    service:
+      app:
+        controller: orcaslicer
+        ports:
+          http:
+            port: 3000
+
+    persistence:
+      config:
+        existingClaim: orcaslicer-config
+        globalMounts:
+          - path: /config
+      # LinuxServer's KasmVNC base requires ~1G of shared memory or the embedded
+      # browser/GL surface crashes. This is the k8s equivalent of --shm-size=1gb.
+      dshm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 1Gi
+        globalMounts:
+          - path: /dev/shm
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        globalMounts:
+          - path: /dev/dri

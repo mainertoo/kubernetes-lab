@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: orcaslicer-ingressroute
+  namespace: orcaslicer
+  annotations:
+    gethomepage.dev/href: "https://orcaslicer.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Orcaslicer"
+    gethomepage.dev/description: "Orcaslicer"
+    gethomepage.dev/app: orcaslicer
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-orcaslicer.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`orcaslicer.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: orcaslicer
+          port: 3000
+          scheme: http
+  tls: {}
