@@ -35,7 +35,7 @@ spec:
           app:
             image:
               repository: zimengxiong/excalidash-frontend
-              tag: "0.5.1"
+              tag: "0.6.0"
             env:
               - name: TZ
                 value: America/Los_Angeles
