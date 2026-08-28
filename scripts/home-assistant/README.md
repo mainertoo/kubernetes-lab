@@ -24,6 +24,39 @@ grep -q 'ENC\[' credentials.sops.yaml && echo encrypted   # must print "encrypte
 
 Env vars `HASS_URL` / `HASS_TOKEN` override the file.
 
+### Second instance: a remote family HA
+
+A second Home Assistant reached over the tailnet — administered from here, but hosted at
+someone else's house. **Its hostname and address are deliberately not written down in
+this repo** (see below); both live encrypted in `credentials-remote-ha.sops.yaml`. The
+`ha-remote` wrapper exports `HASS_URL`/`HASS_TOKEN` from that file and execs whatever you
+give it, so *any* tool here can target either instance without the address appearing in
+source, shell history, or command output:
+
+```bash
+./ha-remote ./hass.py ping                        # same tooling, other house
+./ha-remote ./ha-ws system_log/list --summary     # recent errors/warnings
+./ha-remote bash                                  # interactive subshell
+```
+
+`ha-ws` is a general-purpose Home Assistant **WebSocket command runner** — `hass.py` only
+exposes the registry calls the Homebox sync needs, so `ha-ws` is the escape hatch for
+troubleshooting (`system_log/list`, `repairs/list_issues`, any `config/*_registry/list`).
+It works on either instance: bare for the lab HA, under `ha-remote` for the other one.
+Two gotchas it documents: subscription-style commands (`system_health/info`) return
+nothing through it, and `config/config_entries/list` isn't a WS command at all — that one
+is REST (`GET /api/config/config_entries/entry`).
+
+Run tools **without** the wrapper to hit the home/lab instance. The wrapper refuses to
+run while the placeholder token is in place, and warns if the file is still plaintext.
+
+**Why the address is withheld.** This repo is public. The tailnet domain itself already
+appears in committed manifests, so any *new* hostname written here is a fresh, indexable
+disclosure — and this one points at a third party's home, which is not ours to publish.
+Keeping it in `stringData` costs nothing (SOPS encrypts that block) and keeps the repo
+from being a directory of other people's front doors. Apply the same rule to any future
+family/remote instance: address in the encrypted file, never in Markdown.
+
 ## Usage
 
 ```bash

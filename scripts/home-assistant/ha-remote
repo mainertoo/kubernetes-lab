@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Run any command with HASS_URL/HASS_TOKEN pointed at the "Bell" family HA instance
+# (tailnet-only). Decrypts credentials-remote-ha.sops.yaml on the fly; the token never
+# touches disk in plaintext and is never echoed.
+#
+#   ./ha-remote ./hass.py ping
+#   ./ha-remote curl -sS "$HASS_URL/api/config" -H "Authorization: Bearer $HASS_TOKEN"
+#   ./ha-remote bash            # interactive subshell with the vars set
+#
+# For the home/lab instance just run the tool directly — it reads credentials.sops.yaml.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CRED="$HERE/credentials-remote-ha.sops.yaml"
+
+[[ $# -gt 0 ]] || { echo "usage: ha-remote <command> [args...]" >&2; exit 2; }
+[[ -f "$CRED" ]] || { echo "missing $CRED" >&2; exit 1; }
+
+# Encrypted is the normal case. Before the first VS Code save the file is still
+# plaintext, so fall back to reading it as-is rather than failing confusingly.
+if grep -q 'ENC\[' "$CRED"; then
+    command -v sops >/dev/null || { echo "sops not on PATH" >&2; exit 1; }
+    plain=$(sops -d "$CRED")
+else
+    echo "warning: $CRED is NOT encrypted — do not commit it in this state" >&2
+    plain=$(cat "$CRED")
+fi
+
+exports=$(printf '%s' "$plain" | python3 -c '
+import sys, shlex, yaml
+d = (yaml.safe_load(sys.stdin) or {}).get("stringData") or {}
+url, token = d.get("HASS_URL"), d.get("HASS_TOKEN")
+if not url or not token:
+    sys.exit("credentials-remote-ha.sops.yaml is missing HASS_URL or HASS_TOKEN")
+if "PASTE-YOUR" in token:
+    sys.exit("credentials-remote-ha.sops.yaml still holds the placeholder token — create a "
+             "Long-Lived Access Token on that instance and paste it in (auto-encrypts on save).")
+print(f"export HASS_URL={shlex.quote(url.rstrip(chr(47)))}")
+print(f"export HASS_TOKEN={shlex.quote(token)}")
+')
+
+eval "$exports"
+exec "$@"
