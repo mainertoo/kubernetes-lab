@@ -72,6 +72,22 @@ spec:
               # browser-streamed 3D app.
               - name: DRINODE
                 value: /dev/dri/renderD128
+              # DRINODE is the RENDERING (EGL) GPU; DRI_NODE is the ENCODING GPU.
+              # They are different variables and both are needed. Upstream:
+              # "If both variables point to the same device, the container will
+              # automatically enable Zero Copy [encoding], significantly reducing
+              # CPU usage and latency."
+              #
+              # Without this only rendering was accelerated: the framebuffer was
+              # copied out and encoded on CPU via SELKIES_ENCODER=x264enc (libx264,
+              # software) at the session's native 2992x1504 (~4.5 MP) — which is
+              # what made the desktop feel laggy and delayed to use. It was never
+              # resource starvation: measured 45m CPU against a 4-core limit and
+              # 1.68 GB against an 8Gi limit, with cgroup nr_throttled=0 over 3971
+              # periods. The hardware was simply idle — vainfo reports the Intel
+              # iHD driver 25.2.3 present and the i915 node already bound.
+              - name: DRI_NODE
+                value: /dev/dri/renderD128
               # Raptor Lake / Gen12+ — matches the dispatcharr precedent.
               - name: LIBVA_DRIVER_NAME
                 value: iHD
