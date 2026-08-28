@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Run an arbitrary Home Assistant WebSocket command and print the JSON result.
+
+hass.py only exposes the registry commands it needs for the Homebox sync; this is the
+general-purpose escape hatch for troubleshooting. Reuses hass.py's stdlib WS client and
+credential loading, so it honours HASS_URL/HASS_TOKEN (i.e. works under ./ha-remote).
+
+    ./ha-ws system_log/list                    # recent errors/warnings  (lab HA)
+    ./ha-remote ./ha-ws system_log/list        # ...against the remote family HA
+    ./ha-ws repairs/list_issues
+    ./ha-ws config/area_registry/list
+    ./ha-ws system_log/list --summary          # level counts instead of full dump
+
+Trap: subscription-style commands (e.g. system_health/info) stream their payload in
+later messages, so they come back None here. Use the REST API or the UI for those.
+"""
+import argparse
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+
+def load_hass_module():
+    spec = importlib.util.spec_from_file_location("hass", HERE / "hass.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("command", help="WS command type, e.g. system_log/list")
+    ap.add_argument("--summary", action="store_true",
+                    help="print a compact digest instead of the full JSON")
+    ap.add_argument("--insecure", action="store_true", help="skip TLS verification")
+    args = ap.parse_args()
+
+    m = load_hass_module()
+    ha = m.HA(m.load_creds(), insecure=args.insecure)
+    try:
+        result = ha.cmd(args.command)
+    finally:
+        ha.close()
+
+    if result is None:
+        sys.exit(f"{args.command!r} returned no direct result — it is probably a "
+                 "subscription command; use the REST API or the UI instead.")
+
+    if not args.summary:
+        json.dump(result, sys.stdout, indent=2, sort_keys=True, default=str)
+        print()
+        return
+
+    # Compact digests for the commands actually used in troubleshooting.
+    if args.command == "system_log/list":
+        levels = {}
+        for e in result:
+            levels[e.get("level")] = levels.get(e.get("level"), 0) + 1
+        print(f"{len(result)} entries — {levels}")
+        for e in result:
+            if e.get("level") in ("ERROR", "CRITICAL"):
+                print(f"  [{e.get('level')}] {e.get('name')}: "
+                      f"{str(e.get('message')) [:140]}")
+    elif args.command == "repairs/list_issues":
+        issues = result.get("issues", result) if isinstance(result, dict) else result
+        print(f"{len(issues)} repair issue(s)")
+        for i in issues:
+            print(f"  [{i.get('severity')}] {i.get('domain')} / {i.get('issue_id')}")
+    else:
+        n = len(result) if isinstance(result, (list, dict)) else "?"
+        print(f"{type(result).__name__}, {n} item(s) — re-run without --summary for detail")
+
+
+if __name__ == "__main__":
+    main()
