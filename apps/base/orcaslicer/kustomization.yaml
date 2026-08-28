@@ -4,6 +4,5 @@ namespace: orcaslicer
 resources:
   - orcaslicer-namespace.yaml
   - orcaslicer-pvc.yaml
-  - orcaslicer-secret.sops.yaml
   - orcaslicer-release.yaml
   - orcaslicer-ingressroute.yaml
