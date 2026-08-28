@@ -87,7 +87,14 @@ spec:
               limits:
                 # memory-only limit (house style) — no CPU limit so epub
                 # conversion / duplicate scans can burst without throttling.
-                memory: 1Gi
+                #
+                # 1Gi was sized for epub conversion and is NOT enough for comics.
+                # Calibre's Comic Input plugin decompresses page images into
+                # memory, so a ~56 MB .cbr OOMKilled (137) the container ~14s in,
+                # still at "1% Converting input to HTML". Because the file stayed
+                # in /cwa-book-ingest it was re-picked on every restart —
+                # a poison-pill loop, 61 restarts (2026-08-27).
+                memory: 4Gi
 
             probes:
               # HTTP (not TCP): the 2026-07-23 outage was a socket-open /
