@@ -75,22 +75,38 @@ spec:
               # Raptor Lake / Gen12+ — matches the dispatcharr precedent.
               - name: LIBVA_DRIVER_NAME
                 value: iHD
-            # CUSTOM_USER / PASSWORD guard the KasmVNC session itself. The image
-            # defaults to abc/abc, so these are set explicitly even though
-            # Authentik already fronts the route — defence in depth, and it stops
-            # a default credential ever reaching the pod's own listener.
-            envFrom:
-              - secretRef:
-                  name: orcaslicer-secret
-            # The web UI answers on 3000 but sits behind KasmVNC's own basic auth,
-            # so an HTTP GET probe would see 401 and flap. TCP is the honest check
-            # here: it proves the desktop session is listening.
+            # NO CUSTOM_USER / PASSWORD — Authentik is the single auth gate.
+            #
+            # The image's basic auth CANNOT coexist with the authentik-sso
+            # forwardAuth middleware on this route: that middleware lists
+            # `Authorization` in authResponseHeaders (regex
+            # ^(X-authentik-|Set-Cookie|Authorization)$), so Traefik overwrites
+            # the header on the upstream request and the browser's Basic
+            # credentials never reach KasmVNC. Result: correct credentials are
+            # rejected forever in a re-prompt loop.
+            #
+            # The removed comment claimed the image "defaults to abc/abc" —
+            # it does not. Upstream: "HTTP Basic auth password, abc is default.
+            # If unset there will be no auth." Auth only activates when PASSWORD
+            # is set, so there is no default credential to defend against, and
+            # LinuxServer explicitly recommends fronting this with a reverse
+            # proxy's auth rather than the built-in basic auth.
+            #
+            # Trade-off: in-cluster traffic reaches :3000 unauthenticated, same
+            # as every other app behind authentik-sso here. External access
+            # still requires SSO.
+
+            # HTTP probes are now possible (and correct). They were TCP only
+            # because basic auth made every GET a 401 — but a TCP probe passes
+            # straight through a hung HTTP server, which is exactly how
+            # calibre-web-automated stayed "Ready" through a 3-hour deadlock.
             probes:
               liveness:
                 enabled: true
                 custom: true
                 spec:
-                  tcpSocket:
+                  httpGet:
+                    path: /
                     port: 3000
                   initialDelaySeconds: 45
                   periodSeconds: 30
@@ -100,7 +116,8 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  tcpSocket:
+                  httpGet:
+                    path: /
                     port: 3000
                   initialDelaySeconds: 20
                   periodSeconds: 15
