@@ -104,7 +104,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/orcaslicer
-              tag: v2.4.2-ls35
+              tag: 2.4.2
             env:
               - name: TZ
                 value: America/Edmonton
