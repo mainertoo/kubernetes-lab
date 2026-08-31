@@ -53,6 +53,53 @@ spec:
         # second, unshared desktop. Keep it at one, and Recreate so the RWO
         # ceph-rbd claim detaches cleanly before the new pod attaches.
         strategy: Recreate
+
+        # The container runs OrcaSlicer and nothing else — autostart_wayland is
+        # literally /opt/orcaslicer/AppRun. There is no desktop, no file manager
+        # and no browser in here, so a file that arrives on disk is invisible
+        # unless something points the user at it. This init container is that
+        # something: it creates the inbox the Selkies sidebar uploads into, and
+        # seeds the GTK bookmark that makes the folder one click away inside
+        # OrcaSlicer's Open dialog. Rewritten every start, so it self-heals
+        # after a pod replacement or a Kopia restore.
+        initContainers:
+          init-model-inbox:
+            image:
+              repository: busybox
+              tag: latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "== orcaslicer init-model-inbox =="
+
+                # Destination for FILE_MANAGER_PATH (see the container env below).
+                mkdir -p /config/models
+                chown 1000:1000 /config/models
+                chmod 0775 /config/models
+
+                # OrcaSlicer is wxWidgets on GTK3, so its Open dialog reads
+                # $HOME/.config/gtk-3.0/bookmarks (HOME=/config here, and
+                # XDG_CONFIG_HOME is unset). Each line is "URI  Display Name".
+                # Desktop is kept as a second entry so anything uploaded before
+                # FILE_MANAGER_PATH moved is still reachable.
+                mkdir -p /config/.config/gtk-3.0
+                printf '%s\n' \
+                  'file:///config/models 3D Models' \
+                  'file:///config/Desktop Desktop' \
+                  > /config/.config/gtk-3.0/bookmarks
+
+                chown -R 1000:1000 /config/.config/gtk-3.0
+                chmod 0644 /config/.config/gtk-3.0/bookmarks
+
+                echo "Inbox + bookmarks ready:"
+                ls -ld /config/models
+                cat /config/.config/gtk-3.0/bookmarks
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
         containers:
           app:
             image:
@@ -91,6 +138,17 @@ spec:
               # Raptor Lake / Gen12+ — matches the dispatcharr precedent.
               - name: LIBVA_DRIVER_NAME
                 value: iHD
+              # Where the Selkies sidebar's file upload lands. Upstream default
+              # is ~/Desktop (selkies.py: os.getenv('FILE_MANAGER_PATH',
+              # '~/Desktop')) — a sane default for images that ship a desktop to
+              # drop the icon onto. This one does not, so uploads landed in
+              # /config/Desktop and were effectively unfindable. Point them at a
+              # single obvious folder that the GTK bookmark above also targets.
+              #
+              # /config is the daily-Kopia-backed claim, so this doubles as a
+              # backed-up shared model library rather than scratch space.
+              - name: FILE_MANAGER_PATH
+                value: /config/models
             # NO CUSTOM_USER / PASSWORD — Authentik is the single auth gate.
             #
             # The image's basic auth CANNOT coexist with the authentik-sso
