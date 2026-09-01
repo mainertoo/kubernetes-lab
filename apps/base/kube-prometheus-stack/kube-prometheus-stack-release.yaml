@@ -55,6 +55,27 @@ spec:
     defaultRules:
       rules:
         kubeControllerManager: false
+      disabled:
+        # Replaced by an rbd-excluding copy in homelab-prometheusrule.yaml
+        # (group: storage.node-disk).
+        #
+        # The upstream rule matches `device=~"...|rbd.+|..."` and fires on
+        # aqu-sq > 10 for 30m. That threshold is meaningful for a real disk,
+        # which serves one request at a time — a sustained queue there means
+        # the disk is the bottleneck. A Ceph RBD volume is a network device
+        # over the whole storage cluster, and deep queues are how it gets
+        # throughput, not a symptom.
+        #
+        # Observed 2026-08-31: a one-time Dawarich v1.14.1 track/anomaly
+        # backfill over dawarich-db-1 (3.4M rows) held rbd4 at aqu-sq 28-102
+        # for 12h and flapped this alert ~14 times overnight, while Ceph
+        # stayed HEALTH_OK, OSD apply latency sat at 10-25ms and worker-2
+        # load average stayed below 1. Dawarich re-runs backfills on every
+        # self-hosted upgrade, so this recurs by design.
+        #
+        # Real storage trouble is covered by ceph-health-prometheusrule.yaml
+        # (ceph_health_status) and the CNPG/PVC rules — not by RBD queue depth.
+        NodeDiskIOSaturation: true
 
     # Create default Grafana dashboards as ConfigMaps, even though we are NOT deploying grafana subchart.
     grafana:
