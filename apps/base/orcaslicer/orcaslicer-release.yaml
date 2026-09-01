@@ -58,10 +58,19 @@ spec:
         # literally /opt/orcaslicer/AppRun. There is no desktop, no file manager
         # and no browser in here, so a file that arrives on disk is invisible
         # unless something points the user at it. This init container is that
-        # something: it creates the inbox the Selkies sidebar uploads into, and
-        # seeds the GTK bookmark that makes the folder one click away inside
-        # OrcaSlicer's Open dialog. Rewritten every start, so it self-heals
-        # after a pod replacement or a Kopia restore.
+        # something: it guarantees exactly ONE folder that uploads land in, that
+        # the GTK bookmark points at, and that OrcaSlicer's Open dialog reopens
+        # on. Rewritten every start, so it self-heals after a pod replacement or
+        # a Kopia restore.
+        #
+        # Why the symlink: OrcaSlicer reopens its file dialog at
+        # `last_opened_folder` from OrcaSlicer.conf, which it rewrites itself and
+        # which we cannot usefully own. When uploads went to /config/models while
+        # that key still said /config/Desktop, uploaded files were invisible
+        # unless the user knew to click the bookmark — the exact confusion this
+        # was meant to remove. Collapsing Desktop into models means every path
+        # the app might remember resolves to the same directory, so the dialog
+        # always opens on the files regardless of where it was last.
         initContainers:
           init-model-inbox:
             image:
@@ -75,25 +84,50 @@ spec:
 
                 # Destination for FILE_MANAGER_PATH (see the container env below).
                 mkdir -p /config/models
+
+                # Collapse a real /config/Desktop into it, once. Files are MOVED,
+                # never overwritten and never deleted: a name that already exists
+                # in models is left untouched in place, and a Desktop that will
+                # not rmdir (because something was left behind) is renamed to
+                # Desktop.bak rather than removed.
+                if [ -d /config/Desktop ] && [ ! -L /config/Desktop ]; then
+                  echo "Migrating /config/Desktop -> /config/models"
+                  for f in /config/Desktop/* /config/Desktop/.[!.]*; do
+                    [ -e "$f" ] || continue
+                    b=$(basename "$f")
+                    if [ -e "/config/models/$b" ]; then
+                      echo "  skip (already in models): $b"
+                    else
+                      mv "$f" /config/models/ && echo "  moved: $b"
+                    fi
+                  done
+                  rmdir /config/Desktop 2>/dev/null \
+                    || mv /config/Desktop /config/Desktop.bak
+                fi
+
+                # Every remembered path now resolves to the one real directory.
+                [ -L /config/Desktop ] || ln -s /config/models /config/Desktop
+
+                chown -h 1000:1000 /config/Desktop
                 chown 1000:1000 /config/models
                 chmod 0775 /config/models
 
                 # OrcaSlicer is wxWidgets on GTK3, so its Open dialog reads
                 # $HOME/.config/gtk-3.0/bookmarks (HOME=/config here, and
                 # XDG_CONFIG_HOME is unset). Each line is "URI  Display Name".
-                # Desktop is kept as a second entry so anything uploaded before
-                # FILE_MANAGER_PATH moved is still reachable.
+                # One entry only — Desktop is now the same directory, and a
+                # second bookmark to the same place is just another wrong turn.
                 mkdir -p /config/.config/gtk-3.0
                 printf '%s\n' \
                   'file:///config/models 3D Models' \
-                  'file:///config/Desktop Desktop' \
                   > /config/.config/gtk-3.0/bookmarks
 
                 chown -R 1000:1000 /config/.config/gtk-3.0
                 chmod 0644 /config/.config/gtk-3.0/bookmarks
 
                 echo "Inbox + bookmarks ready:"
-                ls -ld /config/models
+                ls -ld /config/models /config/Desktop
+                ls -la /config/models
                 cat /config/.config/gtk-3.0/bookmarks
             securityContext:
               runAsUser: 0
