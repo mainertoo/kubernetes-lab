@@ -244,10 +244,16 @@ spec:
                   httpGet:
                     path: /openmrs/health/started
                     port: 8080
-                  # 90 x 20s = 30 min for schema + Liquibase + demo data.
+                  # 180 x 20s = 60 min. A cold first boot on a 2-vCPU worker is
+                  # Liquibase across ~240 tables, then the concept dictionary and
+                  # the Lucene index — the last stretch of which logs nothing for
+                  # minutes at a time while still burning CPU. 30 min was not
+                  # enough and kubelet killed a container that was making real
+                  # progress, sending it back for another pass. Subsequent boots
+                  # skip Liquibase entirely and come up in a fraction of this.
                   periodSeconds: 20
                   timeoutSeconds: 5
-                  failureThreshold: 90
+                  failureThreshold: 180
             resources:
               requests:
                 cpu: 250m
