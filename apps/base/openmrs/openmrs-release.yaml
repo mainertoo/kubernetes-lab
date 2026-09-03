@@ -1,0 +1,359 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app openmrs
+  namespace: openmrs
+spec:
+  interval: 30m
+  releaseName: *app
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  # First boot creates the whole OpenMRS schema, runs every module's Liquibase
+  # changesets and loads the reference demo data. On staging hardware that is a
+  # 15-30 minute job; without this Flux would time out and start rolling back
+  # mid-install. Paired with `wait: false` on the Flux Kustomization.
+  timeout: 40m
+
+  values:
+    controllers:
+      # ---- MariaDB ------------------------------------------------------------
+      # 10.11 LTS: the line upstream's docker-compose.yml pins (10.11.7). The
+      # OpenEMR eval next door runs MariaDB 12 because ITS upstream pins that —
+      # each app tracks the version its own project tests against.
+      mariadb:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: docker.io/library/mariadb
+              tag: 10.11.19
+            # Keeps the image's docker-entrypoint.sh; replaces only the CMD.
+            # The charset/collation flags are what OpenMRS' schema expects.
+            args:
+              - mariadbd
+              - --character-set-server=utf8mb4
+              - --collation-server=utf8mb4_general_ci
+            env:
+              # The entrypoint creates this database and this owner on first
+              # boot, so the backend never needs root.
+              - name: MYSQL_DATABASE
+                value: openmrs
+              - name: MYSQL_USER
+                value: openmrs
+              - name: MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: openmrs-credentials
+                    key: mysql-password
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: openmrs-credentials
+                    key: mysql-root-password
+              - name: MARIADB_AUTO_UPGRADE
+                value: "1"
+            probes:
+              liveness: &dbProbe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /usr/local/bin/healthcheck.sh
+                      - --su-mysql
+                      - --connect
+                      - --innodb_initialized
+                  initialDelaySeconds: 30
+                  periodSeconds: 20
+              readiness: *dbProbe
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 768Mi
+
+      # ---- Backend: Tomcat + the OpenMRS 3 reference distribution --------------
+      backend:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        pod:
+          securityContext:
+            # The image runs as uid 1001 and needs to write /openmrs/data
+            # (runtime properties, complex_obs, the Lucene index, ActiveMQ).
+            # A freshly provisioned ceph-rbd volume is root-owned, so hand it to
+            # the group. OnRootMismatch keeps this from re-chowning the whole
+            # tree on every restart.
+            fsGroup: 1001
+            fsGroupChangePolicy: OnRootMismatch
+        initContainers:
+          # /openmrs/data ships in the image as a set of empty, uid-1001-owned
+          # directories (modules, owa, configuration, configuration_checksums,
+          # complex_obs, activemq-data). Under Docker Compose the named volume
+          # inherits them automatically; a Kubernetes PVC does not, so mounting
+          # it bare would hide the lot. startup.sh only recreates four of the
+          # six, and Initializer expects configuration_checksums to exist.
+          # Copy them in once, preserving the image's ownership and modes.
+          seed-data:
+            image:
+              repository: docker.io/openmrs/openmrs-reference-application-3-backend
+              tag: 3.7.1
+            command:
+              - sh
+              - -c
+              - |
+                set -e
+                if [ -d /seed/modules ]; then
+                  echo "/openmrs/data already seeded — leaving it alone"
+                else
+                  echo "seeding /openmrs/data from the image"
+                  cp -a /openmrs/data/. /seed/
+                fi
+                ls -la /seed
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+
+        containers:
+          app:
+            image:
+              repository: docker.io/openmrs/openmrs-reference-application-3-backend
+              # 3.7.1 is the current tagged release. The floating `3.7.x` /
+              # `nightly` tags are deliberately avoided so the eval sits still.
+              # This is the demo-data build (the `-no-demo` variant drops the
+              # referencedemodata module) — the point here is to look at a
+              # populated EMR, not an empty one.
+              tag: 3.7.1
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: OMRS_DB
+                value: mysql
+              - name: OMRS_DB_HOSTNAME
+                value: openmrs-mariadb
+              - name: OMRS_DB_PORT
+                value: "3306"
+              - name: OMRS_DB_NAME
+                value: openmrs
+              - name: OMRS_DB_USERNAME
+                value: openmrs
+              - name: OMRS_DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: openmrs-credentials
+                    key: mysql-password
+              - name: OMRS_ADMIN_USER_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: openmrs-credentials
+                    key: openmrs-admin-password
+              - name: OMRS_CREATE_TABLES
+                value: "true"
+              - name: OMRS_AUTO_UPDATE_DATABASE
+                value: "true"
+              - name: OMRS_MODULE_WEB_ADMIN
+                value: "true"
+              # Becomes CATALINA_OPTS. The staging workers are 2 vCPU / 4 GiB, so
+              # the heap is capped well under the container limit below to leave
+              # room for Tomcat's non-heap footprint. `-XX:NewSize=128m` is the
+              # image's own default, kept because setting this var replaces it.
+              - name: OMRS_JAVA_MEMORY_OPTS
+                value: "-Xms512m -Xmx1400m -XX:NewSize=128m"
+            probes:
+              # /health/alive answers 200 while OpenMRS is started OR still
+              # installing — the right liveness signal, since the first-boot
+              # install legitimately takes tens of minutes.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /openmrs/health/alive
+                    port: 8080
+                  periodSeconds: 30
+                  failureThreshold: 5
+              # /health/started only answers 200 once the platform is fully up.
+              readiness: &startedProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /openmrs/health/started
+                    port: 8080
+                  periodSeconds: 20
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /openmrs/health/started
+                    port: 8080
+                  # 90 x 20s = 30 min for schema + Liquibase + demo data.
+                  periodSeconds: 20
+                  failureThreshold: 90
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
+
+      # ---- Frontend: nginx serving the O3 single-page app ---------------------
+      frontend:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: docker.io/openmrs/openmrs-reference-application-3-frontend
+              tag: 3.7.1
+            env:
+              # Rewritten into index.html by the image's startup.sh. SPA_PATH and
+              # API_URL are the paths as seen by the BROWSER (i.e. through the
+              # gateway), not in-cluster addresses.
+              - name: SPA_PATH
+                value: /openmrs/spa
+              - name: API_URL
+                value: /openmrs
+              - name: SPA_CONFIG_URLS
+                value: /openmrs/spa/config-core_demo.json
+            probes:
+              liveness: &feProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 80
+                  periodSeconds: 30
+              readiness: *feProbe
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+      # ---- Gateway: nginx reverse proxy in front of frontend + backend --------
+      # Kept rather than replaced with Traefik routing rules: it is the topology
+      # upstream ships and tests, it serves both halves from one origin (so the
+      # SPA hits no CORS), and it owns the /openmrs/spa -> / rewrite and the
+      # `/` -> /openmrs/spa/home redirects. Only its upstream hostnames are
+      # patched — see openmrs-gateway-configmap.yaml.
+      gateway:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: docker.io/openmrs/openmrs-reference-application-3-gateway
+              tag: 3.7.1
+            probes:
+              liveness: &gwProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 80
+                  periodSeconds: 30
+              readiness: *gwProbe
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+    service:
+      # Four services => bjw-s appends each identifier, giving openmrs-mariadb,
+      # openmrs-backend, openmrs-frontend and openmrs-gateway. Those exact names
+      # are hardcoded in the gateway ConfigMap's upstreams and in the backend's
+      # OMRS_DB_HOSTNAME, so renaming a key here means editing both.
+      mariadb:
+        controller: mariadb
+        ports:
+          mysql:
+            port: 3306
+      backend:
+        controller: backend
+        ports:
+          http:
+            port: 8080
+      frontend:
+        controller: frontend
+        ports:
+          http:
+            port: 80
+      gateway:
+        controller: gateway
+        ports:
+          http:
+            port: 80
+
+    persistence:
+      # MariaDB datadir, behind a `data` subPath — ceph-rbd hands out an ext4
+      # volume whose root already holds lost+found.
+      db:
+        existingClaim: openmrs-mariadb
+        advancedMounts:
+          mariadb:
+            app:
+              - path: /var/lib/mysql
+                subPath: data
+
+      # Mounted at the PVC root (no subPath) on purpose: kubelet creates subPath
+      # directories AFTER applying fsGroup and leaves them root:root 0750, which
+      # the uid-1001 backend could not write. The ext4 lost+found that ceph-rbd
+      # leaves at the root is harmless here.
+      data:
+        existingClaim: openmrs-data
+        advancedMounts:
+          backend:
+            seed-data:
+              - path: /seed
+            app:
+              - path: /openmrs/data
+
+      # Upstream's own default.conf.template with the two upstreams rewritten to
+      # cluster FQDNs. Mounted into conf-templates/ (NOT templates/) because the
+      # image's entrypoint copies between those two directories at start-up, and
+      # copying onto a read-only ConfigMap mount would kill the container.
+      # subPath so default-ssl.conf.template alongside it survives.
+      gateway-config:
+        type: configMap
+        name: openmrs-gateway-nginx
+        advancedMounts:
+          gateway:
+            app:
+              - path: /etc/nginx/conf-templates/default.conf.template
+                subPath: default.conf.template
+                readOnly: true

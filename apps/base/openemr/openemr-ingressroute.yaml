@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openemr-ingressroute
+  namespace: openemr
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    # Hostname is hardcoded for the staging eval; *.staging.mainertoo.com already
+    # resolves to the staging Traefik LB (192.168.90.200) and the wildcard
+    # Certificate in traefik-system serves the TLS.
+    #
+    # NOTE: no authentik-sso middleware. OpenEMR owns its own login + user model
+    # and that IS the thing under evaluation — putting forward-auth in front of
+    # it would also overwrite the Authorization header the REST/FHIR API uses.
+    - match: Host(`openemr.staging.mainertoo.com`)
+      kind: Rule
+      services:
+        # bjw-s renders this as <release>-<service key> because the release
+        # defines more than one Service. Port 80 is Apache's plain-HTTP vhost
+        # (the image's :443 self-signed vhost is unused — Traefik terminates TLS).
+        - name: openemr-app
+          port: 80
+  tls: {}

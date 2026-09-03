@@ -1,0 +1,22 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openmrs-ingressroute
+  namespace: openmrs
+spec:
+  entryPoints: [websecure, web]
+  routes:
+    # Everything goes to the gateway, which fans /openmrs/spa/* out to the
+    # frontend and /openmrs/* to the backend, and 301s `/` to
+    # /openmrs/spa/home. Landing page: https://openmrs.staging.mainertoo.com/
+    # (the O3 SPA); the OpenMRS legacy admin UI is at /openmrs.
+    #
+    # NOTE: no authentik-sso middleware — OpenMRS' own login is what is being
+    # evaluated, and forward-auth would overwrite the session/Authorization
+    # headers the SPA and the FHIR API rely on.
+    - match: Host(`openmrs.staging.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: openmrs-gateway
+          port: 80
+  tls: {}

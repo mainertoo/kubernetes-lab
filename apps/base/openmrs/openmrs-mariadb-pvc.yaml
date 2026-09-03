@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openmrs-mariadb
+  # THROWAWAY eval volume (staging-rbd pool). Holds the MariaDB datadir for the
+  # OpenMRS 3 evaluation — the reference distro's demo patients plus whatever
+  # test data gets entered. Sized larger than OpenEMR's because the RefApp ships
+  # a full concept dictionary (CIEL subset) + demo data. No backup labels: this
+  # is disposable, and staging runs no Kyverno backup policies.
+spec:
+  storageClassName: ceph-rbd
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 15Gi
