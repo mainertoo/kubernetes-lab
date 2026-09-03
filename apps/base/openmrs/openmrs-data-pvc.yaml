@@ -7,8 +7,22 @@ metadata:
   # the ActiveMQ store. Modules/OWAs/configuration under it are wiped and
   # re-populated from the image on every start, so only the first three matter.
   # THROWAWAY, no backup labels.
+  #
+  # local-path, NOT ceph-rbd, and that choice is load-bearing. Hibernate Search
+  # fsyncs per write while it builds the Lucene index, and on ext4-over-krbd each
+  # one is a journal commit that round-trips to Ceph. Measured on ceph-rbd the
+  # index grew 12 KB in 90 seconds — days, not minutes, for a full index — with
+  # the indexer threads permanently in D state (jbd2_log_wait_commit) and the
+  # whole OpenMRS startup blocked behind them. Ceph itself was HEALTH_OK with
+  # 1-21 ms commit latency; the workload is simply pathological for network block
+  # storage. Node-local disk collapses those fsyncs.
+  #
+  # Trade-off accepted: local-path is WaitForFirstConsumer and pins the backend to
+  # one node, and the data does not survive that node. Both are fine for a
+  # throwaway eval, and it matches what staging's chaptarr already does. MariaDB
+  # deliberately STAYS on ceph-rbd — InnoDB batches its fsyncs and is healthy there.
 spec:
-  storageClassName: ceph-rbd
+  storageClassName: local-path
   accessModes: [ReadWriteOnce]
   resources:
     requests:
