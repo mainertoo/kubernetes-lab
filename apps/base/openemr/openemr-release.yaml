@@ -97,7 +97,7 @@ spec:
           seed-sites:
             image:
               repository: docker.io/openemr/openemr
-              tag: 8.3.0
+              tag: 8.4.0
             command:
               - sh
               - -c
@@ -132,7 +132,7 @@ spec:
               repository: docker.io/openemr/openemr
               # 8.3.0 is upstream's current `latest` (see openemr/openemr
               # .github/release-targets.yml — rel-830 ships "8.3.0,latest").
-              tag: 8.3.0
+              tag: 8.4.0
             env:
               - name: TZ
                 value: America/Los_Angeles
