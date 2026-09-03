@@ -43,7 +43,7 @@ spec:
           app:
             image:
               repository: docker.io/library/mariadb
-              tag: 10.11.19
+              tag: 12.3.3
             # Keeps the image's docker-entrypoint.sh; replaces only the CMD.
             # The charset/collation flags are what OpenMRS' schema expects.
             args:
