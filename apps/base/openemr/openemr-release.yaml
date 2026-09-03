@@ -1,0 +1,250 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app openemr
+  namespace: openemr
+spec:
+  interval: 30m
+  releaseName: *app
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  # First boot runs OpenEMR's auto_configure (schema load + demo/base data),
+  # which takes several minutes. Flux would otherwise time out and roll back.
+  timeout: 20m
+
+  values:
+    controllers:
+      # ---- MariaDB: OpenEMR's only datastore ----------------------------------
+      # Version pinned to what upstream's own docker/production/docker-compose.yml
+      # ships (mariadb 12.x). OpenEMR is the only consumer, so it does not have to
+      # match the OpenMRS eval's MariaDB — see apps/base/openmrs.
+      mariadb:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: docker.io/library/mariadb
+              tag: 12.3.3
+            # Keeps the image's docker-entrypoint.sh (which initialises the
+            # datadir and drops to the mysql user); only the CMD is replaced.
+            args:
+              - mariadbd
+              - --character-set-server=utf8mb4
+            env:
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: openemr-credentials
+                    key: mysql-root-password
+              # Run mariadb-upgrade automatically if the datadir was left by an
+              # older server. No-op when the version marker already matches.
+              - name: MARIADB_AUTO_UPGRADE
+                value: "1"
+            probes:
+              liveness: &dbProbe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /usr/local/bin/healthcheck.sh
+                      - --su-mysql
+                      - --connect
+                      - --innodb_initialized
+                  initialDelaySeconds: 30
+                  periodSeconds: 20
+              readiness: *dbProbe
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 768Mi
+
+      # ---- OpenEMR: Apache + PHP-FPM ------------------------------------------
+      openemr:
+        type: deployment
+        strategy: Recreate
+        replicas: 1
+        initContainers:
+          # 1. A Kubernetes PVC does NOT inherit the image's content at that path
+          #    the way a Docker named volume does. `sites/` ships inside the image
+          #    (sites/default/sqlconf.php, documents/, templates/) so mounting an
+          #    empty PVC over it would leave OpenEMR with no site to install into.
+          #    The image keeps a pristine copy at /swarm-pieces/sites for exactly
+          #    this case; copy it in once, then never again.
+          # 2. `cp -a` preserves the ownership (apache, uid 1000) and the tight
+          #    modes the Dockerfile sets (dirs 500/700, files 400, sqlconf.php 666).
+          seed-sites:
+            image:
+              repository: docker.io/openemr/openemr
+              tag: 8.3.0
+            command:
+              - sh
+              - -c
+              - |
+                set -e
+                if [ -d /seed/default ]; then
+                  echo "sites/ already seeded — leaving it alone"
+                else
+                  echo "seeding sites/ from the image's pristine copy"
+                  cp -a /swarm-pieces/sites/. /seed/
+                fi
+                ls -la /seed
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+          # OpenEMR's entrypoint has its own MySQL wait loop, but it gives up
+          # after a bounded number of retries and exits; gating on the socket
+          # here keeps first boot deterministic instead of crash-looping while
+          # MariaDB initialises its datadir.
+          wait-for-db:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.37.0"
+            command:
+              - sh
+              - -c
+              - until nc -z openemr-mariadb 3306; do echo "waiting for mariadb"; sleep 3; done
+
+        containers:
+          app:
+            image:
+              repository: docker.io/openemr/openemr
+              # 8.3.0 is upstream's current `latest` (see openemr/openemr
+              # .github/release-targets.yml — rel-830 ships "8.3.0,latest").
+              tag: 8.3.0
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: MYSQL_HOST
+                value: openemr-mariadb
+              - name: MYSQL_PORT
+                value: "3306"
+              - name: MYSQL_DATABASE
+                value: openemr
+              - name: MYSQL_USER
+                value: openemr
+              - name: MYSQL_ROOT_USER
+                value: root
+              # auto_configure needs root to CREATE the database + app user on
+              # first boot; afterwards OpenEMR connects as MYSQL_USER.
+              - name: MYSQL_ROOT_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: openemr-credentials
+                    key: mysql-root-password
+              - name: MYSQL_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: openemr-credentials
+                    key: mysql-password
+              - name: OE_USER
+                value: admin
+              - name: OE_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: openemr-credentials
+                    key: openemr-admin-password
+            probes:
+              # All three probes hit /meta/health/livez, a bare "PHP is running"
+              # check. Deliberately NOT /meta/health/readyz: that endpoint
+              # bootstraps the entire OpenEMR framework per call AND returns 200
+              # unconditionally — `setup_required`, and even an internal
+              # exception, come back 200 by design (see meta/health/index.php),
+              # so it cannot fail a probe and buys nothing for the cost.
+              #
+              # livez is still a real install gate, because openemr.sh runs
+              # auto_configure to completion and only then `exec`s httpd (its
+              # step 15). Nothing answers on :80 until the install has finished,
+              # so "livez responds" == "OpenEMR is installed and serving".
+              liveness: &oeProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /meta/health/livez
+                    port: 80
+                  periodSeconds: 30
+                  failureThreshold: 5
+              readiness: *oeProbe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /meta/health/livez
+                    port: 80
+                  # First boot = schema load + base data before httpd starts.
+                  # 60 x 20s = 20 min.
+                  periodSeconds: 20
+                  failureThreshold: 60
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                cpu: 2000m
+                memory: 1536Mi
+
+    service:
+      # Two services => bjw-s appends the identifier, so these render as
+      # `openemr-app` and `openemr-mariadb`. The IngressRoute and the app's
+      # MYSQL_HOST both reference those names explicitly.
+      app:
+        controller: openemr
+        ports:
+          http:
+            port: 80
+      mariadb:
+        controller: mariadb
+        ports:
+          mysql:
+            port: 3306
+
+    persistence:
+      # MariaDB datadir. Mounted through a `data` subPath because ceph-rbd hands
+      # out an ext4 volume whose root already contains lost+found — MariaDB's
+      # initialisation is happier with a directory it created itself.
+      db:
+        existingClaim: openemr-mariadb
+        advancedMounts:
+          mariadb:
+            app:
+              - path: /var/lib/mysql
+                subPath: data
+
+      # sites/ is mounted at a scratch path in the seeding initContainer and at
+      # OpenEMR's real site root in the app container — hence advancedMounts
+      # rather than globalMounts (which would mount both at the same path).
+      # Mounted at the PVC root (no subPath): a kubelet-created subPath dir is
+      # root:root 0750, which the uid-1000 `apache` user could not traverse. The
+      # ext4 lost+found at the root is inert — OpenEMR runs single-site and only
+      # ever looks at sites/default.
+      sites:
+        existingClaim: openemr-sites
+        advancedMounts:
+          openemr:
+            seed-sites:
+              - path: /seed
+            app:
+              - path: /var/www/localhost/htdocs/openemr/sites

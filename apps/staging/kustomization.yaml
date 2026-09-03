@@ -5,3 +5,6 @@ kind: Kustomization
 resources:
   # meshcentral promoted to production 2026-06-14 (apps/production/meshcentral)
   - chaptarr/kustomization.yaml
+  # EMR evaluation pair (2026-09-03) — throwaway, no backups.
+  - openemr/kustomization.yaml
+  - openmrs/kustomization.yaml

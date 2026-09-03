@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openemr-mariadb
+  # THROWAWAY eval volume (staging-rbd pool). Holds the MariaDB datadir for the
+  # OpenEMR evaluation — synthetic test patients only, no real data. Deliberately
+  # NO `backup:`/`backup-engine:` labels: this is disposable, and staging has no
+  # Kyverno policies to act on them anyway. Prune the app to reclaim it.
+spec:
+  storageClassName: ceph-rbd
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 8Gi

@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# OpenMRS 3 (reference application) — evaluation deployment on STAGING only.
+# Four containers: gateway (nginx) -> frontend (O3 SPA) + backend (Tomcat), on a
+# private MariaDB. Ships with the reference DEMO data, so there are patients to
+# click through on day one. All throwaway: no backup labels on the PVCs.
+#
+# No gatus components + postBuild here (unlike apps/production/<app>): the Gatus
+# instance lives on production and this is a short-lived eval. NOTE that adding
+# postBuild.substitute later would also start substituting the ${...} runtime
+# placeholders in openmrs-gateway-configmap.yaml — they would need $$ escaping.
+# Reachable at https://openmrs.staging.mainertoo.com/
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app openmrs
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/openmrs
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  # wait: false — the backend's first boot (schema + Liquibase + demo data) runs
+  # for tens of minutes; the HelmRelease carries its own 40m timeout for that.
+  timeout: 10m
+  wait: false
+
+  # Needed for openmrs-secret.sops.yaml (MariaDB + admin credentials).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

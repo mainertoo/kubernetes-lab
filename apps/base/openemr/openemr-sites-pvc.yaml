@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openemr-sites
+  # OpenEMR's per-site tree (`sites/default`): sqlconf.php (generated at install
+  # time), uploaded patient documents, letter templates, ESignature images.
+  # Seeded from the image's pristine /swarm-pieces/sites by the `seed-sites`
+  # initContainer — a k8s PVC does NOT auto-populate from image content the way a
+  # Docker named volume does, so mounting this empty would hide sites/default and
+  # OpenEMR would never install. THROWAWAY, no backup labels.
+spec:
+  storageClassName: ceph-rbd
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 8Gi

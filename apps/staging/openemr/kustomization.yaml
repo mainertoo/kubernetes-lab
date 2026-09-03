@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# OpenEMR — evaluation deployment on STAGING only. Official upstream image
+# (openemr/openemr) + a private MariaDB, both throwaway: the PVCs carry no
+# backup labels and hold synthetic test data only.
+#
+# No gatus components + postBuild here (unlike apps/production/<app>): the Gatus
+# instance lives on production and this is a short-lived eval. Reachable at
+# https://openemr.staging.mainertoo.com/
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app openemr
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/openemr
+  targetNamespace: *app
+
+  prune: true
+  retryInterval: 2m
+  # First boot runs OpenEMR's installer; wait: false means Flux does not block
+  # on the HelmRelease going Ready, and the HelmRelease carries its own 20m
+  # timeout for that.
+  timeout: 10m
+  wait: false
+
+  # Needed for openemr-secret.sops.yaml (MariaDB + admin credentials).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
