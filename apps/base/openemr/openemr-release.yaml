@@ -58,6 +58,16 @@ spec:
               - name: MARIADB_AUTO_UPGRADE
                 value: "1"
             probes:
+              # timeoutSeconds is explicit and generous on ALL THREE: the probe
+              # is a shell script that shells out to mariadb-admin, and on these
+              # 2-vCPU staging workers it comfortably exceeds the 1s Kubernetes
+              # default. Leaving it at the default made liveness kill the server
+              # *during* its initial datadir creation, which can leave a
+              # half-initialised datadir behind.
+              #
+              # The startup probe is what covers that first-boot window; without
+              # it, liveness starts counting against a server that is still
+              # running mariadb-install-db.
               liveness: &dbProbe
                 enabled: true
                 custom: true
@@ -68,11 +78,24 @@ spec:
                       - --su-mysql
                       - --connect
                       - --innodb_initialized
-                  initialDelaySeconds: 30
                   periodSeconds: 20
+                  timeoutSeconds: 10
+                  failureThreshold: 5
               readiness: *dbProbe
               startup:
-                enabled: false
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /usr/local/bin/healthcheck.sh
+                      - --su-mysql
+                      - --connect
+                      - --innodb_initialized
+                  # 30 x 10s = 5 min for datadir init on ceph-rbd.
+                  periodSeconds: 10
+                  timeoutSeconds: 10
+                  failureThreshold: 30
             resources:
               requests:
                 cpu: 50m
@@ -185,6 +208,7 @@ spec:
                     path: /meta/health/livez
                     port: 80
                   periodSeconds: 30
+                  timeoutSeconds: 5
                   failureThreshold: 5
               readiness: *oeProbe
               startup:
@@ -197,6 +221,7 @@ spec:
                   # First boot = schema load + base data before httpd starts.
                   # 60 x 20s = 20 min.
                   periodSeconds: 20
+                  timeoutSeconds: 5
                   failureThreshold: 60
             resources:
               requests:
