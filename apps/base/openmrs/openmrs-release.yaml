@@ -14,10 +14,18 @@ spec:
 
   install:
     createNamespace: false
+    # disableWait + no remediation, deliberately. First boot legitimately runs
+    # for tens of minutes, and a Deployment that has not gone Ready inside its
+    # progress deadline makes Helm declare the release stalled — at which point
+    # install remediation UNINSTALLS the release and retries, tearing down the
+    # database mid-initialisation and looping. Let Kubernetes own the rollout;
+    # the startup probes below are what actually gate traffic.
+    disableWait: true
     remediation:
-      retries: 3
+      retries: 0
   upgrade:
     cleanupOnFail: true
+    disableWait: true
     remediation:
       retries: 3
   uninstall:
@@ -50,6 +58,12 @@ spec:
               - mariadbd
               - --character-set-server=utf8mb4
               - --collation-server=utf8mb4_general_ci
+              # io_uring's SQPOLL kernel thread busy-spins a whole core even
+              # with zero clients connected. Both eval databases did exactly
+              # that and together pinned a 2-vCPU staging node at 100%, which
+              # starved every fork the healthcheck probe needed. Native AIO off
+              # => InnoDB falls back to the simulated AIO threads.
+              - --innodb-use-native-aio=0
             env:
               # The entrypoint creates this database and this owner on first
               # boot, so the backend never needs root.
@@ -70,49 +84,45 @@ spec:
               - name: MARIADB_AUTO_UPGRADE
                 value: "1"
             probes:
-              # timeoutSeconds is explicit and generous on ALL THREE: the probe
-              # is a shell script that shells out to mariadb-admin, and on these
-              # 2-vCPU staging workers it comfortably exceeds the 1s Kubernetes
-              # default. Leaving it at the default made liveness kill the server
-              # *during* its initial datadir creation, which can leave a
-              # half-initialised datadir behind.
+              # tcpSocket, NOT the image's healthcheck.sh. That script forks
+              # setpriv + mariadb-admin on every call, and a fork is the first
+              # thing to fail when the node is CPU-starved — which is exactly
+              # the state a runaway database creates. The probe then times out,
+              # the Deployment misses its progress deadline, Helm calls the
+              # release stalled, and install remediation uninstalls and retries
+              # in a loop. A TCP connect needs no fork and cannot hang.
               #
-              # The startup probe is what covers that first-boot window; without
-              # it, liveness starts counting against a server that is still
-              # running mariadb-install-db.
+              # mariadbd binds :3306 only after the datadir is initialised and
+              # it is accepting connections, so this is still a real signal.
               liveness: &dbProbe
                 enabled: true
                 custom: true
                 spec:
-                  exec:
-                    command:
-                      - /usr/local/bin/healthcheck.sh
-                      - --su-mysql
-                      - --connect
-                      - --innodb_initialized
+                  tcpSocket:
+                    port: 3306
                   periodSeconds: 20
-                  timeoutSeconds: 10
+                  timeoutSeconds: 5
                   failureThreshold: 5
               readiness: *dbProbe
               startup:
                 enabled: true
                 custom: true
                 spec:
-                  exec:
-                    command:
-                      - /usr/local/bin/healthcheck.sh
-                      - --su-mysql
-                      - --connect
-                      - --innodb_initialized
+                  tcpSocket:
+                    port: 3306
                   # 30 x 10s = 5 min for datadir init on ceph-rbd.
                   periodSeconds: 10
-                  timeoutSeconds: 10
+                  timeoutSeconds: 5
                   failureThreshold: 30
             resources:
               requests:
-                cpu: 50m
+                cpu: 100m
                 memory: 256Mi
               limits:
+                # A CPU limit is load-bearing here, not decoration: without one
+                # a spinning mariadbd takes an entire node's core and starves
+                # everything co-scheduled with it.
+                cpu: 1000m
                 memory: 768Mi
 
       # ---- Backend: Tomcat + the OpenMRS 3 reference distribution --------------
@@ -327,6 +337,19 @@ spec:
                 memory: 16Mi
               limits:
                 memory: 64Mi
+
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # staging-k3s-master-1 is untainted, so the scheduler will
+                  # happily put a database on it — and it is a 2-vCPU node also
+                  # carrying etcd, the Flux controllers, CoreDNS and cert-manager.
+                  # Both MariaDBs landed there and pinned it at 100%. Workers only.
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
 
     service:
       # Four services => bjw-s appends each identifier, giving openmrs-mariadb,
