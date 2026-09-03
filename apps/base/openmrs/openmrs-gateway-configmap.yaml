@@ -4,19 +4,33 @@ metadata:
   name: openmrs-gateway-nginx
   namespace: openmrs
 data:
-  # Upstream's gateway config, copied verbatim from
-  # openmrs/openmrs-distro-referenceapplication gateway/default.conf.template,
-  # with ONE change: the two upstreams are FQDNs instead of the bare Docker
-  # Compose service names `frontend` and `backend`.
+  # Upstream's gateway config, taken verbatim from tag 3.7.1 of
+  # openmrs/openmrs-distro-referenceapplication (gateway/default.conf.template)
+  # — the SAME ref as the pinned gateway image — with exactly three edits:
   #
-  # Why the change is required: the config resolves its upstreams at request
-  # time (`set $frontend ...; proxy_pass $frontend;`) via nginx's own `resolver`,
-  # and nginx's resolver does NOT apply the search domains from
-  # /etc/resolv.conf. Under Docker Compose the embedded DNS answers bare service
-  # names, so upstream works as-is; against CoreDNS a bare `frontend` is NXDOMAIN
-  # and every request 502s. The `grafana` upstream is left as upstream ships it —
-  # no such Service exists here, and because it is only resolved lazily on a
-  # request to /grafana it costs nothing at startup.
+  # 1. `resolver 127.0.0.11` -> `resolver ${NGINX_LOCAL_RESOLVERS}`.
+  #    127.0.0.11 is Docker's embedded DNS and does not exist in a Pod. The
+  #    placeholder is upstream's own later fix (present on main), backported
+  #    here; it is filled in at start-up from /etc/resolv.conf by
+  #    /docker-entrypoint.d/15-local-resolvers.envsh, which ships in the
+  #    nginx:1.31-alpine BASE image. That script exits early unless
+  #    NGINX_ENTRYPOINT_LOCAL_RESOLVERS is set — 3.7.1's gateway Dockerfile does
+  #    not set it (main does), so the HelmRelease sets it on the container. Miss
+  #    that and nginx dies at boot with:
+  #      [emerg] host not found in resolver "${NGINX_LOCAL_RESOLVERS}"
+  #
+  # 2+3. The two upstreams become cluster FQDNs. The config resolves them at
+  #    request time (`set $var; proxy_pass $var`) through nginx's own resolver,
+  #    which does NOT apply the search domains from /etc/resolv.conf. Under
+  #    Compose the embedded DNS answers bare service names; against CoreDNS a
+  #    bare `frontend` is NXDOMAIN and every request 502s.
+  #
+  # The `grafana` upstream is left exactly as upstream ships it — no such
+  # Service exists here, and it is only resolved lazily on a request to
+  # /grafana, so it costs nothing at start-up.
+  #
+  # NOTE this is pinned to 3.7.1. On a version bump, re-diff against that tag's
+  # template and re-apply these three edits.
   #
   # The container mounts this at /etc/nginx/conf-templates/, NOT
   # /etc/nginx/templates/ — the image's entrypoint copies between the two, and
@@ -28,7 +42,7 @@ data:
   # postBuild.substitute — apps/staging/openmrs does not.
   default.conf.template: |
     map $request_uri $csp_header {
-      default "default-src 'self' 'unsafe-inline' 'unsafe-eval' localhost localhost:*; base-uri 'self'; font-src 'self'; img-src 'self' data:; object-src 'self' blob:; frame-ancestors 'self' ${FRAME_ANCESTORS};";
+      default "default-src 'self' 'unsafe-inline' 'unsafe-eval' localhost localhost:*; base-uri 'self'; font-src 'self'; img-src 'self' data:; frame-ancestors 'self' ${FRAME_ANCESTORS};";
       "~^/openmrs/(?:admin|dictionary|module|patientDashboard.form)/" "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; base-uri 'self'; font-src 'self'; frame-ancestors 'self';";
       "~^/openmrs/owa" "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; base-uri 'self'; font-src 'self' data:; img-src 'self' data:; frame-ancestors 'self';";
     }
