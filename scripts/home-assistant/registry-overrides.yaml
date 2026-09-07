@@ -1,0 +1,76 @@
+# registry-overrides.yaml — desired state for the Home Assistant registry.
+#
+# WHY THIS EXISTS: HA has no YAML for the entity/device registry. Names, aliases,
+# device_class overrides, hidden flags, areas and Assist exposure all live in
+# /config/.storage, which HA owns and rewrites at runtime — so a bare-metal
+# restore brings template entities back from git and loses every override.
+# `homeassistant.customize` is legacy and only covers friendly_name/icon/
+# device_class; it cannot express aliases, exposure, hidden or areas.
+#
+#   ./ha-registry.py check    # diff only, exit 1 if drifted (safe, read-only)
+#   ./ha-registry.py apply    # converge the live registry onto this file
+#   ./ha-registry.py export <entity_id>...   # seed new blocks from live state
+#
+# Devices are matched by MAC because device_ids are regenerated when a device is
+# removed and re-added. Entities are matched by entity_id, which is pinned by the
+# template's unique_id — never change a unique_id.
+#
+# This does NOT create entities. Template entities come from
+# apps/base/home-assistant/home-assistant-templates.yaml via Flux; integration
+# entities appear when their device is added. This only decorates them.
+
+devices:
+  - comment: Sliding Door Lock 1 (kitchen)
+    mac: "e4:b0:63:75:7d:a8"
+    area: kitchen
+  - comment: Sliding Door Lock 2 (dining room)
+    mac: "cc:ba:97:c2:1c:b8"
+    area: dining_room
+
+# ── Sliding door locks ───────────────────────────────────────────────────────
+# ⚠️ Names are place-based, never numbered: Assist drops a trailing number and
+# will answer about the wrong door. See wiki 278.
+# ⚠️ The relays report intent, not bolt state — hidden and never exposed.
+entities:
+  binary_sensor.dining_room_sliding_door_lock_2_input_100:
+    device_class: door
+    expose: true
+    name: Dining Room Sliding Door Position
+  binary_sensor.kitchen_sliding_door_lock_1_input_100:
+    device_class: door
+    expose: true
+    name: Kitchen Sliding Door Position
+  binary_sensor.sliding_door_1_lock_armed:
+    area_id: kitchen
+    expose: false
+    name: Kitchen Sliding Door Lock Armed
+  binary_sensor.sliding_door_2_lock_armed:
+    area_id: dining_room
+    expose: false
+    name: Dining Room Sliding Door Lock Armed
+  lock.sliding_door_1:
+    aliases:
+    - kitchen door
+    - kitchen slider
+    - patio door
+    area_id: kitchen
+    expose: true
+    name: Kitchen Sliding Door
+  lock.sliding_door_2:
+    aliases:
+    - dining room door
+    - dining room slider
+    area_id: dining_room
+    expose: true
+    name: Dining Room Sliding Door
+  switch.dining_room_sliding_door_lock_2:
+    expose: false
+    hidden_by: user
+    icon: mdi:electric-switch
+    name: Sliding Door Lock 2 Relay
+  switch.kitchen_sliding_door_lock_1:
+    expose: false
+    hidden_by: user
+    icon: mdi:electric-switch
+    name: Sliding Door Lock 1 Relay
+
