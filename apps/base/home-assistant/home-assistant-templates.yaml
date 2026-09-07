@@ -83,3 +83,59 @@
         {{ has_value('switch.kitchen_sliding_door_lock_1')
            and has_value('binary_sensor.kitchen_sliding_door_lock_1_input_100') }}
       delay_on: "00:00:30"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sliding Door Lock 2 (Dining Room) — Shelly 1 Gen4 @ 192.168.20.194 + Plus Add-on
+# Identical build to the kitchen unit; see wiki 278.
+#
+# ⚠️ What actually stops the bolt firing into an open doorway is the LIBO's own
+# internal interlock reed — HARDWARE, not this file. The bolt only drives when
+# the receiver magnet is present. These entities REPORT that truth; `lock_armed`
+# is the alarm for "relay energised but the bolt never fired".
+#
+# Source entities:
+#   switch.dining_room_sliding_door_lock_2                   relay (commanded)
+#   binary_sensor.dining_room_sliding_door_lock_2_input_100  door, device_class door
+#                                                            (on = Open, off = Closed)
+#   event.dining_room_sliding_door_lock_2_input              button press (every press)
+# ─────────────────────────────────────────────────────────────────────────────
+
+- lock:
+    - name: "Sliding Door 2"
+      unique_id: sliding_door_2_lock
+      # Truth, not intent — both conditions must hold for the bolt to be out.
+      state: >
+        {{ is_state('switch.dining_room_sliding_door_lock_2', 'on')
+           and is_state('binary_sensor.dining_room_sliding_door_lock_2_input_100', 'off') }}
+      availability: >
+        {{ has_value('switch.dining_room_sliding_door_lock_2')
+           and has_value('binary_sensor.dining_room_sliding_door_lock_2_input_100') }}
+      optimistic: false
+      attributes:
+        door_position: >-
+          {{ 'open' if is_state('binary_sensor.dining_room_sliding_door_lock_2_input_100', 'on')
+             else 'closed' }}
+        bolt: >-
+          {{ 'retracted' if is_state('switch.dining_room_sliding_door_lock_2', 'off')
+             else ('thrown' if is_state('binary_sensor.dining_room_sliding_door_lock_2_input_100', 'off')
+                   else 'armed') }}
+      lock:
+        action: switch.turn_on
+        target:
+          entity_id: switch.dining_room_sliding_door_lock_2
+      unlock:
+        action: switch.turn_off
+        target:
+          entity_id: switch.dining_room_sliding_door_lock_2
+
+- binary_sensor:
+    - name: "Sliding Door 2 Lock Armed"
+      unique_id: sliding_door_2_lock_armed
+      device_class: problem
+      state: >
+        {{ is_state('switch.dining_room_sliding_door_lock_2', 'on')
+           and is_state('binary_sensor.dining_room_sliding_door_lock_2_input_100', 'on') }}
+      availability: >
+        {{ has_value('switch.dining_room_sliding_door_lock_2')
+           and has_value('binary_sensor.dining_room_sliding_door_lock_2_input_100') }}
+      delay_on: "00:00:30"
