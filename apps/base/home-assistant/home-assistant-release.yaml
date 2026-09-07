@@ -122,6 +122,10 @@ spec:
                 automation: !include automations.yaml
                 script: !include scripts.yaml
                 scene: !include scenes.yaml
+
+                # template entities (modern syntax) — mounted read-only from the
+                # home-assistant-templates ConfigMap
+                template: !include templates.yaml
                 EOF
                 fi
 
@@ -217,6 +221,16 @@ spec:
                 EOF
                 fi
 
+                # templates.yaml itself is a read-only ConfigMap mount; this only
+                # ensures configuration.yaml still references it after a rebuild.
+                if ! grep -qE '^[[:space:]]*template:[[:space:]]*!include[[:space:]]+templates\.yaml' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                # template entities (modern syntax)
+                template: !include templates.yaml
+                EOF
+                fi
+
     service:
       app:
         controller: home-assistant
@@ -251,6 +265,17 @@ spec:
         globalMounts:
           - path: /config/secrets.yaml
             subPath: secrets.yaml
+            readOnly: true
+
+      # Template entities, git-sourced. Mounted READ-ONLY over the PVC copy, so
+      # git is the only way to change them (the PVC file is shadowed, not lost).
+      # Name is rewritten to the hashed ConfigMap by kustomizeconfig.yaml.
+      templates:
+        type: configMap
+        name: home-assistant-templates
+        globalMounts:
+          - path: /config/templates.yaml
+            subPath: templates.yaml
             readOnly: true
 
     defaultPodOptions:
