@@ -83,6 +83,17 @@ declared, so the manifest can be adopted incrementally.
 **It does not create entities** — it only decorates ones that already exist. Template entities
 arrive via Flux; integration entities appear when their device is added.
 
+A declared entity or device that is **missing** is reported and skipped rather than crashing, so
+running it mid-restore is safe. `check` **exits 1** in that case — a half-restored instance must
+not report "in sync". `apply` converges what it can and tells you to re-run once the rest exists.
+
+```
+?? lock.does_not_exist_yet: not in the registry — skipped
+0 drifted field(s), 2 declared object(s) MISSING
+```
+
+`-f/--file` works either side of the subcommand (`check -f other.yaml`).
+
  The wrapper refuses to
 run while the placeholder token is in place, and warns if the file is still plaintext.
 

@@ -132,6 +132,7 @@ def run(reg, manifest, apply_changes):
     import yaml
     spec = yaml.safe_load(manifest.read_text()) or {}
     drift = 0
+    skipped = 0
 
     devices = reg.devices()
     for d in spec.get("devices") or []:
@@ -140,6 +141,7 @@ def run(reg, manifest, apply_changes):
         label = d.get("comment", mac)
         if live is None:
             print(f"  ?? device {label}: no device with MAC {mac} — skipped")
+            skipped += 1
             continue
         changes = {}
         if "area" in d and live.get("area_id") != d["area"]:
@@ -158,6 +160,7 @@ def run(reg, manifest, apply_changes):
             live = reg.entity(eid)
         except SystemExit:
             print(f"  ?? {eid}: not in the registry — skipped")
+            skipped += 1
             continue
         d = entity_diff(want, live)
         if not d:
@@ -174,18 +177,23 @@ def run(reg, manifest, apply_changes):
             if "expose" in d:
                 reg.call({"type": "homeassistant/expose_entity", "assistants": ["conversation"],
                           "entity_ids": [eid], "should_expose": d["expose"][1]})
-    return drift
+    return drift, skipped
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
+    # -f lives on a shared parent so it works AFTER the subcommand
+    # (`check -f x.yaml`), which is the ordering everyone reaches for.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("-f", "--file", default=str(MANIFEST),
+                        help=f"manifest to read (default: {MANIFEST.name})")
+    ap = argparse.ArgumentParser(description=__doc__, parents=[common],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("check", help="report drift, exit 1 if any")
-    sub.add_parser("apply", help="converge the registry onto the manifest")
-    p = sub.add_parser("export", help="dump live overrides for entities as manifest YAML")
+    sub.add_parser("check", parents=[common], help="report drift, exit 1 if any")
+    sub.add_parser("apply", parents=[common], help="converge the registry onto the manifest")
+    p = sub.add_parser("export", parents=[common],
+                       help="dump live overrides for entities as manifest YAML")
     p.add_argument("entity_ids", nargs="+")
-    ap.add_argument("-f", "--file", default=str(MANIFEST))
     args = ap.parse_args()
 
     m = load_hass()
@@ -198,14 +206,22 @@ def main():
         manifest = Path(args.file)
         if not manifest.exists():
             sys.exit(f"manifest not found: {manifest}")
-        drift = run(reg, manifest, apply_changes=(args.cmd == "apply"))
+        drift, skipped = run(reg, manifest, apply_changes=(args.cmd == "apply"))
     finally:
         ha.close()
 
+    # A declared entity that is missing is NOT "in sync" — during a restore it means
+    # the templates have not landed yet. Surface it and fail, or `check` would give a
+    # green light on a half-restored instance.
+    note = f", {skipped} declared object(s) MISSING" if skipped else ""
     if args.cmd == "check":
-        print(f"\n{drift} drifted field(s)" if drift else "\nin sync ✅")
-        sys.exit(1 if drift else 0)
-    print(f"\napplied {drift} change(s)" if drift else "\nalready in sync ✅")
+        if drift or skipped:
+            print(f"\n{drift} drifted field(s){note}")
+            sys.exit(1)
+        print("\nin sync ✅")
+        sys.exit(0)
+    print((f"\napplied {drift} change(s){note}" if drift else f"\nalready in sync ✅{note}")
+          + ("\n  ^ re-run once the missing objects exist" if skipped else ""))
 
 
 if __name__ == "__main__":
