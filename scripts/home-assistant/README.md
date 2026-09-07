@@ -47,7 +47,43 @@ Two gotchas it documents: subscription-style commands (`system_health/info`) ret
 nothing through it, and `config/config_entries/list` isn't a WS command at all — that one
 is REST (`GET /api/config/config_entries/entry`).
 
-Run tools **without** the wrapper to hit the home/lab instance. The wrapper refuses to
+Run tools **without** the wrapper to hit the home/lab instance.
+
+## Registry overrides in git (`ha-registry.py`)
+
+HA has **no YAML for the entity/device registry**. Entity names, aliases, `device_class`
+overrides, hidden flags, areas and Assist exposure all live in `/config/.storage`, which HA
+owns and rewrites at runtime. `homeassistant.customize` is legacy and only reaches
+`friendly_name`/`icon`/`device_class` — it cannot express aliases, exposure, hidden or areas.
+
+So a bare-metal restore brings **template entities** back from git
+(`apps/base/home-assistant/home-assistant-templates.yaml`) and loses **every override**.
+
+`registry-overrides.yaml` is the desired state; `ha-registry.py` converges the live registry
+onto it:
+
+```bash
+./ha-registry.py check     # diff only, exit 1 if drifted — safe, read-only
+./ha-registry.py apply     # converge, printing every change
+./ha-registry.py export lock.foo switch.bar   # seed new blocks from live state
+```
+
+Always seed new entries with `export` rather than hand-typing them, then paste the block in.
+
+**Matching:** devices by **MAC** (device_ids are regenerated when a device is removed and
+re-added); entities by `entity_id`, which is pinned by the template's `unique_id` — never
+change a `unique_id`.
+
+**`aliases` is a closed set.** An entity listed in the manifest with no `aliases:` key must have
+none, and a stray alias added in the UI is reported as drift. Aliases are the voice-routing
+surface: a duplicate one is what makes Assist answer about the wrong device, so tolerating
+undeclared aliases would defeat the file's purpose. Every other field is managed only where
+declared, so the manifest can be adopted incrementally.
+
+**It does not create entities** — it only decorates ones that already exist. Template entities
+arrive via Flux; integration entities appear when their device is added.
+
+ The wrapper refuses to
 run while the placeholder token is in place, and warns if the file is still plaintext.
 
 **Why the address is withheld.** This repo is public. The tailnet domain itself already
