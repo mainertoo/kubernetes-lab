@@ -11,6 +11,14 @@
 #
 # configuration.yaml gets `template: !include templates.yaml` asserted by the
 # ensure-ha-config initContainer, so a bare rebuild wires itself up.
+#
+# ⚠️ NAME ENTITIES BY PLACE, NEVER BY NUMBER. Assist ignores a trailing number in
+# an entity name: with locks named "Sliding Door 1"/"Sliding Door 2",
+# *"is sliding door 2 locked"* answered from door 1 — a silent wrong answer on a
+# lock — and *"is sliding door two locked"* did not parse at all. Place-based
+# names and area-qualified phrasing ("the sliding door in the dining room") both
+# resolve correctly. unique_id is NOT changed by a rename, so entity IDs and all
+# registry overrides survive.
 # ─────────────────────────────────────────────────────────────────────────────
 # Sliding Door Lock 1 (Kitchen) — Shelly 1 Gen4 @ 192.168.20.212 + Plus Add-on
 #
@@ -39,7 +47,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 - lock:
-    - name: "Sliding Door 1"
+    - name: "Kitchen Sliding Door"
       unique_id: sliding_door_1_lock
       # Truth, not intent — both conditions must hold for the bolt to be out.
       state: >
@@ -70,7 +78,7 @@
           entity_id: switch.kitchen_sliding_door_lock_1
 
 - binary_sensor:
-    - name: "Sliding Door 1 Lock Armed"
+    - name: "Kitchen Sliding Door Lock Armed"
       unique_id: sliding_door_1_lock_armed
       device_class: problem
       # Relay energised while the door is open: it reads as locked but is not
@@ -101,7 +109,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 - lock:
-    - name: "Sliding Door 2"
+    - name: "Dining Room Sliding Door"
       unique_id: sliding_door_2_lock
       # Truth, not intent — both conditions must hold for the bolt to be out.
       state: >
@@ -129,7 +137,7 @@
           entity_id: switch.dining_room_sliding_door_lock_2
 
 - binary_sensor:
-    - name: "Sliding Door 2 Lock Armed"
+    - name: "Dining Room Sliding Door Lock Armed"
       unique_id: sliding_door_2_lock_armed
       device_class: problem
       state: >
