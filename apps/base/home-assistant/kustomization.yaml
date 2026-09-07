@@ -8,3 +8,16 @@ resources:
   - home-assistant-secret.sops.yaml
   # - home-assistant-macvlan-nad.yaml
   - home-assistant-pvc.yaml
+
+configMapGenerator:
+  - name: home-assistant-templates
+    files:
+      - templates.yaml=./home-assistant-templates.yaml
+
+# Hash suffix ON so a template edit produces a new ConfigMap name, which
+# kustomizeconfig.yaml propagates into the HelmRelease and rolls the pod.
+generatorOptions:
+  disableNameSuffixHash: false
+
+configurations:
+  - ./kustomizeconfig.yaml

@@ -1,0 +1,85 @@
+# home-assistant-templates.yaml — modern-syntax HA template entities.
+#
+# GIT IS THE SOURCE OF TRUTH for this file. It is rendered into the
+# `home-assistant-templates` ConfigMap by configMapGenerator and mounted
+# READ-ONLY over /config/templates.yaml in the HA pod. Editing the copy on the
+# config PVC (or in code-server) no longer has any effect — the mount shadows it.
+#
+# The ConfigMap name is hash-suffixed, and kustomizeconfig.yaml rewrites the
+# HelmRelease reference to match, so a change here rolls the HA pod and the new
+# templates come up with it. No `template.reload` needed.
+#
+# configuration.yaml gets `template: !include templates.yaml` asserted by the
+# ensure-ha-config initContainer, so a bare rebuild wires itself up.
+# ─────────────────────────────────────────────────────────────────────────────
+# Sliding Door Lock 1 (Kitchen) — Shelly 1 Gen4 @ 192.168.20.212 + Plus Add-on
+#
+# The LIBO drop bolt is FAIL-SAFE (power-to-lock) and has an internal interlock
+# reed: it only drives the bolt when the receiver magnet is present. So the
+# Shelly relay means "commanded to lock", NOT "bolt is out":
+#
+#   relay ON  + door closed (magnet present)  -> green LED, bolt throws  = LOCKED
+#   relay ON  + door open   (magnet absent)   -> orange LED, no throw    = NOT locked
+#   relay OFF                                 -> bolt retracted          = UNLOCKED
+#
+# Source entities:
+#   switch.kitchen_sliding_door_lock_1                   relay (commanded)
+#   binary_sensor.kitchen_sliding_door_lock_1_input_100  door, device_class door
+#                                                        (on = Open, off = Closed)
+#   event.kitchen_sliding_door_lock_1_input              button press (every press)
+#
+# All four states are SENSED, never actuated. Nothing here commands a door panel:
+#   closed   magnet in position at the Add-on digital input (input:100)
+#   open     magnet has moved away from it
+#   locked   relay energised AND magnet present -> the interlock let the bolt fire
+#   unlocked relay de-energised -> spring retracts the bolt
+# So the lock exposes lock/unlock only; open/closed is read off the door sensor
+# and mirrored onto this entity as the `door_position` attribute. A `cover` is
+# NOT usable here: HA rejects one without open_cover/set_cover_position.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- lock:
+    - name: "Sliding Door 1"
+      unique_id: sliding_door_1_lock
+      # Truth, not intent — both conditions must hold for the bolt to be out.
+      state: >
+        {{ is_state('switch.kitchen_sliding_door_lock_1', 'on')
+           and is_state('binary_sensor.kitchen_sliding_door_lock_1_input_100', 'off') }}
+      # Without this, a Shelly that drops off WiFi renders the lock as UNLOCKED
+      # rather than unavailable — a false "all clear" on a door lock.
+      availability: >
+        {{ has_value('switch.kitchen_sliding_door_lock_1')
+           and has_value('binary_sensor.kitchen_sliding_door_lock_1_input_100') }}
+      optimistic: false
+      attributes:
+        # The lock domain has no native door-position state, so carry it here.
+        door_position: >-
+          {{ 'open' if is_state('binary_sensor.kitchen_sliding_door_lock_1_input_100', 'on')
+             else 'closed' }}
+        bolt: >-
+          {{ 'retracted' if is_state('switch.kitchen_sliding_door_lock_1', 'off')
+             else ('thrown' if is_state('binary_sensor.kitchen_sliding_door_lock_1_input_100', 'off')
+                   else 'armed') }}
+      lock:
+        action: switch.turn_on
+        target:
+          entity_id: switch.kitchen_sliding_door_lock_1
+      unlock:
+        action: switch.turn_off
+        target:
+          entity_id: switch.kitchen_sliding_door_lock_1
+
+- binary_sensor:
+    - name: "Sliding Door 1 Lock Armed"
+      unique_id: sliding_door_1_lock_armed
+      device_class: problem
+      # Relay energised while the door is open: it reads as locked but is not
+      # secure. The bolt will throw on its own the moment the door closes.
+      # 30s delay so it doesn't fire every time someone walks out.
+      state: >
+        {{ is_state('switch.kitchen_sliding_door_lock_1', 'on')
+           and is_state('binary_sensor.kitchen_sliding_door_lock_1_input_100', 'on') }}
+      availability: >
+        {{ has_value('switch.kitchen_sliding_door_lock_1')
+           and has_value('binary_sensor.kitchen_sliding_door_lock_1_input_100') }}
+      delay_on: "00:00:30"
