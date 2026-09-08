@@ -5,3 +5,4 @@ resources:
   - tailscale-operator-repository.yaml
   - tailscale-operator-release.yaml
   - tailscale-operator-oauth-values.sops.yaml
+  - tailscale-connector-qidi-printer.yaml

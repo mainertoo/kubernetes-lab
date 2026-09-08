@@ -1,0 +1,22 @@
+# Subnet router exposing the QIDI Max 4 to the tailnet.
+#
+# The printer lives on the IoT VLAN (192.168.20.0/24), which no tailnet node
+# advertises. Reaching it remotely via an exit node does NOT work: a Tailscale
+# exit node forwards to the internet, not into its own local LAN, so packets to
+# 192.168.20.56 are dropped before the firewall ever sees them.
+#
+# Scoped to a /32 rather than the whole /24 so the rest of the IoT VLAN stays
+# off the tailnet. Safe to pin: .56 is a DHCP reservation ("QIDI Max 4 (wired)").
+#
+# The route must be approved in the Tailscale admin console, or covered by an
+# autoApprovers ACL entry for tag:k8s (the operator's PROXY_TAGS default, which
+# this Connector inherits).
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: qidi-printer
+spec:
+  hostname: qidi-subnet-router
+  subnetRouter:
+    advertiseRoutes:
+      - 192.168.20.56/32
