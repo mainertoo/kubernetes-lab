@@ -126,6 +126,9 @@ spec:
                 # template entities (modern syntax) — mounted read-only from the
                 # home-assistant-templates ConfigMap
                 template: !include templates.yaml
+
+                # RESTful switches — same ConfigMap, also read-only
+                switch: !include switches.yaml
                 EOF
                 fi
 
@@ -231,6 +234,17 @@ spec:
                 EOF
                 fi
 
+                # switches.yaml is a read-only mount from the same ConfigMap. Only add
+                # the include when there is no switch: key at all — a second top-level
+                # switch: key would be a duplicate-key config error.
+                if ! grep -qE '^[[:space:]]*switch:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                # RESTful switches
+                switch: !include switches.yaml
+                EOF
+                fi
+
     service:
       app:
         controller: home-assistant
@@ -276,6 +290,9 @@ spec:
         globalMounts:
           - path: /config/templates.yaml
             subPath: templates.yaml
+            readOnly: true
+          - path: /config/switches.yaml
+            subPath: switches.yaml
             readOnly: true
 
     defaultPodOptions:
