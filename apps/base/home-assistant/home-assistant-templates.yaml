@@ -341,3 +341,126 @@
         {%- set w = states('sensor.server_rack_power') | float(none) -%}
         {%- set price = states('sensor.electricity_price') | float(none) -%}
         {{ (this.state | float(0) + (w / 60000 * price if w is not none and price is not none else 0)) | round(4) }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3D printer — per-print energy, cost and CO2. Print state comes from the
+# Moonraker integration (HACS marcolivierarsenault/moonraker-home-assistant,
+# device "QIDI Max 4", 192.168.20.56:7125):
+#
+#   sensor.qidi_max_4_current_print_state  standby|printing|paused|complete|cancelled|error
+#   sensor.qidi_max_4_filename             kept after a print ends, until the next starts
+#   sensor.qidi_max_4_print_duration       min, excludes pauses
+#   sensor.qidi_max_4_filament_used        m
+#
+# START = printing from standby/complete/cancelled/error. Deliberately NOT from
+# unavailable/unknown: an HA restart or Moonraker blip mid-print must not take a
+# fresh snapshot. A resume from paused is not a new print either.
+# END   = complete/cancelled/error from printing/paused, or from unavailable/
+# unknown so a print that finishes while HA is down is still recorded.
+#
+# Each sensor snapshots its own counter into a `start` attribute at START and
+# publishes the difference at END, then clears `start`. An END with no snapshot
+# (a print already running when HA came up) is skipped, never reported as a
+# bogus total. Filename/duration/filament are read at END — at START Moonraker
+# may not have published the new job yet.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- triggers:
+    - trigger: state
+      entity_id: sensor.qidi_max_4_current_print_state
+      from: [standby, complete, cancelled, error]
+      to: printing
+      id: start
+    - trigger: state
+      entity_id: sensor.qidi_max_4_current_print_state
+      from: [printing, paused, unavailable, unknown]
+      to: [complete, cancelled, error]
+      id: end
+  sensor:
+    - name: "3D Printer Last Print Energy"
+      unique_id: printer_3d_last_print_energy
+      unit_of_measurement: kWh
+      device_class: energy
+      icon: mdi:printer-3d-nozzle
+      state: >
+        {%- set start = this.attributes.get('start') | float(none) -%}
+        {%- set now_v = states('sensor.3d_printer_plug_energy') | float(none) -%}
+        {%- if trigger.id == 'end' and start is not none and now_v is not none and now_v >= start -%}
+          {{ (now_v - start) | round(3) }}
+        {%- else -%}
+          {{ this.state if this.state | is_number else 0 }}
+        {%- endif -%}
+      attributes:
+        start: >
+          {{ states('sensor.3d_printer_plug_energy') | float(none) if trigger.id == 'start' else none }}
+        start_time: >
+          {{ now().isoformat() if trigger.id == 'start' else none }}
+        # The record of the last FINISHED print — only rewritten on a valid END.
+        filename: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ states('sensor.qidi_max_4_filename') if ok else this.attributes.get('filename') }}
+        result: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ trigger.to_state.state if ok else this.attributes.get('result') }}
+        started: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ this.attributes.get('start_time') if ok else this.attributes.get('started') }}
+        ended: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ now().isoformat() if ok else this.attributes.get('ended') }}
+        print_minutes: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ states('sensor.qidi_max_4_print_duration') | float(0) | round(0) if ok else this.attributes.get('print_minutes') }}
+        filament_m: >
+          {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
+          {{ states('sensor.qidi_max_4_filament_used') | float(0) | round(2) if ok else this.attributes.get('filament_m') }}
+    - name: "3D Printer Last Print Cost"
+      unique_id: printer_3d_last_print_cost
+      unit_of_measurement: USD
+      icon: mdi:currency-usd
+      state: >
+        {%- set start = this.attributes.get('start') | float(none) -%}
+        {%- set now_v = states('sensor.3d_printer_energy_cost') | float(none) -%}
+        {%- if trigger.id == 'end' and start is not none and now_v is not none and now_v >= start -%}
+          {{ (now_v - start) | round(2) }}
+        {%- else -%}
+          {{ this.state if this.state | is_number else 0 }}
+        {%- endif -%}
+      attributes:
+        start: >
+          {{ states('sensor.3d_printer_energy_cost') | float(none) if trigger.id == 'start' else none }}
+    - name: "3D Printer Last Print CO2"
+      unique_id: printer_3d_last_print_co2
+      unit_of_measurement: kg
+      icon: mdi:molecule-co2
+      state: >
+        {%- set start = this.attributes.get('start') | float(none) -%}
+        {%- set now_v = states('sensor.3d_printer_co2') | float(none) -%}
+        {%- if trigger.id == 'end' and start is not none and now_v is not none and now_v >= start -%}
+          {{ (now_v - start) | round(3) }}
+        {%- else -%}
+          {{ this.state if this.state | is_number else 0 }}
+        {%- endif -%}
+      attributes:
+        start: >
+          {{ states('sensor.3d_printer_co2') | float(none) if trigger.id == 'start' else none }}
+
+# Running totals for the print in progress; 0 when nothing is printing.
+- sensor:
+    - name: "3D Printer Current Print Energy"
+      unique_id: printer_3d_current_print_energy
+      unit_of_measurement: kWh
+      device_class: energy
+      icon: mdi:printer-3d-nozzle
+      state: >
+        {%- set start = state_attr('sensor.3d_printer_last_print_energy', 'start') | float(none) -%}
+        {%- set now_v = states('sensor.3d_printer_plug_energy') | float(none) -%}
+        {{ (now_v - start) | round(3) if start is not none and now_v is not none and now_v >= start else 0 }}
+    - name: "3D Printer Current Print Cost"
+      unique_id: printer_3d_current_print_cost
+      unit_of_measurement: USD
+      icon: mdi:currency-usd
+      state: >
+        {%- set start = state_attr('sensor.3d_printer_last_print_cost', 'start') | float(none) -%}
+        {%- set now_v = states('sensor.3d_printer_energy_cost') | float(none) -%}
+        {{ (now_v - start) | round(2) if start is not none and now_v is not none and now_v >= start else 0 }}
