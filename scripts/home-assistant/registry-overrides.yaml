@@ -26,6 +26,13 @@ devices:
   - comment: Sliding Door Lock 2 (dining room)
     mac: "cc:ba:97:c2:1c:b8"
     area: dining_room
+  # Entity IDs were renamed shellyofficegen4/shellyplugusg4_* -> 3d_printer_plug_*
+  # (2026-09-12). This file cannot express entity_id renames — those survive via the
+  # kopia-backed config PVC, not a bare rebuild.
+  - comment: 3D Printer Plug (office) — Shelly Plug US Gen4 feeding the QIDI Max 4 power bar
+    mac: "ac:eb:e6:f7:48:ac"
+    area: office_bedroom
+    name_by_user: 3D Printer Plug
 
 # ── Sliding door locks ───────────────────────────────────────────────────────
 # ⚠️ Names are place-based, never numbered: Assist drops a trailing number and
@@ -63,6 +70,10 @@ entities:
     area_id: dining_room
     expose: true
     name: Dining Room Sliding Door
+  # ── 3D printer plug ──────────────────────────────────────────────────────────
+  # ⚠️ Turning this off kills a print mid-job — never exposed to Assist.
+  switch.3d_printer_plug:
+    expose: false
   switch.dining_room_sliding_door_lock_2:
     expose: false
     hidden_by: user
