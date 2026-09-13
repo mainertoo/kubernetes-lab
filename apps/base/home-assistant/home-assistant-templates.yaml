@@ -147,3 +147,197 @@
         {{ has_value('switch.dining_room_sliding_door_lock_2')
            and has_value('binary_sensor.dining_room_sliding_door_lock_2_input_100') }}
       delay_on: "00:00:30"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ENERGY MONITORING
+#
+# The SolarEdge site has NO meter (inventory `meters: []`) and SCE is not an
+# Opower utility, so nothing in the house measures grid import/export yet. The
+# Energy dashboard (prefs in /config/.storage/energy, NOT git — see the wiki
+# page smart-home/energy) therefore carries solar + individual devices only.
+# These entities fill the gaps: a TOU price, per-device cost/CO2, rack power.
+#
+# Accumulators below are trigger-based and add the DELTA since the last update,
+# held in a `last_energy` attribute, so a source dropping to unavailable never
+# loses the kWh that accrued while it was away. They use total_increasing (not
+# `total`) so a lost restore reads as a meter reset, never a negative change.
+# ─────────────────────────────────────────────────────────────────────────────
+# SCE TOU-D-PRIME (NEM 2.0) — delivered $/kWh, per sce.com rate-plan page
+# (Sept 2026). ⚠️ Rates change a few times a year: re-check against the bill
+# and edit the numbers here. The $0.79/day Base Services Charge is fixed and
+# not modelled. SCE TOU holidays count as weekends; only Jul 4 (Mon Jul 5 when
+# the 4th is a Sunday) and Labor Day land in summer, the rest are winter where
+# weekday and weekend prices are identical.
+#
+#                  4–9 PM                 all other hours
+#   Summer Jun–Sep weekday 0.59 on-peak   0.26 off-peak
+#                  weekend 0.40 mid-peak
+#   Winter Oct–May 0.56 mid-peak          0.24 off-peak & super-off-peak (8a–4p)
+# ─────────────────────────────────────────────────────────────────────────────
+
+- sensor:
+    - name: "Electricity Price"
+      unique_id: sce_tou_d_prime_price
+      unit_of_measurement: "USD/kWh"
+      state_class: measurement
+      icon: mdi:currency-usd
+      state: >
+        {%- set n = now() -%}
+        {%- set wd = n.weekday() -%}
+        {%- set holiday = (n.month == 7 and n.day == 4)
+              or (n.month == 7 and n.day == 5 and wd == 0)
+              or (n.month == 9 and wd == 0 and n.day <= 7) -%}
+        {%- set peak = 16 <= n.hour < 21 -%}
+        {%- if n.month in [6, 7, 8, 9] -%}
+          {{ ((0.40 if wd >= 5 or holiday else 0.59) if peak else 0.26) }}
+        {%- else -%}
+          {{ 0.56 if peak else 0.24 }}
+        {%- endif -%}
+      attributes:
+        plan: "SCE TOU-D-PRIME"
+        season: "{{ 'summer' if now().month in [6, 7, 8, 9] else 'winter' }}"
+        period: >-
+          {%- set n = now() -%}
+          {%- set wd = n.weekday() -%}
+          {%- set holiday = (n.month == 7 and n.day == 4)
+                or (n.month == 7 and n.day == 5 and wd == 0)
+                or (n.month == 9 and wd == 0 and n.day <= 7) -%}
+          {%- if 16 <= n.hour < 21 -%}
+            {{ 'on_peak' if n.month in [6, 7, 8, 9] and wd < 5 and not holiday else 'mid_peak' }}
+          {%- elif n.month not in [6, 7, 8, 9] and 8 <= n.hour < 16 -%}
+            super_off_peak
+          {%- else -%}
+            off_peak
+          {%- endif -%}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3D printer — Shelly Plug US Gen4 (office) feeding the QIDI Max 4 power bar
+# (printer + QIDI Box + accessories), device "3D Printer Plug".
+#
+# Measured 2026-09-11/12: idle 14.3 W flat; printing ~225 W mean with
+# 700 W heat-up surges; chamber-heated prints ~355 W mean, 1,245 W peaks.
+#
+# Source entities:
+#   sensor.3d_printer_plug_power    W
+#   sensor.3d_printer_plug_energy   kWh, on-device counter (survives HA restarts)
+#   switch.3d_printer_plug          ⚠️ cuts the printer — NOT exposed to Assist
+# ─────────────────────────────────────────────────────────────────────────────
+
+- binary_sensor:
+    - name: "3D Printer Active"
+      unique_id: printer_3d_active
+      device_class: running
+      # Idle is ~14 W; bed/hotend PWM never dips below ~70 W mid-print. The
+      # delay_off rides through heater cycling and short pauses.
+      state: "{{ states('sensor.3d_printer_plug_power') | float(0) > 40 }}"
+      availability: "{{ has_value('sensor.3d_printer_plug_power') }}"
+      delay_on: "00:01:00"
+      delay_off: "00:10:00"
+
+- triggers:
+    - trigger: state
+      entity_id: sensor.3d_printer_plug_energy
+  sensor:
+    - name: "3D Printer Energy Cost"
+      unique_id: printer_3d_energy_cost
+      unit_of_measurement: USD
+      state_class: total_increasing
+      icon: mdi:printer-3d
+      state: >
+        {%- set prev = this.state | float(0) -%}
+        {%- set last = this.attributes.get('last_energy') | float(none) -%}
+        {%- set now_e = states('sensor.3d_printer_plug_energy') | float(none) -%}
+        {%- set price = states('sensor.electricity_price') | float(none) -%}
+        {%- if now_e is none or last is none or price is none -%}
+          {{ prev }}
+        {%- elif now_e >= last -%}
+          {{ (prev + (now_e - last) * price) | round(4) }}
+        {%- else -%}
+          {{ (prev + now_e * price) | round(4) }}
+        {%- endif -%}
+      attributes:
+        last_energy: >
+          {%- set now_e = states('sensor.3d_printer_plug_energy') | float(none) -%}
+          {{ now_e if now_e is not none else this.attributes.get('last_energy') }}
+    # Electricity Maps zone US-CAL-CISO. No device_class on purpose: `weight`
+    # would be auto-converted to lb on this US-unit instance.
+    - name: "3D Printer CO2"
+      unique_id: printer_3d_co2
+      unit_of_measurement: kg
+      state_class: total_increasing
+      icon: mdi:molecule-co2
+      state: >
+        {%- set prev = this.state | float(0) -%}
+        {%- set last = this.attributes.get('last_energy') | float(none) -%}
+        {%- set now_e = states('sensor.3d_printer_plug_energy') | float(none) -%}
+        {%- set g = states('sensor.electricity_maps_co2_intensity') | float(none) -%}
+        {%- if now_e is none or last is none or g is none -%}
+          {{ prev }}
+        {%- elif now_e >= last -%}
+          {{ (prev + (now_e - last) * g / 1000) | round(4) }}
+        {%- else -%}
+          {{ (prev + now_e * g / 1000) | round(4) }}
+        {%- endif -%}
+      attributes:
+        last_energy: >
+          {%- set now_e = states('sensor.3d_printer_plug_energy') | float(none) -%}
+          {{ now_e if now_e is not none else this.attributes.get('last_energy') }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Laundry-room rack — two CyberPower UPSes via NUT (HA nut integration).
+#   cabinet @ pve-zermatt 192.168.1.108  CP2000PFCRM2U  zermatt, mac, UDM SE, XG24, QNAP
+#   pr1500  @ pve-mammoth 192.168.1.109  CP1500PFCRM2U  mammoth, whistler, USW Aggregation
+#
+# CyberPower reports only an integer load %, so watts = load% × nominal real
+# power — an ESTIMATE with 12 W (CP2000) / 10 W (PR1500) resolution. Energy is a
+# 1-minute left Riemann sum; minutes while HA is down are not counted.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- sensor:
+    - name: "Rack UPS CP2000 Power"
+      unique_id: rack_ups_cp2000_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      state: >
+        {{ (states('sensor.cabinet_load') | float(0) * states('sensor.cabinet_nominal_real_power') | float(0) / 100) | round(0) }}
+      availability: "{{ has_value('sensor.cabinet_load') and has_value('sensor.cabinet_nominal_real_power') }}"
+    - name: "Rack UPS PR1500 Power"
+      unique_id: rack_ups_pr1500_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      state: >
+        {{ (states('sensor.pr1500_load') | float(0) * states('sensor.pr1500_nominal_real_power') | float(0) / 100) | round(0) }}
+      availability: "{{ has_value('sensor.pr1500_load') and has_value('sensor.pr1500_nominal_real_power') }}"
+    - name: "Server Rack Power"
+      unique_id: server_rack_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      state: >
+        {{ states('sensor.rack_ups_cp2000_power') | float(0) + states('sensor.rack_ups_pr1500_power') | float(0) }}
+      availability: >
+        {{ has_value('sensor.rack_ups_cp2000_power') or has_value('sensor.rack_ups_pr1500_power') }}
+
+- triggers:
+    - trigger: time_pattern
+      minutes: "/1"
+  sensor:
+    - name: "Server Rack Energy"
+      unique_id: server_rack_energy
+      unit_of_measurement: kWh
+      device_class: energy
+      state_class: total_increasing
+      state: >
+        {%- set w = states('sensor.server_rack_power') | float(none) -%}
+        {{ (this.state | float(0) + (w / 60000 if w is not none else 0)) | round(5) }}
+    - name: "Server Rack Energy Cost"
+      unique_id: server_rack_energy_cost
+      unit_of_measurement: USD
+      state_class: total_increasing
+      icon: mdi:server
+      state: >
+        {%- set w = states('sensor.server_rack_power') | float(none) -%}
+        {%- set price = states('sensor.electricity_price') | float(none) -%}
+        {{ (this.state | float(0) + (w / 60000 * price if w is not none and price is not none else 0)) | round(4) }}
