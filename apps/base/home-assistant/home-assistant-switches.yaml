@@ -1,0 +1,37 @@
+# home-assistant-switches.yaml — legacy `switch:` platform entries (RESTful switches).
+#
+# GIT IS THE SOURCE OF TRUTH. Shipped in the same hash-suffixed ConfigMap as
+# templates.yaml and mounted READ-ONLY over /config/switches.yaml, so a change here
+# rolls the HA pod. The ensure-ha-config initContainer asserts
+# `switch: !include switches.yaml` in configuration.yaml.
+#
+# Only for things that genuinely need YAML: a platform with no UI config flow.
+# ─────────────────────────────────────────────────────────────────────────────
+# QIDI Max 4 chamber light — Klipper `output_pin caselight` (PC7, non-PWM), driven
+# by the printer's own LED_ON / LED_OFF macros through Moonraker (192.168.20.56:7125,
+# no auth).
+#
+# WHY NOT THE MOONRAKER INTEGRATION: QIDI firmware also defines a non-standard
+# `smart_output_pin caselight` object, and moonraker-home-assistant 1.13.4 crashes
+# on it (KeyError in switch.py / number.py async_setup_output_pin), so it creates
+# NO output-pin switches at all. Drop this entry once upstream skips unknown objects.
+#
+# WHY READ STATE BACK (not optimistic): QIDI's smart_output_pin turns the light off
+# by itself after idle, so the last command sent is not the light's state.
+# `state_resource` polls the real pin value every 15 s.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- platform: rest
+  name: "3D Printer Chamber Light"
+  unique_id: printer_3d_chamber_light
+  icon: mdi:lightbulb-on-outline
+  resource: http://192.168.20.56:7125/printer/gcode/script
+  method: post
+  headers:
+    Content-Type: application/json
+  body_on: '{"script": "LED_ON"}'
+  body_off: '{"script": "LED_OFF"}'
+  state_resource: http://192.168.20.56:7125/printer/objects/query?output_pin%20caselight
+  is_on_template: "{{ value_json.result.status['output_pin caselight'].value | float(0) > 0 }}"
+  scan_interval: 15
+  timeout: 10

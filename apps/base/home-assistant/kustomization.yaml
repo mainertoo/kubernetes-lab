@@ -13,6 +13,7 @@ configMapGenerator:
   - name: home-assistant-templates
     files:
       - templates.yaml=./home-assistant-templates.yaml
+      - switches.yaml=./home-assistant-switches.yaml
 
 # Hash suffix ON so a template edit produces a new ConfigMap name, which
 # kustomizeconfig.yaml propagates into the HelmRelease and rolls the pod.
