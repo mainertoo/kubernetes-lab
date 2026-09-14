@@ -89,9 +89,16 @@ same kind, carry the same protections forward.
   with `lifecycle.ignore_changes = [source_raw]` on this resource.
 
 To intentionally refresh the Ubuntu image: bump `pm_cloud_image_url`
-to a dated build (e.g. `.../questing/20260520/...`) and run
+to a dated build (currently `.../resolute/20260823/...`, Ubuntu 26.04 LTS) and run
 `terraform apply -replace=module.cluster.proxmox_virtual_environment_download_file.ubuntu_cloud_image`.
-VMs won't be touched.
+VMs won't be touched. Always run `terraform plan -no-color | grep -B1 'forces replacement'`
+first: only the download_file resource may appear.
+
+**The image only affects newly created VMs.** Existing nodes are moved between
+releases in place with `ansible/fleet/playbooks/k3s_os_upgrade.yml`, which
+release-upgrades them. After building a worker, run
+`ansible/k3s-cluster/playbooks/k3s_gpu_sriov.yml`. It installs the pinned
+`i915-sriov-dkms` driver that the iGPU VF passthrough (`worker_hostpci_ids`) needs.
 
 ### 2. Other lifecycle ignores worth knowing about
 
