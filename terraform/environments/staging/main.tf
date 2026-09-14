@@ -37,9 +37,14 @@ module "cluster" {
   # so the migration is safe. Then `terraform apply -refresh-only` to
   # update state and update this file to record the post-migration
   # placement.
+  #
+  # Post-migration placement, recorded 2026-09-14. While this still said
+  # ["pve-mammoth", "pve-mammoth"], `terraform plan` wanted to destroy and
+  # recreate both workers (node_name forces replacement). For a from-scratch
+  # rebuild, set both back to "pve-mammoth" first, per the workflow above.
   pm_node_name         = "pve-mammoth"
   pm_master_node_names = ["pve-mammoth"]
-  pm_worker_node_names = ["pve-mammoth", "pve-mammoth"]
+  pm_worker_node_names = ["pve-whistler", "pve-zermatt"]
 
   # Staging has no Zigbee dongle — skip the USB hardware mapping.
   # Also avoids name collision with production's usb_passthrough mapping

@@ -46,7 +46,7 @@
         update_cache: true
 
     - name: Registered i915-sriov-dkms versions
-      ansible.builtin.shell: dkms status i915-sriov-dkms 2>/dev/null | cut -d, -f1 | cut -d/ -f2 | sort -u
+      ansible.builtin.shell: dkms status 2>/dev/null | grep '^i915-sriov-dkms/' | cut -d, -f1 | cut -d/ -f2 | sort -u
       register: sriov_versions
       changed_when: false
 
@@ -70,7 +70,7 @@
             deb: "/tmp/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
 
     - name: Built for the running kernel
-      ansible.builtin.shell: dkms status i915-sriov-dkms/{{ i915_sriov_dkms_version }} -k {{ ansible_kernel }} | grep installed
+      ansible.builtin.shell: dkms status -k {{ ansible_kernel }} 2>/dev/null | grep '^i915-sriov-dkms/{{ i915_sriov_dkms_version }},.*installed'
       changed_when: false
 
     # The package ships both i915 and xe; upstream requires xe to be kept off
