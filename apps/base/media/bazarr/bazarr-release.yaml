@@ -62,7 +62,7 @@ spec:
             # Real Bazarr image (not the home-operations sandbox)
             image:
               repository: lscr.io/linuxserver/bazarr
-              tag: 1.6.1-development@sha256:072a08b052dab78b09b17507549d91bb9e4d814c621bf8d61ecdcc3a7bf5fc35
+              tag: 1.6.1-development@sha256:ad36956e9301604bc10741b56dd86c58a23472d70fbb0a6ab69384508dba6085
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
