@@ -11,6 +11,8 @@ kind: Kustomization
 #                      Pairs with infrastructure/configs/cert-manager/staging/
 #                      which adds the LE-staging ClusterIssuer + the
 #                      *.staging.mainertoo.com wildcard Certificate.
+#                      Its ServiceMonitor is patched off below — staging
+#                      has no kube-prometheus-stack, so the CRD is absent.
 #   - traefik-proxy  — staging-specific (./traefik-proxy/). Uses
 #                      the staging wildcard cert; no Authentik
 #                      middleware, no PVE file provider.
@@ -37,3 +39,15 @@ resources:
   - ../controllers/ceph-csi-base
   - ../controllers/ceph-csi-rbd
   - ./storage/ceph-rbd
+
+patches:
+  # The shared cert-manager release enables a ServiceMonitor (#600) for
+  # production's Prometheus. Staging has no monitoring.coreos.com CRDs, so
+  # rendering it failed every Helm upgrade and pinned staging at v1.20.2.
+  - target:
+      kind: HelmRelease
+      name: cert-manager
+    patch: |
+      - op: replace
+        path: /spec/values/prometheus/servicemonitor/enabled
+        value: false
