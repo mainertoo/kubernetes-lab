@@ -17,6 +17,7 @@
   max_fail_percentage: 0
   gather_facts: false
   vars:
+    lxc_disk_max_pct: 85
     apt_opts: >-
       -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
       -o DPkg::Lock::Timeout=600
@@ -46,6 +47,16 @@
 
         - name: Stop processing this container
           ansible.builtin.meta: end_host
+
+    # Both AdGuard CTs had a 100% full 2 G rootfs (query log + journal) on
+    # 2026-09-14, and the primary crash-looped on its next restart. Stop before
+    # apt makes it worse.
+    - name: Root filesystem below {{ lxc_disk_max_pct }}% used
+      ansible.builtin.shell: pct exec {{ ctid }} -- df --output=pcent / | tail -1 | tr -dc '0-9'
+      delegate_to: "{{ pve_host }}"
+      register: ct_disk
+      changed_when: false
+      failed_when: ct_disk.stdout | int >= lxc_disk_max_pct
 
     - name: apt update + dist-upgrade inside the container
       ansible.builtin.shell: >-
