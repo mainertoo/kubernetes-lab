@@ -62,3 +62,17 @@ lan0_addresses:
   "192.168.90.164": "192.168.1.246/24"
   "192.168.90.165": "192.168.1.247/24"
   "192.168.90.166": "192.168.1.248/24"
+
+# Pinned, not auto-discovered: interpreter discovery binds a run to e.g.
+# /usr/bin/python3.13, which an Ubuntu release upgrade purges — later tasks and
+# async polls then fail silently. /usr/bin/python3 survives upgrades.
+ansible_python_interpreter: /usr/bin/python3
+
+# Node OS baseline: Ubuntu 26.04 LTS (terraform pm_cloud_image_url, resolute
+# 20260823). k3s v1.35.5+k3s1 validated on 26.04 / kernel 7.0.0-31 on 2026-09-14.
+
+# i915-sriov-dkms release for the iGPU VF on GPU workers (k3s_gpu_sriov.yml).
+# Supports kernels 6.17–7.1. The Proxmox hosts run the same release
+# (ansible/fleet inventory). Host and guest versions need not match, but
+# keeping them aligned avoids surprises. No-op on nodes without an Intel GPU.
+i915_sriov_dkms_version: "2026.08.12.1"

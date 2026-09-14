@@ -144,3 +144,6 @@
         sh -
       args:
         creates: /usr/local/bin/k3s-agent
+
+# Play 4: iGPU SR-IOV VF driver on GPU workers (no-op without an Intel GPU)
+- import_playbook: k3s_gpu_sriov.yml

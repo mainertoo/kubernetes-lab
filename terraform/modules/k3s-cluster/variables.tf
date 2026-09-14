@@ -15,7 +15,7 @@ variable "gateway" {
 variable "ci_template" {
   description = "Source cloud init template to clone in Proxmox."
   type        = string
-  default     = "questing-server-cloudimg-amd64.img"
+  default     = "resolute-server-cloudimg-amd64.img"
 }
 
 variable "qemu_agent" {
@@ -289,7 +289,12 @@ variable "pm_cloud_image_content_type" {
 variable "pm_cloud_image_url" {
   description = "Url for the Cloud image to be cloned onto proxmox"
   type        = string
-  default     = "https://cloud-images.ubuntu.com/questing/current/questing-server-cloudimg-amd64.img"
+  # Ubuntu 26.04 LTS (resolute), pinned to a dated build: the "current" URL is
+  # republished every few weeks, and a new image must be an explicit change
+  # (see the cascade-replacement notes in terraform/README.md). 25.10 (questing)
+  # lost support in July 2026. Validated with k3s v1.35.5, kernel 7.0 and
+  # i915-sriov-dkms 2026.08.12.1 on 2026-09-14.
+  default     = "https://cloud-images.ubuntu.com/resolute/20260823/resolute-server-cloudimg-amd64.img"
 }
 
 variable "ubuntu_password" {

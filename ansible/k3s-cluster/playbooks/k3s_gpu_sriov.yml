@@ -1,0 +1,116 @@
+---
+# Intel iGPU SR-IOV VF driver for K3s workers (i915-sriov-dkms).
+#
+#   ansible-playbook -i ansible/k3s-cluster/inventory/production/dynamic.sh \
+#     ansible/k3s-cluster/playbooks/k3s_gpu_sriov.yml
+#
+# Each production worker gets one Iris Xe VF from its Proxmox host
+# (terraform `worker_hostpci_ids`: 00:02.4/.5/.6). The stock kernel i915 cannot
+# drive a VF ("probe with driver i915 failed with error -5"), so the guest needs
+# the out-of-tree i915-sriov-dkms module, built for the running kernel. Without
+# it the node has no /dev/dri/renderD*, the Intel GPU device plugin advertises
+# 0 gpu.intel.com/i915, and every GPU workload silently falls back to CPU.
+#
+# Idempotent. A node without an Intel VGA device (e.g. staging) is a no-op.
+# The pinned version is `i915_sriov_dkms_version` in group_vars; bump it when a
+# kernel falls outside the release's BUILD_EXCLUSIVE range.
+#
+# After a FIRST install on a running node, restart GPU pods that are not
+# privileged (e.g. immich, plex): the device cgroup is fixed at pod start.
+
+- name: i915-sriov-dkms on GPU workers
+  hosts: worker
+  become: true
+  serial: 1
+  tasks:
+    - name: Detect an Intel VGA/display device (the passed-through VF)
+      ansible.builtin.shell: >-
+        lspci -nn -d 8086: | grep -Ei 'vga|display' || true
+      register: intel_gpu
+      changed_when: false
+
+    - name: Skip nodes without an Intel GPU
+      ansible.builtin.meta: end_host
+      when: intel_gpu.stdout | trim | length == 0
+
+    # linux-headers-virtual tracks the kernel meta-package, so every future
+    # kernel arrives with headers and DKMS rebuilds the module automatically.
+    - name: Build prerequisites (headers for this and future kernels, dkms, toolchain)
+      ansible.builtin.apt:
+        name:
+          - "linux-headers-{{ ansible_kernel }}"
+          - linux-headers-virtual
+          - dkms
+          - build-essential
+        state: present
+        update_cache: true
+
+    - name: Registered i915-sriov-dkms versions
+      ansible.builtin.shell: dkms status 2>/dev/null | grep '^i915-sriov-dkms/' | cut -d, -f1 | cut -d/ -f2 | sort -u
+      register: sriov_versions
+      changed_when: false
+
+    - name: Install the pinned release
+      when: i915_sriov_dkms_version not in sriov_versions.stdout_lines
+      block:
+        - name: Download i915-sriov-dkms {{ i915_sriov_dkms_version }}
+          ansible.builtin.get_url:
+            url: "https://github.com/strongtz/i915-sriov-dkms/releases/download/{{ i915_sriov_dkms_version }}/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
+            dest: "/tmp/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
+            mode: "0644"
+
+        # Two registered versions both claim i915.ko for the same kernel.
+        - name: Unregister other i915-sriov-dkms versions
+          ansible.builtin.command: dkms remove i915-sriov-dkms/{{ item }} --all
+          loop: "{{ sriov_versions.stdout_lines | reject('equalto', i915_sriov_dkms_version) | list }}"
+          changed_when: true
+
+        - name: Install i915-sriov-dkms {{ i915_sriov_dkms_version }} (DKMS builds it)
+          ansible.builtin.apt:
+            deb: "/tmp/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
+
+    - name: Built for the running kernel
+      ansible.builtin.shell: dkms status -k {{ ansible_kernel }} 2>/dev/null | grep '^i915-sriov-dkms/{{ i915_sriov_dkms_version }},.*installed'
+      changed_when: false
+
+    # The package ships both i915 and xe; upstream requires xe to be kept off
+    # in i915 SR-IOV mode.
+    - name: i915 SR-IOV mode — blacklist xe
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/i915-sriov-dkms.conf
+        content: |
+          # Managed by ansible/k3s-cluster/playbooks/k3s_gpu_sriov.yml
+          blacklist xe
+          options i915 enable_guc=3
+        mode: "0644"
+      register: modprobe_conf
+
+    - name: Refresh initramfs
+      ansible.builtin.command: update-initramfs -u
+      when: modprobe_conf.changed
+      changed_when: true
+
+    - name: Is the VF bound to i915?
+      ansible.builtin.shell: >-
+        lspci -k -s {{ intel_gpu.stdout.split()[0] }} | grep -q 'driver in use: i915'
+      register: i915_bound
+      changed_when: false
+      failed_when: false
+
+    # Hot-load when unbound (fresh install, or after a kernel change). Safe:
+    # an unbound i915/xe has no users.
+    - name: Load the DKMS i915 without a reboot
+      ansible.builtin.shell: modprobe -r xe i915 2>/dev/null; modprobe i915
+      when: i915_bound.rc != 0
+      changed_when: true
+
+    - name: Assert — VF bound to i915 with a render node, driver is the pinned release
+      ansible.builtin.shell: >-
+        lspci -k -s {{ intel_gpu.stdout.split()[0] }} | grep -q 'driver in use: i915'
+        && ls /dev/dri/renderD* >/dev/null
+        && grep -qx '{{ i915_sriov_dkms_version }}-sriov' /sys/module/i915/version
+      register: gpu_ok
+      changed_when: false
+      until: gpu_ok.rc == 0
+      retries: 6
+      delay: 5

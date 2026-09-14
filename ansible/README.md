@@ -28,6 +28,7 @@ ansible/k3s-cluster/
     ├── k3s_server_config.yml            # (one-off / config drift helper)
     ├── k3s_node_config.yml              # pins node-ip on every node (serial, health-gated)
     ├── k3s_lan0_netplan.yml             # owns the lan0 netplan; pins accept-ra off
+    ├── k3s_gpu_sriov.yml                # iGPU VF driver (i915-sriov-dkms) on GPU workers; no-op elsewhere
     └── templates/
         ├── kubevip_daemonset.yml.j2
         ├── metallb_config.yml.j2
@@ -97,7 +98,8 @@ version, etc.), pass `-e k3s_version=v1.34.6+k3s1` on the command line
 
 ### `k3s_install.yml`
 
-Fresh install. Three plays:
+Fresh install. Nodes are **Ubuntu 26.04 LTS**, from the Terraform image pinned in
+`pm_cloud_image_url`. Four plays:
 1. **Common prep** on every node (`k3s_cluster` group): disable swap,
    install `ceph-common`, persist `ceph` kernel module.
 2. **Servers** (`master` group): first master runs `--cluster-init`,
@@ -105,6 +107,39 @@ Fresh install. Three plays:
    first master's `/var/lib/rancher/k3s/server/node-token`.
 3. **Agents** (`worker` group): wait for the API on the first master,
    then install with `K3S_URL` + `K3S_TOKEN`.
+4. **GPU driver** (imports `k3s_gpu_sriov.yml`): see below.
+
+### `k3s_gpu_sriov.yml`
+
+Each production worker gets one Intel Iris Xe **SR-IOV VF** from its Proxmox host
+(Terraform `worker_hostpci_ids` = `00:02.4/.5/.6`). The stock kernel `i915` can't
+drive a VF (`probe with driver i915 failed with error -5`). Without the
+out-of-tree **`i915-sriov-dkms`** module the node has no `/dev/dri/renderD*`,
+the Intel GPU device plugin advertises `gpu.intel.com/i915 = 0`, and Plex,
+Jellyfin, Immich, Scrypted etc. silently transcode on CPU.
+
+The playbook, per worker (`serial: 1`, no-op without an Intel VGA device):
+- installs `linux-headers-$(uname -r)`, **`linux-headers-virtual`** (so every
+  future kernel arrives with headers and DKMS rebuilds the module), `dkms` and
+  `build-essential`
+- installs the pinned **`i915_sriov_dkms_version`** (group_vars) `.deb` from
+  GitHub, and unregisters other versions first
+- writes `/etc/modprobe.d/i915-sriov-dkms.conf` (`blacklist xe`,
+  `options i915 enable_guc=3`), because the package ships both drivers, then
+  refreshes the initramfs
+- hot-loads the DKMS `i915` if the VF is unbound, then asserts the VF is bound
+  to `i915`, a render node exists, and the loaded module is the pinned release
+
+It's idempotent; a re-run on healthy workers reports `changed=0`. **After a
+first install on a running node, restart non-privileged GPU pods** (e.g.
+Immich, Plex), because the device cgroup is fixed at pod start.
+
+**Bumping the version:** releases declare a supported kernel range
+(`BUILD_EXCLUSIVE_KERNEL`, currently 6.17–7.1). A kernel outside it builds
+nothing, and the GPU disappears at the next reboot. This happened on all three
+workers in the 25.10 → 26.04 upgrade on 2026-09-14. The fleet playbook
+`ansible/fleet/playbooks/k3s_os_upgrade.yml` now refuses to reboot a GPU node
+when the module isn't built for the new kernel.
 
 All installs pass `INSTALL_K3S_VERSION={{ k3s_version }}` and an
 `INSTALL_K3S_EXEC` rendered from `k3s_disable` + `k3s_apiserver_extra_args`.
