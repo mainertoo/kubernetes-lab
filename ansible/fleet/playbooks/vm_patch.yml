@@ -8,15 +8,11 @@
 # pve_host_patch.yml. spark is excluded unless explicitly limited to.
 
 - name: Patch VMs over SSH
-  hosts: vms_ssh:vms_manual_become
+  hosts: vms_ssh
   serial: 1
   max_fail_percentage: 0
   become: "{{ ansible_user != 'root' }}"
   tasks:
-    - name: Skip spark unless explicitly targeted
-      ansible.builtin.meta: end_host
-      when: inventory_hostname in groups['vms_manual_become'] and ansible_limit is not defined
-
     - name: Wait for PBS to have no running tasks (backups, GC, verify)
       ansible.builtin.shell: >-
         proxmox-backup-manager task list --output-format json |
@@ -31,23 +27,85 @@
     - name: Upgrade packages
       ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
 
+# Separate play with fact gathering deferred: gathering facts under become
+# prompts for sudo, which would fail (and abort the run) before a skip could fire.
+- name: Patch VMs that need an interactive sudo password
+  hosts: vms_manual_become
+  serial: 1
+  max_fail_percentage: 0
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Skip unless explicitly targeted with --limit (and -K)
+      ansible.builtin.meta: end_host
+      when: ansible_limit is not defined
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Upgrade packages
+      ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
 - name: Patch VMs through the QEMU guest agent
   hosts: vms_guest_agent
   serial: 1
   max_fail_percentage: 0
   gather_facts: false
+  vars:
+    ga_log: /var/log/fleet-apt-upgrade.log
+    ga_apt: >-
+      apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o DPkg::Lock::Timeout=600
   tasks:
-    - name: apt update + dist-upgrade inside the VM
-      ansible.builtin.shell: >-
-        qm guest exec {{ vmid }} --timeout 1800 -- /bin/sh -c
-        "apt-get update -q && DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none
-        apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
-        -o DPkg::Lock::Timeout=600 dist-upgrade"
+    # apt must NOT run as a child of the guest agent: upgrading qemu-guest-agent
+    # restarts the agent, which kills its children mid-dpkg and leaves ~75
+    # packages unpacked-but-unconfigured (hit on zwave-js 2026-09-14). A transient
+    # systemd unit survives that. `dpkg --configure -a` first makes a re-run
+    # repair any earlier interrupted attempt.
+    - name: Launch the upgrade as a detached systemd unit inside the VM
+      ansible.builtin.shell: |
+        qm guest exec {{ vmid }} --timeout 30 -- /bin/sh -c "systemd-run --unit=fleet-apt-upgrade --collect /bin/sh -c 'export DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none; { dpkg --force-confdef --force-confold --configure -a && apt-get update -q && {{ ga_apt }} -f install && {{ ga_apt }} dist-upgrade; echo FLEET-EXIT=\$?; } > {{ ga_log }} 2>&1'"
       delegate_to: "{{ pve_host }}"
-      register: ga
-      changed_when: "' 0 upgraded, 0 newly installed' not in ((ga.stdout | from_json)['out-data'] | default(''))"
-      failed_when: (ga.stdout | from_json).exitcode | default(1) != 0
+      register: ga_launch
+      changed_when: true
+      failed_when: "'Running as unit' not in ga_launch.stdout"
+
+    - name: Wait for the upgrade unit to finish (tolerates the agent restarting)
+      ansible.builtin.shell: |
+        qm guest exec {{ vmid }} --timeout 20 -- /bin/sh -c "grep -o 'FLEET-EXIT=[0-9]*' {{ ga_log }} || true" 2>/dev/null |
+          python3 -c 'import sys,json; s=sys.stdin.read(); print(json.loads(s).get("out-data","").strip() if s.lstrip().startswith("{") else "agent-unavailable")'
+      delegate_to: "{{ pve_host }}"
+      register: ga_poll
+      changed_when: false
+      until: "'FLEET-EXIT=' in ga_poll.stdout"
+      retries: 180
+      delay: 20
+
+    - name: Upgrade log tail
+      ansible.builtin.shell: |
+        qm guest exec {{ vmid }} --timeout 20 -- /bin/sh -c "grep -E 'upgraded,|^E:|FLEET-EXIT' {{ ga_log }}; dpkg --audit | head -5" |
+          python3 -c 'import sys,json; print(json.load(sys.stdin).get("out-data","").strip())'
+      delegate_to: "{{ pve_host }}"
+      register: ga_tail
+      changed_when: false
+      failed_when: "'FLEET-EXIT=0' not in ga_tail.stdout or 'not yet configured' in ga_tail.stdout or 'half configured' in ga_tail.stdout"
 
     - name: Summarize package changes
       ansible.builtin.debug:
-        msg: "{{ ((ga.stdout | from_json)['out-data'] | default('')).splitlines() | select('search', 'upgraded,') | list }}"
+        msg: "{{ ga_tail.stdout_lines }}"
+
+    # A docker-ce upgrade stops containers via containerd before the daemon, so
+    # Docker records them as user-stopped and `unless-stopped` never restarts
+    # them (zwave-js-ui was left down on 2026-09-14).
+    - name: Ensure required containers are running again
+      ansible.builtin.shell: |
+        qm guest exec {{ vmid }} --timeout 60 -- /bin/sh -c 'for c in {{ ensure_containers | join(" ") }}; do docker ps -q -f "name=^$c$" -f status=running | grep -q . || { docker start "$c" >/dev/null && echo "started $c"; }; done; docker ps --format "{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Status{{ '}}' }}"' |
+          python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("out-data","").strip())'
+      delegate_to: "{{ pve_host }}"
+      register: containers
+      changed_when: "'started ' in containers.stdout"
+      when: ensure_containers is defined
+
+    - name: Container status
+      ansible.builtin.debug:
+        msg: "{{ containers.stdout_lines }}"
+      when: ensure_containers is defined

@@ -32,18 +32,27 @@
     ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
     ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
     ceph_mon_ips: [192.168.99.12, 192.168.99.13, 192.168.99.14]
+    # Health-check codes that must not block a rollout. Ceph 20.2.4 raises
+    # AUTH_INSECURE_* (legacy cephx key types) — HEALTH_ERR, but storage works
+    # until keys are rotated deliberately (pve-cephx-rotate-service-keys).
+    ceph_health_ignore_prefixes: [AUTH_INSECURE_]
+    ceph_health_check_cmd: >-
+      ceph health detail -f json | IGNORE='{{ ceph_health_ignore_prefixes | join(",") }}' python3 -c
+      'import os,sys,json; ign=tuple(p for p in os.environ["IGNORE"].split(",") if p);
+      bad=sorted(k for k in json.load(sys.stdin).get("checks",{}) if not k.startswith(ign));
+      print("ok" if not bad else "blocking checks: " + ", ".join(bad))'
   tasks:
     # ── Gates ──────────────────────────────────────────────────────────
     - name: Gate — PVE cluster quorate
       ansible.builtin.shell: pvecm status | grep -Eq 'Quorate:\s+Yes'
       changed_when: false
 
-    - name: Gate — Ceph HEALTH_OK
-      ansible.builtin.command: ceph health
+    - name: Gate — Ceph healthy (ignoring known-benign checks)
+      ansible.builtin.shell: "{{ ceph_health_check_cmd }}"
       delegate_to: "{{ ceph_cli_host }}"
       register: ceph_health
       changed_when: false
-      failed_when: ceph_health.stdout | trim != 'HEALTH_OK'
+      failed_when: ceph_health.stdout | trim != 'ok'
 
     - name: Gate — every PG active+clean
       ansible.builtin.shell: >-
@@ -55,10 +64,14 @@
       changed_when: false
       failed_when: pg_clean.stdout | trim != 'ok'
 
+    # This host's own K3s nodes may still be cordoned from an interrupted run
+    # (Ready,SchedulingDisabled) — only they are exempt; everything else must be Ready.
     - name: Gate — all K3s nodes Ready (both clusters)
       ansible.builtin.shell: >-
         for c in production staging; do kubectl --context $c get nodes --no-headers |
-        awk -v c=$c '$2 != "Ready" {print c": "$1" "$2}'; done
+        awk -v c=$c -v own='{{ k3s_guests | map(attribute='node') | join(',') }}'
+        'BEGIN{n=split(own,a,","); for(i=1;i<=n;i++) mine[a[i]]=1}
+        !($1 in mine && $2 ~ /^Ready/) && $2 != "Ready" {print c": "$1" "$2}'; done
       delegate_to: localhost
       register: k8s_unready
       changed_when: false
@@ -75,6 +88,98 @@
       delay: 60
 
     # ── Prep ───────────────────────────────────────────────────────────
+    # iGPU SR-IOV: all three MS-01 hosts (and pve-s13/pve-ugreen) expose 7 VFs; the MS-01s
+    # pass one to their K3s worker (mammoth 00:02.4 → worker-1, whistler
+    # 00:02.5 → worker-2, zermatt 00:02.6 → worker-3). The VFs come from the
+    # out-of-tree i915-sriov-dkms module.
+    #
+    # The driver swap MUST happen BEFORE apt: a new kernel package runs the DKMS
+    # hook in its postinst. With an old driver that can't build for it (2026.05.06
+    # vs 7.0.14-17 on 2026-09-14) the hook fails, dpkg leaves the kernel
+    # half-configured and the whole upgrade errors out.
+    - name: iGPU SR-IOV — current VF count
+      ansible.builtin.shell: cat /sys/bus/pci/devices/0000:00:02.0/sriov_numvfs 2>/dev/null || echo 0
+      register: sriov_vfs_before
+      changed_when: false
+
+    # The inventory pin is the opt-in, not today's VF count: a host whose old
+    # driver stopped building for new kernels boots the stock i915 with 0 VFs
+    # (pve-ugreen on 2026-09-14) and must still get the pinned release.
+    - name: iGPU SR-IOV — expected VF count after reboot
+      ansible.builtin.set_fact:
+        sriov_vfs_expected: "{{ i915_sriov_vfs | default(sriov_vfs_before.stdout | trim) | int }}"
+
+    - name: iGPU SR-IOV — move the host driver to the pinned release (before apt)
+      when: i915_sriov_dkms_version is defined
+      block:
+        - name: Registered i915-sriov-dkms versions
+          ansible.builtin.shell: dkms status 2>/dev/null | grep '^i915-sriov-dkms/' | cut -d, -f1 | cut -d/ -f2 | sort -u
+          register: sriov_versions
+          changed_when: false
+
+        - name: Download i915-sriov-dkms {{ i915_sriov_dkms_version }}
+          ansible.builtin.get_url:
+            url: "https://github.com/strongtz/i915-sriov-dkms/releases/download/{{ i915_sriov_dkms_version }}/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
+            dest: "/root/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb"
+            mode: "0644"
+          when: i915_sriov_dkms_version not in sriov_versions.stdout_lines
+
+        # Two registered versions both try to own i915.ko for the same kernel.
+        # Sources stay in /usr/src, so a rollback can re-register them.
+        - name: Unregister older i915-sriov-dkms versions
+          ansible.builtin.command: dkms remove i915-sriov-dkms/{{ item }} --all
+          loop: "{{ sriov_versions.stdout_lines | reject('equalto', i915_sriov_dkms_version) | list }}"
+          when: i915_sriov_dkms_version not in sriov_versions.stdout_lines
+          changed_when: true
+
+        # dpkg -i + configure -a: works even when an earlier run left a kernel
+        # package half-configured (the old driver is no longer registered, so its
+        # DKMS hook now succeeds).
+        - name: Install i915-sriov-dkms {{ i915_sriov_dkms_version }} (DKMS builds it for installed kernels)
+          ansible.builtin.shell: >-
+            dpkg -i /root/i915-sriov-dkms_{{ i915_sriov_dkms_version }}_amd64.deb && dpkg --configure -a
+          environment:
+            DEBIAN_FRONTEND: noninteractive
+          when: i915_sriov_dkms_version not in sriov_versions.stdout_lines
+          changed_when: true
+
+        # The boot-kernel build is asserted after apt; here just prove DKMS
+        # accepted and built the new version for at least one installed kernel.
+        - name: Pinned release registered and built
+          ansible.builtin.shell: dkms status 2>/dev/null | grep '^i915-sriov-dkms/{{ i915_sriov_dkms_version }},.*installed'
+          changed_when: false
+
+        - name: i915 SR-IOV mode — blacklist xe (upstream-required; the package now ships both)
+          ansible.builtin.copy:
+            dest: /etc/modprobe.d/i915-sriov-dkms.conf
+            content: |
+              # Managed by ansible/fleet. i915-sriov-dkms ships both i915 and xe;
+              # upstream requires module_blacklist=xe for i915 SR-IOV mode.
+              blacklist xe
+            mode: "0644"
+          register: xe_blacklist
+
+      rescue:
+        - name: Roll back — re-register the previous driver version(s) from /usr/src
+          ansible.builtin.shell: |
+            for v in {{ sriov_versions.stdout_lines | default([]) | reject('equalto', i915_sriov_dkms_version) | join(' ') }}; do
+              [ -d /usr/src/i915-sriov-dkms-$v ] || continue
+              dkms add i915-sriov-dkms/$v 2>/dev/null || true
+              dkms install i915-sriov-dkms/$v -k $(uname -r)
+            done
+          changed_when: true
+
+        - name: Stop — driver swap failed (previous version restored for the running kernel; nothing drained or rebooted)
+          ansible.builtin.fail:
+            msg: "i915-sriov-dkms {{ i915_sriov_dkms_version }} could not be installed on {{ inventory_hostname }}; rolled back. No K3s nodes were drained and no Ceph flags were set."
+
+    - name: Finish any interrupted package configuration
+      ansible.builtin.command: dpkg --configure -a
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      register: dpkg_repair
+      changed_when: dpkg_repair.stdout | trim | length > 0
+
     - name: Upgrade packages
       ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
 
@@ -100,6 +205,7 @@
       ansible.builtin.command: >-
         kubectl --context {{ item.context }} drain {{ item.node }}
         --ignore-daemonsets --delete-emptydir-data --force --disable-eviction --timeout=600s
+        --skip-wait-for-delete-timeout=120
       delegate_to: localhost
       loop: "{{ k3s_guests }}"
       loop_control:
@@ -135,6 +241,47 @@
         path: /lib/modules/{{ boot_kernel.stdout | trim }}/zfs/zfs.ko
       register: zfs_ko
       failed_when: not zfs_ko.stat.exists
+
+    # ── Out-of-tree kernel modules (DKMS) ─────────────────────────────
+    # Hosts run DKMS modules the new kernel must be built for BEFORE reboot:
+    # i915-sriov-dkms (iGPU VFs on mammoth/whistler/zermatt/s13/ugreen) and r8152
+    # (Realtek USB NICs carrying Ceph/mgmt nets on s13/mac/ugreen). pve-mac has
+    # no proxmox-default-headers, so the new kernel's headers are not pulled in.
+    - name: DKMS — headers for the boot kernel
+      ansible.builtin.shell: >-
+        if [ -z "$(dkms status 2>/dev/null)" ] || [ -d /lib/modules/{{ boot_kernel.stdout | trim }}/build ]; then echo present;
+        else DEBIAN_FRONTEND=noninteractive apt-get install -y proxmox-headers-{{ boot_kernel.stdout | trim }} >/dev/null && echo installed; fi
+      register: boot_headers
+      changed_when: "'installed' in boot_headers.stdout"
+
+    # Compare timestamps instead of "changed": a resumed run must still refresh
+    # an initramfs generated before the blacklist existed.
+    - name: iGPU SR-IOV — refresh initramfs for the boot kernel if older than the modprobe config
+      ansible.builtin.shell: >-
+        if [ /etc/modprobe.d/i915-sriov-dkms.conf -nt /boot/initrd.img-{{ boot_kernel.stdout | trim }} ];
+        then update-initramfs -u -k {{ boot_kernel.stdout | trim }} >/dev/null && echo refreshed; else echo current; fi
+      register: initramfs_refresh
+      changed_when: "'refreshed' in initramfs_refresh.stdout"
+      when: i915_sriov_dkms_version is defined
+
+    - name: DKMS — every module built for the running kernel is built for the boot kernel
+      ansible.builtin.shell: |
+        run=$(uname -r); boot={{ boot_kernel.stdout | trim }}
+        [ -n "$(dkms status 2>/dev/null)" ] || { echo "no dkms modules"; exit 0; }
+        dkms autoinstall -k "$boot" >/dev/null 2>&1 || true
+        missing=""
+        for m in $(dkms status 2>/dev/null | awk -F'[/,]' -v k="$run" '$0 ~ ", "k"," && /installed/ {print $1}' | sort -u); do
+          dkms status -k "$boot" 2>/dev/null | grep -q "^$m/.*installed" || missing="$missing $m"
+        done
+        if [ -n "$missing" ]; then echo "not built for $boot:$missing"; exit 1; fi
+        dkms status -k "$boot"
+      register: dkms_parity
+      changed_when: false
+
+    - name: iGPU SR-IOV — i915-sriov-dkms installed for the boot kernel
+      ansible.builtin.shell: dkms status -k {{ boot_kernel.stdout | trim }} 2>/dev/null | grep '^i915-sriov-dkms/.*installed'
+      changed_when: false
+      when: i915_sriov_dkms_version is defined or sriov_vfs_expected | int > 0
 
     - name: whistler — isolcpus drop-in still present
       ansible.builtin.stat:
@@ -183,6 +330,22 @@
       register: running_kernel
       changed_when: false
       failed_when: running_kernel.stdout | trim != boot_kernel.stdout | trim
+
+    - name: iGPU SR-IOV — VFs restored after reboot
+      ansible.builtin.shell: cat /sys/bus/pci/devices/0000:00:02.0/sriov_numvfs 2>/dev/null || echo 0
+      register: sriov_vfs_after
+      changed_when: false
+      until: sriov_vfs_after.stdout | trim | int == sriov_vfs_expected | int
+      retries: 12
+      delay: 10
+      when: sriov_vfs_expected | int > 0
+
+    - name: iGPU SR-IOV — host running the pinned driver
+      ansible.builtin.command: cat /sys/module/i915/version
+      register: i915_loaded
+      changed_when: false
+      failed_when: i915_loaded.stdout | trim != i915_sriov_dkms_version ~ '-sriov'
+      when: i915_sriov_dkms_version is defined
 
     - name: whistler — isolcpus active on the kernel command line
       ansible.builtin.shell: grep -o '{{ expect_cmdline }}' /proc/cmdline
@@ -234,6 +397,22 @@
       register: mnt
       changed_when: false
       until: mnt.rc == 0
+      retries: 12
+      delay: 10
+
+    # A NAS firmware update (QNAP 2026-09-14) can wedge a host's kernel NFS
+    # client: stale mounts, pvestatd + mount.nfs stuck in D-state, and a forced
+    # remount cannot recover it — only a reboot does. Prove it came back.
+    - name: NFS storages for this node mounted and responsive
+      ansible.builtin.shell: |
+        for s in $(pvesh get /storage --output-format json | python3 -c 'import sys,json,os; h=os.uname().nodename; print(" ".join(d["storage"] for d in json.load(sys.stdin) if d.get("type")=="nfs" and not d.get("disable") and (not d.get("nodes") or h in d["nodes"].split(","))))'); do
+          timeout -s KILL 20 pvesm status --storage "$s" >/dev/null 2>&1
+          timeout -s KILL 10 stat -t "/mnt/pve/$s" >/dev/null 2>&1 || { echo "not ready: $s"; exit 1; }
+        done
+        echo ok
+      register: nfs_ok
+      changed_when: false
+      until: nfs_ok.rc == 0
       retries: 12
       delay: 10
 
@@ -304,12 +483,12 @@
       loop: [noout, norebalance]
       changed_when: true
 
-    - name: Ceph back to HEALTH_OK
-      ansible.builtin.command: ceph health
+    - name: Ceph healthy again (ignoring known-benign checks)
+      ansible.builtin.shell: "{{ ceph_health_check_cmd }}"
       delegate_to: "{{ ceph_cli_host }}"
       register: health_after
       changed_when: false
-      until: health_after.stdout | trim == 'HEALTH_OK'
+      until: health_after.stdout | trim == 'ok'
       retries: 80
       delay: 15
 
@@ -337,6 +516,20 @@
       retries: 40
       delay: 15
 
+    - name: GPU — production worker VM has its VF bound to i915 with a render node
+      ansible.builtin.shell: >-
+        lspci -k -s 00:10.0 | grep -q 'driver in use: i915' && ls /dev/dri/renderD* >/dev/null 2>&1 && echo ok
+      delegate_to: "{{ item.node }}"
+      loop: "{{ k3s_guests | selectattr('context', 'equalto', 'production') | selectattr('node', 'search', 'worker') | list }}"
+      loop_control:
+        label: "{{ item.node }}"
+      register: guest_gpu
+      changed_when: false
+      until: guest_gpu.stdout | default('') | trim == 'ok'
+      retries: 12
+      delay: 10
+      when: sriov_vfs_expected | int > 0
+
     - name: Uncordon K3s nodes one at a time
       ansible.builtin.shell: kubectl --context {{ item.context }} uncordon {{ item.node }} && sleep 60
       delegate_to: localhost
@@ -344,6 +537,23 @@
       loop_control:
         label: "{{ item.node }}"
       changed_when: true
+
+    - name: GPU — device plugin advertises the worker's GPU again
+      # jq, not jsonpath: the command module strips the backslashes a dotted
+      # key needs in jsonpath, which returned "" and failed the check falsely.
+      ansible.builtin.shell: >-
+        kubectl --context production get node {{ item.node }} -o json |
+        jq -r '.status.allocatable["gpu.intel.com/i915"] // "0"'
+      delegate_to: localhost
+      loop: "{{ k3s_guests | selectattr('context', 'equalto', 'production') | selectattr('node', 'search', 'worker') | list }}"
+      loop_control:
+        label: "{{ item.node }}"
+      register: gpu_alloc
+      changed_when: false
+      until: (gpu_alloc.stdout | default('0') | trim | int) >= 1
+      retries: 20
+      delay: 15
+      when: sriov_vfs_expected | int > 0
 
     - name: Pods settled cluster-wide (nothing Pending or crash-looping)
       ansible.builtin.shell: >-

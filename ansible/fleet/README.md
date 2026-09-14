@@ -19,20 +19,23 @@ cd ansible/fleet
 | `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. | each host once |
 
 **`k3s_os_upgrade.yml`** runs these steps on each node:
-1. Wait for vzdump on its Proxmox host; gate on the cluster.
-2. Take an etcd snapshot (server nodes only).
-3. Cordon, then drain with `--disable-eviction`.
-4. Run `apt full-upgrade`, then `do-release-upgrade` if the node is older than `target_version` (26.04).
-5. Reboot.
-6. Verify the release, the k3s service, the `rbd`/`ceph`/`nfs` kernel modules and the `lan0` address.
-7. Wait for Ready, uncordon, wait for pods to settle, soak.
+1. Skip the node if it's already on the target release, on its newest kernel and schedulable (re-running = resuming).
+2. Wait for vzdump on its Proxmox host; gate on the cluster.
+3. Take an etcd snapshot (server nodes only).
+4. Cordon, then drain with `--disable-eviction --skip-wait-for-delete-timeout=120`.
+5. Run `apt full-upgrade`, then `do-release-upgrade` if the node is older than `target_version` (26.04).
+6. GPU nodes: `i915-sriov-dkms` must be built for the kernel that will boot.
+7. Reboot.
+8. Verify the release, the k3s service, the `rbd`/`ceph`/`nfs` kernel modules, the `lan0` address and the render node.
+9. Wait for Ready, uncordon, wait for pods to settle, soak.
 
 **`pve_host_patch.yml`** runs these steps on each host:
-1. **Gate:** Proxmox quorate, Ceph `HEALTH_OK` with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
-2. **Prep:** `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module exists for the boot kernel.
-3. **Reboot:** wait for busy jobs, shut down the K3s VMs, reboot.
-4. **Verify:** expected kernel, host-specific checks, quorum, this host's mon/OSD/MDS back.
-5. **Finish:** unset the flags, wait for `HEALTH_OK`, uncordon one node at a time, soak.
+1. **Gate:** Proxmox quorate, Ceph healthy (only `AUTH_INSECURE_*` ignored) with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
+2. **GPU driver (before apt):** hosts with `i915_sriov_dkms_version` move to that release first, with rollback. A new kernel's DKMS hook fails on a driver that can't build for it.
+3. **Prep:** `dpkg --configure -a`, `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module and every DKMS module exist for the boot kernel.
+4. **Reboot:** wait for busy jobs, shut down the K3s VMs, reboot.
+5. **Verify:** expected kernel, VF count and host i915 version, host-specific checks, NFS storages responsive, quorum, this host's mon/OSD/MDS back.
+6. **Finish:** unset the flags, wait for health, check the worker VM's GPU, uncordon one node at a time, check `gpu.intel.com/i915` is advertised, soak.
 
 ## Recommended order
 
@@ -40,10 +43,15 @@ cd ansible/fleet
 2. `lxc_patch.yml` and `vm_patch.yml` — low risk; can run alongside step 3.
 3. `k3s_os_upgrade.yml -e target=k3s_staging` — canary for release upgrades.
 4. `k3s_os_upgrade.yml -e target=k3s_production` — workers first, then masters.
-5. `pve_host_patch.yml` — Ceph order: mon/OSD hosts zermatt → mammoth → whistler, then MDS-only mac → s13, then client-only ugreen.
-6. `fleet_status.yml` — confirm.
+5. **QNAP firmware, if pending** — shut down the PBS VM first. A NAS firmware update wedges every NFSv4 client (hosts and K3s VMs) until reboot, so do it *before* the host phase and put any wedged host first.
+6. `pve_host_patch.yml` — Ceph order: mon/OSD hosts mammoth → zermatt → whistler, then MDS-only mac → s13, then client-only ugreen. Purge old kernels on s13/ugreen first: DKMS builds a new driver for every kernel with headers.
+7. `fleet_status.yml` — confirm. Also check `ceph mgr services` (the dashboard Endpoints must name the active mgr), DNS on `.50`/`.53`, and zwave-js-ui after any s13 reboot.
 
 Everything stops at the first failure (`any_errors_fatal`). A failed node or host is **left cordoned, with Ceph flags still set**, so you can inspect it. Fix it, then re-run with `--limit <host>`. The playbooks are safe to re-run: a node already on the target release skips the release upgrade.
+
+## iGPU SR-IOV driver
+
+Hosts that expose Iris Xe / Alder Lake-N VFs (the MS-01s, s13, ugreen) and the production workers run the out-of-tree **i915-sriov-dkms**, pinned to one version on both sides: `i915_sriov_dkms_version` here and in `ansible/k3s-cluster/inventory/*/group_vars/all.yml`. Before bumping it, check the release's `BUILD_EXCLUSIVE_KERNEL` covers every PVE and Ubuntu kernel that will boot. `dkms status <module>` ignores its filter in DKMS 3.2.2, so always parse `dkms status | grep '^<module>/'`.
 
 ## Host-specific checks encoded here
 
@@ -55,6 +63,9 @@ Everything stops at the first failure (`any_errors_fatal`). A failed node or hos
 | pve-whistler | `/etc/default/grub.d/cpu-debug.cfg` before reboot, `isolcpus=4,5` in `/proc/cmdline` after | CPU defect on P-core 2 |
 | pve-s13 | Ceph public net reachable after boot; otherwise `ip link set <usb-nic> up && ifreload -a` | A cold boot once brought the USB NIC up after networking, leaving `vmbr9` without a port |
 | pve-ugreen | Waits for `rbd-nightly-backup.sh` and kopia snapshots; afterwards `zpool status zbackup` and the CephFS mounts | Backup host; its clock is HDT |
+| all PVE | NFS storages mounted and answering `stat` after reboot | A QNAP firmware update wedges NFS clients until reboot |
+| SR-IOV hosts | Driver swapped before apt; VFs + host i915 version verified after | Old driver fails the new kernel's DKMS hook; GPU apps silently fall back to CPU |
+| s13, mac, ugreen | Every DKMS module (r8152 USB NIC) built for the boot kernel; headers installed if missing | pve-mac has no `proxmox-default-headers` |
 | K3s nodes | Drain uses `--disable-eviction` | Single-instance CNPG PDBs block eviction forever |
 | K3s nodes | `modprobe --dry-run rbd ceph nfs` after the release upgrade | Storage drivers need these kernel modules |
 
