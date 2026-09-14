@@ -1,0 +1,256 @@
+# printer_costs.yaml — HA package: per-print filament cost and total cost for the QIDI Max 4.
+#
+# GIT IS THE SOURCE OF TRUTH. Shipped in the hash-suffixed `home-assistant-packages`
+# ConfigMap and mounted READ-ONLY as the /config/packages directory; configuration.yaml
+# loads it via `homeassistant: packages: !include_dir_named packages` (asserted by the
+# ensure-ha-config initContainer). A change here rolls the HA pod.
+#
+# Electricity cost per print already exists (home-assistant-templates.yaml,
+# sensor.3d_printer_last_print_cost / _current_print_cost). This adds filament:
+#
+#   grams = filament actually extruded (Moonraker job history, mm)
+#           × grams-per-mm from the slicer's own estimate for that file
+#             (filament_weight_total / filament_total — i.e. the slicer's density for the
+#             exact material), falling back to a density table × 1.75 mm cross-section
+#   cost  = grams / 1000 × the $/kg price set below for that material
+#   total = filament cost + electricity cost for the same print
+#
+# "Actually extruded" includes purge/prime lines and QIDI Box purges — real material
+# spent — and is the partial amount for cancelled prints.
+#
+# Limitations:
+# - Multi-material prints: the slicer metadata gives only totals, so a print using
+#   several material types is priced at the AVERAGE of those types' prices.
+# - Prices are what you enter below, per material type, not per spool. Exact per-spool
+#   cost would need Moonraker's [spoolman] component (not loaded on QIDI's Moonraker).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Filament price per material type, set from the 3D Printer dashboard. No `initial:` on
+# purpose — it would reset the value on every restart; HA restores the last value set.
+# Defaults set after first deploy: PLA $10.50/kg (SUNLU PLA 4 kg Amazon bundles,
+# $38.99–42.39 in 2026). Others start at 0 = "price not set" until entered.
+input_number:
+  printer_3d_filament_price_pla:
+    name: "Filament price PLA"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+  printer_3d_filament_price_petg:
+    name: "Filament price PETG"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+  printer_3d_filament_price_abs:
+    name: "Filament price ABS"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+  printer_3d_filament_price_asa:
+    name: "Filament price ASA"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+  printer_3d_filament_price_tpu:
+    name: "Filament price TPU"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 150
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+  printer_3d_filament_price_other:
+    name: "Filament price other"
+    unit_of_measurement: "USD/kg"
+    min: 0
+    max: 150
+    step: 0.01
+    mode: box
+    icon: mdi:printer-3d-nozzle
+
+# The two most recent Moonraker jobs (job 0 is the in-progress one while printing).
+# Each job record is ~1 KB: status, filename, filament_used (mm), start/end time and the
+# slicer metadata (filament_type, filament_weight_total, filament_total, used_extruders).
+rest:
+  - resource: http://192.168.20.56:7125/server/history/list?limit=2&order=desc
+    scan_interval: 60
+    timeout: 10
+    sensor:
+      - name: "3D Printer Job History 0"
+        unique_id: printer_3d_job_history_0
+        icon: mdi:history
+        value_template: "{{ value_json.result.jobs[0].status if value_json.result.jobs | length > 0 else 'none' }}"
+        json_attributes_path: "$.result.jobs[0]"
+        json_attributes: [job_id, status, filename, filament_used, print_duration, start_time, end_time, metadata]
+      - name: "3D Printer Job History 1"
+        unique_id: printer_3d_job_history_1
+        icon: mdi:history
+        value_template: "{{ value_json.result.jobs[1].status if value_json.result.jobs | length > 1 else 'none' }}"
+        json_attributes_path: "$.result.jobs[1]"
+        json_attributes: [job_id, status, filename, filament_used, print_duration, start_time, end_time, metadata]
+
+template:
+  - triggers:
+      - trigger: state
+        entity_id:
+          - sensor.3d_printer_job_history_0
+          - sensor.3d_printer_job_history_1
+          - sensor.qidi_max_4_filament_used
+          - sensor.3d_printer_last_print_cost
+          - sensor.3d_printer_current_print_cost
+          - input_number.printer_3d_filament_price_pla
+          - input_number.printer_3d_filament_price_petg
+          - input_number.printer_3d_filament_price_abs
+          - input_number.printer_3d_filament_price_asa
+          - input_number.printer_3d_filament_price_tpu
+          - input_number.printer_3d_filament_price_other
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    variables:
+      prices: >-
+        {{ {'PLA': states('input_number.printer_3d_filament_price_pla') | float(0),
+            'PETG': states('input_number.printer_3d_filament_price_petg') | float(0),
+            'ABS': states('input_number.printer_3d_filament_price_abs') | float(0),
+            'ASA': states('input_number.printer_3d_filament_price_asa') | float(0),
+            'TPU': states('input_number.printer_3d_filament_price_tpu') | float(0),
+            'OTHER': states('input_number.printer_3d_filament_price_other') | float(0)} }}
+      # One summary per job: materials actually used (used_extruders → filament_type),
+      # grams per mm, and the $/kg that applies.
+      jobs: >-
+        {%- set dens = {'PLA': 1.24, 'PETG': 1.27, 'ABS': 1.04, 'ASA': 1.07, 'TPU': 1.21, 'OTHER': 1.24} -%}
+        {%- set ns = namespace(out=[]) -%}
+        {%- for e in ['sensor.3d_printer_job_history_0', 'sensor.3d_printer_job_history_1'] -%}
+          {%- if state_attr(e, 'job_id') is not none -%}
+            {%- set md = state_attr(e, 'metadata') -%}
+            {%- set md = md if md is mapping else {} -%}
+            {%- set types = (md.get('filament_type') or '') | string -%}
+            {%- set types = types.split(';') -%}
+            {%- set idx = md.get('used_extruders') -%}
+            {%- set idx = idx if idx is iterable and idx is not string else [0] -%}
+            {%- set tn = namespace(m=[]) -%}
+            {%- for i in idx -%}
+              {%- set n = i | int(-1) -%}
+              {%- if 0 <= n < types | length and types[n] | trim | length > 0 -%}
+                {%- set t = types[n] | trim | upper -%}
+                {%- set t = 'PLA' if t.startswith('PLA') else ('PETG' if t.startswith('PET') else (t if t in ['ABS', 'ASA', 'TPU'] else 'OTHER')) -%}
+                {%- if t not in tn.m -%}{%- set tn.m = tn.m + [t] -%}{%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- set mats = tn.m if tn.m | length > 0 else ['OTHER'] -%}
+            {%- set wt = md.get('filament_weight_total') | float(0) -%}
+            {%- set ln = md.get('filament_total') | float(0) -%}
+            {%- set from_slicer = wt > 0 and ln > 0 -%}
+            {%- set pn = namespace(sum=0, missing=[]) -%}
+            {%- for m in mats -%}
+              {%- set pn.sum = pn.sum + prices[m] -%}
+              {%- if prices[m] <= 0 -%}{%- set pn.missing = pn.missing + [m] -%}{%- endif -%}
+            {%- endfor -%}
+            {%- set ns.out = ns.out + [{
+                'job_id': state_attr(e, 'job_id'),
+                'status': state_attr(e, 'status'),
+                'filename': state_attr(e, 'filename'),
+                'filament_used_mm': state_attr(e, 'filament_used') | float(0),
+                'end_time': state_attr(e, 'end_time'),
+                'print_duration': state_attr(e, 'print_duration') | float(0),
+                'materials': mats,
+                'g_per_mm': (wt / ln) if from_slicer else dens[mats[0]] * 0.0024053,
+                'weight_source': 'slicer' if from_slicer else 'density table',
+                'price_per_kg': pn.sum / (mats | length),
+                'price_missing': pn.missing}] -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ ns.out }}
+      last: >-
+        {%- set f = jobs | selectattr('status', 'ne', 'in_progress') | list -%}
+        {%- if f | length > 0 -%}
+          {%- set j = f[0] -%}
+          {%- set grams = j.filament_used_mm * j.g_per_mm -%}
+          {%- set fcost = grams / 1000 * j.price_per_kg -%}
+          {%- set ended = state_attr('sensor.3d_printer_last_print_energy', 'ended') -%}
+          {%- set matched = ended is not none and j.end_time is not none
+                and (as_timestamp(ended, 0) - (j.end_time | float(0))) | abs < 900 -%}
+          {%- set ecost = states('sensor.3d_printer_last_print_cost') | float(none) if matched else none -%}
+          {{ dict(j, grams=grams | round(1), filament_cost=fcost | round(2),
+                  electricity_cost=(ecost | round(2)) if ecost is not none else none,
+                  total_cost=(fcost + (ecost or 0)) | round(2)) }}
+        {%- else -%}
+          {{ none }}
+        {%- endif -%}
+      current: >-
+        {%- set c = jobs | selectattr('status', 'eq', 'in_progress') | list -%}
+        {%- if c | length > 0 -%}
+          {%- set j = c[0] -%}
+          {#- Normalise on the entity's unit: HA can convert display units on this US-unit instance. -#}
+          {%- set u = state_attr('sensor.qidi_max_4_filament_used', 'unit_of_measurement') -%}
+          {%- set mm_per_unit = {'m': 1000, 'cm': 10, 'mm': 1, 'km': 1000000, 'ft': 304.8, 'in': 25.4, 'yd': 914.4, 'mi': 1609344}.get(u, 1000) -%}
+          {%- set grams = (states('sensor.qidi_max_4_filament_used') | float(0)) * mm_per_unit * j.g_per_mm -%}
+          {%- set fcost = grams / 1000 * j.price_per_kg -%}
+          {%- set ecost = states('sensor.3d_printer_current_print_cost') | float(0) -%}
+          {{ dict(j, grams=grams | round(1), filament_cost=fcost | round(2),
+                  electricity_cost=ecost | round(2), total_cost=(fcost + ecost) | round(2)) }}
+        {%- else -%}
+          {{ none }}
+        {%- endif -%}
+    sensor:
+      # Last FINISHED print (completed / cancelled / error). Keeps its previous value while
+      # the printer is off and Moonraker can't be reached.
+      - name: "3D Printer Last Print Filament"
+        unique_id: printer_3d_last_print_filament_g
+        unit_of_measurement: g
+        icon: mdi:printer-3d-nozzle
+        state: "{{ last.grams if last else (this.state if this.state | is_number else none) }}"
+        attributes:
+          job_id: "{{ last.job_id if last else this.attributes.get('job_id') }}"
+          filename: "{{ last.filename if last else this.attributes.get('filename') }}"
+          result: "{{ last.status if last else this.attributes.get('result') }}"
+          materials: "{{ last.materials if last else this.attributes.get('materials') }}"
+          weight_source: "{{ last.weight_source if last else this.attributes.get('weight_source') }}"
+          filament_used_m: "{{ (last.filament_used_mm / 1000) | round(2) if last else this.attributes.get('filament_used_m') }}"
+          ended: "{{ (last.end_time | float(0)) | timestamp_local if last and last.end_time else this.attributes.get('ended') }}"
+          print_minutes: "{{ (last.print_duration / 60) | round(0) if last else this.attributes.get('print_minutes') }}"
+      - name: "3D Printer Last Print Filament Cost"
+        unique_id: printer_3d_last_print_filament_cost
+        unit_of_measurement: USD
+        icon: mdi:cash
+        state: "{{ last.filament_cost if last else (this.state if this.state | is_number else none) }}"
+        attributes:
+          price_per_kg: "{{ last.price_per_kg | round(2) if last else this.attributes.get('price_per_kg') }}"
+          price_missing: "{{ last.price_missing if last else this.attributes.get('price_missing') }}"
+      - name: "3D Printer Last Print Total Cost"
+        unique_id: printer_3d_last_print_total_cost
+        unit_of_measurement: USD
+        icon: mdi:cash-multiple
+        state: "{{ last.total_cost if last else (this.state if this.state | is_number else none) }}"
+        attributes:
+          filament_cost: "{{ last.filament_cost if last else this.attributes.get('filament_cost') }}"
+          # none = no electricity record for this job (e.g. it ran before tracking began or
+          # while HA was down); the total is then filament only.
+          electricity_cost: "{{ last.electricity_cost if last else this.attributes.get('electricity_cost') }}"
+          electricity_matched: "{{ (last.electricity_cost is not none) if last else this.attributes.get('electricity_matched') }}"
+      # Print in progress; 0 when idle.
+      - name: "3D Printer Current Print Filament Cost"
+        unique_id: printer_3d_current_print_filament_cost
+        unit_of_measurement: USD
+        icon: mdi:cash
+        state: "{{ current.filament_cost if current else 0 }}"
+        attributes:
+          grams: "{{ current.grams if current else 0 }}"
+          materials: "{{ current.materials if current else [] }}"
+      - name: "3D Printer Current Print Total Cost"
+        unique_id: printer_3d_current_print_total_cost
+        unit_of_measurement: USD
+        icon: mdi:cash-multiple
+        state: "{{ current.total_cost if current else 0 }}"

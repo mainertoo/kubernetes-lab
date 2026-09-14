@@ -1,10 +1,13 @@
 ---
-# Rewrites the HelmRelease's persistence.templates.name to the hash-suffixed
-# name of the generated `home-assistant-templates` ConfigMap, so editing
-# home-assistant-templates.yaml rolls the HA pod (mirrors the mosquitto pattern).
+# Rewrites the HelmRelease's persistence.templates.name / persistence.packages.name to
+# the hash-suffixed names of the generated `home-assistant-templates` /
+# `home-assistant-packages` ConfigMaps, so editing either rolls the HA pod
+# (mirrors the mosquitto pattern).
 nameReference:
   - kind: ConfigMap
     version: v1
     fieldSpecs:
       - path: spec/values/persistence/templates/name
+        kind: HelmRelease
+      - path: spec/values/persistence/packages/name
         kind: HelmRelease
