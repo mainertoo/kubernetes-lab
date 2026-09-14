@@ -46,11 +46,6 @@ data:
           entryPoints: [websecure]
           service: pve-s13
 
-        pve-s12:
-          rule: "Host(`pve-s12.lab.mainertoo.com`)"
-          entryPoints: [websecure]
-          service: pve-s12
-
         pve-ugreen:
           rule: "Host(`pve-ugreen.lab.mainertoo.com`)"
           entryPoints: [websecure]
@@ -110,13 +105,6 @@ data:
             serversTransport: "pve"
             servers:
               - url: "https://192.168.1.20:8006/"
-
-        pve-s12:
-          loadBalancer:
-            passHostHeader: true
-            serversTransport: "pve"
-            servers:
-              - url: "https://192.168.1.244:8006/"
 
         pve-ugreen:
           loadBalancer:
