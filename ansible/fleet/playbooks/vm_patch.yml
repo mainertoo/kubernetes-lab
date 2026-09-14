@@ -1,0 +1,53 @@
+---
+# Patch standalone VMs (packages only).
+#
+#   cd ansible/fleet && ansible-playbook playbooks/vm_patch.yml
+#   ansible-playbook playbooks/vm_patch.yml --limit spark -K     # needs your sudo password
+#
+# No reboots: pbs and zwave-js restart with their PVE host in
+# pve_host_patch.yml. spark is excluded unless explicitly limited to.
+
+- name: Patch VMs over SSH
+  hosts: vms_ssh:vms_manual_become
+  serial: 1
+  max_fail_percentage: 0
+  become: "{{ ansible_user != 'root' }}"
+  tasks:
+    - name: Skip spark unless explicitly targeted
+      ansible.builtin.meta: end_host
+      when: inventory_hostname in groups['vms_manual_become'] and ansible_limit is not defined
+
+    - name: Wait for PBS to have no running tasks (backups, GC, verify)
+      ansible.builtin.shell: >-
+        proxmox-backup-manager task list --output-format json |
+        python3 -c 'import sys,json; print(sum(1 for t in json.load(sys.stdin) if not t.get("endtime")))'
+      register: pbs_busy
+      changed_when: false
+      until: pbs_busy.stdout | trim == '0'
+      retries: 120
+      delay: 60
+      when: busy_check | default('') == 'pbs_tasks'
+
+    - name: Upgrade packages
+      ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
+- name: Patch VMs through the QEMU guest agent
+  hosts: vms_guest_agent
+  serial: 1
+  max_fail_percentage: 0
+  gather_facts: false
+  tasks:
+    - name: apt update + dist-upgrade inside the VM
+      ansible.builtin.shell: >-
+        qm guest exec {{ vmid }} --timeout 1800 -- /bin/sh -c
+        "apt-get update -q && DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none
+        apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
+        -o DPkg::Lock::Timeout=600 dist-upgrade"
+      delegate_to: "{{ pve_host }}"
+      register: ga
+      changed_when: "' 0 upgraded, 0 newly installed' not in ((ga.stdout | from_json)['out-data'] | default(''))"
+      failed_when: (ga.stdout | from_json).exitcode | default(1) != 0
+
+    - name: Summarize package changes
+      ansible.builtin.debug:
+        msg: "{{ ((ga.stdout | from_json)['out-data'] | default('')).splitlines() | select('search', 'upgraded,') | list }}"

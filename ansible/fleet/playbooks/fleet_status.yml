@@ -1,0 +1,62 @@
+---
+# Read-only update report for the whole fleet. Safe to run any time.
+#
+#   cd ansible/fleet && ansible-playbook playbooks/fleet_status.yml
+#
+# One line per host: OS, running kernel, uptime, last upgrade, pending /
+# security / kernel packages, reboot needed, package-list age, kernel pin.
+
+- name: Probe hosts reachable over SSH
+  hosts: pve:k3s:vms_ssh
+  gather_facts: false
+  tasks:
+    - name: Run the probe
+      ansible.builtin.script: ../files/probe.sh
+      register: probe
+      changed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ probe.stdout | trim }}"
+
+- name: Probe LXC containers via their PVE host
+  hosts: lxc
+  gather_facts: false
+  tasks:
+    - name: Stage the probe on the PVE host
+      ansible.builtin.copy:
+        src: ../files/probe.sh
+        dest: /tmp/fleet-probe.sh
+        mode: "0755"
+      delegate_to: "{{ pve_host }}"
+
+    - name: Run the probe inside the container
+      ansible.builtin.shell: pct exec {{ ctid }} -- sh -s < /tmp/fleet-probe.sh
+      delegate_to: "{{ pve_host }}"
+      register: probe
+      changed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ probe.stdout | trim }}"
+
+- name: Probe VMs via the QEMU guest agent
+  hosts: vms_guest_agent
+  gather_facts: false
+  tasks:
+    - name: Stage the probe on the PVE host
+      ansible.builtin.copy:
+        src: ../files/probe.sh
+        dest: /tmp/fleet-probe.sh
+        mode: "0755"
+      delegate_to: "{{ pve_host }}"
+
+    - name: Run the probe inside the VM
+      ansible.builtin.shell: qm guest exec {{ vmid }} --pass-stdin 1 --timeout 60 -- sh -s < /tmp/fleet-probe.sh
+      delegate_to: "{{ pve_host }}"
+      register: probe
+      changed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ (probe.stdout | from_json)['out-data'] | default('') | trim }}"

@@ -1,0 +1,361 @@
+---
+# Rolling Proxmox VE host upgrade + reboot, one host at a time.
+#
+#   cd ansible/fleet
+#   ansible-playbook playbooks/pve_host_patch.yml                    # all hosts, inventory order
+#   ansible-playbook playbooks/pve_host_patch.yml --limit pve-zermatt
+#   ansible-playbook playbooks/pve_host_patch.yml -e unpin_kernel=false
+#
+# Per host:
+#   gates  — PVE quorate, Ceph HEALTH_OK + all PGs active+clean, K3s nodes Ready,
+#            no vzdump on this node
+#   prep   — apt dist-upgrade, drain this host's K3s nodes (+ etcd snapshot on a
+#            prod master), ceph noout/norebalance, optionally unpin the kernel,
+#            assert the ZFS module exists for the kernel that will boot
+#   reboot — wait out host-specific busy jobs, shut down K3s VMs cleanly, reboot
+#   verify — booted the newest kernel, host traps (whistler isolcpus,
+#            s13 vmbr9/USB NIC, ugreen zbackup + CephFS mounts), quorum, this
+#            host's mon/OSD/MDS back, guests running
+#   finish — unset Ceph flags, wait HEALTH_OK, uncordon K3s nodes one by one,
+#            pods settled, soak
+#
+# Ceph cluster commands run from another mon host so they survive this reboot.
+
+- name: Rolling PVE host upgrade
+  hosts: pve
+  serial: 1
+  max_fail_percentage: 0
+  any_errors_fatal: true
+  vars:
+    unpin_kernel: true
+    soak_seconds: 180
+    ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
+    ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
+    ceph_mon_ips: [192.168.99.12, 192.168.99.13, 192.168.99.14]
+  tasks:
+    # ── Gates ──────────────────────────────────────────────────────────
+    - name: Gate — PVE cluster quorate
+      ansible.builtin.shell: pvecm status | grep -Eq 'Quorate:\s+Yes'
+      changed_when: false
+
+    - name: Gate — Ceph HEALTH_OK
+      ansible.builtin.command: ceph health
+      delegate_to: "{{ ceph_cli_host }}"
+      register: ceph_health
+      changed_when: false
+      failed_when: ceph_health.stdout | trim != 'HEALTH_OK'
+
+    - name: Gate — every PG active+clean
+      ansible.builtin.shell: >-
+        ceph pg stat -f json | python3 -c 'import sys,json; d=json.load(sys.stdin)["pg_summary"];
+        clean=sum(s["num"] for s in d["num_pg_by_state"] if s["name"]=="active+clean");
+        print("ok" if clean==d["num_pgs"] else "%d/%d active+clean" % (clean, d["num_pgs"]))'
+      delegate_to: "{{ ceph_cli_host }}"
+      register: pg_clean
+      changed_when: false
+      failed_when: pg_clean.stdout | trim != 'ok'
+
+    - name: Gate — all K3s nodes Ready (both clusters)
+      ansible.builtin.shell: >-
+        for c in production staging; do kubectl --context $c get nodes --no-headers |
+        awk -v c=$c '$2 != "Ready" {print c": "$1" "$2}'; done
+      delegate_to: localhost
+      register: k8s_unready
+      changed_when: false
+      failed_when: k8s_unready.stdout | trim | length > 0
+
+    - name: Wait for vzdump on this node to finish
+      ansible.builtin.shell: >-
+        pvesh get /nodes/{{ inventory_hostname }}/tasks --source active --typefilter vzdump --output-format json |
+        python3 -c 'import sys,json; print(len(json.load(sys.stdin)))'
+      register: vzdump_active
+      changed_when: false
+      until: vzdump_active.stdout | trim == '0'
+      retries: 90
+      delay: 60
+
+    # ── Prep ───────────────────────────────────────────────────────────
+    - name: Upgrade packages
+      ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
+    - name: etcd snapshot on this host's production master
+      ansible.builtin.command: k3s etcd-snapshot save --name pre-pve-reboot-{{ item.node }}
+      delegate_to: "{{ item.node }}"
+      become: true
+      loop: "{{ k3s_guests | selectattr('context', 'equalto', 'production') | selectattr('node', 'search', 'master') | list }}"
+      loop_control:
+        label: "{{ item.node }}"
+      changed_when: true
+      failed_when: false
+
+    - name: Cordon this host's K3s nodes
+      ansible.builtin.command: kubectl --context {{ item.context }} cordon {{ item.node }}
+      delegate_to: localhost
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.node }}"
+      changed_when: true
+
+    - name: Drain this host's K3s nodes
+      ansible.builtin.command: >-
+        kubectl --context {{ item.context }} drain {{ item.node }}
+        --ignore-daemonsets --delete-emptydir-data --force --disable-eviction --timeout=600s
+      delegate_to: localhost
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.node }}"
+      changed_when: true
+
+    - name: Ceph noout + norebalance
+      ansible.builtin.command: ceph osd set {{ item }}
+      delegate_to: "{{ ceph_cli_host }}"
+      loop: [noout, norebalance]
+      changed_when: true
+
+    - name: Current kernel pin
+      ansible.builtin.shell: proxmox-boot-tool kernel list | sed -n '/Pinned kernel/{n;p}' | tr -d ' '
+      register: kernel_pin
+      changed_when: false
+
+    - name: Remove the kernel pin
+      ansible.builtin.command: proxmox-boot-tool kernel unpin
+      when: unpin_kernel | bool and kernel_pin.stdout | trim | length > 0
+      changed_when: true
+
+    - name: Kernel expected after reboot
+      ansible.builtin.shell: >-
+        if [ -n "$(proxmox-boot-tool kernel list | sed -n '/Pinned kernel/{n;p}' | tr -d ' ')" ]; then
+          proxmox-boot-tool kernel list | sed -n '/Pinned kernel/{n;p}' | tr -d ' ';
+        else ls /boot/vmlinuz-*-pve | sed 's|/boot/vmlinuz-||' | sort -V | tail -1; fi
+      register: boot_kernel
+      changed_when: false
+
+    - name: ZFS module exists for that kernel
+      ansible.builtin.stat:
+        path: /lib/modules/{{ boot_kernel.stdout | trim }}/zfs/zfs.ko
+      register: zfs_ko
+      failed_when: not zfs_ko.stat.exists
+
+    - name: whistler — isolcpus drop-in still present
+      ansible.builtin.stat:
+        path: /etc/default/grub.d/cpu-debug.cfg
+      register: isolcpus_cfg
+      failed_when: not isolcpus_cfg.stat.exists
+      when: expect_cmdline is defined
+
+    # ── Reboot ─────────────────────────────────────────────────────────
+    - name: Wait for host-specific busy job to finish
+      ansible.builtin.command: pgrep -f {{ busy_process }}
+      register: busy
+      changed_when: false
+      failed_when: false
+      until: busy.rc != 0
+      retries: 180
+      delay: 60
+      when: busy_process is defined
+
+    - name: Wait for kopia snapshots in kopia-lxc to finish
+      ansible.builtin.command: pct exec 111 -- pgrep -f "kopia snapshot"
+      register: kopia_busy
+      changed_when: false
+      failed_when: false
+      until: kopia_busy.rc != 0
+      retries: 120
+      delay: 60
+      when: inventory_hostname == 'pve-ugreen'
+
+    - name: Shut down this host's K3s VMs cleanly
+      ansible.builtin.command: qm shutdown {{ item.vmid }} --timeout 300 --forceStop 1
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.vmid }} {{ item.node }}"
+      changed_when: true
+
+    - name: Reboot the host
+      ansible.builtin.reboot:
+        reboot_timeout: 1800
+        post_reboot_delay: 45
+        test_command: pvecm status
+
+    # ── Verify ─────────────────────────────────────────────────────────
+    - name: Booted the expected kernel
+      ansible.builtin.command: uname -r
+      register: running_kernel
+      changed_when: false
+      failed_when: running_kernel.stdout | trim != boot_kernel.stdout | trim
+
+    - name: whistler — isolcpus active on the kernel command line
+      ansible.builtin.shell: grep -o '{{ expect_cmdline }}' /proc/cmdline
+      changed_when: false
+      when: expect_cmdline is defined
+
+    - name: s13 — Ceph public net reachable
+      ansible.builtin.shell: >-
+        for ip in {{ ceph_mon_ips | join(' ') }}; do
+        timeout 4 bash -c "echo > /dev/tcp/$ip/3300" && exit 0; done; exit 1
+      args:
+        executable: /bin/bash
+      register: ceph_net
+      changed_when: false
+      failed_when: false
+      when: ceph_bridge is defined
+
+    # Known cold-boot race: the USB NIC enumerates after ifupdown, vmbr9 comes up portless.
+    - name: s13 — re-enslave the USB NIC and reload networking
+      ansible.builtin.shell: >-
+        nic=$(awk '/^iface {{ ceph_bridge }}/{f=1} f && /bridge-ports/{print $2; exit}' /etc/network/interfaces);
+        [ -n "$nic" ] && ip link set "$nic" up && ifreload -a
+      when: ceph_bridge is defined and ceph_net.rc != 0
+      changed_when: true
+
+    - name: s13 — Ceph public net reachable after remediation
+      ansible.builtin.shell: >-
+        for ip in {{ ceph_mon_ips | join(' ') }}; do
+        timeout 4 bash -c "echo > /dev/tcp/$ip/3300" && exit 0; done; exit 1
+      args:
+        executable: /bin/bash
+      register: ceph_net2
+      changed_when: false
+      until: ceph_net2.rc == 0
+      retries: 10
+      delay: 10
+      when: ceph_bridge is defined and ceph_net.rc != 0
+
+    - name: ugreen — zbackup pool healthy
+      ansible.builtin.command: zpool status -x {{ zfs_pool }}
+      register: zpool
+      changed_when: false
+      failed_when: "'is healthy' not in zpool.stdout"
+      when: zfs_pool is defined
+
+    - name: ugreen — CephFS mounts present
+      ansible.builtin.command: findmnt {{ item }}
+      loop: "{{ cephfs_mounts | default([]) }}"
+      register: mnt
+      changed_when: false
+      until: mnt.rc == 0
+      retries: 12
+      delay: 10
+
+    - name: PVE cluster quorate after reboot
+      ansible.builtin.shell: pvecm status | grep -Eq 'Quorate:\s+Yes'
+      register: quorate
+      changed_when: false
+      until: quorate.rc == 0
+      retries: 30
+      delay: 10
+
+    - name: Ceph mon back in quorum
+      ansible.builtin.shell: >-
+        ceph quorum_status -f json | python3 -c 'import sys,json;
+        print("ok" if "{{ inventory_hostname }}" in json.load(sys.stdin)["quorum_names"] else "no")'
+      delegate_to: "{{ ceph_cli_host }}"
+      register: mon_q
+      changed_when: false
+      until: mon_q.stdout | trim == 'ok'
+      retries: 40
+      delay: 15
+      when: "'mon' in ceph_roles"
+
+    - name: Ceph OSDs on this host up
+      ansible.builtin.shell: >-
+        IDS="$(ceph osd ls-tree {{ inventory_hostname }} | tr '\n' ' ')";
+        ceph osd dump -f json | IDS="$IDS" python3 -c 'import os,sys,json;
+        ids={int(i) for i in os.environ["IDS"].split()};
+        up={o["osd"] for o in json.load(sys.stdin)["osds"] if o["up"]};
+        print("ok" if ids and ids<=up else "down: %s" % sorted(ids-up))'
+      delegate_to: "{{ ceph_cli_host }}"
+      register: osd_up
+      changed_when: false
+      until: osd_up.stdout | trim == 'ok'
+      retries: 40
+      delay: 15
+      when: "'osd' in ceph_roles"
+
+    - name: Ceph MDS on this host registered
+      ansible.builtin.shell: >-
+        ceph fs dump -f json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin);
+        names={s["name"] for s in d.get("standbys",[])};
+        [names.update(i["name"] for i in f["mdsmap"]["info"].values()) for f in d.get("filesystems",[])];
+        print("ok" if "{{ inventory_hostname }}" in names else "missing")'
+      delegate_to: "{{ ceph_cli_host }}"
+      register: mds_up
+      changed_when: false
+      until: mds_up.stdout | trim == 'ok'
+      retries: 40
+      delay: 15
+      when: "'mds' in ceph_roles"
+
+    - name: K3s VMs running again
+      ansible.builtin.shell: qm status {{ item.vmid }} | grep -q running || qm start {{ item.vmid }}
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.vmid }} {{ item.node }}"
+      register: vm_up
+      changed_when: false
+      until: vm_up.rc == 0
+      retries: 10
+      delay: 15
+
+    # ── Finish ─────────────────────────────────────────────────────────
+    - name: Unset Ceph noout + norebalance
+      ansible.builtin.command: ceph osd unset {{ item }}
+      delegate_to: "{{ ceph_cli_host }}"
+      loop: [noout, norebalance]
+      changed_when: true
+
+    - name: Ceph back to HEALTH_OK
+      ansible.builtin.command: ceph health
+      delegate_to: "{{ ceph_cli_host }}"
+      register: health_after
+      changed_when: false
+      until: health_after.stdout | trim == 'HEALTH_OK'
+      retries: 80
+      delay: 15
+
+    - name: Ceph daemon versions
+      ansible.builtin.shell: ceph versions -f json | python3 -c 'import sys,json; print(json.load(sys.stdin)["overall"])'
+      delegate_to: "{{ ceph_cli_host }}"
+      register: ceph_versions
+      changed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg:
+          - "{{ inventory_hostname }} kernel {{ running_kernel.stdout | trim }}"
+          - "ceph versions: {{ ceph_versions.stdout | trim }}"
+
+    - name: K3s nodes Ready
+      ansible.builtin.command: kubectl --context {{ item.context }} wait --for=condition=Ready node/{{ item.node }} --timeout=30s
+      delegate_to: localhost
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.node }}"
+      register: node_ready
+      changed_when: false
+      until: node_ready.rc == 0
+      retries: 40
+      delay: 15
+
+    - name: Uncordon K3s nodes one at a time
+      ansible.builtin.shell: kubectl --context {{ item.context }} uncordon {{ item.node }} && sleep 60
+      delegate_to: localhost
+      loop: "{{ k3s_guests }}"
+      loop_control:
+        label: "{{ item.node }}"
+      changed_when: true
+
+    - name: Pods settled cluster-wide (nothing Pending or crash-looping)
+      ansible.builtin.shell: >-
+        for c in production staging; do kubectl --context $c get pods -A --no-headers |
+        awk -v c=$c '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|ImagePull/ && $2 !~ /^volsync-(src|dst)-/ {print c": "$1"/"$2, $4}'; done
+      delegate_to: localhost
+      register: unsettled
+      changed_when: false
+      until: unsettled.stdout | trim | length == 0
+      retries: 60
+      delay: 15
+
+    - name: Soak before the next host
+      ansible.builtin.pause:
+        seconds: "{{ soak_seconds }}"

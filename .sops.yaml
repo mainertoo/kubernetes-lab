@@ -31,3 +31,10 @@ creation_rules:
     encrypted_regex: '^(data|stringData)$'
     age:
       - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"
+
+  # Encrypt any *.sops.yaml / *.sops.yml under ansible/ (playbook vars: become
+  # passwords, API tokens). Ansible vars aren't Secret-shaped, so no
+  # encrypted_regex — every value is encrypted.
+  - path_regex: ^ansible/.+\.sops\.ya?ml$
+    age:
+      - "age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk"

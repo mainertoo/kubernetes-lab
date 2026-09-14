@@ -1,0 +1,196 @@
+---
+# Rolling OS upgrade of K3s nodes, one node at a time.
+#
+#   cd ansible/fleet
+#   ansible-playbook playbooks/k3s_os_upgrade.yml -e target=k3s_staging      # canary first
+#   ansible-playbook playbooks/k3s_os_upgrade.yml -e target=k3s_production
+#
+# Per node: wait for vzdump on its PVE host → gate on cluster health →
+# (masters) etcd snapshot → cordon → drain → apt full-upgrade → if older than
+# target_version, do-release-upgrade → reboot → verify OS, k3s service, Ceph/NFS
+# kernel modules, lan0 → Ready → uncordon → pods settled → soak.
+#
+# Any failure stops the whole run (the node stays cordoned for inspection).
+# kubectl runs from the control machine against kube_context.
+
+- name: Rolling K3s node OS upgrade
+  hosts: "{{ target }}"
+  serial: 1
+  max_fail_percentage: 0
+  any_errors_fatal: true
+  become: true
+  vars:
+    target_version: "26.04"
+    soak_seconds: 120
+    kubectl: "kubectl --context {{ kube_context }}"
+  tasks:
+    # ── Pre-flight ─────────────────────────────────────────────────────
+    - name: Wait for vzdump on the backing PVE host to finish
+      ansible.builtin.shell: >-
+        pvesh get /nodes/{{ pve_host }}/tasks --source active --typefilter vzdump --output-format json |
+        python3 -c 'import sys,json; print(len(json.load(sys.stdin)))'
+      delegate_to: "{{ pve_host }}"
+      become: false
+      register: vzdump_active
+      changed_when: false
+      until: vzdump_active.stdout | trim == '0'
+      retries: 90
+      delay: 60
+
+    - name: Gate — every other node Ready and schedulable
+      ansible.builtin.shell: >-
+        {{ kubectl }} get nodes --no-headers |
+        awk '$1 != "{{ inventory_hostname }}" && $2 != "Ready" {print $1, $2}'
+      delegate_to: localhost
+      become: false
+      register: unhealthy_nodes
+      changed_when: false
+      failed_when: unhealthy_nodes.stdout | trim | length > 0
+
+    - name: etcd snapshot before touching a server node
+      ansible.builtin.command: k3s etcd-snapshot save --name pre-os-upgrade-{{ inventory_hostname }}
+      register: etcd_snap
+      changed_when: etcd_snap.rc == 0
+      failed_when: false
+      when: k3s_role == 'server'
+
+    - name: Report etcd snapshot result
+      ansible.builtin.debug:
+        msg: "{{ (etcd_snap.stdout_lines | default([]) + etcd_snap.stderr_lines | default([]))[-2:] }}"
+      when: k3s_role == 'server'
+
+    # ── Take the node out ──────────────────────────────────────────────
+    - name: Cordon
+      ansible.builtin.command: "{{ kubectl }} cordon {{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    # --disable-eviction: single-instance CNPG PDBs (minAvailable=1) block the
+    # eviction API forever; delete lets the operator reschedule the primary.
+    - name: Drain
+      ansible.builtin.command: >-
+        {{ kubectl }} drain {{ inventory_hostname }}
+        --ignore-daemonsets --delete-emptydir-data --force --disable-eviction --timeout=600s
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    # ── Upgrade ────────────────────────────────────────────────────────
+    - name: Upgrade packages within the current release
+      ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
+    - name: Release upgrade to Ubuntu {{ target_version }}
+      when: ansible_distribution_version is version(target_version, '<')
+      block:
+        - name: Force non-interactive dpkg conffile handling for the release upgrade
+          ansible.builtin.copy:
+            dest: /etc/apt/apt.conf.d/99fleet-release-upgrade
+            content: |
+              Dpkg::Options { "--force-confdef"; "--force-confold"; };
+            mode: "0644"
+
+        - name: do-release-upgrade (non-interactive)
+          ansible.builtin.command: do-release-upgrade -f DistUpgradeViewNonInteractive
+          environment:
+            DEBIAN_FRONTEND: noninteractive
+            APT_LISTCHANGES_FRONTEND: none
+          async: 5400
+          poll: 30
+          register: dru
+          changed_when: true
+
+      rescue:
+        - name: Show the tail of the dist-upgrade log
+          ansible.builtin.command: tail -n 60 /var/log/dist-upgrade/main.log
+          register: dru_log
+          changed_when: false
+          failed_when: false
+
+        - name: Stop — release upgrade failed (node left cordoned)
+          ansible.builtin.fail:
+            msg: "{{ dru_log.stdout_lines | default([]) }}"
+
+      always:
+        - name: Remove the temporary dpkg options
+          ansible.builtin.file:
+            path: /etc/apt/apt.conf.d/99fleet-release-upgrade
+            state: absent
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 1200
+        post_reboot_delay: 20
+
+    # ── Verify ─────────────────────────────────────────────────────────
+    - name: Re-read facts after reboot
+      ansible.builtin.setup:
+        gather_subset: [min, distribution]
+
+    - name: Assert the node is on the target release
+      ansible.builtin.assert:
+        that: ansible_distribution_version is version(target_version, '>=')
+        fail_msg: "Still on {{ ansible_distribution_version }} after upgrade"
+        success_msg: "{{ ansible_distribution }} {{ ansible_distribution_version }} / kernel {{ ansible_kernel }}"
+
+    - name: k3s service active
+      ansible.builtin.command: systemctl is-active {{ 'k3s' if k3s_role == 'server' else 'k3s-agent' }}
+      register: k3s_active
+      changed_when: false
+      until: k3s_active.stdout == 'active'
+      retries: 20
+      delay: 15
+
+    - name: Ceph RBD, CephFS and NFS kernel modules available
+      ansible.builtin.command: modprobe --dry-run {{ item }}
+      loop: [rbd, ceph, nfs]
+      changed_when: false
+
+    - name: lan0 address present (workers with a second NIC)
+      ansible.builtin.shell: ip -4 -o addr show | grep -qw '{{ lan0_address }}'
+      changed_when: false
+      when: lan0_address is defined
+
+    - name: Node Ready
+      ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=30s"
+      delegate_to: localhost
+      become: false
+      register: node_ready
+      changed_when: false
+      until: node_ready.rc == 0
+      retries: 40
+      delay: 15
+
+    - name: Uncordon
+      ansible.builtin.command: "{{ kubectl }} uncordon {{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Pods on this node settled (none Pending, none crash-looping)
+      ansible.builtin.shell: >-
+        {{ kubectl }} get pods -A --field-selector spec.nodeName={{ inventory_hostname }} --no-headers |
+        awk '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|Error|ImagePull|Init:/ {print $1"/"$2, $4}'
+      delegate_to: localhost
+      become: false
+      register: unsettled
+      changed_when: false
+      until: unsettled.stdout | trim | length == 0
+      retries: 40
+      delay: 15
+
+    - name: Cluster-wide — nothing stuck Pending
+      ansible.builtin.shell: >-
+        {{ kubectl }} get pods -A --field-selector status.phase=Pending --no-headers |
+        grep -vE 'volsync-(src|dst)-' || true
+      delegate_to: localhost
+      become: false
+      register: pending
+      changed_when: false
+      until: pending.stdout | trim | length == 0
+      retries: 40
+      delay: 15
+
+    - name: Soak before the next node
+      ansible.builtin.pause:
+        seconds: "{{ soak_seconds }}"
