@@ -153,6 +153,15 @@ spec:
               APPLICATION_PROTOCOL: "https"
               TIME_ZONE: America/Los_Angeles
 
+              # SSO uses the PUBLIC hostnames: dawarich is Pangolin-fronted
+              # for external users, and *.lab only resolves on LAN/tailnet.
+              # Dawarich fixes the callback at boot (not per request), so SSO
+              # must start from dawarich.mainertoo.com; password login still
+              # works on .lab. Authentik's dawarich provider must allow this
+              # redirect URI.
+              OIDC_ISSUER: "https://authentik.mainertoo.com/application/o/dawarich/"
+              OIDC_REDIRECT_URI: "https://dawarich.mainertoo.com/users/auth/openid_connect/callback"
+
               RAILS_LOG_TO_STDOUT: "true"
               SELF_HOSTED: "true"
               STORE_GEODATA: "true"
@@ -300,6 +309,10 @@ spec:
 
               APPLICATION_HOSTS: "dawarich.lab.mainertoo.com,dawarich.mainertoo.com,192.168.90.186,dawarich,dawarich.dawarich.svc.cluster.local"
               APPLICATION_PROTOCOL: "https"
+
+              # Same public SSO hostnames as the app container.
+              OIDC_ISSUER: "https://authentik.mainertoo.com/application/o/dawarich/"
+              OIDC_REDIRECT_URI: "https://dawarich.mainertoo.com/users/auth/openid_connect/callback"
 
               BACKGROUND_PROCESSING_CONCURRENCY: "10"
 
