@@ -14,6 +14,11 @@ configMapGenerator:
     files:
       - templates.yaml=./home-assistant-templates.yaml
       - switches.yaml=./home-assistant-switches.yaml
+  # HA packages — each file is a self-contained feature (input_number/rest/template…),
+  # mounted as the /config/packages directory.
+  - name: home-assistant-packages
+    files:
+      - printer_costs.yaml=./packages/printer_costs.yaml
 
 # Hash suffix ON so a template edit produces a new ConfigMap name, which
 # kustomizeconfig.yaml propagates into the HelmRelease and rolls the pod.

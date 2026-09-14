@@ -129,6 +129,10 @@ spec:
 
                 # RESTful switches — same ConfigMap, also read-only
                 switch: !include switches.yaml
+
+                # HA packages — /config/packages is a read-only ConfigMap directory
+                homeassistant:
+                  packages: !include_dir_named packages
                 EOF
                 fi
 
@@ -245,6 +249,21 @@ spec:
                 EOF
                 fi
 
+                # /config/packages is a read-only directory mount of the
+                # home-assistant-packages ConfigMap. Only a top-level homeassistant:
+                # key can't be added twice; if one already exists without packages:,
+                # say so loudly rather than editing nested YAML with sh.
+                if ! grep -qE '^homeassistant:' "$CONFIG_FILE"; then
+                  cat >> "$CONFIG_FILE" <<'EOF'
+
+                # HA packages (git-sourced, read-only)
+                homeassistant:
+                  packages: !include_dir_named packages
+                EOF
+                elif ! grep -qE '^[[:space:]]+packages:[[:space:]]*!include_dir_named[[:space:]]+packages' "$CONFIG_FILE"; then
+                  echo "WARNING: configuration.yaml has homeassistant: but no 'packages: !include_dir_named packages' — git packages will NOT load" >&2
+                fi
+
     service:
       app:
         controller: home-assistant
@@ -293,6 +312,16 @@ spec:
             readOnly: true
           - path: /config/switches.yaml
             subPath: switches.yaml
+            readOnly: true
+
+      # HA packages, git-sourced (apps/base/home-assistant/packages/). Mounted as a
+      # whole READ-ONLY directory — HA's !include_dir_named skips the ConfigMap's
+      # hidden ..data entries. Name rewritten to the hashed ConfigMap by kustomizeconfig.
+      packages:
+        type: configMap
+        name: home-assistant-packages
+        globalMounts:
+          - path: /config/packages
             readOnly: true
 
     defaultPodOptions:
