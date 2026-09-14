@@ -26,10 +26,11 @@ subsets:
       # Confirm the active mgr before changing this:
       #   ceph mgr services | grep dashboard     -> "https://<active-ip>:8443/"
       #
-      #   192.168.99.12 = pve-whistler  (active as of 2026-08-15)  <-- current
+      #   192.168.99.12 = pve-whistler  (standby)
       #   192.168.99.13 = pve-zermatt   (standby)
-      #   192.168.99.14 = pve-mammoth   (standby)
-      - ip: 192.168.99.12
+      #   192.168.99.14 = pve-mammoth   (active as of 2026-09-14, after the fleet
+      #                                   host-patch run rebooted whistler)  <-- current
+      - ip: 192.168.99.14
     ports:
       - name: https
         port: 8443
