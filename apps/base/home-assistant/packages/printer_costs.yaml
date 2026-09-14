@@ -164,6 +164,7 @@ template:
                 'filename': state_attr(e, 'filename'),
                 'filament_used_mm': state_attr(e, 'filament_used') | float(0),
                 'end_time': state_attr(e, 'end_time'),
+                'print_duration': state_attr(e, 'print_duration') | float(0),
                 'materials': mats,
                 'g_per_mm': (wt / ln) if from_slicer else dens[mats[0]] * 0.0024053,
                 'weight_source': 'slicer' if from_slicer else 'density table',
@@ -218,6 +219,8 @@ template:
           materials: "{{ last.materials if last else this.attributes.get('materials') }}"
           weight_source: "{{ last.weight_source if last else this.attributes.get('weight_source') }}"
           filament_used_m: "{{ (last.filament_used_mm / 1000) | round(2) if last else this.attributes.get('filament_used_m') }}"
+          ended: "{{ (last.end_time | float(0)) | timestamp_local if last and last.end_time else this.attributes.get('ended') }}"
+          print_minutes: "{{ (last.print_duration / 60) | round(0) if last else this.attributes.get('print_minutes') }}"
       - name: "3D Printer Last Print Filament Cost"
         unique_id: printer_3d_last_print_filament_cost
         unit_of_measurement: USD
