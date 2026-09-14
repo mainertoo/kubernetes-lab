@@ -22,8 +22,34 @@
   vars:
     target_version: "26.04"
     soak_seconds: 120
+    # Pods allowed to stay Pending cluster-wide (regex on "namespace name ...").
+    # Volsync movers come and go; add a known, already-understood exception
+    # explicitly on the command line, e.g. -e pending_ignore_regex='volsync-(src|dst)-|orcaslicer'
+    pending_ignore_regex: 'volsync-(src|dst)-'
     kubectl: "kubectl --context {{ kube_context }}"
   tasks:
+    # ── Resume support ─────────────────────────────────────────────────
+    # A node already on the target release, booted into its newest kernel and
+    # schedulable is finished — skip it so an interrupted run can simply be re-run.
+    - name: Newest installed kernel
+      ansible.builtin.shell: ls /boot/vmlinuz-* | sed 's|/boot/vmlinuz-||' | sort -V | tail -1
+      register: newest_kernel
+      changed_when: false
+
+    - name: Node schedulable?
+      ansible.builtin.command: "{{ kubectl }} get node {{ inventory_hostname }} -o jsonpath={.spec.unschedulable}"
+      delegate_to: localhost
+      become: false
+      register: node_unschedulable
+      changed_when: false
+
+    - name: Skip — node already upgraded, rebooted and in service
+      ansible.builtin.meta: end_host
+      when:
+        - ansible_facts['distribution_version'] is version(target_version, '>=')
+        - ansible_facts['kernel'] == newest_kernel.stdout | trim
+        - node_unschedulable.stdout | trim != 'true'
+
     # ── Pre-flight ─────────────────────────────────────────────────────
     - name: Wait for vzdump on the backing PVE host to finish
       ansible.builtin.shell: >-
@@ -59,6 +85,16 @@
         msg: "{{ (etcd_snap.stdout_lines | default([]) + etcd_snap.stderr_lines | default([]))[-2:] }}"
       when: k3s_role == 'server'
 
+    # GPU nodes — all three workers have an Iris Xe SR-IOV VF driven by the
+    # out-of-tree i915-sriov-dkms module. A release upgrade installs a new kernel
+    # the old DKMS source may not build for — the node then boots with no
+    # /dev/dri/renderD* and every GPU pod silently falls back to CPU (hit on all
+    # three workers 2026-09-14).
+    - name: Render nodes present before the upgrade
+      ansible.builtin.shell: ls /dev/dri/renderD* 2>/dev/null | wc -l
+      register: render_before
+      changed_when: false
+
     # ── Take the node out ──────────────────────────────────────────────
     - name: Cordon
       ansible.builtin.command: "{{ kubectl }} cordon {{ inventory_hostname }}"
@@ -72,6 +108,7 @@
       ansible.builtin.command: >-
         {{ kubectl }} drain {{ inventory_hostname }}
         --ignore-daemonsets --delete-emptydir-data --force --disable-eviction --timeout=600s
+        --skip-wait-for-delete-timeout=120
       delegate_to: localhost
       become: false
       changed_when: true
@@ -90,8 +127,13 @@
               Dpkg::Options { "--force-confdef"; "--force-confold"; };
             mode: "0644"
 
+        # Output goes to a file: do-release-upgrade prints ~270 KB, and passing a
+        # result that large back from the async worker stalled the controller
+        # indefinitely (twice on 2026-09-14) after the node had finished.
         - name: do-release-upgrade (non-interactive)
-          ansible.builtin.command: do-release-upgrade -f DistUpgradeViewNonInteractive
+          ansible.builtin.shell: >-
+            do-release-upgrade -f DistUpgradeViewNonInteractive > /var/log/fleet-release-upgrade.log 2>&1;
+            rc=$?; tail -n 5 /var/log/fleet-release-upgrade.log; exit $rc
           environment:
             DEBIAN_FRONTEND: noninteractive
             APT_LISTCHANGES_FRONTEND: none
@@ -116,6 +158,15 @@
           ansible.builtin.file:
             path: /etc/apt/apt.conf.d/99fleet-release-upgrade
             state: absent
+
+    - name: GPU node — i915-sriov-dkms built for the kernel that will boot
+      ansible.builtin.shell: >-
+        k=$(ls /boot/vmlinuz-* | sed 's|/boot/vmlinuz-||' | sort -V | tail -1);
+        dkms status -k "$k" 2>/dev/null | grep "^i915-sriov-dkms/.*installed" ||
+        { echo "i915-sriov-dkms is not built for $k — install a release that supports it
+        (github.com/strongtz/i915-sriov-dkms), then re-run; the node stays cordoned."; exit 1; }
+      changed_when: false
+      when: render_before.stdout | trim | int > 0
 
     - name: Reboot
       ansible.builtin.reboot:
@@ -145,6 +196,15 @@
       ansible.builtin.command: modprobe --dry-run {{ item }}
       loop: [rbd, ceph, nfs]
       changed_when: false
+
+    - name: GPU node — render nodes back after reboot
+      ansible.builtin.shell: ls /dev/dri/renderD* 2>/dev/null | wc -l
+      register: render_after
+      changed_when: false
+      until: render_after.stdout | trim | int >= render_before.stdout | trim | int
+      retries: 6
+      delay: 10
+      when: render_before.stdout | trim | int > 0
 
     - name: lan0 address present (workers with a second NIC)
       ansible.builtin.shell: ip -4 -o addr show | grep -qw '{{ lan0_address }}'
@@ -182,7 +242,7 @@
     - name: Cluster-wide — nothing stuck Pending
       ansible.builtin.shell: >-
         {{ kubectl }} get pods -A --field-selector status.phase=Pending --no-headers |
-        grep -vE 'volsync-(src|dst)-' || true
+        grep -vE '{{ pending_ignore_regex }}' || true
       delegate_to: localhost
       become: false
       register: pending

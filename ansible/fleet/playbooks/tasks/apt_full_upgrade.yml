@@ -1,16 +1,20 @@
 ---
 # Non-interactive apt dist-upgrade that keeps locally modified config files.
 # Included by vm_patch.yml, k3s_os_upgrade.yml and pve_host_patch.yml.
+#
+# Full apt output goes to /var/log/fleet-apt-upgrade.log on the host and only
+# the summary comes back: very large async results (kernel/initramfs/Ceph
+# upgrades) stalled the Ansible controller indefinitely on 2026-09-14.
 - name: Refresh package lists
   ansible.builtin.apt:
     update_cache: true
     lock_timeout: 600
 
 - name: Full upgrade (keep local config files, no prompts)
-  ansible.builtin.apt:
-    upgrade: dist
-    dpkg_options: force-confdef,force-confold
-    lock_timeout: 600
+  ansible.builtin.shell: >-
+    apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
+    -o DPkg::Lock::Timeout=600 dist-upgrade > /var/log/fleet-apt-upgrade.log 2>&1;
+    rc=$?; grep -E 'upgraded,|^E:' /var/log/fleet-apt-upgrade.log; exit $rc
   environment:
     DEBIAN_FRONTEND: noninteractive
     NEEDRESTART_MODE: a
@@ -18,7 +22,8 @@
   async: 3600
   poll: 20
   register: apt_upgrade
+  changed_when: "' 0 upgraded, 0 newly installed' not in apt_upgrade.stdout"
 
 - name: Summarize package changes
   ansible.builtin.debug:
-    msg: "{{ (apt_upgrade.stdout_lines | default([])) | select('search', 'upgraded,') | list }}"
+    msg: "{{ apt_upgrade.stdout_lines }}"
