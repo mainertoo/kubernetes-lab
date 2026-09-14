@@ -1,0 +1,95 @@
+---
+# Patch LXC containers in place: apt dist-upgrade inside each CT via `pct exec`.
+#
+#   cd ansible/fleet && ansible-playbook playbooks/lxc_patch.yml
+#
+# Containers share the host kernel, so nothing here reboots. Services that
+# apt upgrades are restarted by their own postinst; everything else picks up
+# new libraries at the next host reboot (pve_host_patch.yml).
+#
+# Inventory order puts secondaries (AdGuard / Tailscale on pve-ugreen) before
+# the primaries on pve-mac, and each container is health-checked before the
+# next one starts.
+
+- name: Patch LXC containers
+  hosts: lxc
+  serial: 1
+  max_fail_percentage: 0
+  gather_facts: false
+  vars:
+    apt_opts: >-
+      -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
+      -o DPkg::Lock::Timeout=600
+  tasks:
+    - name: Container must be running
+      ansible.builtin.command: pct status {{ ctid }}
+      delegate_to: "{{ pve_host }}"
+      register: ct_status
+      changed_when: false
+      failed_when: "'running' not in ct_status.stdout"
+
+    # Kopia ignores SIGTERM and an interrupted snapshot leaves orphans behind.
+    - name: Check for a running kopia snapshot
+      ansible.builtin.command: pct exec {{ ctid }} -- pgrep -f "kopia snapshot"
+      delegate_to: "{{ pve_host }}"
+      register: kopia_busy
+      changed_when: false
+      failed_when: false
+      when: health == 'kopia'
+
+    - name: Skip kopia-lxc while a snapshot is running
+      when: health == 'kopia' and kopia_busy.rc == 0
+      block:
+        - name: Explain the skip
+          ansible.builtin.debug:
+            msg: "kopia snapshot in progress in CT {{ ctid }} — skipping; re-run later."
+
+        - name: Stop processing this container
+          ansible.builtin.meta: end_host
+
+    - name: apt update + dist-upgrade inside the container
+      ansible.builtin.shell: >-
+        pct exec {{ ctid }} -- env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none
+        sh -c 'apt-get update -q && apt-get {{ apt_opts }} dist-upgrade && apt-get -y autoremove'
+      delegate_to: "{{ pve_host }}"
+      register: apt_out
+      changed_when: "' 0 upgraded, 0 newly installed' not in apt_out.stdout"
+
+    - name: Summarize package changes
+      ansible.builtin.debug:
+        msg: "{{ apt_out.stdout_lines | select('search', 'upgraded,') | list }}"
+
+    - name: Container IP
+      ansible.builtin.shell: pct exec {{ ctid }} -- hostname -I | awk '{print $1}'
+      delegate_to: "{{ pve_host }}"
+      register: ct_ip
+      changed_when: false
+      when: health == 'tcp53'
+
+    - name: Health — DNS answering on TCP 53
+      ansible.builtin.shell: timeout 5 bash -c '</dev/tcp/{{ ct_ip.stdout | trim }}/53'
+      args:
+        executable: /bin/bash
+      delegate_to: "{{ pve_host }}"
+      changed_when: false
+      retries: 6
+      delay: 10
+      register: dns_ok
+      until: dns_ok.rc == 0
+      when: health == 'tcp53'
+
+    - name: Health — tailscaled logged in and running
+      ansible.builtin.command: pct exec {{ ctid }} -- tailscale status --json
+      delegate_to: "{{ pve_host }}"
+      changed_when: false
+      retries: 6
+      delay: 10
+      register: ts
+      until: ts.rc == 0 and (ts.stdout | from_json).BackendState == 'Running'
+      when: health == 'tailscale'
+
+    - name: Health — kopia server process present
+      ansible.builtin.command: pct exec {{ ctid }} -- pgrep -f "kopia server"
+      delegate_to: "{{ pve_host }}"
+      changed_when: false
+      when: health == 'kopia'

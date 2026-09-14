@@ -1,0 +1,16 @@
+# Public repo — keep Ansible run artifacts and any plaintext secrets out of git.
+*.retry
+.ansible/
+fact_cache/
+*.log
+*.tsv
+probe-out/
+
+# Plaintext secrets must never be committed; use *.sops.yaml (root .sops.yaml rule).
+vault*.yml
+vault*.yaml
+*secret*.yml
+*secret*.yaml
+!*.sops.yaml
+*.dec.yaml
+*.decrypted.*

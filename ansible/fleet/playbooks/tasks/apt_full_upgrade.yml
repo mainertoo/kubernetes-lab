@@ -1,0 +1,24 @@
+---
+# Non-interactive apt dist-upgrade that keeps locally modified config files.
+# Included by vm_patch.yml, k3s_os_upgrade.yml and pve_host_patch.yml.
+- name: Refresh package lists
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 600
+
+- name: Full upgrade (keep local config files, no prompts)
+  ansible.builtin.apt:
+    upgrade: dist
+    dpkg_options: force-confdef,force-confold
+    lock_timeout: 600
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    NEEDRESTART_MODE: a
+    APT_LISTCHANGES_FRONTEND: none
+  async: 3600
+  poll: 20
+  register: apt_upgrade
+
+- name: Summarize package changes
+  ansible.builtin.debug:
+    msg: "{{ (apt_upgrade.stdout_lines | default([])) | select('search', 'upgraded,') | list }}"
