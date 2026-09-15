@@ -14,7 +14,7 @@ cd ansible/fleet
 |---|---|---|
 | `fleet_status.yml` | Read-only report for every host: OS, kernel, uptime, last upgrade, pending/security/kernel packages, reboot needed, package-list age, kernel pin | none |
 | `lxc_patch.yml` | `apt dist-upgrade` inside each container via `pct exec`, then a health check (DNS on TCP 53, tailscaled `Running`, kopia server). Secondaries go before primaries. Skips kopia-lxc while a snapshot is running. | none |
-| `vm_patch.yml` | Packages on `pbs` (over SSH, waits for PBS tasks to finish) and `zwave-js` (through the QEMU guest agent). `spark` only runs with `--limit spark -K`. | none; their host reboot restarts them |
+| `vm_patch.yml` | Packages on `pbs` (over SSH, waits for PBS tasks to finish) and `zwave-js` (through the QEMU guest agent). `spark` only runs with `--limit spark -K`. The **edge VPS** (`vms_edge`) is upgraded, rebooted if `/var/run/reboot-required` (`-e edge_reboot=false` to skip), then its containers, public URLs and TCP ports are checked. That's a brief public outage. | pbs/zwave-js: none (their host reboot restarts them); vps: when required |
 | `k3s_os_upgrade.yml -e target=k3s_staging\|k3s_production` | Rolling, one node at a time. Detailed below. | each node once |
 | `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. | each host once |
 | `pve_kernel_cleanup.yml [-e kernel_cleanup_apply=true]` | Purges Proxmox kernel/header packages that `proxmox-boot-tool` wouldn't boot. Keeps the running, pinned/manual and automatically selected kernels. Aborts if apt would remove anything else. Report-only without the flag. `pve_host_patch.yml` runs it first. | none |

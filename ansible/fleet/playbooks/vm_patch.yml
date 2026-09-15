@@ -4,8 +4,11 @@
 #   cd ansible/fleet && ansible-playbook playbooks/vm_patch.yml
 #   ansible-playbook playbooks/vm_patch.yml --limit spark -K     # needs your sudo password
 #
-# No reboots: pbs and zwave-js restart with their PVE host in
+# No reboots for pbs and zwave-js: they restart with their PVE host in
 # pve_host_patch.yml. spark is excluded unless explicitly limited to.
+# The edge VPS (vms_edge) has no PVE host, so its play reboots it when
+# /var/run/reboot-required exists (-e edge_reboot=false to skip), then checks
+# its containers and public reachability. That's a brief external outage.
 
 - name: Patch VMs over SSH
   hosts: vms_ssh
@@ -109,3 +112,75 @@
       ansible.builtin.debug:
         msg: "{{ containers.stdout_lines }}"
       when: ensure_containers is defined
+
+- name: Patch the external edge VPS (brief public outage)
+  hosts: vms_edge
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    edge_reboot: true
+    ensure_script: |
+      for c in {{ ensure_containers | join(' ') }}; do
+        docker ps -q -f "name=^$c$" -f status=running | grep -q . || { docker start "$c" >/dev/null && echo "started $c"; }
+      done
+      docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Status{{ '}}' }}'
+  tasks:
+    - name: Upgrade packages
+      ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
+    # Same docker-ce trap as zwave-js: containers can come back Exited despite
+    # their restart policy. Pangolin/Gerbil/Traefik down = every public app down.
+    - name: Ensure edge containers are running after the package upgrade
+      ansible.builtin.shell: "{{ ensure_script }}"
+      register: edge_containers
+      changed_when: "'started ' in edge_containers.stdout"
+
+    - name: Reboot required?
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot the VPS
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 20
+        test_command: docker info
+      when: reboot_required.stat.exists and edge_reboot | bool
+
+    - name: All edge containers running (start any that did not come back)
+      ansible.builtin.shell: "{{ ensure_script }}"
+      register: edge_after
+      changed_when: "'started ' in edge_after.stdout"
+      until: >-
+        ensure_containers | reject('in', edge_after.stdout_lines | map('split', ' ') | map('first') | list) | list | length == 0
+        and 'Restarting' not in edge_after.stdout
+      retries: 20
+      delay: 15
+
+    - name: Public apps answer through Pangolin (Newt reconnected)
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        status_code: [200]
+        timeout: 15
+      delegate_to: localhost
+      become: false
+      loop: "{{ external_health_urls | default([]) }}"
+      register: edge_http
+      until: edge_http.status == 200
+      retries: 20
+      delay: 15
+
+    - name: Public TCP services reachable
+      ansible.builtin.wait_for:
+        host: "{{ external_host }}"
+        port: "{{ item }}"
+        timeout: 120
+      delegate_to: localhost
+      become: false
+      loop: "{{ external_tcp_ports | default([]) }}"
+      when: external_host is defined
+
+    - name: Edge status
+      ansible.builtin.debug:
+        msg: "{{ edge_after.stdout_lines }}"
+
