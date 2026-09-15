@@ -87,7 +87,7 @@ Ceph pools breakdown (`ceph df`):
 | `ceph-swarm.meta` / `.data` | 484 MiB / ~97 GiB | Old cephfs (was docker-swarm); **no longer rbd-backup staging** — moved to local ZFS `/zbackup/rbd-backup` 2026-06-02, stale copy deleted 2026-06-05 |
 | `k3s-fs-metadata` / `k3s-fs-data` | 3.0 GiB / 1.7 TiB | Live CephFS PVCs for k3s |
 | `k3s-rbd` | 129 GiB (68 GiB stored) | Live RBD PVCs for k3s |
-| `kube-rbd` | 12 KiB | Empty (legacy, can be removed) |
+| ~~`kube-rbd`~~ | — | **Removed 2026-09-15** (legacy, empty, unreferenced) |
 | `.mgr` | 6.3 MiB | Ceph metadata |
 
 ---
@@ -572,6 +572,8 @@ Kopia 0.22 runs automatic maintenance per the repo metadata. Belt-and-braces: `0
 
 Legacy pool. Removable. Does not affect backups.
 
+✅ **Resolved 2026-09-15:** verified empty (0 images, no trash, no references from cephx caps, PVE storage, rbdmap, or any StorageClass/PV in either cluster) and removed with `pveceph pool destroy kube-rbd`.
+
 ### Finding 10 — `mp2` from the kopia LXC config (`/mnt/pve/cephfs-k3s`) is not visible on the host *(severity: trivial)*
 
 Investigation showed the LXC mounts CephFS directly via the kernel ceph client (not through the host bind-mount), so the host's missing `/mnt/pve/cephfs-k3s` is harmless. The LXC works because it's privileged.
@@ -597,7 +599,7 @@ Investigation showed the LXC mounts CephFS directly via the kernel ceph client (
 | ~~P2~~ ✅ | ~~Migrate postgres apps to CNPG~~ — **done 2026-05-09–10** (all 8 apps; 88 GiB reclaimed in Phase 5) | 2 days total | App-consistent DB backups + point-in-time recovery |
 | P2 | Document this audit's findings in CLAUDE.md so future sessions don't re-discover | 5 min | Continuity |
 | P3 | Add a Garage SnapshotClass or per-bucket replication to make Garage HA | half-day | Resilience inside cluster |
-| P3 | Drop legacy `kube-rbd` Ceph pool | 5 min | Cleanup |
+| ~~P3~~ ✅ | ~~Drop legacy `kube-rbd` Ceph pool~~ — **done 2026-09-15** | 5 min | Cleanup |
 
 ---
 

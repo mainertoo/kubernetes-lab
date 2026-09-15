@@ -126,7 +126,7 @@ See [§9 Critical findings](#9-critical-findings--gaps) for what was done.
 | `ceph-swarm.meta` / `.data` | 484 MiB / ~97 GiB | Old cephfs (was docker-swarm). **No longer RBD backup staging** — that moved to local ZFS `/zbackup/rbd-backup` on 2026-06-02 (see Layer 3 note); the stale `/mnt/pve/cephfs-swarm/rbd-backup/` copy was deleted 2026-06-05 (~180 GiB reclaimed). |
 | `k3s-fs-metadata` / `k3s-fs-data` | 3.0 GiB / 1.7 TiB | Live CephFS PVCs for k3s |
 | `k3s-rbd` | 129 GiB (68 GiB stored) | Live RBD PVCs for k3s |
-| `kube-rbd` | 12 KiB | Empty (legacy, can be removed) |
+| ~~`kube-rbd`~~ | — | **Removed 2026-09-15** (legacy, empty, unreferenced) |
 | `.mgr` | 6.3 MiB | Ceph metadata |
 
 ### Filesystem mounts (key ones)
@@ -1089,6 +1089,8 @@ So this is fine as-is. Optional belt-and-braces explicit weekly cron:
 
 Legacy. Removable. No backup impact.
 
+✅ **Resolved 2026-09-15:** verified empty and unreferenced, removed with `pveceph pool destroy kube-rbd`.
+
 ### F10 — `mp2` LXC mountpoint not visible on host *(severity: trivial)*
 
 The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged container), bypassing the host's `mp2` bind. Harmless today but means the LXC depends on having ceph keyring + connectivity directly inside it. If the LXC ever moves to `unprivileged`, this breaks.
@@ -1114,7 +1116,7 @@ The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged con
 | P2 | Migrate `dawarich-db` and `authentik-postgresql` to CNPG | 2–4 hr each | App-consistent DB backups |
 | P1 | Replace `db_password=` special-case in `rbd-nightly-backup.sh` with SOPS-encrypted backup of the whole Secret (was P2 — bumped during the public-repo prep on 2026-05-24; do this before the repo flips public if any apps still hit this branch) | 1 hr | Cleaner secret handling, no plaintext meta-file echo |
 | P2 | Document this audit's findings in CLAUDE.md | 5 min | Continuity for future work |
-| P3 | Drop legacy `kube-rbd` Ceph pool | 5 min | Cleanup |
+| ~~P3~~ ✅ | ~~Drop legacy `kube-rbd` Ceph pool~~ — **done 2026-09-15** | 5 min | Cleanup |
 | P3 | Garage replication or HA config | half-day | Resilience inside cluster |
 | P3 | After ~12 months: remove old `/mnt/cephfs` Kopia source once retention has fully aged out | 1 min | UI cleanliness |
 
@@ -1400,7 +1402,7 @@ The CSV path survives if Ceph is gone; the `.meta.txt` path survives if PBS is g
 - **Forgetting `backup-engine: kopia` alongside `backup: daily|hourly`** — the companion `volsync-pvc-engine-required` policy denies the PVC. Both labels must be present.
 - **Deleting a PVC that still carries `volsync.backup/skip-restore: "true"`** — Flux will recreate it EMPTY, no auto-restore. Remove the annotation first.
 - **Editing the `volsync-pvc-backup-restore-kopia` policy's `generate.data` in place** — Kyverno rejects the update. The change requires `kustomize.toolkit.fluxcd.io/force: "Enabled"` to delete+recreate the policy (which cold-starts ~140 movers fleet-wide — widen the jitter first).
-- **Restoring an RBD image into the wrong pool** — `k3s-rbd` is the live pool; importing to `kube-rbd` (legacy, empty) won't be usable.
+- **Restoring an RBD image into the wrong pool** — `k3s-rbd` is the live pool for production PVCs (`staging-rbd` for staging). The legacy `kube-rbd` pool was removed on 2026-09-15.
 - **PBS file-level extract requires the encryption keyfile** if the backup was encrypted. PBS backups here are unencrypted today.
 - **Kopia mount on a privileged LXC** is fine; on an unprivileged LXC, FUSE may not work — use `kopia restore` to a target dir instead.
 - **`rbd export` from a busy pool can take a long time** — schedule restores during quiet hours, or `rbd snap create` first and export the snap.

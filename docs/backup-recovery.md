@@ -502,7 +502,7 @@ The CSV path survives if Ceph is gone; the .meta.txt path survives if PBS is gon
 - **Forgetting to `flux suspend hr`** before deleting a PVC for restore — Flux re-creates the PVC before you've scaled the app down, so the app starts writing into the freshly-populated volume mid-restore.
 - **Deleting a PVC that carries `volsync.backup/skip-restore: "true"`** — it will come back **empty**, not restored, because the annotation suppresses the `dataSourceRef` mutate rule (and disables backups). Remove the annotation first if you actually want the snapshot back.
 - **Expecting the populator to fetch an old snapshot** — `dataSourceRef` always pulls the *latest*. For an older point-in-time you must patch `ReplicationDestination/<pvc>-backup` (`restoreAsOf` / `previous`) before recreating the PVC (see §1).
-- **Restoring an RBD image into the wrong pool** — `k3s-rbd` is the live pool; importing to `kube-rbd` (legacy, empty) won't be usable.
+- **Restoring an RBD image into the wrong pool** — `k3s-rbd` is the live pool for production PVCs (`staging-rbd` for staging). The legacy `kube-rbd` pool was removed on 2026-09-15.
 - **PBS file-level extract requires the encryption keyfile** if the backup was encrypted. PBS backups here are unencrypted today.
 - **Kopia mount on a privileged LXC** is fine; on an unprivileged LXC, FUSE may not work — use `kopia restore` to a target dir instead.
 - **`rbd export` from a busy pool can take a long time** — schedule restores during quiet hours, or do `rbd snap create` first and export the snap.
