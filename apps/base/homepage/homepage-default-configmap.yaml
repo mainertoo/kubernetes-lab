@@ -36,10 +36,6 @@ data:
             href: https://pve-s13.lab.mainertoo.com:8006
             description: Proxmox (s13)
             icon: sh-proxmox.svg
-        - pve-s12:
-            href: https://pve-s12.lab.mainertoo.com:8006
-            description: Proxmox (s12)
-            icon: sh-proxmox.svg
         - pve-ugreen:
             href: https://pve-ugreen.lab.mainertoo.com:8006
             description: Proxmox (ugreen)

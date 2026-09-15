@@ -16,7 +16,7 @@ token. See the header comment in `credentials.sops.yaml` for the click-path.
 
 The main `PROXMOX_URL` should point at a cluster member (mammoth/whistler/zermatt) — its
 `/nodes` + `/cluster/resources` cover the whole cluster. Add standalone hosts
-(pve-mac/pve-s13/pve-ugreen/pve-s12) to `PROXMOX_HOSTS`; the same token must exist on each.
+(pve-mac/pve-s13/pve-ugreen) to `PROXMOX_HOSTS`; the same token must exist on each.
 
 ## Usage
 
