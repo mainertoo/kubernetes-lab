@@ -31,7 +31,7 @@ cd ansible/fleet
 9. Wait for Ready, uncordon, wait for pods to settle, soak.
 
 **`pve_host_patch.yml`** runs these steps on each host:
-1. **Gate:** Proxmox quorate, Ceph healthy (only `AUTH_INSECURE_*` ignored) with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
+1. **Gate:** Proxmox quorate, Ceph `HEALTH_OK` (no ignored checks by default; `ceph_health_ignore_prefixes` to override) with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
 2. **Kernel cleanup:** purge kernels that won't boot, so DKMS and initramfs only build for real ones (`-e kernel_cleanup=false` to skip).
 3. **GPU driver (before apt):** hosts with `i915_sriov_dkms_version` move to that release first, with rollback. A new kernel's DKMS hook fails on a driver that can't build for it.
 4. **Prep:** `dpkg --configure -a`, `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module and every DKMS module exist for the boot kernel.

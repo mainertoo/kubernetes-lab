@@ -35,10 +35,11 @@
     ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
     ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
     ceph_mon_ips: [192.168.99.12, 192.168.99.13, 192.168.99.14]
-    # Health-check codes that must not block a rollout. Ceph 20.2.4 raises
-    # AUTH_INSECURE_* (legacy cephx key types) — HEALTH_ERR, but storage works
-    # until keys are rotated deliberately (pve-cephx-rotate-service-keys).
-    ceph_health_ignore_prefixes: [AUTH_INSECURE_]
+    # Health-check code prefixes that must not block a rollout; empty = any check
+    # blocks. AUTH_INSECURE_ was ignored here until the cephx aes256k migration
+    # (CVE-2025-30156) finished on 2026-09-15 and Ceph returned to HEALTH_OK.
+    # Pass e.g. -e '{"ceph_health_ignore_prefixes": ["OSDMAP_FLAGS"]}' to override.
+    ceph_health_ignore_prefixes: []
     ceph_health_check_cmd: >-
       ceph health detail -f json | IGNORE='{{ ceph_health_ignore_prefixes | join(",") }}' python3 -c
       'import os,sys,json; ign=tuple(p for p in os.environ["IGNORE"].split(",") if p);
