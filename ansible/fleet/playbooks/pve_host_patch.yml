@@ -28,6 +28,9 @@
   any_errors_fatal: true
   vars:
     unpin_kernel: true
+    # Purge kernels proxmox-boot-tool would not boot before any DKMS build
+    # (tasks/pve_kernel_cleanup.yml). -e kernel_cleanup=false to skip.
+    kernel_cleanup: true
     soak_seconds: 180
     ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
     ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
@@ -88,6 +91,15 @@
       delay: 60
 
     # ── Prep ───────────────────────────────────────────────────────────
+    # First, so the driver swap and the new kernel's DKMS/initramfs hooks only
+    # build for kernels that can actually boot.
+    - name: Purge kernels proxmox-boot-tool would not boot
+      ansible.builtin.include_tasks: tasks/pve_kernel_cleanup.yml
+      vars:
+        kernel_cleanup_apply: true
+        kernel_cleanup_strict: false
+      when: kernel_cleanup | bool
+
     # iGPU SR-IOV: all three MS-01 hosts (and pve-s13/pve-ugreen) expose 7 VFs; the MS-01s
     # pass one to their K3s worker (mammoth 00:02.4 → worker-1, whistler
     # 00:02.5 → worker-2, zermatt 00:02.6 → worker-3). The VFs come from the

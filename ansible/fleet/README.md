@@ -17,6 +17,7 @@ cd ansible/fleet
 | `vm_patch.yml` | Packages on `pbs` (over SSH, waits for PBS tasks to finish) and `zwave-js` (through the QEMU guest agent). `spark` only runs with `--limit spark -K`. | none; their host reboot restarts them |
 | `k3s_os_upgrade.yml -e target=k3s_staging\|k3s_production` | Rolling, one node at a time. Detailed below. | each node once |
 | `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. | each host once |
+| `pve_kernel_cleanup.yml [-e kernel_cleanup_apply=true]` | Purges Proxmox kernel/header packages that `proxmox-boot-tool` wouldn't boot. Keeps the running, pinned/manual and automatically selected kernels. Aborts if apt would remove anything else. Report-only without the flag. `pve_host_patch.yml` runs it first. | none |
 
 **`k3s_os_upgrade.yml`** runs these steps on each node:
 1. Skip the node if it's already on the target release, on its newest kernel and schedulable (re-running = resuming).
@@ -31,11 +32,12 @@ cd ansible/fleet
 
 **`pve_host_patch.yml`** runs these steps on each host:
 1. **Gate:** Proxmox quorate, Ceph healthy (only `AUTH_INSECURE_*` ignored) with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
-2. **GPU driver (before apt):** hosts with `i915_sriov_dkms_version` move to that release first, with rollback. A new kernel's DKMS hook fails on a driver that can't build for it.
-3. **Prep:** `dpkg --configure -a`, `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module and every DKMS module exist for the boot kernel.
-4. **Reboot:** wait for busy jobs, shut down the K3s VMs, reboot.
-5. **Verify:** expected kernel, VF count and host i915 version, host-specific checks, NFS storages responsive, quorum, this host's mon/OSD/MDS back.
-6. **Finish:** unset the flags, wait for health, check the worker VM's GPU, uncordon one node at a time, check `gpu.intel.com/i915` is advertised, soak.
+2. **Kernel cleanup:** purge kernels that won't boot, so DKMS and initramfs only build for real ones (`-e kernel_cleanup=false` to skip).
+3. **GPU driver (before apt):** hosts with `i915_sriov_dkms_version` move to that release first, with rollback. A new kernel's DKMS hook fails on a driver that can't build for it.
+4. **Prep:** `dpkg --configure -a`, `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module and every DKMS module exist for the boot kernel.
+5. **Reboot:** wait for busy jobs, shut down the K3s VMs, reboot.
+6. **Verify:** expected kernel, VF count and host i915 version, host-specific checks, NFS storages responsive, quorum, this host's mon/OSD/MDS back.
+7. **Finish:** unset the flags, wait for health, check the worker VM's GPU, uncordon one node at a time, check `gpu.intel.com/i915` is advertised, soak.
 
 ## Recommended order
 
@@ -44,7 +46,7 @@ cd ansible/fleet
 3. `k3s_os_upgrade.yml -e target=k3s_staging` — canary for release upgrades.
 4. `k3s_os_upgrade.yml -e target=k3s_production` — workers first, then masters.
 5. **QNAP firmware, if pending** — shut down the PBS VM first. A NAS firmware update wedges every NFSv4 client (hosts and K3s VMs) until reboot, so do it *before* the host phase and put any wedged host first.
-6. `pve_host_patch.yml` — Ceph order: mon/OSD hosts mammoth → zermatt → whistler, then MDS-only mac → s13, then client-only ugreen. Purge old kernels on s13/ugreen first: DKMS builds a new driver for every kernel with headers.
+6. `pve_host_patch.yml` — Ceph order: mon/OSD hosts mammoth → zermatt → whistler, then MDS-only mac → s13, then client-only ugreen. It purges unused kernels first, because DKMS builds a new driver for every kernel with headers (~100 min on the N100 hosts with ~25 kernels).
 7. `fleet_status.yml` — confirm. Also check `ceph mgr services` (the dashboard Endpoints must name the active mgr), DNS on `.50`/`.53`, and zwave-js-ui after any s13 reboot.
 
 Everything stops at the first failure (`any_errors_fatal`). A failed node or host is **left cordoned, with Ceph flags still set**, so you can inspect it. Fix it, then re-run with `--limit <host>`. The playbooks are safe to re-run: a node already on the target release skips the release upgrade.

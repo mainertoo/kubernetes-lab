@@ -1,0 +1,103 @@
+---
+# Purge Proxmox kernel and header packages that proxmox-boot-tool would not boot.
+# Included by pve_kernel_cleanup.yml and pve_host_patch.yml.
+#
+# Keeps: the running kernel, any pinned or manually selected kernel, and PVE's
+# "Automatically selected kernels" (newest two plus the newest of the previous
+# series) — the same set proxmox-boot-tool syncs to the ESP. Everything else is
+# dead weight: on 2026-09-14 pve-s13/pve-ugreen had ~25 kernels, and every DKMS
+# build and initramfs refresh ran once per kernel (a ~100-minute i915-sriov-dkms
+# compile on the N100 box).
+#
+# Set kernel_cleanup_apply=true to purge; otherwise this only reports.
+- name: Kernel cleanup — work out keep and purge sets
+  ansible.builtin.shell: |
+    set -eu
+    keep=$( { uname -r
+      proxmox-boot-tool kernel list 2>/dev/null |
+        awk '/^(Manually selected|Automatically selected|Pinned) kernel/{f=1; next} /^$/{f=0} f && $1 != "None." {print $1}'
+    } | sort -u)
+    series=$(echo "$keep" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | sort -u)
+    dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' \
+      'proxmox-kernel-*' 'proxmox-headers-*' 'pve-kernel-*' 'pve-headers-*' 2>/dev/null |
+    awk '$1 != "un" {print $2}' | while read -r pkg; do
+      v=$(echo "$pkg" | sed -nE 's/^(proxmox|pve)-(kernel|headers)-([0-9]+\.[0-9]+\.[0-9]+-[0-9]+(-bpo[0-9]+)?-pve)(-signed)?$/\3/p')
+      s=$(echo "$pkg" | sed -nE 's/^(proxmox|pve)-(kernel|headers)-([0-9]+\.[0-9]+)$/\3/p')
+      if [ -n "$v" ]; then echo "$keep" | grep -qx "$v" || echo "$pkg"
+      elif [ -n "$s" ]; then echo "$series" | grep -qx "$s" || echo "$pkg"
+      fi
+    done > /root/.fleet-kernel-purge.list
+    echo "keep: $(echo $keep)"
+    echo "purge: $(wc -l < /root/.fleet-kernel-purge.list) packages"
+  args:
+    executable: /bin/bash
+  register: kernel_plan
+  changed_when: false
+
+- name: Kernel cleanup — apt would remove only kernel/header packages
+  ansible.builtin.shell: |
+    set -eu
+    [ -s /root/.fleet-kernel-purge.list ] || { echo "nothing to purge"; exit 0; }
+    apt-get -s purge $(cat /root/.fleet-kernel-purge.list) |
+      awk '/^(Remv|Purg) /{print $2}' | sort -u > /root/.fleet-kernel-purge.sim
+    other=$(grep -vE '^(proxmox|pve)-(kernel|headers)-' /root/.fleet-kernel-purge.sim || true)
+    if [ -n "$other" ]; then echo "refusing — apt would also remove: $other"; exit 1; fi
+    for k in $(uname -r); do
+      grep -E "^(proxmox|pve)-kernel-$k(-signed)?$" /root/.fleet-kernel-purge.sim && { echo "refusing — would remove the running kernel"; exit 1; }
+    done
+    echo "ok: $(wc -l < /root/.fleet-kernel-purge.sim) packages"
+  args:
+    executable: /bin/bash
+  register: kernel_sim
+  changed_when: false
+  # Standalone runs stop on a refusal. pve_host_patch sets
+  # kernel_cleanup_strict=false: the cleanup is only an optimisation there, and
+  # a refusal (or dpkg left interrupted) just skips the purge.
+  failed_when: kernel_sim.rc != 0 and (kernel_cleanup_strict | default(true) | bool)
+
+- name: Kernel cleanup — plan
+  ansible.builtin.debug:
+    msg: "{{ kernel_plan.stdout_lines + kernel_sim.stdout_lines + kernel_sim.stderr_lines[-3:] }}"
+
+- name: Kernel cleanup — purge
+  when: kernel_cleanup_apply | default(false) | bool and kernel_sim.rc == 0
+  block:
+    - name: Purge old kernel and header packages
+      ansible.builtin.shell: |
+        [ -s /root/.fleet-kernel-purge.list ] || { echo "nothing to purge"; exit 0; }
+        apt-get -y -o DPkg::Lock::Timeout=600 purge $(cat /root/.fleet-kernel-purge.list) \
+          > /var/log/fleet-kernel-cleanup.log 2>&1; rc=$?
+        grep -E 'upgraded,|^E:' /var/log/fleet-kernel-cleanup.log; exit $rc
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      async: 3600
+      poll: 15
+      register: kernel_purge
+      changed_when: "'nothing to purge' not in kernel_purge.stdout"
+
+    # Kernel postrm hooks already do this; run it again so the check below
+    # sees a synced ESP / regenerated grub.cfg.
+    - name: Refresh boot entries
+      ansible.builtin.shell: proxmox-boot-tool refresh >/dev/null 2>&1; update-grub >/dev/null 2>&1; echo done
+      when: kernel_purge is changed
+      changed_when: true
+
+    - name: Every kept kernel still has an image, an initrd and a boot entry
+      ansible.builtin.shell: |
+        set -eu
+        keep="{{ kernel_plan.stdout_lines[0] | regex_replace('^keep: ', '') }}"
+        esp=$(proxmox-boot-tool status 2>/dev/null | grep -o 'versions: .*' || true)
+        for v in $keep; do
+          [ -e /boot/vmlinuz-$v ] && [ -e /boot/initrd.img-$v ] || { echo "missing /boot files for $v"; exit 1; }
+          if [ -n "$esp" ]; then echo "$esp" | grep -q "$v" || { echo "$v not synced to the ESP"; exit 1; }
+          else grep -q "vmlinuz-$v" /boot/grub/grub.cfg || { echo "$v missing from grub.cfg"; exit 1; }; fi
+        done
+        echo "kernels installed: $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'proxmox-kernel-*-pve-signed' 'proxmox-kernel-*-pve' 2>/dev/null | grep -c '^ii')"
+      args:
+        executable: /bin/bash
+      register: kernel_verify
+      changed_when: false
+
+    - name: Kernel cleanup — result
+      ansible.builtin.debug:
+        msg: "{{ kernel_purge.stdout_lines | default([]) + kernel_verify.stdout_lines }}"

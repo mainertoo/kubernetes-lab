@@ -1,0 +1,27 @@
+---
+# Purge Proxmox kernels that proxmox-boot-tool would not boot. No reboot.
+#
+#   cd ansible/fleet
+#   ansible-playbook playbooks/pve_kernel_cleanup.yml                              # report only
+#   ansible-playbook playbooks/pve_kernel_cleanup.yml -e kernel_cleanup_apply=true
+#   ansible-playbook playbooks/pve_kernel_cleanup.yml --limit pve-s13 -e kernel_cleanup_apply=true
+#
+# Keeps the running, pinned/manual and automatically selected kernels (see
+# tasks/pve_kernel_cleanup.yml). pve_host_patch.yml runs the same cleanup
+# before its driver swap and apt upgrade.
+
+- name: Purge unused Proxmox kernels
+  hosts: pve
+  serial: 1
+  max_fail_percentage: 0
+  gather_facts: false
+  tasks:
+    # Check the host's own dpkg locks: pgrep would also match apt running
+    # inside this host's LXC containers (it tripped on CT104's upgrade).
+    - name: No dpkg/apt run in progress on the host
+      ansible.builtin.shell: >-
+        ! fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1
+      changed_when: false
+
+    - name: Kernel cleanup
+      ansible.builtin.include_tasks: tasks/pve_kernel_cleanup.yml
