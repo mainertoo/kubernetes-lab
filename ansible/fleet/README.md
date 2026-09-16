@@ -12,7 +12,7 @@ cd ansible/fleet
 
 | Playbook | What it does | Reboots |
 |---|---|---|
-| `fleet_status.yml` | Read-only report for every host: OS, kernel, uptime, last upgrade, pending/security/kernel packages, reboot needed, package-list age, kernel pin | none |
+| `fleet_status.yml` | Read-only report for every host: OS, kernel, uptime, last upgrade, pending/security/kernel packages, reboot needed, package-list age, kernel pin | none Posts a summary to Discord when a webhook is configured (see below). | none |
 | `lxc_patch.yml` | `apt dist-upgrade` inside each container via `pct exec`, then a health check (DNS on TCP 53, tailscaled `Running`, kopia server). Secondaries go before primaries. Skips kopia-lxc while a snapshot is running. | none |
 | `vm_patch.yml` | Packages on `pbs` (over SSH, waits for PBS tasks to finish) and `zwave-js` (through the QEMU guest agent). `spark` only runs with `--limit spark -K`. The **edge VPS** (`vms_edge`) is upgraded, rebooted if `/var/run/reboot-required` (`-e edge_reboot=false` to skip), then its containers, public URLs and TCP ports are checked. That's a brief public outage. | pbs/zwave-js: none (their host reboot restarts them); vps: when required |
 | `k3s_os_upgrade.yml -e target=k3s_staging\|k3s_production` | Rolling, one node at a time. Detailed below. | each node once |
@@ -56,6 +56,39 @@ Everything stops at the first failure (`any_errors_fatal`). A failed node or hos
 ## iGPU SR-IOV driver
 
 Hosts that expose Iris Xe / Alder Lake-N VFs (the MS-01s, s13, ugreen) and the production workers run the out-of-tree **i915-sriov-dkms**, pinned to one version on both sides: `i915_sriov_dkms_version` here and in `ansible/k3s-cluster/inventory/*/group_vars/all.yml`. Before bumping it, check the release's `BUILD_EXCLUSIVE_KERNEL` covers every PVE and Ubuntu kernel that will boot. `dkms status <module>` ignores its filter in DKMS 3.2.2, so always parse `dkms status | grep '^<module>/'`.
+
+## Monthly drift report (Discord)
+
+`fleet_status.yml` ends by printing a summary — how many hosts need attention, with pending/security counts and reboots — and posts the same text to Discord when a webhook is configured:
+
+```bash
+cd ansible/fleet
+ansible-playbook playbooks/fleet_status.yml                 # report + post (if configured)
+ansible-playbook playbooks/fleet_status.yml -e notify=false # report only
+```
+
+**Configure the webhook** (channel `#homelab-updates`), either:
+- **In the repo (encrypted):** put the URL in `ansible/fleet/vars/notify.sops.yaml` as `discord_webhook_url`. The root `.sops.yaml` rule `^ansible/.+\.sops\.ya?ml$` encrypts every value; check for `ENC[` before committing. To write it without the URL ever appearing on screen, copy it first, then:
+  ```bash
+  printf 'discord_webhook_url: "%s"\n' "$(pbpaste)" > ansible/fleet/vars/notify.sops.yaml
+  sops --encrypt --in-place ansible/fleet/vars/notify.sops.yaml
+  ```
+- **Outside the repo:** `ansible-playbook playbooks/fleet_status.yml -e discord_webhook_url="$(cat ~/.config/fleet-discord-webhook)"`.
+
+Without either, the summary still prints and the playbook still succeeds.
+
+**Run it monthly.** The report is only useful if it runs: 25.10 went out of support ~8 weeks before anyone noticed. On the operator's Mac, a LaunchAgent is the simplest scheduler (it runs at the next wake if the Mac was asleep):
+
+```xml
+<!-- ~/Library/LaunchAgents/com.mainertoo.fleet-status.plist — load with:
+     launchctl load ~/Library/LaunchAgents/com.mainertoo.fleet-status.plist -->
+<key>ProgramArguments</key>
+<array>
+  <string>/bin/zsh</string><string>-lc</string>
+  <string>cd ~/kubernetes-lab/ansible/fleet &amp;&amp; ansible-playbook playbooks/fleet_status.yml</string>
+</array>
+<key>StartCalendarInterval</key><dict><key>Day</key><integer>1</integer><key>Hour</key><integer>9</integer></dict>
+```
 
 ## Host-specific checks encoded here
 
