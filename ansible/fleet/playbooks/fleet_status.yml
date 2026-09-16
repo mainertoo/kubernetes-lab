@@ -89,13 +89,21 @@
     notify: true
     notify_secrets: "{{ playbook_dir }}/../vars/notify.sops.yaml"
   tasks:
+    # Namespaced under `fleet_notify` and read from ansible_facts explicitly:
+    # top-level fact injection (INJECT_FACTS_AS_VARS) is deprecated.
     - name: Load the webhook from SOPS (if present)
       community.sops.load_vars:
         file: "{{ notify_secrets }}"
+        name: fleet_notify
       when:
         - discord_webhook_url is not defined
         - notify | bool
         - notify_secrets is exists
+
+    - name: Resolve the webhook (-e discord_webhook_url=... wins)
+      ansible.builtin.set_fact:
+        webhook_url: >-
+          {{ discord_webhook_url | default(ansible_facts.fleet_notify.discord_webhook_url | default('')) }}
 
     - name: Build the summary
       ansible.builtin.command: python3 {{ playbook_dir }}/../files/fleet_report.py
@@ -110,14 +118,14 @@
 
     - name: Send it to Discord
       ansible.builtin.uri:
-        url: "{{ discord_webhook_url }}"
+        url: "{{ webhook_url }}"
         method: POST
         body: "{{ fleet_report.stdout }}"
         body_format: json
         status_code: [200, 204]
       when:
         - notify | bool
-        - discord_webhook_url is defined
+        - webhook_url | length > 0
       no_log: true
 
     - name: No webhook configured
@@ -127,4 +135,4 @@
           `discord_webhook_url`, or pass -e discord_webhook_url=... (-e notify=false to silence this).
       when:
         - notify | bool
-        - discord_webhook_url is not defined
+        - webhook_url | length == 0

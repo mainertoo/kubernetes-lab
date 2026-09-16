@@ -1,0 +1,16 @@
+discord_webhook_url: ENC[AES256_GCM,data:ZNDn2GvkGh1K4XlrCf3uHPjc2kVN3LZlnQSaqIB8iIkJd4gXQQXfyLUjkE5AD3nFmFHxaz3y+ELRExHndgo84G/yOiZ3zplB2PyEvU3cPrjh3Ho9ob9R+PRdcRhs0SB17menQZSQYe+zR6H2pyhavZy6SIj6glc92A==,iv:3fDOzhNhrLw+MhbZQgtZI1F0kIC4ERdoA4Djg/A4Q3s=,tag:PBHLdUTFd1A+54f95MQeFQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBWazBsenJ2MUUveUNGRXBU
+            TVdDNlhLU1RqU2lGc1BxTzhSRG1BdUR1U1JrClpvVExZRkpwUE4rRUxNd1g2WG1r
+            S1JhcWNTWngxK3VpWFZQbFVZRDBDS2cKLS0tIHE4czlQOFM5OVNxazFJTzdVUjRv
+            alRscHNuUXNoNFBwRGVPVUY3QXZHbDAKgRD+dE+LlEgd1RryyyljkPhky2BQyiHq
+            61OonGvlmyY1xwh1zVvlx13IAujrOwR9rCpg814y9vORkkfGw5Q64A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+    lastmodified: "2026-09-16T01:46:34Z"
+    mac: ENC[AES256_GCM,data:ECgEL8DBWY3re+9urehdGuk8fsADN6PMg3jm1jmO30c/WD9dW41w53JD0SlKLsJDa2mmdY6bymF9NaHF30IDVhYHI7NRMG26ly3WtND79kR6urXipOurGe2CWMgd33er11CcOwH/za+H+a7aNRYWwLPRwaxdw+5xw0gXsoeG+GY=,iv:ROLxFz9884X0qVIV0uSXcTfHTWGzRNjUvUVo3Z2A/Jo=,tag:KJtaewVBeCqKbGTM/Zc7ow==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.1
