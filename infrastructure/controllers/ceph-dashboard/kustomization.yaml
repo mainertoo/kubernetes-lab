@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: ceph-dashboard
 resources:
   - ceph-namespace.yaml
-  - ceph-service-endpoints.yaml
+  - ceph-service.yaml
+  - ceph-dashboard-endpoint-reconciler.yaml
   - ceph-serverstransport.yaml
   - ceph-ingressroute.yaml
   - oauth2-proxy-config.yaml

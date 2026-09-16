@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-dashboard-endpoint-reconciler
+  namespace: ceph-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ceph-dashboard-endpoint-reconciler
+  namespace: ceph-dashboard
+rules:
+  # Only this one Endpoints object, and only enough to create/repoint it.
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    resourceNames: ["ceph-dashboard"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ceph-dashboard-endpoint-reconciler
+  namespace: ceph-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ceph-dashboard-endpoint-reconciler
+subjects:
+  - kind: ServiceAccount
+    name: ceph-dashboard-endpoint-reconciler
+    namespace: ceph-dashboard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-dashboard-endpoint-reconciler
+  namespace: ceph-dashboard
+data:
+  # NOTE: v1 Endpoints is deprecated in k8s 1.33+ in favour of EndpointSlice.
+  # It still works (the mirroring controller creates the slice) and matches the
+  # Service that has always used it here; switch this to a hand-managed
+  # EndpointSlice if the API is ever removed.
+  #
+  # Probe each mgr: the ACTIVE one answers 200, standbys answer 303. Then point
+  # the Endpoints at it via the Kubernetes API (curl + the pod's service-account
+  # token — no kubectl image needed). Patches only when the address changed.
+  reconcile.sh: |
+    #!/bin/sh
+    set -eu
+    NS=ceph-dashboard
+    NAME=ceph-dashboard
+    API=https://kubernetes.default.svc
+    SA=/var/run/secrets/kubernetes.io/serviceaccount
+    TOKEN=$(cat $SA/token)
+    active=""
+    for ip in $MGR_IPS; do
+      code=$(curl -sk -o /dev/null -m 5 -w '%{http_code}' "https://$ip:8443/" || echo 000)
+      echo "mgr $ip -> HTTP $code"
+      if [ "$code" = "200" ]; then active=$ip; break; fi
+    done
+    if [ -z "$active" ]; then
+      echo "no mgr answered 200 — leaving the Endpoints unchanged"
+      exit 1
+    fi
+    current=$(curl -s --cacert $SA/ca.crt -H "Authorization: Bearer $TOKEN" \
+      "$API/api/v1/namespaces/$NS/endpoints/$NAME" |
+      tr -d ' \n' | sed -n 's/.*"addresses":\[{"ip":"\([0-9.]*\)".*/\1/p')
+    if [ "$current" = "$active" ]; then
+      echo "already pointing at the active mgr ($active)"
+      exit 0
+    fi
+    echo "repointing $NAME: ${current:-<none>} -> $active"
+    body='{"subsets":[{"addresses":[{"ip":"'$active'"}],"ports":[{"name":"https","port":8443,"protocol":"TCP"}]}]}'
+    code=$(curl -s -o /tmp/out -w '%{http_code}' --cacert $SA/ca.crt \
+      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/merge-patch+json" \
+      -X PATCH -d "$body" "$API/api/v1/namespaces/$NS/endpoints/$NAME")
+    if [ "$code" = "404" ]; then
+      echo "Endpoints missing — creating it"
+      create='{"apiVersion":"v1","kind":"Endpoints","metadata":{"name":"'$NAME'","namespace":"'$NS'"},'${body#?}
+      code=$(curl -s -o /tmp/out -w '%{http_code}' --cacert $SA/ca.crt \
+        -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+        -X POST -d "$create" "$API/api/v1/namespaces/$NS/endpoints")
+    fi
+    case "$code" in
+      2*) echo "ok ($code)" ;;
+      *)  echo "API call failed ($code): $(cat /tmp/out)"; exit 1 ;;
+    esac
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ceph-dashboard-endpoint-reconciler
+  namespace: ceph-dashboard
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: ceph-dashboard-endpoint-reconciler
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: reconcile
+              image: curlimages/curl:8.22.0
+              command: ["/bin/sh", "/script/reconcile.sh"]
+              env:
+                # The three mgr IPs on the Ceph public network (mon/mgr hosts).
+                - name: MGR_IPS
+                  value: "192.168.99.12 192.168.99.13 192.168.99.14"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: false
+              resources:
+                requests: { cpu: 5m, memory: 16Mi }
+                limits: { memory: 64Mi }
+              volumeMounts:
+                - name: script
+                  mountPath: /script
+          volumes:
+            - name: script
+              configMap:
+                name: ceph-dashboard-endpoint-reconciler
