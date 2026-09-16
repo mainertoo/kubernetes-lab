@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-dashboard
+  namespace: ceph-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+---
+# NOTE: the Endpoints object for this Service is deliberately NOT in git.
+#
+# The Ceph dashboard runs ONLY on the ACTIVE mgr; standbys answer 303 with an
+# internal redirect the ingress cannot follow, so the Endpoints must name
+# exactly the active mgr — and that changes on every mgr failover (it did on
+# 2026-09-14 and again on 2026-09-15, each time needing a manual re-pin PR).
+#
+# `ceph-dashboard-endpoint-reconciler.yaml` keeps it pointed at whichever mgr
+# answers 200, every 2 minutes. Flux must not manage the Endpoints too, or the
+# two would fight: Flux would restore the committed IP on every reconcile.
+#
+# Manual override if the reconciler is ever removed:
+#   ceph mgr services | grep dashboard        # -> https://<active-ip>:8443/
+#   kubectl -n ceph-dashboard patch endpoints ceph-dashboard --type merge \
+#     -p '{"subsets":[{"addresses":[{"ip":"<active-ip>"}],"ports":[{"name":"https","port":8443,"protocol":"TCP"}]}]}'
+
