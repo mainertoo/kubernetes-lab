@@ -16,7 +16,8 @@ cd ansible/fleet
 | `lxc_patch.yml` | `apt dist-upgrade` inside each container via `pct exec`, then a health check (DNS on TCP 53, tailscaled `Running`, kopia server). Secondaries go before primaries. Skips kopia-lxc while a snapshot is running. | none |
 | `vm_patch.yml` | Packages on `pbs` (over SSH, waits for PBS tasks to finish) and `zwave-js` (through the QEMU guest agent). `spark` only runs with `--limit spark -K`. The **edge VPS** (`vms_edge`) is upgraded, rebooted if `/var/run/reboot-required` (`-e edge_reboot=false` to skip), then its containers, public URLs and TCP ports are checked. That's a brief public outage. | pbs/zwave-js: none (their host reboot restarts them); vps: when required |
 | `k3s_os_upgrade.yml -e target=k3s_staging\|k3s_production` | Rolling, one node at a time. Detailed below. | each node once |
-| `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. | each host once |
+| `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. Skips hosts already done (see `pve_resume_check.yml`); `-e force_all=true` patches anyway. | each host once |
+| `pve_resume_check.yml` | **Read-only.** Reports whether each PVE host would be skipped, and why (kernel, pending packages, K3s nodes Ready+schedulable, Ceph flags). ⚠️ Use this to check the resume logic — never start `pve_host_patch.yml` to "test" it, since that drains and reboots. | none |
 | `pve_kernel_cleanup.yml [-e kernel_cleanup_apply=true]` | Purges Proxmox kernel/header packages that `proxmox-boot-tool` wouldn't boot. Keeps the running, pinned/manual and automatically selected kernels. Aborts if apt would remove anything else. Report-only without the flag. `pve_host_patch.yml` runs it first. | none |
 
 **`k3s_os_upgrade.yml`** runs these steps on each node:
@@ -31,13 +32,14 @@ cd ansible/fleet
 9. Wait for Ready, uncordon, wait for pods to settle, soak.
 
 **`pve_host_patch.yml`** runs these steps on each host:
+0. **Resume:** skip this host if it runs its newest kernel with nothing pending, its K3s guests are Ready **and** schedulable, and no Ceph flags are set. A cordoned guest (including staging) makes a host non-skippable on purpose.
 1. **Gate:** Proxmox quorate, Ceph `HEALTH_OK` (no ignored checks by default; `ceph_health_ignore_prefixes` to override) with all PGs `active+clean`, all K3s nodes Ready, vzdump idle.
 2. **Kernel cleanup:** purge kernels that won't boot, so DKMS and initramfs only build for real ones (`-e kernel_cleanup=false` to skip).
 3. **GPU driver (before apt):** hosts with `i915_sriov_dkms_version` move to that release first, with rollback. A new kernel's DKMS hook fails on a driver that can't build for it.
 4. **Prep:** `dpkg --configure -a`, `apt dist-upgrade`, drain the host's K3s nodes, set Ceph `noout`/`norebalance`, unpin the kernel, confirm a ZFS module and every DKMS module exist for the boot kernel.
 5. **Reboot:** wait for busy jobs, shut down the K3s VMs, reboot.
 6. **Verify:** expected kernel, VF count and host i915 version, host-specific checks, NFS storages responsive, quorum, this host's mon/OSD/MDS back.
-7. **Finish:** unset the flags, wait for health, check the worker VM's GPU, uncordon one node at a time, check `gpu.intel.com/i915` is advertised, soak.
+7. **Finish:** unset the flags, wait for health, check the worker VM's GPU, uncordon one node at a time, check `gpu.intel.com/i915` is advertised, restart guest containers a reboot left stopped (`guest_ensure_containers`), verify guest services (`health_urls` / `health_tcp` / `health_dns` / `health_lxc_tailscale`), soak.
 
 ## Recommended order
 
