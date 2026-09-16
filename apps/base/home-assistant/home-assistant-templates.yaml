@@ -148,6 +148,57 @@
            and has_value('binary_sensor.dining_room_sliding_door_lock_2_input_100') }}
       delay_on: "00:00:30"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Sliding Door Lock 3 (Family Room) — Shelly 1 Gen4 @ 192.168.20.187 + Plus Add-on
+# Identical build to the kitchen and dining-room units; see wiki 278.
+#
+# Source entities:
+#   switch.family_room_sliding_door_lock_3                   relay (commanded)
+#   binary_sensor.family_room_sliding_door_lock_3_input_100  door, device_class door
+#                                                            (on = Open, off = Closed)
+#   event.family_room_sliding_door_lock_3_input              button press (every press)
+# ─────────────────────────────────────────────────────────────────────────────
+
+- lock:
+    - name: "Family Room Sliding Door"
+      unique_id: sliding_door_3_lock
+      # Truth, not intent — both conditions must hold for the bolt to be out.
+      state: >
+        {{ is_state('switch.family_room_sliding_door_lock_3', 'on')
+           and is_state('binary_sensor.family_room_sliding_door_lock_3_input_100', 'off') }}
+      availability: >
+        {{ has_value('switch.family_room_sliding_door_lock_3')
+           and has_value('binary_sensor.family_room_sliding_door_lock_3_input_100') }}
+      optimistic: false
+      attributes:
+        door_position: >-
+          {{ 'open' if is_state('binary_sensor.family_room_sliding_door_lock_3_input_100', 'on')
+             else 'closed' }}
+        bolt: >-
+          {{ 'retracted' if is_state('switch.family_room_sliding_door_lock_3', 'off')
+             else ('thrown' if is_state('binary_sensor.family_room_sliding_door_lock_3_input_100', 'off')
+                   else 'armed') }}
+      lock:
+        action: switch.turn_on
+        target:
+          entity_id: switch.family_room_sliding_door_lock_3
+      unlock:
+        action: switch.turn_off
+        target:
+          entity_id: switch.family_room_sliding_door_lock_3
+
+- binary_sensor:
+    - name: "Family Room Sliding Door Lock Armed"
+      unique_id: sliding_door_3_lock_armed
+      device_class: problem
+      state: >
+        {{ is_state('switch.family_room_sliding_door_lock_3', 'on')
+           and is_state('binary_sensor.family_room_sliding_door_lock_3_input_100', 'on') }}
+      availability: >
+        {{ has_value('switch.family_room_sliding_door_lock_3')
+           and has_value('binary_sensor.family_room_sliding_door_lock_3_input_100') }}
+      delay_on: "00:00:30"
+
 # ═════════════════════════════════════════════════════════════════════════════
 # ENERGY MONITORING
 #
