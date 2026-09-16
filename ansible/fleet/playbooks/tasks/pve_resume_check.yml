@@ -1,0 +1,53 @@
+---
+# Read-only resume evaluation for pve_host_patch.yml: is this host already done?
+# Sets `resume_skip` (bool) and `resume_summary` (string). Included by
+# pve_host_patch.yml (which then ends the host) and by pve_resume_check.yml
+# (which only reports), so the decision can be tested without patching anything.
+- name: Resume check — kernel and pending packages
+  ansible.builtin.shell: |
+    newest=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's|.*/vmlinuz-||' | sort -V | tail -1)
+    pending=$(apt-get -s -o Debug::NoLocking=true dist-upgrade 2>/dev/null | grep -c '^Inst ')
+    echo "running=$(uname -r) newest=$newest pending=$pending"
+  register: resume_state
+  changed_when: false
+
+- name: Resume check — this host's K3s nodes Ready and schedulable
+  ansible.builtin.shell: >-
+    kubectl --context {{ item.context }} get node {{ item.node }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{.spec.unschedulable}'
+  delegate_to: localhost
+  become: false
+  loop: "{{ k3s_guests }}"
+  loop_control:
+    label: "{{ item.node }}"
+  register: resume_nodes
+  changed_when: false
+  failed_when: false
+
+- name: Resume check — Ceph flags clear
+  ansible.builtin.shell: ceph osd dump | grep -qE '^flags.*(noout|norebalance)' && echo set || echo clear
+  delegate_to: "{{ ceph_cli_host }}"
+  register: resume_flags
+  changed_when: false
+
+- name: Resume decision
+  ansible.builtin.set_fact:
+    resume_nodes_ok: "{{ resume_nodes.results | map(attribute='stdout') | select('equalto', 'True') | list | length }}"
+    resume_kernel_ok: "{{ resume_state.stdout is search('running=(\\S+) newest=\\1 pending=0') }}"
+    resume_flags_ok: "{{ resume_flags.stdout | trim == 'clear' }}"
+
+- name: Resume decision (combined)
+  ansible.builtin.set_fact:
+    resume_skip: >-
+      {{ (not (force_all | default(false) | bool))
+         and (resume_kernel_ok | bool)
+         and (resume_flags_ok | bool)
+         and (resume_nodes_ok | int == k3s_guests | length) }}
+    resume_summary: >-
+      {{ resume_state.stdout }} | ceph_flags={{ resume_flags.stdout | trim }}
+      | nodes_ready_schedulable={{ resume_nodes_ok }}/{{ k3s_guests | length }}
+      | kernel_ok={{ resume_kernel_ok }}
+
+- name: Resume state
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: skip={{ resume_skip }} — {{ resume_summary }}"
