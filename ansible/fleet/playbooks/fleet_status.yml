@@ -5,6 +5,11 @@
 #
 # One line per host: OS, running kernel, uptime, last upgrade, pending /
 # security / kernel packages, reboot needed, package-list age, kernel pin.
+#
+# It also posts a summary to Discord when `vars/notify.sops.yaml` exists
+# (key: discord_webhook_url). Skip that with -e notify=false, or override the
+# target with -e discord_webhook_url=...  Run it monthly to catch drift before
+# it is weeks deep.
 
 - name: Probe hosts reachable over SSH
   hosts: pve:k3s:vms_ssh
@@ -15,9 +20,13 @@
       register: probe
       changed_when: false
 
+    - name: Keep the line for the summary
+      ansible.builtin.set_fact:
+        fleet_line: "{{ probe.stdout | trim }}"
+
     - name: Report
       ansible.builtin.debug:
-        msg: "{{ probe.stdout | trim }}"
+        msg: "{{ fleet_line }}"
 
 - name: Probe LXC containers via their PVE host
   hosts: lxc
@@ -36,9 +45,13 @@
       register: probe
       changed_when: false
 
+    - name: Keep the line for the summary
+      ansible.builtin.set_fact:
+        fleet_line: "{{ probe.stdout | trim }}"
+
     - name: Report
       ansible.builtin.debug:
-        msg: "{{ probe.stdout | trim }}"
+        msg: "{{ fleet_line }}"
 
 - name: Probe VMs via the QEMU guest agent
   hosts: vms_guest_agent
@@ -57,6 +70,61 @@
       register: probe
       changed_when: false
 
+    - name: Keep the line for the summary
+      ansible.builtin.set_fact:
+        fleet_line: "{{ (probe.stdout | from_json)['out-data'] | default('') | trim }}"
+
     - name: Report
       ansible.builtin.debug:
-        msg: "{{ (probe.stdout | from_json)['out-data'] | default('') | trim }}"
+        msg: "{{ fleet_line }}"
+
+# Summary to Discord (#homelab-updates). Optional: without a webhook the
+# summary is still printed, so the playbook stays useful and never fails on
+# the notification.
+- name: Post the fleet summary to Discord
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    notify: true
+    notify_secrets: "{{ playbook_dir }}/../vars/notify.sops.yaml"
+  tasks:
+    - name: Load the webhook from SOPS (if present)
+      community.sops.load_vars:
+        file: "{{ notify_secrets }}"
+      when:
+        - discord_webhook_url is not defined
+        - notify | bool
+        - notify_secrets is exists
+
+    - name: Build the summary
+      ansible.builtin.command: python3 {{ playbook_dir }}/../files/fleet_report.py
+      args:
+        stdin: "{{ groups['all'] | map('extract', hostvars, 'fleet_line') | select('defined') | select('truthy') | join('\n') }}"
+      register: fleet_report
+      changed_when: false
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: "{{ fleet_report.stderr_lines }}"
+
+    - name: Send it to Discord
+      ansible.builtin.uri:
+        url: "{{ discord_webhook_url }}"
+        method: POST
+        body: "{{ fleet_report.stdout }}"
+        body_format: json
+        status_code: [200, 204]
+      when:
+        - notify | bool
+        - discord_webhook_url is defined
+      no_log: true
+
+    - name: No webhook configured
+      ansible.builtin.debug:
+        msg: >-
+          Not posting to Discord: create ansible/fleet/vars/notify.sops.yaml with
+          `discord_webhook_url`, or pass -e discord_webhook_url=... (-e notify=false to silence this).
+      when:
+        - notify | bool
+        - discord_webhook_url is not defined
