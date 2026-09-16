@@ -1,0 +1,16 @@
+---
+# Read-only: report whether each PVE host would be skipped by pve_host_patch.yml.
+#
+#   cd ansible/fleet && ansible-playbook playbooks/pve_resume_check.yml
+#
+# Changes nothing. Use it to validate the resume logic (and to see what a run
+# would do) instead of starting pve_host_patch.yml, which drains and reboots.
+- name: Resume check (read-only)
+  hosts: pve
+  gather_facts: false
+  vars:
+    ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
+    ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
+  tasks:
+    - name: Evaluate resume state
+      ansible.builtin.include_tasks: tasks/pve_resume_check.yml

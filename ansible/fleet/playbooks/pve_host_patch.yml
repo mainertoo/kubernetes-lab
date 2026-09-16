@@ -15,7 +15,11 @@
 #   reboot — wait out host-specific busy jobs, shut down K3s VMs cleanly, reboot
 #   verify — booted the newest kernel, host traps (whistler isolcpus,
 #            s13 vmbr9/USB NIC, ugreen zbackup + CephFS mounts), quorum, this
-#            host's mon/OSD/MDS back, guests running
+#            host's mon/OSD/MDS back, guests running, guest services answering
+#
+# Re-running is the resume procedure: a host already on its newest kernel with
+# nothing pending, its K3s nodes Ready+schedulable and no Ceph flags set is
+# skipped. Pass -e force_all=true to patch every host anyway.
 #   finish — unset Ceph flags, wait HEALTH_OK, uncordon K3s nodes one by one,
 #            pods settled, soak
 #
@@ -46,6 +50,17 @@
       bad=sorted(k for k in json.load(sys.stdin).get("checks",{}) if not k.startswith(ign));
       print("ok" if not bad else "blocking checks: " + ", ".join(bad))'
   tasks:
+    # ── Resume ─────────────────────────────────────────────────────────
+    # Skip a host that is already done. `resume_skip` is computed by the shared
+    # read-only task file, so `pve_resume_check.yml` can report the same
+    # decision without running any of this playbook.
+    - name: Evaluate resume state
+      ansible.builtin.include_tasks: tasks/pve_resume_check.yml
+
+    - name: Stop processing this host — already patched and healthy
+      ansible.builtin.meta: end_host
+      when: resume_skip | bool
+
     # ── Gates ──────────────────────────────────────────────────────────
     - name: Gate — PVE cluster quorate
       ansible.builtin.shell: pvecm status | grep -Eq 'Quorate:\s+Yes'
@@ -578,6 +593,67 @@
       until: unsettled.stdout | trim | length == 0
       retries: 60
       delay: 15
+
+    # ── Guest services ─────────────────────────────────────────────────
+    # A host reboot restarts its guests, but not always their services: a
+    # container Docker recorded as user-stopped stays down (zwave-js-ui after
+    # every s13 reboot), and CT104's AdGuard crash-looped on a full disk once.
+    - name: Guest containers that must be running again
+      ansible.builtin.shell: |
+        qm guest exec {{ item.vmid }} --timeout 60 -- /bin/sh -c 'for c in {{ item.containers | join(" ") }}; do docker ps -q -f "name=^$c$" -f status=running | grep -q . || { docker start "$c" >/dev/null && echo "started $c"; }; done' |
+          python3 -c 'import sys,json; print(json.load(sys.stdin).get("out-data","").strip())'
+      loop: "{{ guest_ensure_containers | default([]) }}"
+      loop_control:
+        label: "VM {{ item.vmid }}"
+      register: guest_containers
+      changed_when: "'started ' in guest_containers.stdout | default('')"
+      retries: 6
+      delay: 10
+      until: guest_containers is succeeded
+
+    - name: Guest services — HTTP
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        status_code: [200]
+        timeout: 15
+      delegate_to: localhost
+      become: false
+      loop: "{{ health_urls | default([]) }}"
+      register: guest_http
+      until: guest_http.status == 200
+      retries: 20
+      delay: 15
+
+    - name: Guest services — TCP
+      ansible.builtin.wait_for:
+        host: "{{ item.split(':')[0] }}"
+        port: "{{ item.split(':')[1] }}"
+        timeout: 180
+      delegate_to: localhost
+      become: false
+      loop: "{{ health_tcp | default([]) }}"
+
+    - name: Guest services — DNS answers
+      ansible.builtin.command: dig +short +time=4 +tries=1 @{{ item }} github.com
+      delegate_to: localhost
+      become: false
+      loop: "{{ health_dns | default([]) }}"
+      register: guest_dns
+      changed_when: false
+      until: guest_dns.stdout | trim | length > 0
+      retries: 20
+      delay: 15
+
+    - name: Guest services — tailscaled logged in
+      ansible.builtin.command: pct exec {{ item }} -- tailscale status --json
+      loop: "{{ health_lxc_tailscale | default([]) }}"
+      loop_control:
+        label: "CT {{ item }}"
+      register: guest_ts
+      changed_when: false
+      until: guest_ts.rc == 0 and (guest_ts.stdout | from_json).BackendState == 'Running'
+      retries: 12
+      delay: 10
 
     - name: Soak before the next host
       ansible.builtin.pause:
