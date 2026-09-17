@@ -199,6 +199,57 @@
            and has_value('binary_sensor.family_room_sliding_door_lock_3_input_100') }}
       delay_on: "00:00:30"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Sliding Door Lock 4 (Loft) — Shelly 1 Gen4 @ 192.168.20.141 + Plus Add-on
+# Identical build to doors 1-3; see wiki 278.
+#
+# Source entities:
+#   switch.loft_sliding_door_lock_4                   relay (commanded)
+#   binary_sensor.loft_sliding_door_lock_4_input_100  door, device_class door
+#                                                     (on = Open, off = Closed)
+#   event.loft_sliding_door_lock_4_input              button press (every press)
+# ─────────────────────────────────────────────────────────────────────────────
+
+- lock:
+    - name: "Loft Sliding Door"
+      unique_id: sliding_door_4_lock
+      # Truth, not intent — both conditions must hold for the bolt to be out.
+      state: >
+        {{ is_state('switch.loft_sliding_door_lock_4', 'on')
+           and is_state('binary_sensor.loft_sliding_door_lock_4_input_100', 'off') }}
+      availability: >
+        {{ has_value('switch.loft_sliding_door_lock_4')
+           and has_value('binary_sensor.loft_sliding_door_lock_4_input_100') }}
+      optimistic: false
+      attributes:
+        door_position: >-
+          {{ 'open' if is_state('binary_sensor.loft_sliding_door_lock_4_input_100', 'on')
+             else 'closed' }}
+        bolt: >-
+          {{ 'retracted' if is_state('switch.loft_sliding_door_lock_4', 'off')
+             else ('thrown' if is_state('binary_sensor.loft_sliding_door_lock_4_input_100', 'off')
+                   else 'armed') }}
+      lock:
+        action: switch.turn_on
+        target:
+          entity_id: switch.loft_sliding_door_lock_4
+      unlock:
+        action: switch.turn_off
+        target:
+          entity_id: switch.loft_sliding_door_lock_4
+
+- binary_sensor:
+    - name: "Loft Sliding Door Lock Armed"
+      unique_id: sliding_door_4_lock_armed
+      device_class: problem
+      state: >
+        {{ is_state('switch.loft_sliding_door_lock_4', 'on')
+           and is_state('binary_sensor.loft_sliding_door_lock_4_input_100', 'on') }}
+      availability: >
+        {{ has_value('switch.loft_sliding_door_lock_4')
+           and has_value('binary_sensor.loft_sliding_door_lock_4_input_100') }}
+      delay_on: "00:00:30"
+
 # ═════════════════════════════════════════════════════════════════════════════
 # ENERGY MONITORING
 #
