@@ -450,21 +450,35 @@
 # device "QIDI Max 4", 192.168.20.56:7125):
 #
 #   sensor.qidi_max_4_current_print_state  standby|printing|paused|complete|cancelled|error
-#   sensor.qidi_max_4_filename             kept after a print ends, until the next starts
-#   sensor.qidi_max_4_print_duration       min, excludes pauses
-#   sensor.qidi_max_4_filament_used        m
+#   sensor.qidi_max_4_filename             ⚠️ cleared the instant the state hits standby
+#   sensor.qidi_max_4_print_duration       min, excludes pauses; ⚠️ zeroed at standby
+#   sensor.qidi_max_4_filament_used        m; ⚠️ zeroed at standby
 #
 # START = printing from standby/complete/cancelled/error. Deliberately NOT from
 # unavailable/unknown: an HA restart or Moonraker blip mid-print must not take a
 # fresh snapshot. A resume from paused is not a new print either.
-# END   = complete/cancelled/error from printing/paused, or from unavailable/
-# unknown so a print that finishes while HA is down is still recorded.
+# END   = complete/cancelled/error/standby from printing/paused, or from
+# unavailable/unknown so a print that finishes while HA is down is still recorded.
+#
+# ⚠️ `standby` MUST be an END state. QIDI's end-of-print macro resets Klipper's
+# print_stats straight to standby, so Moonraker's transient `complete` is usually
+# gone before the integration's next poll (~31 s): 5 of the 7 prints on
+# 2026-09-16/17 went printing → standby with no `complete` at all, and every one
+# of them was silently skipped — filament cost recorded, electricity cost missing.
+#
+# ⚠️ The same poll that reports `standby` also zeroes filename/print_duration/
+# filament_used, so END alone cannot describe the job. END therefore records the
+# kWh immediately (the one value that is lost forever if missed) and BACKFILL
+# fills the descriptive attributes in when Moonraker publishes the finished job
+# to sensor.3d_printer_job_history_0 (printer_costs.yaml, 60 s REST poll) — that
+# sensor's state IS the job status, so it steps in_progress → completed exactly
+# once per print. Capturing at END rather than waiting avoids losing a print that
+# is cancelled and immediately restarted (observed: 62 s apart on 2026-09-16).
 #
 # Each sensor snapshots its own counter into a `start` attribute at START and
 # publishes the difference at END, then clears `start`. An END with no snapshot
 # (a print already running when HA came up) is skipped, never reported as a
-# bogus total. Filename/duration/filament are read at END — at START Moonraker
-# may not have published the new job yet.
+# bogus total.
 # ─────────────────────────────────────────────────────────────────────────────
 
 - triggers:
@@ -476,8 +490,20 @@
     - trigger: state
       entity_id: sensor.qidi_max_4_current_print_state
       from: [printing, paused, unavailable, unknown]
-      to: [complete, cancelled, error]
+      to: [complete, cancelled, error, standby]
       id: end
+    - trigger: state
+      entity_id: sensor.3d_printer_job_history_0
+      to: [completed, cancelled, error, interrupted, klippy_shutdown, klippy_disconnect, server_exit]
+      id: backfill
+  variables:
+    # The job Moonraker just filed, used only by BACKFILL. `float(0)` / `or ''`
+    # keep these native types the entity templates can test without None handling.
+    hist_status: "{{ states('sensor.3d_printer_job_history_0') }}"
+    hist_name: "{{ state_attr('sensor.3d_printer_job_history_0', 'filename') or '' }}"
+    hist_end: "{{ state_attr('sensor.3d_printer_job_history_0', 'end_time') | float(0) }}"
+    hist_minutes: "{{ ((state_attr('sensor.3d_printer_job_history_0', 'print_duration') | float(0)) / 60) | round(0) }}"
+    hist_filament_m: "{{ ((state_attr('sensor.3d_printer_job_history_0', 'filament_used') | float(0)) / 1000) | round(2) }}"
   sensor:
     - name: "3D Printer Last Print Energy"
       unique_id: printer_3d_last_print_energy
@@ -493,29 +519,96 @@
           {{ this.state if this.state | is_number else 0 }}
         {%- endif -%}
       attributes:
+        # Cleared at END; preserved on BACKFILL (which only ever fires while idle).
         start: >
-          {{ states('sensor.3d_printer_plug_energy') | float(none) if trigger.id == 'start' else none }}
+          {%- if trigger.id == 'start' -%}
+            {{ states('sensor.3d_printer_plug_energy') | float(none) }}
+          {%- elif trigger.id == 'end' -%}
+            {{ none }}
+          {%- else -%}
+            {{ this.attributes.get('start') }}
+          {%- endif -%}
         start_time: >
-          {{ now().isoformat() if trigger.id == 'start' else none }}
-        # The record of the last FINISHED print — only rewritten on a valid END.
+          {%- if trigger.id == 'start' -%}
+            {{ now().isoformat() }}
+          {%- elif trigger.id == 'end' -%}
+            {{ none }}
+          {%- else -%}
+            {{ this.attributes.get('start_time') }}
+          {%- endif -%}
+        # true between a valid END and the BACKFILL that completes the record. It is
+        # what stops a backfill from pasting a new job's details onto an older record
+        # (a print that ran entirely while HA was down leaves no END, so no pending).
+        pending: >
+          {%- if trigger.id == 'end' -%}
+            {{ this.attributes.get('start') is number }}
+          {%- elif trigger.id == 'backfill' -%}
+            false
+          {%- else -%}
+            {{ this.attributes.get('pending') or false }}
+          {%- endif -%}
+        # The record of the last FINISHED print — only rewritten on a valid END, then
+        # completed from Moonraker's job history on BACKFILL. `none` in between means
+        # "ended, details not published yet", never a value from the previous print.
         filename: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
-          {{ states('sensor.qidi_max_4_filename') if ok else this.attributes.get('filename') }}
+          {%- set fill = trigger.id == 'backfill' and this.attributes.get('pending') and hist_end | float(0) > 0 -%}
+          {%- if fill and hist_name | string | length > 0 -%}
+            {{ hist_name }}
+          {%- elif ok -%}
+            {%- set live = states('sensor.qidi_max_4_filename') -%}
+            {{ live if live not in ['', 'unknown', 'unavailable'] else none }}
+          {%- else -%}
+            {{ this.attributes.get('filename') }}
+          {%- endif -%}
         result: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
-          {{ trigger.to_state.state if ok else this.attributes.get('result') }}
+          {%- set fill = trigger.id == 'backfill' and this.attributes.get('pending') and hist_end | float(0) > 0 -%}
+          {%- if fill -%}
+            {{ hist_status }}
+          {%- elif ok -%}
+            {#- `standby` is how the print ended, not how it turned out — BACKFILL supplies that. -#}
+            {{ trigger.to_state.state if trigger.to_state.state != 'standby' else none }}
+          {%- else -%}
+            {{ this.attributes.get('result') }}
+          {%- endif -%}
         started: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
           {{ this.attributes.get('start_time') if ok else this.attributes.get('started') }}
+        # END stamps now() so printer_costs.yaml can match the job straight away;
+        # BACKFILL replaces it with Moonraker's exact end time.
         ended: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
-          {{ now().isoformat() if ok else this.attributes.get('ended') }}
+          {%- set fill = trigger.id == 'backfill' and this.attributes.get('pending') and hist_end | float(0) > 0 -%}
+          {%- if fill -%}
+            {{ hist_end | float(0) | timestamp_local }}
+          {%- elif ok -%}
+            {{ now().isoformat() }}
+          {%- else -%}
+            {{ this.attributes.get('ended') }}
+          {%- endif -%}
         print_minutes: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
-          {{ states('sensor.qidi_max_4_print_duration') | float(0) | round(0) if ok else this.attributes.get('print_minutes') }}
+          {%- set fill = trigger.id == 'backfill' and this.attributes.get('pending') and hist_end | float(0) > 0 -%}
+          {%- if fill -%}
+            {{ hist_minutes | float(0) | round(0) }}
+          {%- elif ok -%}
+            {%- set live = states('sensor.qidi_max_4_print_duration') | float(0) -%}
+            {{ live | round(0) if live > 0 else none }}
+          {%- else -%}
+            {{ this.attributes.get('print_minutes') }}
+          {%- endif -%}
         filament_m: >
           {%- set ok = trigger.id == 'end' and this.attributes.get('start') is number -%}
-          {{ states('sensor.qidi_max_4_filament_used') | float(0) | round(2) if ok else this.attributes.get('filament_m') }}
+          {%- set fill = trigger.id == 'backfill' and this.attributes.get('pending') and hist_end | float(0) > 0 -%}
+          {%- if fill -%}
+            {{ hist_filament_m | float(0) | round(2) }}
+          {%- elif ok -%}
+            {%- set live = states('sensor.qidi_max_4_filament_used') | float(0) -%}
+            {{ live | round(2) if live > 0 else none }}
+          {%- else -%}
+            {{ this.attributes.get('filament_m') }}
+          {%- endif -%}
     - name: "3D Printer Last Print Cost"
       unique_id: printer_3d_last_print_cost
       unit_of_measurement: USD
@@ -530,7 +623,13 @@
         {%- endif -%}
       attributes:
         start: >
-          {{ states('sensor.3d_printer_energy_cost') | float(none) if trigger.id == 'start' else none }}
+          {%- if trigger.id == 'start' -%}
+            {{ states('sensor.3d_printer_energy_cost') | float(none) }}
+          {%- elif trigger.id == 'end' -%}
+            {{ none }}
+          {%- else -%}
+            {{ this.attributes.get('start') }}
+          {%- endif -%}
     - name: "3D Printer Last Print CO2"
       unique_id: printer_3d_last_print_co2
       unit_of_measurement: kg
@@ -545,9 +644,18 @@
         {%- endif -%}
       attributes:
         start: >
-          {{ states('sensor.3d_printer_co2') | float(none) if trigger.id == 'start' else none }}
+          {%- if trigger.id == 'start' -%}
+            {{ states('sensor.3d_printer_co2') | float(none) }}
+          {%- elif trigger.id == 'end' -%}
+            {{ none }}
+          {%- else -%}
+            {{ this.attributes.get('start') }}
+          {%- endif -%}
 
 # Running totals for the print in progress; 0 when nothing is printing.
+# The idle check is belt-and-braces: a `start` snapshot that is never consumed
+# (a missed END, as happened before `standby` became an END state) would otherwise
+# leave these climbing forever against a stale baseline.
 - sensor:
     - name: "3D Printer Current Print Energy"
       unique_id: printer_3d_current_print_energy
@@ -555,14 +663,16 @@
       device_class: energy
       icon: mdi:printer-3d-nozzle
       state: >
+        {%- set idle = states('sensor.qidi_max_4_current_print_state') in ['standby', 'complete', 'cancelled', 'error'] -%}
         {%- set start = state_attr('sensor.3d_printer_last_print_energy', 'start') | float(none) -%}
         {%- set now_v = states('sensor.3d_printer_plug_energy') | float(none) -%}
-        {{ (now_v - start) | round(3) if start is not none and now_v is not none and now_v >= start else 0 }}
+        {{ (now_v - start) | round(3) if not idle and start is not none and now_v is not none and now_v >= start else 0 }}
     - name: "3D Printer Current Print Cost"
       unique_id: printer_3d_current_print_cost
       unit_of_measurement: USD
       icon: mdi:currency-usd
       state: >
+        {%- set idle = states('sensor.qidi_max_4_current_print_state') in ['standby', 'complete', 'cancelled', 'error'] -%}
         {%- set start = state_attr('sensor.3d_printer_last_print_cost', 'start') | float(none) -%}
         {%- set now_v = states('sensor.3d_printer_energy_cost') | float(none) -%}
-        {{ (now_v - start) | round(2) if start is not none and now_v is not none and now_v >= start else 0 }}
+        {{ (now_v - start) | round(2) if not idle and start is not none and now_v is not none and now_v >= start else 0 }}
