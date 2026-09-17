@@ -105,28 +105,37 @@ async def stream():
         level = 6  # LOG_LEVEL_VERBOSE
 
     cli = APIClient(HOST, PORT, None)
-    await cli.connect(login=True)
-    info = await cli.device_info()
-    emit(f"# connected: {info.name} | esphome {info.esphome_version} | "
-         f"project {getattr(info, 'project_name', '?')} {getattr(info, 'project_version', '')}")
-
-    def on_log(resp):
-        try:
-            msg = resp.message.decode("utf-8", "replace")
-        except Exception:
-            msg = str(getattr(resp, "message", resp))
-        for ln in msg.splitlines():
-            handle(ln)
-
     try:
-        cli.subscribe_logs(on_log, log_level=level)
-    except TypeError:
-        cli.subscribe_logs(on_log)
+        await cli.connect(login=True)
+        info = await cli.device_info()
+        emit(f"# connected: {info.name} | esphome {info.esphome_version} | "
+             f"project {getattr(info, 'project_name', '?')} {getattr(info, 'project_version', '')}")
 
-    # health-check loop: device_info() raises if the connection has died
-    while True:
-        await asyncio.sleep(30)
-        await cli.device_info()
+        def on_log(resp):
+            try:
+                msg = resp.message.decode("utf-8", "replace")
+            except Exception:
+                msg = str(getattr(resp, "message", resp))
+            for ln in msg.splitlines():
+                handle(ln)
+
+        try:
+            cli.subscribe_logs(on_log, log_level=level)
+        except TypeError:
+            cli.subscribe_logs(on_log)
+
+        # health-check loop: device_info() raises if the connection has died
+        while True:
+            await asyncio.sleep(30)
+            await cli.device_info()
+    finally:
+        # ⚠️ Without this the socket stays ESTABLISHED after an error and the next
+        # reconnect opens another one. ESPHome allows only 5 API connections per
+        # device; leaking them starves Home Assistant's own reconnect (2026-09-16).
+        try:
+            await cli.disconnect(force=True)
+        except Exception:  # noqa: BLE001 — never mask the original failure
+            pass
 
 
 async def main():
