@@ -1,10 +1,23 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: home-assistant
+
+# ratgdo-logger RETIRED 2026-09-16 — the phantom-open investigation it was built for
+# is closed (firmware fix confirmed 2026-08-16, no night opens since). It was also
+# harmful while idle: capture.py leaked one ESPHome API socket per reconnect, and with
+# 4 leaked it filled the right ratgdo's 5-connection limit, so Home Assistant needed
+# minutes to reconnect after a restart (and the security light went amber).
+#
+# Only the PVC is kept — it holds the bus-capture history and /data/bus_monitor_overnight.py.
+# ⚠️ Do NOT remove this Kustomization from apps/production: prune would delete the PVC too.
+#
+# To bring it back: restore the two lines below, commit, and Flux redeploys it.
+# capture.py stays in git (leak fixed 2026-09-16) and is unchanged otherwise.
 resources:
   - ratgdo-logger-pvc.yaml
-  - ratgdo-logger-deployment.yaml
-configMapGenerator:
-  - name: ratgdo-logger-script
-    files:
-      - capture.py
+  # - ratgdo-logger-deployment.yaml   # retired 2026-09-16
+
+# configMapGenerator:
+#   - name: ratgdo-logger-script
+#     files:
+#       - capture.py
