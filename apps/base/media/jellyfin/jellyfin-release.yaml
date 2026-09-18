@@ -62,6 +62,19 @@ spec:
           # propagated (Bidirectional) into the jellyfin app container (which
           # mounts it HostToContainer). Only the sidecars are root/privileged.
           # Mirrors apps/base/media/plex/plex-release.yaml.
+          #
+          # Each mount starts with a lazy unmount. If a previous rclone died
+          # abruptly (2026-09-17: OOMKilled at the old 1Gi limit), the FUSE mount
+          # is left dead-but-attached — `stat` returns ENOTCONN "Transport
+          # endpoint is not connected" — and because the app container pins it via
+          # HostToContainer, the mountpoint stays occupied. Without the unmount,
+          # every restart fails "directory already mounted", the pod never goes
+          # Ready, and the only recovery is deleting the pod by hand.
+          #
+          # --buffer-size is per open file handle, so it multiplies by concurrent
+          # streams; 256M x a handful of streams is what blew the 1Gi limit.
+          # 32M + a 2Gi ceiling leaves real headroom, and --vfs-cache-mode=full
+          # already caches to disk, so a large in-memory buffer buys little.
           rclone-nzbdav:
             image:
               repository: rclone/rclone
@@ -71,6 +84,8 @@ spec:
               - -c
             args:
               - |
+                # Clear a stale FUSE mount left by a previously killed rclone.
+                fusermount3 -uz /mnt/debrid/nzbdav 2>/dev/null || umount -l /mnt/debrid/nzbdav 2>/dev/null || true
                 mkdir -p /mnt/debrid/nzbdav
                 exec rclone mount nzbdav: /mnt/debrid/nzbdav \
                   --config=/cfg/rclone.conf \
@@ -80,7 +95,7 @@ spec:
                   --vfs-cache-mode=full \
                   --vfs-cache-max-size=2G \
                   --vfs-cache-max-age=1h \
-                  --buffer-size=256M \
+                  --buffer-size=32M \
                   --links \
                   --use-cookies \
                   --cache-dir=/cache
@@ -94,7 +109,7 @@ spec:
                 cpu: 50m
                 memory: 128Mi
               limits:
-                memory: 1Gi
+                memory: 2Gi
 
           rclone-decypharr:
             image:
@@ -105,6 +120,8 @@ spec:
               - -c
             args:
               - |
+                # Clear a stale FUSE mount left by a previously killed rclone.
+                fusermount3 -uz /mnt/debrid/decypharr 2>/dev/null || umount -l /mnt/debrid/decypharr 2>/dev/null || true
                 mkdir -p /mnt/debrid/decypharr
                 exec rclone mount decypharr: /mnt/debrid/decypharr \
                   --config=/cfg/rclone.conf \
@@ -114,7 +131,7 @@ spec:
                   --vfs-cache-mode=full \
                   --vfs-cache-max-size=2G \
                   --vfs-cache-max-age=1h \
-                  --buffer-size=256M \
+                  --buffer-size=32M \
                   --links \
                   --use-cookies \
                   --cache-dir=/cache
@@ -128,7 +145,7 @@ spec:
                 cpu: 50m
                 memory: 128Mi
               limits:
-                memory: 1Gi
+                memory: 2Gi
 
         initContainers:
           fix-config-perms:
