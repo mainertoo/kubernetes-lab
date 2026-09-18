@@ -34,6 +34,13 @@ devices:
     mac: "cc:ba:97:c2:44:20"
     area: loft
     name_by_user: Sliding Door Lock 4
+  # ⚠️ HA had this one as "Master Bedroom Slider Lock" in area Master Bedroom, which
+  # made every entity_id carry the room twice. Renamed before provisioning; the
+  # entity_id renames themselves are NOT expressible here (config PVC / kopia only).
+  - comment: Sliding Door Lock 5 (master bedroom) — the last of the five
+    mac: "cc:ba:97:c1:1d:f0"
+    area: master_bedroom
+    name_by_user: Sliding Door Lock 5
   # Entity IDs were renamed shellyofficegen4/shellyplugusg4_* -> 3d_printer_plug_*
   # (2026-09-12). This file cannot express entity_id renames — those survive via the
   # kopia-backed config PVC, not a bare rebuild.
@@ -63,6 +70,10 @@ entities:
     device_class: door
     expose: true
     name: Loft Sliding Door Position
+  binary_sensor.master_bedroom_sliding_door_lock_5_input_100:
+    device_class: door
+    expose: true
+    name: Master Bedroom Sliding Door Position
   binary_sensor.sliding_door_1_lock_armed:
     area_id: kitchen
     expose: false
@@ -79,9 +90,14 @@ entities:
   binary_sensor.sliding_door_4_lock_armed:
     area_id: loft
     expose: false
+  binary_sensor.sliding_door_5_lock_armed:
+    area_id: master_bedroom
+    expose: false
   event.family_room_sliding_door_lock_3_input:
     expose: false
   event.loft_sliding_door_lock_4_input:
+    expose: false
+  event.master_bedroom_sliding_door_lock_5_input:
     expose: false
   lock.sliding_door_1:
     aliases:
@@ -110,6 +126,13 @@ entities:
     - loft slider
     area_id: loft
     expose: true
+  lock.sliding_door_5:
+    aliases:
+    - bedroom slider
+    - master bedroom door
+    - master bedroom slider
+    area_id: master_bedroom
+    expose: true
   # ── 3D printer plug ──────────────────────────────────────────────────────────
   # ⚠️ Turning this off kills a print mid-job — never exposed to Assist.
   switch.3d_printer_plug:
@@ -134,4 +157,9 @@ entities:
     hidden_by: user
     icon: mdi:electric-switch
     name: Sliding Door Lock 4 Relay
+  switch.master_bedroom_sliding_door_lock_5:
+    expose: false
+    hidden_by: user
+    icon: mdi:electric-switch
+    name: Sliding Door Lock 5 Relay
 
