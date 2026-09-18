@@ -250,6 +250,61 @@
            and has_value('binary_sensor.loft_sliding_door_lock_4_input_100') }}
       delay_on: "00:00:30"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Sliding Door Lock 5 (Master Bedroom) — Shelly 1 Gen4 @ 192.168.20.113 + Plus Add-on
+# The LAST of the five; identical build to doors 1-4, see wiki 278.
+#
+# Source entities:
+#   switch.master_bedroom_sliding_door_lock_5                   relay (commanded)
+#   binary_sensor.master_bedroom_sliding_door_lock_5_input_100  door, device_class door
+#                                                               (on = Open, off = Closed)
+#   event.master_bedroom_sliding_door_lock_5_input              button press (every press)
+#
+# ⚠️ This door is in the same room as the security status light it feeds
+# (light.0xb40ecfd7ce8c0000, "Motion Sensor Light Master Bed") — so an unlocked
+# master slider now turns that light red right beside the door itself.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- lock:
+    - name: "Master Bedroom Sliding Door"
+      unique_id: sliding_door_5_lock
+      # Truth, not intent — both conditions must hold for the bolt to be out.
+      state: >
+        {{ is_state('switch.master_bedroom_sliding_door_lock_5', 'on')
+           and is_state('binary_sensor.master_bedroom_sliding_door_lock_5_input_100', 'off') }}
+      availability: >
+        {{ has_value('switch.master_bedroom_sliding_door_lock_5')
+           and has_value('binary_sensor.master_bedroom_sliding_door_lock_5_input_100') }}
+      optimistic: false
+      attributes:
+        door_position: >-
+          {{ 'open' if is_state('binary_sensor.master_bedroom_sliding_door_lock_5_input_100', 'on')
+             else 'closed' }}
+        bolt: >-
+          {{ 'retracted' if is_state('switch.master_bedroom_sliding_door_lock_5', 'off')
+             else ('thrown' if is_state('binary_sensor.master_bedroom_sliding_door_lock_5_input_100', 'off')
+                   else 'armed') }}
+      lock:
+        action: switch.turn_on
+        target:
+          entity_id: switch.master_bedroom_sliding_door_lock_5
+      unlock:
+        action: switch.turn_off
+        target:
+          entity_id: switch.master_bedroom_sliding_door_lock_5
+
+- binary_sensor:
+    - name: "Master Bedroom Sliding Door Lock Armed"
+      unique_id: sliding_door_5_lock_armed
+      device_class: problem
+      state: >
+        {{ is_state('switch.master_bedroom_sliding_door_lock_5', 'on')
+           and is_state('binary_sensor.master_bedroom_sliding_door_lock_5_input_100', 'on') }}
+      availability: >
+        {{ has_value('switch.master_bedroom_sliding_door_lock_5')
+           and has_value('binary_sensor.master_bedroom_sliding_door_lock_5_input_100') }}
+      delay_on: "00:00:30"
+
 # ═════════════════════════════════════════════════════════════════════════════
 # ENERGY MONITORING
 #
