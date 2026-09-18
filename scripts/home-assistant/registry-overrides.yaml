@@ -93,6 +93,16 @@ entities:
   binary_sensor.sliding_door_5_lock_armed:
     area_id: master_bedroom
     expose: false
+  # ── QIDI Max 4 ───────────────────────────────────────────────────────────────
+  # Not a second webcam: Moonraker exposes the slicer's plate render for the job in
+  # progress as a camera entity. It serves a real PNG while printing and HTTP 500s
+  # whenever nothing is, so left visible it sat broken on the auto-generated Summary
+  # dashboard's Security view 24/7. Hidden here and placed on the 3D Printer
+  # dashboard instead, with a visibility condition. Hiding does not disable it.
+  camera.qidi_max_4_thumbnail:
+    expose: false
+    hidden_by: user
+    name: QIDI Max 4 Plate Preview
   event.family_room_sliding_door_lock_3_input:
     expose: false
   event.loft_sliding_door_lock_4_input:
