@@ -1,0 +1,119 @@
+---
+# Self-service password recovery with email verification.
+#
+# Authentik ships no recovery flow by default — the brand's `flow_recovery`
+# is unset out of the box, which is why Directory → Users → <user> → Recovery
+# reports "This brand does not have a recovery flow". This blueprint creates
+# the flow and wires it to the (hand-built) default brand.
+#
+# A plain ConfigMap rather than a SOPS Secret: nothing here is sensitive, and
+# the chart discovers `blueprints.configMaps` the same way it does
+# `blueprints.secrets` (any key ending in `.yaml`).
+#
+# Field names and value formats were verified against the live 2026.8.3
+# instance before authoring — notably `token_expiry` is a duration *string*
+# ("minutes=30"), not an integer, since a recent release.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprint-recovery
+  namespace: authentik
+data:
+  recovery.yaml: |
+    version: 1
+    metadata:
+      name: lab-recovery
+    entries:
+      # The recovery flow itself. `authentication` is deliberately omitted so
+      # the model default applies — the flow must be reachable both by a
+      # signed-out user clicking "Forgot password?" and by someone following
+      # an admin-generated recovery link.
+      - model: authentik_flows.flow
+        state: present
+        id: flow-recovery
+        identifiers:
+          slug: lab-recovery
+        attrs:
+          name: Lab password recovery
+          title: Reset your password
+          designation: recovery
+
+      # Who is resetting. `pretend_user_exists` keeps this public form from
+      # becoming a username/email enumeration oracle: unknown identifiers get
+      # the same "check your email" screen as real ones.
+      - model: authentik_stages_identification.identificationstage
+        state: present
+        id: stage-identification
+        identifiers:
+          name: lab-recovery-identification
+        attrs:
+          user_fields:
+            - email
+            - username
+          case_insensitive_matching: true
+          pretend_user_exists: true
+          show_matched_user: false
+
+      # Mail the reset link over the SMTP already configured in the
+      # HelmRelease (authentik.email.*), mirroring the existing
+      # `email-account-confirmation` stage's use_global_settings pattern.
+      - model: authentik_stages_email.emailstage
+        state: present
+        id: stage-email
+        identifiers:
+          name: lab-recovery-email
+        attrs:
+          use_global_settings: true
+          template: email/password_reset.html
+          subject: Reset your password
+          activate_user_on_success: true
+          token_expiry: minutes=30
+
+      # Stage bindings. Orders 30/40/50 reference authentik's own stock
+      # stages via !Find rather than redefining them, so the password
+      # validation policies bound to default-password-change-prompt apply
+      # here too and password rules stay defined in exactly one place.
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow-recovery
+          stage: !KeyOf stage-identification
+          order: 10
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow-recovery
+          stage: !KeyOf stage-email
+          order: 20
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow-recovery
+          stage: !Find [authentik_stages_prompt.promptstage, [name, default-password-change-prompt]]
+          order: 30
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow-recovery
+          stage: !Find [authentik_stages_user_write.userwritestage, [name, default-password-change-write]]
+          order: 40
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow-recovery
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+          order: 50
+
+      # Point the brand at the flow. This is what the Recovery tab checks.
+      # The brand is hand-built in the UI; this entry patches only
+      # `flow_recovery` and leaves its other fields alone.
+      - model: authentik_brands.brand
+        state: present
+        identifiers:
+          domain: authentik-default
+        attrs:
+          flow_recovery: !KeyOf flow-recovery
+
+      # Render the "Forgot password?" link on the login page. Without this
+      # the flow exists but is only reachable by direct URL.
+      - model: authentik_stages_identification.identificationstage
+        state: present
+        identifiers:
+          name: default-authentication-identification
+        attrs:
+          recovery_flow: !KeyOf flow-recovery
