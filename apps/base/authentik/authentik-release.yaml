@@ -21,6 +21,8 @@ spec:
     # Mount declarative blueprints from SOPS-encrypted Secrets. The worker
     # discovers any key ending in `.yaml` and applies it on a schedule.
     blueprints:
+      configMaps:
+        - authentik-blueprint-recovery
       secrets:
         - authentik-blueprint-discord-signup
         - authentik-blueprint-jellyfin-ldap
