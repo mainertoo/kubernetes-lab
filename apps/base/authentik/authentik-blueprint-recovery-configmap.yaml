@@ -111,9 +111,19 @@ data:
 
       # Render the "Forgot password?" link on the login page. Without this
       # the flow exists but is only reachable by direct URL.
+      #
+      # `user_fields` is required: the IdentificationStage serializer rejects
+      # an entry that selects neither user fields nor sources ("When no user
+      # fields are selected, at least one source must be selected"), and it
+      # does not inherit the live value. These two values are exactly what
+      # authentik's own flow-default-authentication-flow.yaml declares and
+      # what the stage already has, so this reasserts rather than changes it.
       - model: authentik_stages_identification.identificationstage
         state: present
         identifiers:
           name: default-authentication-identification
         attrs:
+          user_fields:
+            - email
+            - username
           recovery_flow: !KeyOf flow-recovery
