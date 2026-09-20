@@ -23,6 +23,6 @@ spec:
           namespace: traefik-system
       services:
         - name: qidistudio
-          port: 3001
+          port: 3000
           scheme: http
   tls: {}
