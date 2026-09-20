@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: qidistudio-ingressroute
+  namespace: qidistudio
+  annotations:
+    gethomepage.dev/href: "https://qidi.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "QIDIStudio"
+    gethomepage.dev/description: "QIDI Box slicer (device sync)"
+    gethomepage.dev/app: qidistudio
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-orcaslicer.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`qidi.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: qidistudio
+          port: 3001
+          scheme: http
+  tls: {}
