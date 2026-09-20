@@ -157,6 +157,27 @@ spec:
               name: authentik-postgresql
               key: AUTHENTIK_SECRET_KEY
 
+        # The worker is what runs the send_mail task, so it needs the SMTP
+        # credentials too — not just the server. Without these it connects
+        # to smtp.gmail.com unauthenticated and Gmail replies
+        # "530 5.7.0 Authentication Required", which authentik only records
+        # in the task log while still showing the user a success screen.
+        - name: AUTHENTIK_EMAIL__USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__USERNAME
+        - name: AUTHENTIK_EMAIL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__PASSWORD
+        - name: AUTHENTIK_EMAIL__FROM
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgresql
+              key: AUTHENTIK_EMAIL__FROM
+
         # CNPG cutover 2026-05-09 (Phase 3d-cutover): switch the postgres
         # password to the CNPG-auto-generated Secret. The other Secrets
         # (AUTHENTIK_SECRET_KEY, AUTHENTIK_EMAIL__*) are unrelated to
