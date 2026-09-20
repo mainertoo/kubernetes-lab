@@ -33,6 +33,6 @@ spec:
       APP: *app
       SUBDOMAIN: qidi
       GATUS_DOMAIN: lab.mainertoo.com
-      GATUS_PORT: "3001"
+      GATUS_PORT: "3000"
       GATUS_PATH: /
       GATUS_STATUS_INTERNAL: "200"
