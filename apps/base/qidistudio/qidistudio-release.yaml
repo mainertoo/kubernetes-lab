@@ -1,0 +1,212 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: qidistudio
+  namespace: qidistudio
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    # Identical GPU story to the orcaslicer app: all three workers carry a Raptor
+    # Lake iGPU with a working /dev/dri/renderD128 and the masters are tainted, so
+    # the pod can only land where the device exists — no nodeSelector needed.
+    # Access is via the Intel device plugin, NOT a hostPath (a hostPath makes the
+    # nodes visible but grants no device-cgroup permission and opens EPERM even as
+    # root), so this stays unprivileged. Cost is one exclusive i915 slot; three
+    # are available and only orcaslicer + this request any.
+    defaultPodOptions:
+      securityContext:
+        # /dev/dri/card* -> GID 44 (video); /dev/dri/renderD128 -> GID 991
+        # (render, what the GL surface needs). Granting both avoids privileged.
+        supplementalGroups:
+          - 44
+          - 991
+
+    controllers:
+      qidistudio:
+        # Selkies streams a single desktop session; a second replica would be a
+        # second, unshared desktop. Keep one, and Recreate so the RWO ceph-rbd
+        # claim detaches cleanly before the new pod attaches.
+        strategy: Recreate
+
+        # The container runs QIDIStudio and nothing else (autostart ->
+        # /opt/qidistudio/AppRun) — no desktop, file manager or browser — so a
+        # file on disk is invisible unless something points the user at it. This
+        # init container guarantees exactly ONE upload folder that the GTK
+        # bookmark points at and that the Open dialog reopens on. It is entirely
+        # app-agnostic (operates on /config/models + /config/Desktop), so it is
+        # copied verbatim from the orcaslicer app. Rewritten every start, so it
+        # self-heals after a pod replacement or a Kopia restore.
+        initContainers:
+          init-model-inbox:
+            image:
+              repository: busybox
+              tag: latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "== qidistudio init-model-inbox =="
+
+                # Destination for FILE_MANAGER_PATH (see the container env below).
+                mkdir -p /config/models
+
+                # Collapse a real /config/Desktop into it, once. Files are MOVED,
+                # never overwritten and never deleted: a name that already exists
+                # in models is left in place, and a Desktop that will not rmdir is
+                # renamed to Desktop.bak rather than removed.
+                if [ -d /config/Desktop ] && [ ! -L /config/Desktop ]; then
+                  echo "Migrating /config/Desktop -> /config/models"
+                  for f in /config/Desktop/* /config/Desktop/.[!.]*; do
+                    [ -e "$f" ] || continue
+                    b=$(basename "$f")
+                    if [ -e "/config/models/$b" ]; then
+                      echo "  skip (already in models): $b"
+                    else
+                      mv "$f" /config/models/ && echo "  moved: $b"
+                    fi
+                  done
+                  rmdir /config/Desktop 2>/dev/null \
+                    || mv /config/Desktop /config/Desktop.bak
+                fi
+
+                # Every remembered path now resolves to the one real directory.
+                [ -L /config/Desktop ] || ln -s /config/models /config/Desktop
+
+                chown -h 1000:1000 /config/Desktop
+                chown 1000:1000 /config/models
+                chmod 0775 /config/models
+
+                # wxWidgets/GTK3 Open dialog reads $HOME/.config/gtk-3.0/bookmarks
+                # (HOME=/config here, XDG_CONFIG_HOME unset). One entry only.
+                mkdir -p /config/.config/gtk-3.0
+                printf '%s\n' \
+                  'file:///config/models 3D Models' \
+                  > /config/.config/gtk-3.0/bookmarks
+
+                chown -R 1000:1000 /config/.config/gtk-3.0
+                chmod 0644 /config/.config/gtk-3.0/bookmarks
+
+                echo "Inbox + bookmarks ready:"
+                ls -ld /config/models /config/Desktop
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
+        containers:
+          app:
+            # QIDI's Orca fork, built by .github/workflows/build-qidistudio.yml
+            # from docker/qidistudio. Unlike mainline OrcaSlicer's LinuxServer
+            # image, this bundles QIDI's network agent, so the Device tab, LAN
+            # connect-by-IP and "Sync filaments" from the QIDI Box work.
+            # Pin to :sha-<gitsha> after the first CI build for reproducibility.
+            image:
+              repository: ghcr.io/mainertoo/qidistudio
+              tag: latest
+            env:
+              - name: TZ
+                value: America/Edmonton
+              - name: PUID
+                value: "1000"
+              - name: PGID
+                value: "1000"
+              - name: TITLE
+                value: QIDIStudio
+              # Hardware GL for the 3D viewport (DRINODE = rendering/EGL GPU).
+              - name: DRINODE
+                value: /dev/dri/renderD128
+              # DRI_NODE = encoding GPU; same device -> Zero Copy encode. Both
+              # variables are needed; see the orcaslicer app for the full note.
+              - name: DRI_NODE
+                value: /dev/dri/renderD128
+              - name: LIBVA_DRIVER_NAME
+                value: iHD
+              # Where the Selkies sidebar upload lands + the GTK bookmark target.
+              # /config is Kopia-backed, so this doubles as a model library.
+              - name: FILE_MANAGER_PATH
+                value: /config/models
+            # No CUSTOM_USER / PASSWORD — Authentik forwardAuth is the auth gate.
+            # The image's basic auth cannot coexist with the authentik-sso
+            # middleware (it lists Authorization in authResponseHeaders), so
+            # leave it off; in-cluster :3001 is unauthenticated like the siblings.
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3001
+                  initialDelaySeconds: 45
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3001
+                  initialDelaySeconds: 20
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+                # The device plugin (not a hostPath) grants device-cgroup
+                # permission to open /dev/dri/renderD128.
+                gpu.intel.com/i915: "1"
+              limits:
+                # Slicing threads well — this is the point of slicing on cluster
+                # hardware instead of a laptop.
+                cpu: "4"
+                memory: 8Gi
+                gpu.intel.com/i915: "1"
+
+    service:
+      app:
+        controller: qidistudio
+        ports:
+          http:
+            # Selkies base serves the web desktop on 3001 (the older orcaslicer
+            # KasmVNC image used 3000).
+            port: 3001
+
+    persistence:
+      config:
+        existingClaim: qidistudio-config
+        globalMounts:
+          - path: /config
+      # LinuxServer's Selkies base needs ~1G shared memory or the embedded
+      # browser/GL surface crashes (k8s equivalent of --shm-size=1gb).
+      dshm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 1Gi
+        globalMounts:
+          - path: /dev/shm
