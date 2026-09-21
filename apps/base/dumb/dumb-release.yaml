@@ -55,7 +55,12 @@ spec:
               # Pinned to the rolling :dev tag by digest so a new dev build can't
               # silently roll in on restart (past profiler crashloop). Renovate
               # tracks the dev digest and PRs new builds — bump deliberately.
-              tag: dev
+              #
+              # ⚠️ The digest MUST stay on this line. PR #1328 (2026-08-13) landed
+              # an empty Renovate digest and left a bare `tag: dev`, which silently
+              # un-pinned the image for a month — a 2.22.x build then rolled in on
+              # the next restart. A bare `tag: dev` is a bug, not a valid state.
+              tag: dev@sha256:ea7b5b7a62937cd85f8a6fc1bcc3099e5bb64d727f6e9897425f61db45ad21d4
               pullPolicy: IfNotPresent
 
             envFrom:
