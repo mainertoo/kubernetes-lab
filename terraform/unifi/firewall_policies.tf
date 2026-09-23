@@ -125,6 +125,32 @@ resource "unifi_firewall_zone_policy" "iot_to_spoolman" {
   destination = { zone_id = data.unifi_firewall_zone.internal.id, ips = [local.traefik_lb], port = "443" }
 }
 
+# --- Apple home hubs (Apple TV + HomePods) live on IoT so they share one L2 with the
+#     Thread border router (MR4U) and matter-server: every border router of a Thread
+#     network advertises fc00::/7, so a BR whose LAN can't route back to the Matter
+#     controller black-holes replies (measured 2026-09-22 with the hubs on IPv6-less
+#     VLAN 10). See wiki apps/home-iot/thread.
+#     On IoT, AirPlay/HomeKit flows the hub opens back to phones (timing, remote,
+#     handoff) and the Apple TV's Plex/Jellyfin traffic are IoT->Internal and would hit
+#     the default block. This restores exactly the access the hubs had as Trusted
+#     clients, matched by MAC so it survives re-addressing. Destination is the whole
+#     Internal zone because the provider's ips field rejects CIDRs — no wider than the
+#     hubs' previous Trusted membership.
+resource "unifi_firewall_zone_policy" "apple_hubs_to_internal" {
+  name   = "Apple hubs to Internal"
+  action = "ALLOW"
+  source = {
+    zone_id = unifi_firewall_zone.iot.id
+    client_macs = [
+      "ec:a9:07:2b:52:6b", # Apple TV — Entertainment Room (wired, Mason 16-port p8)
+      "04:99:b9:73:c9:65", # HomePod — Kitchen
+      "04:99:b9:6a:df:8a", # HomePod — Living Room
+      "04:99:b9:74:ff:2e", # HomePod — Living Room 2
+    ]
+  }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id }
+}
+
 locals {
   # Traefik's MetalLB address (metallb-system/mainertoo-l2-pool 192.168.90.180-.199).
   # Everything on *.lab.mainertoo.com is fronted here, so this one host is all a

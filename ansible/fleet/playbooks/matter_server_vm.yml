@@ -1,0 +1,68 @@
+---
+# Provision the matter-server VM (VMID 702 on pve-zermatt, VLAN 20 / IoT).
+#
+#   cd ansible/fleet && ansible-playbook playbooks/matter_server_vm.yml
+#
+# Idempotent. The VM itself was created from the Ubuntu 24.04 cloud image with
+# one virtio NIC on vmbr0 tag=20 (MAC BC:24:11:20:07:02, UniFi reservation
+# 192.168.20.11). matter-server must share one L2 with every Thread border router
+# so it learns their OMR routes from RA/RIO (systemd-networkd installs RIO routes
+# by default) — see wiki apps/home-iot/thread. The container itself is a Portainer
+# stack in mainertoo/home_server (docker-matter-server/).
+#
+# Its websocket (5580) is UNAUTHENTICATED and controls every Matter device, so
+# the host firewall only admits it from the K8s node VLAN where Home Assistant
+# runs (hostNetwork, source 192.168.90.x).
+
+- name: Provision matter-server VM
+  hosts: matter-server
+  become: true
+  tasks:
+    - name: Install packages
+      ansible.builtin.apt:
+        name: [qemu-guest-agent, docker.io, docker-compose-v2, nftables]
+        state: present
+        update_cache: true
+
+    - name: Host firewall (default-deny inbound)
+      ansible.builtin.copy:
+        src: ../files/matter-server/nftables.conf
+        dest: /etc/nftables.conf
+        mode: "0755"
+        validate: nft -c -f %s
+      notify: Reload nftables
+
+    - name: Enable services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop: [qemu-guest-agent, docker, nftables]
+
+    - name: Let the admin user run docker
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: true
+
+    - name: matter-server data directory
+      ansible.builtin.file:
+        path: /opt/matter-server/data
+        state: directory
+        mode: "0750"
+
+    - name: Portainer agent (Portainer on QNAS 192.168.1.252 connects to :9001)
+      community.docker.docker_container:
+        name: portainer_agent
+        image: portainer/agent:2.33.6   # match zwave-js (VM 701); agent must track the Portainer-EE server
+        restart_policy: unless-stopped
+        network_mode: host
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - /var/lib/docker/volumes:/var/lib/docker/volumes
+
+  handlers:
+    - name: Reload nftables
+      ansible.builtin.systemd:
+        name: nftables
+        state: restarted
