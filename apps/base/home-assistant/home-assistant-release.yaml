@@ -37,14 +37,21 @@ spec:
         containers:
           app:
             resources:
+              # 2026-09-23: steady state is now ~3.8Gi RSS right after startup (was
+              # ~2.2Gi when the 4Gi limit was set) — only ~200Mi of headroom, and HA
+              # was OOMKilled twice in one day. Requests now reflect reality so the
+              # scheduler accounts for it, and cpu 500m gives HA a real CFS share when
+              # a neighbour bursts (DUMB, no CPU limit, took ~7 of worker-2's 8 cores
+              # for 25 min right before the second OOM). Why the baseline grew is a
+              # separate investigation (Dreame, below, is the known heavy integration).
               requests:
-                cpu: 100m
-                memory: 768Mi
-              # Dreame Vacuum integration's first cloud/map sync (mini-racer V8 +
-              # numpy/pillow lidar-map decode) spikes past 2Gi → OOMKill loop, and
-              # steady-state idle sits ~2.2Gi. 4Gi clears it; worker-2 has ~19Gi free.
-              limits:
+                cpu: 500m
                 memory: 4Gi
+              # Dreame Vacuum integration's first cloud/map sync (mini-racer V8 +
+              # numpy/pillow lidar-map decode) spikes past 2Gi → OOMKill loop. Limit
+              # 6Gi = ~2Gi above today's baseline; worker-2 requests ~62% after this.
+              limits:
+                memory: 6Gi
             image:
               repository: homeassistant/home-assistant
               tag: 2026.9.3
