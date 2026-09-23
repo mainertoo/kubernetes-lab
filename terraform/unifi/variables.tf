@@ -4,6 +4,12 @@ variable "guest_psk" {
   sensitive   = true
 }
 
+variable "hubs_psk" {
+  description = "WPA2 passphrase for mainertoo_zone_hubs (VLAN 20, Apple home hubs only). Injected as TF_VAR_hubs_psk from scripts/unifi/credentials.sops.yaml via tf.sh."
+  type        = string
+  sensitive   = true
+}
+
 variable "kids_psk" {
   description = "WPA2 passphrase for mainertoo_zone_kids (VLAN 40). Injected as TF_VAR_kids_psk from scripts/unifi/credentials.sops.yaml via tf.sh."
   type        = string

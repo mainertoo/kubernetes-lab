@@ -18,6 +18,20 @@ resource "unifi_wlan" "guest" {
   l2_isolation = true
 }
 
+# Apple home hubs (HomePods) on IoT. mainertoo_zone_IoT is 2.4 GHz-only for cheap
+# IoT radios; HomePods get their own SSID with 5 GHz for AirPlay quality. Same VLAN
+# as the Thread border router + matter-server (see firewall_policies.tf
+# apple_hubs_to_internal). Only the four hubs join it.
+resource "unifi_wlan" "hubs" {
+  name          = "mainertoo_zone_hubs"
+  security      = "wpapsk"
+  passphrase    = var.hubs_psk
+  network_id    = unifi_network.vlan["iot"].id
+  ap_group_ids  = [data.unifi_ap_group.default.id]
+  user_group_id = data.unifi_user_group.default.id
+  wlan_band     = "both"
+}
+
 resource "unifi_wlan" "kids" {
   name          = "mainertoo_zone_kids"
   security      = "wpapsk"
