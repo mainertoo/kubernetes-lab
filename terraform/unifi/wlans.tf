@@ -21,7 +21,12 @@ resource "unifi_wlan" "guest" {
 # Apple home hubs (HomePods) on IoT. mainertoo_zone_IoT is 2.4 GHz-only for cheap
 # IoT radios; HomePods get their own SSID with 5 GHz for AirPlay quality. Same VLAN
 # as the Thread border router + matter-server (see firewall_policies.tf
-# apple_hubs_to_internal). Only the four hubs join it.
+# apple_hubs_to_internal). Only the HomePods join it (the Apple TV is wired).
+#
+# 5 GHz ONLY — not just preference: the U6 Lite/U6 LR APs cap at 4 SSIDs per radio
+# and their 2.4 GHz radio already carries zone/IoT/kids/guest, so a dual-band 5th
+# SSID fails with api.err.TooManyWirelessNetwork. The 5 GHz radio had 3 (IoT is
+# 2.4-only). Any further SSID must also avoid 2.4 GHz, or drop to the U7 AP group.
 resource "unifi_wlan" "hubs" {
   name          = "mainertoo_zone_hubs"
   security      = "wpapsk"
@@ -29,7 +34,7 @@ resource "unifi_wlan" "hubs" {
   network_id    = unifi_network.vlan["iot"].id
   ap_group_ids  = [data.unifi_ap_group.default.id]
   user_group_id = data.unifi_user_group.default.id
-  wlan_band     = "both"
+  wlan_band     = "5g"
 }
 
 resource "unifi_wlan" "kids" {
