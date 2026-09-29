@@ -1,5 +1,6 @@
 ---
-# Provision the matter-server VM (VMID 702 on pve-zermatt, VLAN 20 / IoT).
+# Provision the matter-server VM (VMID 702, VLAN 20 / IoT; lives on pve-s13, can run on any host with a
+# VLAN-aware vmbr0 — s13 / zermatt / whistler / mammoth. No Proxmox HA by choice; see wiki apps/home-iot/matter-server).
 #
 #   cd ansible/fleet && ansible-playbook playbooks/matter_server_vm.yml
 #
