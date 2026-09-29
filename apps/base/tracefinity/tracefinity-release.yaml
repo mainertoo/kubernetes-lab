@@ -12,6 +12,9 @@ spec:
 
   maxHistory: 2
 
+  # image is ~2.5 GB and all tracing models load at startup
+  timeout: 15m
+
   install:
     createNamespace: false
     remediation:
@@ -47,8 +50,9 @@ spec:
               # Single shared "default" library.
               - name: AUTH_MODE
                 value: open
-            # /health lives on the FastAPI backend (:8000); nginx on :3000 only
-            # proxies /api/, so probe the backend port directly.
+            # uvicorn binds 127.0.0.1:8000 (unreachable by kubelet), and nginx
+            # on :3000 only proxies /api/ — so probe /api/version through nginx,
+            # which exercises nginx + backend end to end.
             # All models load at startup — give it a generous startup window.
             probes:
               startup:
@@ -56,8 +60,8 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /health
-                    port: 8000
+                    path: /api/version
+                    port: 3000
                   periodSeconds: 10
                   failureThreshold: 60
               liveness:
@@ -65,8 +69,8 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /health
-                    port: 8000
+                    path: /api/version
+                    port: 3000
                   periodSeconds: 30
                   timeoutSeconds: 10
                   failureThreshold: 5
@@ -75,8 +79,8 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /health
-                    port: 8000
+                    path: /api/version
+                    port: 3000
                   periodSeconds: 15
                   timeoutSeconds: 5
                   failureThreshold: 3
