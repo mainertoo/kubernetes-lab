@@ -1,0 +1,35 @@
+# In-cluster name for HA's Matter controller now that it runs outside Kubernetes, on the
+# matter-server VM (VMID 702, VLAN 20 / IoT). Selectorless Service + hand-written
+# EndpointSlice → 192.168.20.11:5580. Gatus's internal check targets it
+# (GATUS_APP=matter-server-vm in apps/production/home-assistant/matter-server).
+# Home Assistant itself connects to ws://192.168.20.11:5580/ws directly.
+# The VM's nftables only admits 5580 from 192.168.90.0/24 — cluster traffic to this
+# endpoint leaves the node SNATed to its VLAN 90 address, so it is allowed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: matter-server-vm
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5580
+      targetPort: 5580
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: matter-server-vm-1
+  labels:
+    kubernetes.io/service-name: matter-server-vm
+addressType: IPv4
+ports:
+  - name: http
+    port: 5580
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 192.168.20.11
+    conditions:
+      ready: true
