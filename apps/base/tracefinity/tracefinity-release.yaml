@@ -50,6 +50,21 @@ spec:
               # Single shared "default" library.
               - name: AUTH_MODE
                 value: open
+              # Automatic tool naming via the DGX Spark vLLM (Qwen3.6, vision).
+              # The "openrouter" provider is any OpenAI-compatible endpoint.
+              # ⚠️ OPENROUTER_API_KEY also enables the gemini tracer on the same
+              # URL — TRACERS above is pinned so it is never offered (Spark
+              # can't return mask images).
+              - name: TOOL_LABEL_PROVIDER
+                value: openrouter
+              - name: OPENROUTER_URL
+                value: http://spark-llm.spark-egress.svc.cluster.local:8000/v1/chat/completions
+              - name: OPENROUTER_LABEL_MODEL
+                value: nvidia/Qwen3.6-35B-A3B-NVFP4
+              # vLLM on the Spark has no auth; the namer just requires a
+              # non-empty key. Not a secret.
+              - name: OPENROUTER_API_KEY
+                value: unused
             # uvicorn binds 127.0.0.1:8000 (unreachable by kubelet), and nginx
             # on :3000 only proxies /api/ — so probe /api/version through nginx,
             # which exercises nginx + backend end to end.
