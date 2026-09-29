@@ -99,14 +99,17 @@ spec:
                   periodSeconds: 15
                   timeoutSeconds: 5
                   failureThreshold: 3
-            # BiRefNet Lite + U2-Net paper detection ≈ 8 GB working set
-            # (docs/resource-requirements.md).
+            # BiRefNet Lite on CPU: ONNX Runtime's arena keeps the first
+            # inference's allocation (~8.3 GiB resident after one trace, never
+            # released), and a retrace needs headroom ON TOP of that — 10Gi
+            # OOMKilled on the second trace (2026-09-28). Request matches the
+            # post-first-trace resident set so the scheduler places it honestly.
             resources:
               requests:
                 cpu: 100m
-                memory: 3Gi
+                memory: 8Gi
               limits:
-                memory: 10Gi
+                memory: 16Gi
 
     service:
       # key == release name ⇒ Service renders as bare "tracefinity"
