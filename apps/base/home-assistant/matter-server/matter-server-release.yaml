@@ -27,6 +27,13 @@ spec:
   values:
     controllers:
       matter-server:
+        # RETIRED 2026-09-29 — HA's Matter controller now runs on the matter-server VM
+        # (VMID 702, VLAN 20 / IoT, ws://192.168.20.11:5580/ws; Portainer stack from
+        # home_server/docker-matter-server). It must share one L2 with every Thread
+        # border router — see wiki apps/home-iot/thread. Scaled to 0 (not removed) so
+        # the PVC below stays as the rollback copy of HA's fabric. NEVER scale this back
+        # up while the VM copy is running: one controller per fabric.
+        replicas: 0
         pod:
           # Matter discovery/commissioning is happiest on the LAN/mDNS
           hostNetwork: true

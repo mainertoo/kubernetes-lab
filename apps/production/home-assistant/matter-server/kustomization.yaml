@@ -30,6 +30,9 @@ spec:
   postBuild:
     substitute:
       APP: matter-server
+      # The k8s deployment is retired (replicas 0); probe the VM via the selectorless
+      # matter-server-vm Service instead (apps/base/.../matter-server-vm-service.yaml).
+      GATUS_APP: matter-server-vm
       APP_NAMESPACE: home-assistant
       SUBDOMAIN: matter-server
       GATUS_DOMAIN: lab.mainertoo.com

@@ -51,6 +51,11 @@
         state: directory
         mode: "0750"
 
+    # ⚠️ A fresh agent closes its API if no Portainer server associates within 72 h
+    # ("shutting down API server as no client was associated after the timeout") —
+    # Portainer then gets "connection refused". Register it (Portainer endpoint 17,
+    # docker-matter-server, tcp://192.168.20.11:9001) promptly, or `docker restart
+    # portainer_agent` first.
     - name: Portainer agent (Portainer on QNAS 192.168.1.252 connects to :9001)
       community.docker.docker_container:
         name: portainer_agent
