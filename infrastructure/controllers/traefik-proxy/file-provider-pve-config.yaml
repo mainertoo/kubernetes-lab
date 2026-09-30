@@ -180,6 +180,14 @@ data:
           entryPoints: [websecure]
           service: portainer_http
 
+        # Komodo Core (Docker mgmt, replaces Portainer). No forwardAuth —
+        # Komodo does its own Authentik OIDC login; forwardAuth would break
+        # its API + websocket clients.
+        komodo:
+          rule: "Host(`komodo.lab.mainertoo.com`)"
+          entryPoints: [websecure]
+          service: komodo_http
+
         # --- SSO via Authentik forwardAuth ---
         sabnzbd:
           rule: "Host(`sabnzbd.lab.mainertoo.com`)"
@@ -263,6 +271,13 @@ data:
             passHostHeader: true
             servers:
               - url: "http://192.168.1.252:9000"
+
+        # Komodo Core on QNAP
+        komodo_http:
+          loadBalancer:
+            passHostHeader: true
+            servers:
+              - url: "http://192.168.1.252:9120"
 
         sabnzbd_http:
           loadBalancer:
