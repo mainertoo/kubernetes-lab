@@ -3,5 +3,4 @@ kind: Kustomization
 
 resources:
   - matter-server-namespace.yaml
-  - matter-server-pvc.yaml
   - matter-server-vm-service.yaml
