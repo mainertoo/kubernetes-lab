@@ -69,6 +69,10 @@ spec:
               TZ: America/Los_Angeles
               RADARR__AUTH__METHOD: External
               RADARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              # Radarr 6.4.4+ validates the Host header. Once this is non-empty,
+              # any other hostname gets a 400 — so it must cover the Traefik host
+              # AND the in-cluster service names Seerr/Prowlarr/Gatus use.
+              RADARR__SERVER__ALLOWEDHOSTS: "*.lab.mainertoo.com,*.media.svc.cluster.local,*.media.svc,*.media,radarr,radarr4k"
 
     defaultPodOptions:
       securityContext:
