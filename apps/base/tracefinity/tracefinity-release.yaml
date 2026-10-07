@@ -36,7 +36,7 @@ spec:
           app:
             image:
               repository: ghcr.io/tracefinity/tracefinity
-              tag: 0.9.4
+              tag: 0.10.0
             env:
               - name: TZ
                 value: America/Los_Angeles
