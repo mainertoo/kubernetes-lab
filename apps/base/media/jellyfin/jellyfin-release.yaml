@@ -99,6 +99,20 @@ spec:
                   --links \
                   --use-cookies \
                   --cache-dir=/cache
+            # Unmount on shutdown too (2026-10-16): on a rollout rclone gets
+            # SIGTERM while the app container still pins the mount via
+            # HostToContainer, so rclone exits without unmounting and the FUSE
+            # mount stays stacked on the emptyDir. kubelet then can't tear the
+            # volume down and the old pod hangs in Terminating forever (fixed by
+            # hand: `umount -l` on the node). A lazy unmount detaches even while
+            # busy, so the volume cleans up normally.
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - fusermount3 -uz /mnt/debrid/nzbdav 2>/dev/null || umount -l /mnt/debrid/nzbdav 2>/dev/null || true
             securityContext:
               privileged: true
               runAsUser: 0
@@ -135,6 +149,20 @@ spec:
                   --links \
                   --use-cookies \
                   --cache-dir=/cache
+            # Unmount on shutdown too (2026-10-16): on a rollout rclone gets
+            # SIGTERM while the app container still pins the mount via
+            # HostToContainer, so rclone exits without unmounting and the FUSE
+            # mount stays stacked on the emptyDir. kubelet then can't tear the
+            # volume down and the old pod hangs in Terminating forever (fixed by
+            # hand: `umount -l` on the node). A lazy unmount detaches even while
+            # busy, so the volume cleans up normally.
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - fusermount3 -uz /mnt/debrid/decypharr 2>/dev/null || umount -l /mnt/debrid/decypharr 2>/dev/null || true
             securityContext:
               privileged: true
               runAsUser: 0
