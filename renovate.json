@@ -183,7 +183,7 @@
       "groupSlug": "qidistudio-latest"
     },
     {
-      "description": "Meilisearch (karakeep's search index): a version bump REQUIRES a one-time index migration — Meili refuses to start on an index written by a different engine version (the v1.41.0→v1.49.0 update crashlooped 'database version incompatible' until /meili_data was wiped). Renovate stays ENABLED so these updates keep surfacing as normal; the meili-index-migration label + the comment in karakeep-release.yaml flag the required wipe+reindex so the PR isn't merged blind. On merge: scale meili to 0 → wipe /meili_data → scale to 1 → Karakeep Admin 'Reindex all bookmarks'.",
+      "description": "Meilisearch (karakeep's search index): bumps upgrade IN PLACE via MEILI_UPGRADE_DB=true (dumpless migration, verified v1.54.0\u2192v1.55.0 on 2026-10-16: upgradeDatabase task succeeded, 296/296 docs kept) \u2014 so a normal merge just works. The upgrade is IRREVERSIBLE (no image rollback), which is acceptable because the index is disposable. The meili-index-migration label stays as a watch flag: after merge check `kubectl -n karakeep logs deploy/karakeep-meilisearch | grep index_scheduler::upgrade` and the upgradeDatabase task. Only if it crashloops 'database version incompatible' (as v1.41.0\u2192v1.49.0 did, before MEILI_UPGRADE_DB): scale meili to 0 \u2192 wipe /meili_data \u2192 scale to 1 \u2192 Karakeep Admin 'Reindex all bookmarks' (runbook in karakeep-release.yaml).",
       "matchPackagePatterns": ["getmeili/meilisearch"],
       "addLabels": ["meili-index-migration"]
     }
