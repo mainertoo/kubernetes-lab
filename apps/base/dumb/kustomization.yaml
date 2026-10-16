@@ -11,3 +11,13 @@ resources:
   - dumb-service-ingressroutes.yaml
   - dumb-rbd-pvc.yaml
   - dumb-library-pvc.yaml
+# DUMB 2.23.x setgid workaround (see setgid-shim/sitecustomize.py). Fixed name:
+# the HelmRelease references it by name, which kustomize's hash suffix can't
+# rewrite. The DUMB pod is Recreate + digest-pinned, so a shim edit takes
+# effect on the next rollout.
+configMapGenerator:
+  - name: dumb-setgid-shim
+    files:
+      - setgid-shim/sitecustomize.py
+    options:
+      disableNameSuffixHash: true
