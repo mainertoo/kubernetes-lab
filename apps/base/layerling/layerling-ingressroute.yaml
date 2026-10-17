@@ -1,0 +1,36 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: layerling-ingressroute
+  namespace: layerling
+  annotations:
+    gethomepage.dev/href: "https://layerling.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Layerling"
+    gethomepage.dev/description: "Browser CAD editor for 3D printing (MCP-enabled)"
+    gethomepage.dev/app: layerling
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "mdi-cube-outline"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    # MCP bridge API WITHOUT SSO — the local bridge script can't do the
+    # Authentik login; every command is gated by LAYERLING_MCP_TOKEN instead.
+    - match: Host(`layerling.lab.mainertoo.com`) && PathPrefix(`/api/layerling-mcp`)
+      kind: Rule
+      services:
+        - name: layerling
+          port: 3000
+          scheme: http
+    - match: Host(`layerling.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: layerling
+          port: 3000
+          scheme: http
+  tls: {}
