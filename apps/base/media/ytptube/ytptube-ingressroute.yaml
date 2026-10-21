@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ytptube-ingressroute
+  namespace: media
+  annotations:
+    gethomepage.dev/href: "https://ytptube.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "YTPTube"
+    gethomepage.dev/description: "yt-dlp download manager"
+    gethomepage.dev/app: ytptube
+    gethomepage.dev/group: "Media"
+    gethomepage.dev/icon: "sh-youtube-dl.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`ytptube.lab.mainertoo.com`)
+      kind: Rule
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
+      services:
+        - name: ytptube
+          port: 8081
+          scheme: http
+  tls: {}
