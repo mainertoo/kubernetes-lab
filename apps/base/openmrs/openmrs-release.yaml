@@ -271,7 +271,7 @@ spec:
           app:
             image:
               repository: docker.io/openmrs/openmrs-reference-application-3-frontend
-              tag: 3.7.1
+              tag: 3.8.0
             env:
               # Rewritten into index.html by the image's startup.sh. SPA_PATH and
               # API_URL are the paths as seen by the BROWSER (i.e. through the
