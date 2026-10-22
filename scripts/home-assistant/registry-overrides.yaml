@@ -48,10 +48,11 @@ devices:
     mac: "ac:eb:e6:f7:48:ac"
     area: office_bedroom
     name_by_user: 3D Printer Plug
-  # Was filed under Garage, which put it on the Garage HomeKit bridge.
-  - comment: Front Entry Overhead Light — Meross MSS510 wall switch
+  # Lights the front of the garage — NOT the Front Entry (that is the 3-way
+  # light.front_entry_overhead_3_way_outlet). Briefly mis-moved 2026-10-21.
+  - comment: Garage Front Overhead Light — Meross MSS510 wall switch
     mac: "48:e1:e9:b2:d8:52"
-    area: front_entry
+    area: garage
 
 # ── Sliding door locks ───────────────────────────────────────────────────────
 # ⚠️ Names are place-based, never numbered: Assist drops a trailing number and
@@ -171,9 +172,13 @@ entities:
   # Apple Home copies an accessory's name once, at pairing; a later rename here does
   # not propagate. These are the names Siri hears from the per-room HomeKit bridges,
   # so they must be right BEFORE a bridge is paired. Assist sees the same names.
+  # PIR, but Z2M reports it as `occupancy` -> HomeKit OccupancySensor; force MotionSensor.
   binary_sensor.0xb40ecfd7ce8c0000_occupancy:
+    device_class: motion
     name: Master Bedroom Motion
+  # PIR, but Z2M reports it as `occupancy` -> HomeKit OccupancySensor; force MotionSensor.
   binary_sensor.0xb40ecfd7d57e0000_occupancy:
+    device_class: motion
     name: Studio Motion
   binary_sensor.front_door_door_2:
     name: Front Door
@@ -181,12 +186,23 @@ entities:
     name: Studio Door
   climate.main_floor:
     name: Main Floor Thermostat
+  light.front_entry_overhead_light:
+    name: Garage Front Overhead Light
   climate.studio:
     name: Studio Thermostat
   fan.simpleconnect_fan_m2_bd459b_hunter_fan:
     name: Office Fan
+  # Third Reality night lights double as the house-status lights (green/amber/red);
+  # exposed to HomeKit at the user's request 2026-10-22.
+  light.0xb40ecfd7ce8c0000:
+    name: Master Bedroom Motion Light
+  light.0xb40ecfd7d57e0000:
+    name: Studio Motion Light
   light.living_room_living_room_dimmer:
     name: Living Room Lights
+  # Was "Loft Ceiling fan" — same name as fan.loft_ceiling_fan.
+  light.loft_ceiling_fan:
+    name: Loft Ceiling light
   light.main_overhead_outlet:
     name: Garage Overhead Light
   light.master_closet_switch:
