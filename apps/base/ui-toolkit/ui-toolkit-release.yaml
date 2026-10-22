@@ -36,7 +36,7 @@ spec:
           app:
             image:
               repository: ghcr.io/crosstalk-solutions/unifi-toolkit
-              tag: "1.13.4"
+              tag: "1.13.6"
               pullPolicy: IfNotPresent
 
             # Non-secret env vars (safe here)
