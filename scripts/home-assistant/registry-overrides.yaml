@@ -219,3 +219,12 @@ entities:
     name: Studio Door Lock
   vacuum.dreamebot_l30_ultra:
     name: Robot Vacuum
+  # ── Upstairs bathroom fan (packages/upstairs_bathroom_fan.yaml) ───────────────
+  # Template entities have no device, so the area must be set on the entity itself or
+  # the fan never appears under Upstairs Bathroom in HA.
+  fan.upstairs_bathroom_fan:
+    area_id: upstairs_bathroom
+  # Internal "fan is running" flag the automations maintain — not a control.
+  input_boolean.upstairs_bathroom_fan_running:
+    area_id: upstairs_bathroom
+    hidden_by: user
