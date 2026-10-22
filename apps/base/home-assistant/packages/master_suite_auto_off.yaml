@@ -14,6 +14,11 @@
 # - light.0xb40ecfd7ce8c0000 — the night light itself is the house-status light.
 # - light.outdoor_light — outdoor, owned by the sunset/sunrise automations.
 #
+# ⚠️ Only entities that are currently ON get a turn_off. light.master_ceiling_fan is a Bond
+# RF light whose remote has a single light button: Bond sends that same TOGGLE code for
+# "off", so an "off" to a light that is already off turns it ON while HA still shows it
+# off (assumed_state). Happened 2026-10-22.
+#
 # ⚠️ The only sensor is in the BEDROOM. 30 min still in the bathroom or closet (a long
 # bath) with nobody moving in the bedroom will turn the bathroom lights off.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -48,21 +53,35 @@ automation:
                 to: "on"
             timeout: "00:30:00"
             continue_on_timeout: true
-          # Motion during the wait: the normal 'vacant' trigger takes it from here.
+          # `stop`, not a condition: a failing condition inside `then:` only ends this
+          # block and the lights went off anyway, on motion (2026-10-22).
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ wait.trigger is not none
+                     or not is_state('binary_sensor.0xb40ecfd7ce8c0000_occupancy', 'off') }}
+            then:
+              - stop: "Motion since startup — the normal 30 min trigger takes over."
+      - variables:
+          lights_on: >-
+            {{ ['light.master_bedroom_darcy_bedside_light',
+                'light.master_bedroom_preya_bedside_light',
+                'light.master_ceiling_fan',
+                'light.master_bathroom_fan_light',
+                'light.master_bathroom_mirror_light_outlet',
+                'light.master_closet_switch'] | select('is_state', 'on') | list }}
+      - if:
           - condition: template
-            value_template: "{{ wait.trigger is none }}"
+            value_template: "{{ lights_on | count > 0 }}"
+        then:
+          - action: light.turn_off
+            target:
+              entity_id: "{{ lights_on }}"
+      - if:
           - condition: state
-            entity_id: binary_sensor.0xb40ecfd7ce8c0000_occupancy
-            state: "off"
-      - action: light.turn_off
-        target:
-          entity_id:
-            - light.master_bedroom_darcy_bedside_light
-            - light.master_bedroom_preya_bedside_light
-            - light.master_ceiling_fan
-            - light.master_bathroom_fan_light
-            - light.master_bathroom_mirror_light_outlet
-            - light.master_closet_switch
-      - action: fan.turn_off
-        target:
-          entity_id: fan.master_bathroom_exhaust_fan
+            entity_id: fan.master_bathroom_exhaust_fan
+            state: "on"
+        then:
+          - action: fan.turn_off
+            target:
+              entity_id: fan.master_bathroom_exhaust_fan
