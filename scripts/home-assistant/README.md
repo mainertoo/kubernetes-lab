@@ -148,3 +148,12 @@ otherwise a new top-level location is created. The full map is printed for revie
 
 Stdlib only (`socket`/`ssl`/`urllib`) + PyYAML. Imports `../homebox/inventory.py`
 (`Client`, `load_creds`, `all_items`, `location_paths`, `Planner._update_body`).
+
+## Automations (`ha-automation/`)
+
+New lab HA automations are git-managed packages in `apps/base/home-assistant/packages/`.
+`ha-automation/` holds the Claude Code skill for building them: `SKILL.md` covers the workflow
+and the traps that have bitten this house, and `haauto.py` is a helper for the lab HA.
+It can `find` entities and their quirks, `audit` existing automations for clashes,
+`check` a package against live HA, and read the `logbook`, `trace` a run, or `verify` after a merge.
+On the Mac, `~/.claude/skills/ha-automation` is a symlink to this directory.
