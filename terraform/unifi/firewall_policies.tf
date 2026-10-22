@@ -151,6 +151,25 @@ resource "unifi_firewall_zone_policy" "apple_hubs_to_internal" {
   destination = { zone_id = data.unifi_firewall_zone.internal.id }
 }
 
+# --- AirConnect (CT 703, 192.168.20.12) bridges AirPlay 1 to the Homewerks bathroom fan
+#     speakers (UPnP). In AirPlay 1 the RECEIVER sends NTP-style timing requests (and
+#     resend requests on the control port) to the sender's ephemeral UDP ports — an
+#     IoT->Internal flow the default blocks. Without it airupnp logs "NTP not acquired
+#     yet", never starts the stream, and the fan plays silence. UDP only (the optional
+#     TCP DACP remote-control channel is not needed), matched by the CT's fixed MAC.
+#     Destination is the whole Internal zone because the provider's ips field rejects
+#     CIDRs and senders are any phone/Mac on Trusted. Wiki smart-home/devices/bathroom-fans-homewerks.
+resource "unifi_firewall_zone_policy" "airconnect_to_internal" {
+  name     = "AirConnect to Internal (AirPlay timing)"
+  action   = "ALLOW"
+  protocol = "udp"
+  source = {
+    zone_id     = unifi_firewall_zone.iot.id
+    client_macs = ["bc:24:11:20:07:03"] # CT 703 airconnect @ pve-mammoth
+  }
+  destination = { zone_id = data.unifi_firewall_zone.internal.id }
+}
+
 locals {
   # Traefik's MetalLB address (metallb-system/mainertoo-l2-pool 192.168.90.180-.199).
   # Everything on *.lab.mainertoo.com is fronted here, so this one host is all a

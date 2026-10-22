@@ -1,0 +1,119 @@
+---
+# Provision the airconnect LXC (CT 703, VLAN 20 / IoT, on pve-mammoth) — AirConnect `airupnp`, which
+# presents the Homewerks bathroom fan speakers (UPnP renderers) as AirPlay 1 targets. See wiki
+# smart-home/devices/bathroom-fans-homewerks.
+#
+#   cd ansible/fleet && ansible-playbook playbooks/airconnect_lxc.yml
+#
+# Idempotent. The CT itself was created by hand from debian-13-standard: unprivileged, 1 core / 256 MB,
+# rootfs on ceph-shared, net0 vmbr0 tag=20, static 192.168.20.12 (outside the .50-.250 DHCP pool),
+# MAC BC:24:11:20:07:03. Any VLAN-aware host works except pve-s13 (untagged-only switch port).
+# Deliberately NOT on the matter-server VM — it is the Studio lock's Matter controller.
+#
+# airupnp discovers renderers by SSDP only (it cannot be pointed at an IP), so this host must sit on
+# the fans' L2 and its firewall must admit unicast SSDP replies (see nftables.conf).
+
+- name: Provision airconnect LXC
+  hosts: ct703-airconnect
+  vars:
+    # Inventory reaches the CT via `pct exec` for patching; provisioning goes over SSH.
+    ansible_connection: ssh
+    ansible_host: 192.168.20.12
+    ansible_user: root
+    airconnect_version: "1.12.4"
+    airconnect_zip_sha256: ae59d595be80db7f4e93c94c9029baff59dc7515ec03e44505ab2792bbcd1903
+  tasks:
+    - name: Install packages
+      ansible.builtin.apt:
+        name: [nftables, unzip]
+        state: present
+        update_cache: true
+
+    - name: Host firewall (default-deny inbound)
+      ansible.builtin.copy:
+        src: ../files/airconnect/nftables.conf
+        dest: /etc/nftables.conf
+        mode: "0755"
+        validate: nft -c -f %s
+      notify: Reload nftables
+
+    - name: nftables enabled
+      ansible.builtin.systemd:
+        name: nftables
+        enabled: true
+        state: started
+
+    - name: airconnect system user
+      ansible.builtin.user:
+        name: airconnect
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Release directory
+      ansible.builtin.file:
+        path: /opt/airconnect/{{ airconnect_version }}
+        state: directory
+        mode: "0755"
+
+    - name: Download AirConnect release
+      ansible.builtin.get_url:
+        url: https://github.com/philippe44/AirConnect/releases/download/{{ airconnect_version }}/AirConnect-{{ airconnect_version }}.zip
+        dest: /opt/airconnect/{{ airconnect_version }}/AirConnect.zip
+        checksum: sha256:{{ airconnect_zip_sha256 }}
+        mode: "0644"
+
+    - name: Extract the static x86_64 airupnp binary
+      ansible.builtin.unarchive:
+        src: /opt/airconnect/{{ airconnect_version }}/AirConnect.zip
+        dest: /opt/airconnect/{{ airconnect_version }}
+        remote_src: true
+        include: [airupnp-linux-x86_64-static]
+        creates: /opt/airconnect/{{ airconnect_version }}/airupnp-linux-x86_64-static
+
+    - name: Install airupnp
+      ansible.builtin.copy:
+        src: /opt/airconnect/{{ airconnect_version }}/airupnp-linux-x86_64-static
+        dest: /usr/local/bin/airupnp
+        remote_src: true
+        mode: "0755"
+      notify: Restart airupnp
+
+    - name: Config directory
+      ansible.builtin.file:
+        path: /etc/airconnect
+        state: directory
+        mode: "0755"
+
+    - name: airupnp config
+      ansible.builtin.copy:
+        src: ../files/airconnect/config.xml
+        dest: /etc/airconnect/config.xml
+        mode: "0644"
+      notify: Restart airupnp
+
+    - name: airupnp unit
+      ansible.builtin.copy:
+        src: ../files/airconnect/airupnp.service
+        dest: /etc/systemd/system/airupnp.service
+        mode: "0644"
+      notify: Restart airupnp
+
+    - name: airupnp enabled
+      ansible.builtin.systemd:
+        name: airupnp
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload nftables
+      ansible.builtin.systemd:
+        name: nftables
+        state: restarted
+
+    - name: Restart airupnp
+      ansible.builtin.systemd:
+        name: airupnp
+        state: restarted
+        daemon_reload: true
