@@ -185,8 +185,17 @@ entities:
     name: Studio Thermostat
   fan.simpleconnect_fan_m2_bd459b_hunter_fan:
     name: Office Fan
+  # Third Reality night lights double as the house-status lights (green/amber/red);
+  # exposed to HomeKit at the user's request 2026-10-22.
+  light.0xb40ecfd7ce8c0000:
+    name: Master Bedroom Motion Light
+  light.0xb40ecfd7d57e0000:
+    name: Studio Motion Light
   light.living_room_living_room_dimmer:
     name: Living Room Lights
+  # Was "Loft Ceiling fan" — same name as fan.loft_ceiling_fan.
+  light.loft_ceiling_fan:
+    name: Loft Ceiling light
   light.main_overhead_outlet:
     name: Garage Overhead Light
   light.master_closet_switch:
