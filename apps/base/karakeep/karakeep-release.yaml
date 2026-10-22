@@ -34,7 +34,7 @@ spec:
           app:
             image:
               repository: ghcr.io/karakeep-app/karakeep
-              tag: 0.34.0
+              tag: 0.34.1
             env:
               - name: TZ
                 value: America/Los_Angeles
