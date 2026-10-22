@@ -51,7 +51,7 @@ spec:
     # api + worker + nuq-worker all share this image/tag.
     image:
       repository: ghcr.io/firecrawl/firecrawl
-      tag: "2.11.593"
+      tag: "2.11.594"
       pullPolicy: IfNotPresent
       dockerSecretEnabled: false
 
