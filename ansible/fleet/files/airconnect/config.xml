@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!-- airupnp (AirConnect) — presents the Homewerks bathroom fan speakers (MUZO Cobblestone
+     UPnP renderers) as AirPlay 1 targets. Devices are matched by UDN; anything else SSDP
+     finds is added but disabled (the TV already does AirPlay 2 natively).
+     Ports are pinned so the LXC firewall (nftables.conf) can stay narrow:
+     UPnP/GENA callback = 49152 (set via -b in airupnp.service), RTSP/RTP/HTTP = 49200-49239. -->
+<airupnp>
+<common>
+<enabled>0</enabled>
+<max_volume>100</max_volume>
+<http_length>-1</http_length>
+<stream_type>broadcast</stream_type>
+<upnp_max>1</upnp_max>
+<codec>flac</codec>
+<metadata>1</metadata>
+<flush>1</flush>
+<artwork></artwork>
+<latency></latency>
+<drift>0</drift>
+</common>
+<main_log>info</main_log>
+<upnp_log>warn</upnp_log>
+<util_log>warn</util_log>
+<raop_log>info</raop_log>
+<log_limit>-1</log_limit>
+<max_players>8</max_players>
+<ports>49200:40</ports>
+<device>
+<udn>uuid:FF97F005-02B7-64F3-EA80-52EDFF97F005</udn>
+<name>Master Bathroom Fan</name>
+<enabled>1</enabled>
+</device>
+<!-- Main stays off until the one-week Master trial shows no rise in tcp/8899 wedges
+     (wiki smart-home/devices/bathroom-fans-homewerks). -->
+<device>
+<udn>uuid:FF97F005-9B08-61C8-C523-47B5FF97F005</udn>
+<name>Main Bathroom Fan</name>
+<enabled>0</enabled>
+</device>
+</airupnp>
