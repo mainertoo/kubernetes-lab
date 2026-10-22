@@ -19,6 +19,7 @@ configMapGenerator:
   - name: home-assistant-packages
     files:
       - printer_costs.yaml=./packages/printer_costs.yaml
+      - upstairs_bathroom_fan.yaml=./packages/upstairs_bathroom_fan.yaml
 
 # Hash suffix ON so a template edit produces a new ConfigMap name, which
 # kustomizeconfig.yaml propagates into the HelmRelease and rolls the pod.

@@ -1,0 +1,105 @@
+# upstairs_bathroom_fan.yaml — HA package: a fan entity for the upstairs bathroom's old exhaust fan.
+#
+# GIT IS THE SOURCE OF TRUTH. Shipped in the hash-suffixed `home-assistant-packages`
+# ConfigMap and mounted READ-ONLY as the /config/packages directory; configuration.yaml
+# loads it via `homeassistant: packages: !include_dir_named packages` (asserted by the
+# ensure-ha-config initContainer). A change here rolls the HA pod.
+#
+# The fan has no control of its own. It shares a circuit with the shower light
+# (switch.upstairs_bathroom_shower_light, a Shelly 1 Gen4 behind the wall switch) and
+# starts when that power is switched on → off → on in quick succession. Turning the
+# power off stops both the light and the fan.
+#
+# The fan cannot report its own state, so fan.upstairs_bathroom_fan is an ASSUMED state:
+#   running = "a quick power re-cycle was seen" (input_boolean) AND the light is on.
+# - Detection watches the relay itself, so a quick double flip at the WALL also marks the
+#   fan running, not only the fan entity / HomeKit / Assist.
+# - The light going off (from anywhere) clears it.
+# - A single normal "on" is just the light: the fan stays off.
+#
+# Exposed to Apple Home on the "HomeKit Upstairs Bathroom" bridge (UI-managed; see the
+# wiki page smart-home/homekit-bridges).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# No `initial:` on purpose — HA restores the last state across restarts.
+input_boolean:
+  upstairs_bathroom_fan_running:
+    name: "Upstairs Bathroom Fan running"
+    icon: mdi:fan
+
+script:
+  upstairs_bathroom_fan_start:
+    alias: "Upstairs Bathroom Fan — start"
+    description: "Switch the shower-light circuit on → off → on so the old fan starts."
+    mode: single
+    icon: mdi:fan
+    sequence:
+      # Already powered: drop it long enough for the fan's controller to see a fresh start.
+      # 2 s is longer than the 1.5 s detection window below, so this off/on does not count.
+      - if:
+          - condition: state
+            entity_id: switch.upstairs_bathroom_shower_light
+            state: "on"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.upstairs_bathroom_shower_light
+          - delay: "00:00:02"
+      - action: switch.turn_on
+        target:
+          entity_id: switch.upstairs_bathroom_shower_light
+      - delay: "00:00:00.500"
+      - action: switch.turn_off
+        target:
+          entity_id: switch.upstairs_bathroom_shower_light
+      - delay: "00:00:00.500"
+      - action: switch.turn_on
+        target:
+          entity_id: switch.upstairs_bathroom_shower_light
+
+automation:
+  - id: upstairs_bathroom_fan_detect_start
+    alias: "Upstairs Bathroom Fan — detect start"
+    description: "Power came back within 1.5 s of going off: that pattern starts the fan."
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: switch.upstairs_bathroom_shower_light
+        from: "off"
+        to: "on"
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ (trigger.to_state.last_changed - trigger.from_state.last_changed).total_seconds() < 1.5 }}
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.upstairs_bathroom_fan_running
+
+  - id: upstairs_bathroom_fan_off_with_light
+    alias: "Upstairs Bathroom Fan — off with the light"
+    description: "No power, no fan."
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: switch.upstairs_bathroom_shower_light
+        to: "off"
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.upstairs_bathroom_fan_running
+
+template:
+  - fan:
+      - name: "Upstairs Bathroom Fan"
+        unique_id: upstairs_bathroom_fan
+        state: >-
+          {{ is_state('input_boolean.upstairs_bathroom_fan_running', 'on')
+             and is_state('switch.upstairs_bathroom_shower_light', 'on') }}
+        turn_on:
+          - action: script.upstairs_bathroom_fan_start
+        # Off = cut the circuit, which stops the fan AND the shower light.
+        turn_off:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.upstairs_bathroom_shower_light
