@@ -70,7 +70,7 @@ spec:
           syncthing:
             image:
               repository: lscr.io/linuxserver/syncthing
-              tag: 2.1.6
+              tag: 2.1.7
               pullPolicy: IfNotPresent
             env:
               - name: TZ
