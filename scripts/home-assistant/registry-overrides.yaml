@@ -172,9 +172,13 @@ entities:
   # Apple Home copies an accessory's name once, at pairing; a later rename here does
   # not propagate. These are the names Siri hears from the per-room HomeKit bridges,
   # so they must be right BEFORE a bridge is paired. Assist sees the same names.
+  # PIR, but Z2M reports it as `occupancy` -> HomeKit OccupancySensor; force MotionSensor.
   binary_sensor.0xb40ecfd7ce8c0000_occupancy:
+    device_class: motion
     name: Master Bedroom Motion
+  # PIR, but Z2M reports it as `occupancy` -> HomeKit OccupancySensor; force MotionSensor.
   binary_sensor.0xb40ecfd7d57e0000_occupancy:
+    device_class: motion
     name: Studio Motion
   binary_sensor.front_door_door_2:
     name: Front Door
