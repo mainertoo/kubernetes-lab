@@ -48,6 +48,10 @@ devices:
     mac: "ac:eb:e6:f7:48:ac"
     area: office_bedroom
     name_by_user: 3D Printer Plug
+  # Was filed under Garage, which put it on the Garage HomeKit bridge.
+  - comment: Front Entry Overhead Light — Meross MSS510 wall switch
+    mac: "48:e1:e9:b2:d8:52"
+    area: front_entry
 
 # ── Sliding door locks ───────────────────────────────────────────────────────
 # ⚠️ Names are place-based, never numbered: Assist drops a trailing number and
@@ -163,3 +167,37 @@ entities:
     icon: mdi:electric-switch
     name: Sliding Door Lock 5 Relay
 
+  # ── HomeKit-facing names ─────────────────────────────────────────────────────
+  # Apple Home copies an accessory's name once, at pairing; a later rename here does
+  # not propagate. These are the names Siri hears from the per-room HomeKit bridges,
+  # so they must be right BEFORE a bridge is paired. Assist sees the same names.
+  binary_sensor.0xb40ecfd7ce8c0000_occupancy:
+    name: Master Bedroom Motion
+  binary_sensor.0xb40ecfd7d57e0000_occupancy:
+    name: Studio Motion
+  binary_sensor.front_door_door_2:
+    name: Front Door
+  climate.main_floor:
+    name: Main Floor Thermostat
+  climate.studio:
+    name: Studio Thermostat
+  fan.simpleconnect_fan_m2_bd459b_hunter_fan:
+    name: Office Fan
+  light.living_room_living_room_dimmer:
+    name: Living Room Lights
+  light.main_overhead_outlet:
+    name: Garage Overhead Light
+  light.master_closet_switch:
+    name: Master Closet Light
+  light.outdoor_light:
+    name: Master Bedroom Outdoor Light
+  light.outdoor_light_outlet_2:
+    name: Studio Outdoor Light
+  light.overhead_light_outlet:
+    name: Guest Room Light
+  light.simpleconnect_fan_m2_bd459b_hunter_light:
+    name: Office Fan Light
+  lock.studio_smart_door_lock:
+    name: Studio Door Lock
+  vacuum.dreamebot_l30_ultra:
+    name: Robot Vacuum
