@@ -48,10 +48,11 @@ devices:
     mac: "ac:eb:e6:f7:48:ac"
     area: office_bedroom
     name_by_user: 3D Printer Plug
-  # Was filed under Garage, which put it on the Garage HomeKit bridge.
-  - comment: Front Entry Overhead Light — Meross MSS510 wall switch
+  # Lights the front of the garage — NOT the Front Entry (that is the 3-way
+  # light.front_entry_overhead_3_way_outlet). Briefly mis-moved 2026-10-21.
+  - comment: Garage Front Overhead Light — Meross MSS510 wall switch
     mac: "48:e1:e9:b2:d8:52"
-    area: front_entry
+    area: garage
 
 # ── Sliding door locks ───────────────────────────────────────────────────────
 # ⚠️ Names are place-based, never numbered: Assist drops a trailing number and
@@ -181,6 +182,8 @@ entities:
     name: Studio Door
   climate.main_floor:
     name: Main Floor Thermostat
+  light.front_entry_overhead_light:
+    name: Garage Front Overhead Light
   climate.studio:
     name: Studio Thermostat
   fan.simpleconnect_fan_m2_bd459b_hunter_fan:
