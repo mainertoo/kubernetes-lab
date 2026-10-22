@@ -67,6 +67,7 @@ spec:
               TZ: America/Los_Angeles
               SONARR__AUTH__METHOD: External
               SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              SONARR__SERVER__ALLOWEDHOSTS: "sonarr4k.lab.mainertoo.com,sonarr4k.media.svc.cluster.local,sonarr4k.media.svc,sonarr4k.media,sonarr4k"
 
     defaultPodOptions:
       securityContext:
