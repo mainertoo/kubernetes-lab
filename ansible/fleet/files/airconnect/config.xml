@@ -30,11 +30,9 @@
 <name>Master Bathroom Fan</name>
 <enabled>1</enabled>
 </device>
-<!-- Main stays off until the one-week Master trial shows no rise in tcp/8899 wedges
-     (wiki smart-home/devices/bathroom-fans-homewerks). -->
 <device>
 <udn>uuid:FF97F005-9B08-61C8-C523-47B5FF97F005</udn>
 <name>Main Bathroom Fan</name>
-<enabled>0</enabled>
+<enabled>1</enabled>
 </device>
 </airupnp>
