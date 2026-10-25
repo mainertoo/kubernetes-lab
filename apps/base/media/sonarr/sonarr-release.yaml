@@ -61,12 +61,13 @@ spec:
           main:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.20.3012
+              tag: 5.0.0.2785
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
               SONARR__AUTH__METHOD: External
               SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              SONARR__SERVER__ALLOWEDHOSTS: "sonarr.lab.mainertoo.com,sonarr.media.svc.cluster.local,sonarr.media.svc,sonarr.media,sonarr"
 
     defaultPodOptions:
       securityContext:
