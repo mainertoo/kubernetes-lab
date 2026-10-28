@@ -326,6 +326,13 @@ Order of operations: restore operator-laptop secrets → provision infra → boo
    k8s$ kubectl create ns flux-system
    # Paste age key from your password manager (1Password — see §8b in backup-architecture.md)
    k8s$ kubectl -n flux-system create secret generic sops-age --from-file=age.agekey=<your-age-key>
+   # Flux CLI must match the committed Flux version: bootstrap regenerates
+   # gotk-components.yaml from the CLI's own version and commits it, so an
+   # older CLI silently downgrades Flux in git (both clusters share the repo).
+   k8s$ grep -m1 'app.kubernetes.io/version' clusters/production/flux-system/gotk-components.yaml
+   k8s$ flux version --client
+   # On mismatch, install the committed version (no "v" prefix), then re-check:
+   k8s$ curl -s https://fluxcd.io/install.sh | FLUX_VERSION=<version> bash -s /usr/local/bin
    k8s$ flux bootstrap github --owner=mainertoo --repository=kubernetes-lab \
        --branch=master --path=./clusters/production
    ```
