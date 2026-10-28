@@ -342,7 +342,9 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
 
 ```bash
 # 1. Restore SOPS-age key from 1Password (manual)
-# 2. flux bootstrap (rebuilds infrastructure incl. CNPG operator + barman plugin)
+# 2. Check `flux version --client` matches the version in clusters/production/flux-system/gotk-components.yaml
+#    (an older CLI makes bootstrap commit a Flux DOWNGRADE), then
+#    flux bootstrap (rebuilds infrastructure incl. CNPG operator + barman plugin)
 # 3. PVCs auto-restore from Kopia via label-driven Kyverno admission (Layer 2)
 # 4. Flip all 8 CNPG DBs to recovery mode in one command:
 ./scripts/dr-flip.sh enable --restore-from-lineage v0 --all
@@ -1283,6 +1285,13 @@ pbs# proxmox-backup-client unmount /mnt/pbs-extract
    ```bash
    k8s$ kubectl create ns flux-system
    k8s$ kubectl -n flux-system create secret generic sops-age --from-file=age.agekey=<your-age-key>
+   # Flux CLI must match the committed Flux version: bootstrap regenerates
+   # gotk-components.yaml from the CLI's own version and commits it, so an
+   # older CLI silently downgrades Flux in git (both clusters share the repo).
+   k8s$ grep -m1 'app.kubernetes.io/version' clusters/production/flux-system/gotk-components.yaml
+   k8s$ flux version --client
+   # On mismatch, install the committed version (no "v" prefix), then re-check:
+   k8s$ curl -s https://fluxcd.io/install.sh | FLUX_VERSION=<version> bash -s /usr/local/bin
    k8s$ flux bootstrap github --owner=mainertoo --repository=kubernetes-lab \
         --branch=master --path=./clusters/production
    ```
