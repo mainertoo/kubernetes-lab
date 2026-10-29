@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: openwebui/open-webui
-              tag: 0.12.4
+              tag: 0.12.5
               pullPolicy: IfNotPresent
 
             env:
