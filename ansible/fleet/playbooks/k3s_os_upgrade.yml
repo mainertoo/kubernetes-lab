@@ -30,11 +30,18 @@
     kubectl: "kubectl --context {{ kube_context }}"
   tasks:
     # ── Resume support ─────────────────────────────────────────────────
-    # A node already on the target release, booted into its newest kernel and
-    # schedulable is finished — skip it so an interrupted run can simply be re-run.
+    # A node already on the target release, booted into its newest kernel, with
+    # nothing left to upgrade and schedulable is finished — skip it so an interrupted run can simply be re-run.
     - name: Newest installed kernel
       ansible.builtin.shell: ls /boot/vmlinuz-* | sed 's|/boot/vmlinuz-||' | sort -V | tail -1
       register: newest_kernel
+      changed_when: false
+
+    # Without this, a monthly in-release patch run skips every node that has
+    # pending packages but no newer kernel yet (the check predates it).
+    - name: Pending package upgrades
+      ansible.builtin.shell: apt-get update -qq >/dev/null && apt-get -s dist-upgrade | grep -c '^Inst ' || true
+      register: pending_upgrades
       changed_when: false
 
     - name: Node schedulable?
@@ -49,6 +56,7 @@
       when:
         - ansible_facts['distribution_version'] is version(target_version, '>=')
         - ansible_facts['kernel'] == newest_kernel.stdout | trim
+        - pending_upgrades.stdout | trim == '0'
         - node_unschedulable.stdout | trim != 'true'
 
     # ── Pre-flight ─────────────────────────────────────────────────────
