@@ -22,7 +22,8 @@
   vars:
     target_version: "26.04"
     soak_seconds: 120
-    # Pods allowed to stay Pending cluster-wide (regex on "namespace name ...").
+    # Pods allowed to stay Pending/unsettled (regex; matched against both
+    # "namespace name ..." cluster-wide and "namespace/name STATUS" per node).
     # Volsync movers come and go; add a known, already-understood exception
     # explicitly on the command line, e.g. -e pending_ignore_regex='volsync-(src|dst)-|orcaslicer'
     pending_ignore_regex: 'volsync-(src|dst)-'
@@ -230,7 +231,8 @@
     - name: Pods on this node settled (none Pending, none crash-looping)
       ansible.builtin.shell: >-
         {{ kubectl }} get pods -A --field-selector spec.nodeName={{ inventory_hostname }} --no-headers |
-        awk '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|Error|ImagePull|Init:/ {print $1"/"$2, $4}'
+        awk '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|Error|ImagePull|Init:/ {print $1"/"$2, $4}' |
+        grep -vE '{{ pending_ignore_regex }}' || true
       delegate_to: localhost
       become: false
       register: unsettled
