@@ -202,6 +202,12 @@ variable "worker_hostpci_ids" {
   default     = []
 }
 
+variable "worker_cpu_affinity" {
+  description = "Optional per-worker Proxmox CPU affinity (host CPU list, e.g. \"0-3,6-19\"). Empty string at index = unpinned. Empty list (default) = no worker is pinned."
+  type        = list(string)
+  default     = []
+}
+
 variable "worker_extra_nic_enabled" {
   description = "When true, add a second virtio network_device to every worker VM on worker_extra_nic_bridge with worker_extra_nic_vlan_id (typically untagged vmbr0 for L2 access to the host network / mDNS)."
   type        = bool
@@ -294,7 +300,7 @@ variable "pm_cloud_image_url" {
   # (see the cascade-replacement notes in terraform/README.md). 25.10 (questing)
   # lost support in July 2026. Validated with k3s v1.35.5, kernel 7.0 and
   # i915-sriov-dkms 2026.08.12.1 on 2026-09-14.
-  default     = "https://cloud-images.ubuntu.com/resolute/20260823/resolute-server-cloudimg-amd64.img"
+  default = "https://cloud-images.ubuntu.com/resolute/20260823/resolute-server-cloudimg-amd64.img"
 }
 
 variable "ubuntu_password" {
