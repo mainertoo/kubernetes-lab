@@ -42,6 +42,9 @@ spec:
               # Optional: keep Prowlarr "open" behind Authentik (recommended)
               PROWLARR__AUTH__METHOD: External
               PROWLARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              # Host filtering (Prowlarr 2.7 health check): browser/Gatus external via
+              # Traefik, and the *arrs + Gatus internal via svc DNS. Others get HTTP 400.
+              PROWLARR__SERVER__ALLOWEDHOSTS: "prowlarr.lab.mainertoo.com,prowlarr.media.svc.cluster.local,prowlarr.media.svc,prowlarr.media,prowlarr"
 
     defaultPodOptions:
       securityContext:
