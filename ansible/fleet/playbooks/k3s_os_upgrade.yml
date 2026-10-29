@@ -28,7 +28,24 @@
     # explicitly on the command line, e.g. -e pending_ignore_regex='volsync-(src|dst)-|orcaslicer'
     pending_ignore_regex: 'volsync-(src|dst)-'
     kubectl: "kubectl --context {{ kube_context }}"
+    # -e kernel_hold=hold keeps nodes on their running kernel (apt-mark hold on
+    # the kernel meta-packages, which also stops unattended-upgrades pulling
+    # one in); -e kernel_hold=unhold releases it. Default: leave holds as-is.
+    # Used 2026-10-29: Ubuntu kernel 7.0.0-42 makes gosu spin forever.
+    kernel_hold: ""
+    kernel_meta_packages:
+      - linux-generic
+      - linux-image-generic
+      - linux-headers-generic
+      - linux-image-virtual
+      - linux-headers-virtual
   tasks:
+    - name: Hold or release the kernel meta-packages
+      ansible.builtin.command: "apt-mark {{ kernel_hold }} {{ kernel_meta_packages | join(' ') }}"
+      when: kernel_hold in ['hold', 'unhold']
+      register: kernel_mark
+      changed_when: "'already' not in kernel_mark.stdout"
+
     # ── Resume support ─────────────────────────────────────────────────
     # A node already on the target release, booted into its newest kernel, with
     # nothing left to upgrade and schedulable is finished — skip it so an interrupted run can simply be re-run.
@@ -125,6 +142,13 @@
     # ── Upgrade ────────────────────────────────────────────────────────
     - name: Upgrade packages within the current release
       ansible.builtin.include_tasks: tasks/apt_full_upgrade.yml
+
+    - name: Kernel hold guard — no newer kernel installed
+      ansible.builtin.shell: ls /boot/vmlinuz-* | sed 's|/boot/vmlinuz-||' | sort -V | tail -1
+      register: kernel_after_upgrade
+      changed_when: false
+      failed_when: kernel_after_upgrade.stdout | trim != ansible_facts['kernel']
+      when: kernel_hold == 'hold'
 
     - name: Release upgrade to Ubuntu {{ target_version }}
       when: ansible_distribution_version is version(target_version, '<')
