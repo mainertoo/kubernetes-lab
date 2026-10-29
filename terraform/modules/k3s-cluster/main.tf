@@ -12,6 +12,12 @@ locals {
     try(var.worker_hostpci_ids[i], "")
   ]
 
+  # Padded per-worker CPU affinity, same pattern: "" = unpinned (null).
+  worker_cpu_affinity_per_vm = [
+    for i in range(var.k3s_worker_count) :
+    try(var.worker_cpu_affinity[i], "")
+  ]
+
   # Snippet filename prefix — auto-derived from cluster_name when
   # snippets_per_host is true, so two clusters writing snippets to the
   # same Proxmox host don't collide on file_name. Empty string when
@@ -282,9 +288,10 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
   }
 
   cpu {
-    cores   = var.k3s_worker_cores
-    sockets = var.k3s_worker_sockets
-    type    = var.k3s_cpu_type
+    cores    = var.k3s_worker_cores
+    sockets  = var.k3s_worker_sockets
+    type     = var.k3s_cpu_type
+    affinity = local.worker_cpu_affinity_per_vm[count.index] != "" ? local.worker_cpu_affinity_per_vm[count.index] : null
   }
 
   memory {

@@ -62,6 +62,11 @@ module "cluster" {
   # transcoding.
   worker_hostpci_ids = ["0000:00:02.4", "0000:00:02.5", "0000:00:02.6"]
 
+  # Keep worker-3 (VM 666) off pve-zermatt host CPUs 4,5: that host has the
+  # same defective Raptor Lake P-core 2 as pve-whistler, and worker-3 reset
+  # silently 6x in 12 days before this was set by hand on 2026-10-06.
+  worker_cpu_affinity = ["", "", "0-3,6-19"]
+
   # Second NIC on each worker, untagged vmbr0, used for L2 access to the
   # 192.168.1.0/24 network (mDNS / Home Assistant local discovery).
   # DHCP assigns .246/.247/.248 to worker-1/2/3 inside the VM.
