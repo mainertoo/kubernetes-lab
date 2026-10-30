@@ -36,6 +36,11 @@
     # (tasks/pve_kernel_cleanup.yml). -e kernel_cleanup=false to skip.
     kernel_cleanup: true
     soak_seconds: 180
+    # Pods matched by this regex ("<context>: namespace/name STATUS") never
+    # block the settle gate. Volsync movers come and go; add a known,
+    # already-understood exception on the command line, e.g.
+    # -e pending_ignore_regex='volsync-(src|dst)-|staging: cattle-system/cattle-cluster-agent'
+    pending_ignore_regex: 'volsync-(src|dst)-'
     ceph_mon_hosts: [pve-zermatt, pve-mammoth, pve-whistler]
     ceph_cli_host: "{{ ceph_mon_hosts | difference([inventory_hostname]) | first }}"
     ceph_mon_ips: [192.168.99.12, 192.168.99.13, 192.168.99.14]
@@ -586,7 +591,8 @@
     - name: Pods settled cluster-wide (nothing Pending or crash-looping)
       ansible.builtin.shell: >-
         for c in production staging; do kubectl --context $c get pods -A --no-headers |
-        awk -v c=$c '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|ImagePull/ && $2 !~ /^volsync-(src|dst)-/ {print c": "$1"/"$2, $4}'; done
+        awk -v c=$c '$4 ~ /Pending|ContainerCreating|CrashLoopBackOff|ImagePull/ {print c": "$1"/"$2, $4}'; done |
+        grep -vE '{{ pending_ignore_regex }}' || true
       delegate_to: localhost
       register: unsettled
       changed_when: false
