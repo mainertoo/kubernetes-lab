@@ -1,0 +1,69 @@
+---
+# Make pve-guests wait for the network storages that onboot containers
+# bind-mount by raw path (mpN: /mnt/pve/...). No reboot, no guest restarts.
+#
+#   cd ansible/fleet
+#   ansible-playbook playbooks/pve_guest_storage_wait.yml
+#
+# Proxmox only activates a storage for volumes it owns, so a raw-path bind
+# mount gets no wait at boot. On 2026-10-29 CT100 (Plex) on pve-s13 started
+# ~12 s before pvestatd mounted tank and failed its pre-start hook. On
+# pve-ugreen, CT111 (kopia) binds /mnt/pve/tank itself, which exists unmounted,
+# so it would silently start with an empty QNAP directory.
+#
+# Hosts opt in with `guest_storage_mounts` in the inventory. Hosts without it
+# are skipped.
+
+- name: Wait for guest storage before starting onboot guests
+  hosts: pve
+  gather_facts: false
+  tasks:
+    - name: Skip hosts without guest_storage_mounts
+      ansible.builtin.meta: end_host
+      when: guest_storage_mounts | default([]) | length == 0
+
+    - name: Install the wait script
+      ansible.builtin.copy:
+        src: ../files/wait-guest-storage
+        dest: /usr/local/sbin/wait-guest-storage
+        mode: "0755"
+
+    - name: Set the mountpoints to wait for
+      ansible.builtin.copy:
+        dest: /etc/default/wait-guest-storage
+        content: |
+          # Managed by ansible/fleet/playbooks/pve_guest_storage_wait.yml
+          MOUNTS="{{ guest_storage_mounts | join(' ') }}"
+        mode: "0644"
+
+    - name: Create the pve-guests drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/pve-guests.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Hook it into pve-guests.service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/pve-guests.service.d/wait-guest-storage.conf
+        content: |
+          # Managed by ansible/fleet/playbooks/pve_guest_storage_wait.yml
+          [Service]
+          ExecStartPre=/usr/local/sbin/wait-guest-storage
+        mode: "0644"
+      register: dropin
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: dropin is changed
+
+    # Mounts are already up on a running host, so this must return at once.
+    - name: Dry-run the wait
+      ansible.builtin.command: /usr/local/sbin/wait-guest-storage
+      register: wait_run
+      changed_when: false
+      failed_when: "'ready' not in wait_run.stdout"
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ wait_run.stdout }}"
