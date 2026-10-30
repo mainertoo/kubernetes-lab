@@ -19,7 +19,10 @@
     DEBIAN_FRONTEND: noninteractive
     NEEDRESTART_MODE: a
     APT_LISTCHANGES_FRONTEND: none
-  async: 3600
+  # Ansible KILLS the job when async expires, leaving dpkg half-configured
+  # (pve-s13 2026-10-29: the i915-sriov-dkms build on the N-series CPU ran
+  # past 1 h). Keep this well above the slowest host's DKMS build.
+  async: "{{ apt_async_timeout | default(10800) }}"
   poll: 20
   register: apt_upgrade
   changed_when: "' 0 upgraded, 0 newly installed' not in apt_upgrade.stdout"
