@@ -1,0 +1,21 @@
+#!/bin/sh
+# Installed by ansible/fleet/playbooks/pve_guest_storage_wait.yml; runs as
+# ExecStartPre of pve-guests.service.
+#
+# Waits for network storages that onboot containers bind-mount by raw path
+# (mpN: /mnt/pve/...). PVE doesn't activate a storage for a raw-path mount, so
+# at boot pve-guests can start a CT before pvestatd has mounted NFS/CephFS: the
+# CT either fails its pre-start hook or binds an empty directory. Gives up
+# after 120 s and lets guests start anyway, so a QNAP outage can't block every
+# guest on the host.
+. /etc/default/wait-guest-storage
+for i in $(seq 60); do
+  # pvesm status activates the enabled storages, i.e. mounts them.
+  timeout 10 pvesm status >/dev/null 2>&1
+  ok=1
+  for m in $MOUNTS; do mountpoint -q "$m" || ok=0; done
+  if [ "$ok" = 1 ]; then echo "guest storage ready: $MOUNTS"; exit 0; fi
+  sleep 2
+done
+echo "guest storage NOT ready after 120 s ($MOUNTS); starting guests anyway" >&2
+exit 0

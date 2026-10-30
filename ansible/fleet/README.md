@@ -19,6 +19,7 @@ cd ansible/fleet
 | `pve_host_patch.yml` | Rolling, one host at a time. Detailed below. Skips hosts already done (see `pve_resume_check.yml`); `-e force_all=true` patches anyway. | each host once |
 | `pve_resume_check.yml` | **Read-only.** Reports whether each PVE host would be skipped, and why (kernel, pending packages, K3s nodes Ready+schedulable, Ceph flags). ⚠️ Use this to check the resume logic — never start `pve_host_patch.yml` to "test" it, since that drains and reboots. | none |
 | `pve_kernel_cleanup.yml [-e kernel_cleanup_apply=true]` | Purges Proxmox kernel/header packages that `proxmox-boot-tool` wouldn't boot. Keeps the running, pinned/manual and automatically selected kernels. Aborts if apt would remove anything else. Report-only without the flag. `pve_host_patch.yml` runs it first. | none |
+| `pve_guest_storage_wait.yml` | Makes `pve-guests` wait (≤120 s) for the NFS/CephFS mounts that onboot CTs bind-mount by raw path, from `guest_storage_mounts` in the inventory. Fixes CT100 Plex failing its pre-start hook at boot (2026-10-29). Idempotent, no reboot. | none |
 
 **`k3s_os_upgrade.yml`** runs these steps on each node:
 1. Skip the node if it's already on the target release, on its newest kernel and schedulable (re-running = resuming).
