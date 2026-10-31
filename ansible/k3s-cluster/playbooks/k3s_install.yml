@@ -147,3 +147,6 @@
 
 # Play 4: iGPU SR-IOV VF driver on GPU workers (no-op without an Intel GPU)
 - import_playbook: k3s_gpu_sriov.yml
+
+# Play 5: Mask the crash-looping serial-getty@ttyS0 (systemd 259.9 PID 1 wedge, 2026-10-31)
+- import_playbook: k3s_mask_serial_getty.yml
