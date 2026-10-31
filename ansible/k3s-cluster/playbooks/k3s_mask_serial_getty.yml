@@ -1,0 +1,35 @@
+---
+# Mask the serial-getty on ttyS0 on every K3s node.
+#
+# Run with:
+#   ansible-playbook -i ansible/k3s-cluster/inventory/production/dynamic.sh \
+#     ansible/k3s-cluster/playbooks/k3s_mask_serial_getty.yml
+#
+# The cloud image boots with console=ttyS0, so systemd's getty generator starts
+# serial-getty@ttyS0. Nothing is wired to that port on the Proxmox VMs, so agetty
+# dies immediately ("failed to get terminal attributes: Input/output error") and
+# systemd restarts it every ~10s, forever: ~68k restarts per 9-day uptime.
+#
+# That churn was harmless on systemd 259.5. After the 2026-10-30 patch run moved
+# the fleet to 259.9, worker-1's PID 1 wedged on one of those restarts
+# (2026-10-31 11:09Z) in a "Failed to dequeue child, ignoring: No child
+# processes" / "Looping too fast" spin. kubelet kept heartbeating so the node
+# stayed Ready, but no new pod sandbox could be created (containerd needs PID 1
+# for the cgroup scope) and socket-activated sshd stopped answering. Only fix
+# was a hard reset of the VM.
+#
+# Masking removes the restart churn entirely. The kernel console stays on
+# ttyS0 (boot messages are unaffected); only the login prompt goes away, and
+# the Proxmox noVNC console (tty1) is still available for interactive login.
+#
+# NO DRAIN, no k3s restart: this only touches the getty unit.
+
+- name: Mask serial-getty@ttyS0 on K3s nodes
+  hosts: k3s_cluster
+  become: yes
+  tasks:
+    - name: Stop and mask serial-getty@ttyS0
+      ansible.builtin.systemd:
+        name: serial-getty@ttyS0.service
+        state: stopped
+        masked: true
