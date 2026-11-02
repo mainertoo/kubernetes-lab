@@ -58,7 +58,7 @@ spec:
                 topologyKey: "kubernetes.io/hostname"
       containers:
         - name: csi-nfsplugin
-          image: quay.io/cephcsi/cephcsi:v3.18.1
+          image: quay.io/cephcsi/cephcsi:v3.18.2
           args:
             - "--nodeid=$(NODE_ID)"
             - "--type=nfs"
@@ -163,7 +163,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: liveness-prometheus
-          image: quay.io/cephcsi/cephcsi:v3.18.1
+          image: quay.io/cephcsi/cephcsi:v3.18.2
           args:
             - "--type=liveness"
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -239,7 +239,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: quay.io/cephcsi/cephcsi:v3.18.1
+          image: quay.io/cephcsi/cephcsi:v3.18.2
           args:
             - "--nodeid=$(NODE_ID)"
             - "--type=nfs"
