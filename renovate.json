@@ -137,6 +137,12 @@
       "enabled": false
     },
     {
+      "description": "Never auto-propose PostgreSQL major bumps for CNPG clusters. Each CNPG_IMAGE is deliberately pinned to its app's major, and on CNPG >= 1.26 a major imageName change triggers an offline, irreversible in-place pg_upgrade. Do majors by hand, one cluster at a time, with a fresh backup. Minor/patch updates still flow.",
+      "matchPackageNames": ["ghcr.io/cloudnative-pg/postgresql"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Hold pvc-plumber on v3.x. v4 collapses Kyverno-admission + oracle into a single operator and drops the HTTP-only /exists endpoint our Kopia ClusterPolicy depends on. See memory project_pvc_plumber_v4_planned_upgrade.md for the migration scope before flipping this off.",
       "matchPackageNames": ["ghcr.io/mitchross/pvc-plumber"],
       "matchUpdateTypes": ["major"],
