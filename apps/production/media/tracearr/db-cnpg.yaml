@@ -93,7 +93,13 @@ spec:
       # is still 2.25.0 (timescale refuses queries until updated) — the operator
       # then runs `ALTER EXTENSION timescaledb UPDATE;` (manual, as postgres)
       # before tracearr is cut over, so no client hits the mismatched window.
-      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:16-2.27.2-1
+      #
+      # 2026-11-03: major-upgraded PG16 -> PG17 in place (CNPG offline
+      # pg_upgrade). pg_upgrade needs the SAME TimescaleDB version on both
+      # sides, so 17-2.27.2-1 was built from docker/cnpg-timescaledb with
+      # TS 2.27.2 (= the live catalog extversion). Pre-upgrade PG16 backups/WAL
+      # stay under the -v1 serverName prefix.
+      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:17-2.27.2-1
       # Live DB is 893 MB; 5Gi gives >5x headroom (chunks + WAL + bloat).
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
@@ -107,7 +113,9 @@ spec:
       # 2Gi (matches immich's CNPG); request raised so the scheduler reserves it.
       CNPG_MEMORY_REQUEST: "512Mi"
       CNPG_MEMORY_LIMIT: "2Gi"
-      CNPG_LINEAGE: v1
+      # v1 -> v2 with the PG17 major upgrade: pg_upgrade mints a new system ID
+      # and resets the timeline, so CNPG requires a fresh barman serverName.
+      CNPG_LINEAGE: v2
       CNPG_RESTORE_FROM_LINEAGE: v0
     substituteFrom:
       - kind: Secret
