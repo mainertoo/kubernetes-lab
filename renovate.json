@@ -137,8 +137,8 @@
       "enabled": false
     },
     {
-      "description": "Hold Wiki.js on v2.x. v3 is a full rewrite: it refuses to start on PostgreSQL < 17 (wiki-js-cnpg-db is PG15) and needs a fresh DB plus a v2-to-v3 migration, not an in-place image bump. The v3.0.2 bump (PR #2020) crash-looped prod on 2026-11-03. Remove this hold once that migration is planned.",
-      "matchPackageNames": ["ghcr.io/requarks/wiki"],
+      "description": "Never auto-propose PostgreSQL major bumps for CNPG clusters. Each CNPG_IMAGE is deliberately pinned to its app's major, and on CNPG >= 1.26 a major imageName change triggers an offline, irreversible in-place pg_upgrade. Do majors by hand, one cluster at a time, with a fresh backup. Minor/patch updates still flow.",
+      "matchPackageNames": ["ghcr.io/cloudnative-pg/postgresql"],
       "matchUpdateTypes": ["major"],
       "enabled": false
     },
