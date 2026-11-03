@@ -49,7 +49,7 @@ spec:
       CNPG_DB_OWNER: zilean
       # Match the existing zilean-postgres image (postgres 16) so dump/restore
       # is same-version
-      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.6-bookworm
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:16.10-bookworm
       # Storage matches the existing zilean-postgres-data PVC (5Gi)
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
