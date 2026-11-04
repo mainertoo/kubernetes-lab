@@ -93,7 +93,7 @@ spec:
       # is still 2.25.0 (timescale refuses queries until updated) — the operator
       # then runs `ALTER EXTENSION timescaledb UPDATE;` (manual, as postgres)
       # before tracearr is cut over, so no client hits the mismatched window.
-      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:16-2.27.2-1
+      CNPG_IMAGE: ghcr.io/mainertoo/cnpg-timescaledb:17-2.27.2-1
       # Live DB is 893 MB; 5Gi gives >5x headroom (chunks + WAL + bloat).
       CNPG_STORAGE_SIZE: 5Gi
       CNPG_STORAGECLASS: ceph-rbd
