@@ -143,6 +143,12 @@
       "enabled": false
     },
     {
+      "description": "Hold Wiki.js on v2.x. v3 is a full rewrite that refuses an in-place upgrade from 2.x: it needs an EMPTY PostgreSQL 17+ database plus a v2 export imported through the v3 UI, not an image bump. The v3.0.2 bump (PR #2020) crash-looped prod on 2026-11-03. Do the side-by-side migration in docs/plans/wiki-js-v3-migration.md, then remove this hold.",
+      "matchPackageNames": ["ghcr.io/requarks/wiki"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Hold pvc-plumber on v3.x. v4 collapses Kyverno-admission + oracle into a single operator and drops the HTTP-only /exists endpoint our Kopia ClusterPolicy depends on. See memory project_pvc_plumber_v4_planned_upgrade.md for the migration scope before flipping this off.",
       "matchPackageNames": ["ghcr.io/mitchross/pvc-plumber"],
       "matchUpdateTypes": ["major"],
