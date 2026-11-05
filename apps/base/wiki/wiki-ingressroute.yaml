@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wiki-ingressroute
+  namespace: wiki
+  # No homepage annotations until cutover — the v2 route still owns the tile.
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    # Temporary host while v3 runs alongside v2; moves to wiki.lab at cutover.
+    - match: Host(`wiki-v3.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: wiki
+          port: 3000
+          scheme: http
+  tls: {}

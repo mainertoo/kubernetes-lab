@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wiki
+# Wiki.js 3.x, deployed side by side with the 2.x install in namespace wiki-js
+# (docs/plans/wiki-js-v3-migration.md). Namespace comes from the DB layer.
+# No PVC: v3 keeps pages and assets in Postgres, and git storage works from a
+# scratch checkout, so /wiki/data is an emptyDir.
+resources:
+  - wiki-secret.sops.yaml
+  - wiki-release.yaml
+  - wiki-ingressroute.yaml
