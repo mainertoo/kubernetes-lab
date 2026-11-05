@@ -1,0 +1,139 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: wiki
+  namespace: wiki
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      wiki:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/requarks/wiki
+              tag: "3.1.0"
+            # The image's built-in /wiki/config.yml reads DB_* from the
+            # environment. v3 needs PostgreSQL 17+ and creates its own schema
+            # (`wiki`) plus the trusted ltree/pg_trgm extensions as DB owner.
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: DB_HOST
+                value: wiki-cnpg-db-rw
+              - name: DB_PORT
+                value: "5432"
+              - name: DB_NAME
+                value: wiki
+              - name: DB_USER
+                value: wiki
+              - name: DB_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wiki-cnpg-db-app
+                    key: password
+              - name: DB_SSL
+                value: "false"
+              # Health endpoints use Kubernetes semantics when this is set
+              # (upstream chart sets it explicitly too).
+              - name: KUBERNETES_SERVICE_HOST
+                value: kubernetes.default.svc
+            # ADMIN_EMAIL / ADMIN_PASS: root admin created on first boot only.
+            envFrom:
+              - secretRef:
+                  name: wiki-secret
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /_live
+                    port: 3000
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 60
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /_live
+                    port: 3000
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /_ready
+                    port: 3000
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1536Mi
+        pod:
+          # The image runs as `node` (1000:1000).
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+
+    service:
+      app:
+        controller: wiki
+        ports:
+          http:
+            port: 3000
+
+    persistence:
+      # Read-only root filesystem: these are what the wiki, git, ssh and the
+      # headless renderer write to (mirrors the upstream chart).
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /wiki/data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      home:
+        type: emptyDir
+        globalMounts:
+          - path: /home/node

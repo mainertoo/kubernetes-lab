@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wiki
+# The wiki Namespace is created HERE (the DB layer) so it exists before the
+# cnpg-cluster Components (referenced from apps/production/wiki/db-cnpg.yaml)
+# render the Cluster / ScheduledBackup / ObjectStore / S3 Secret into it.
+# Same bootstrap pattern as apps/base/airtrail/db-cnpg.
+resources:
+  - wiki-namespace.yaml

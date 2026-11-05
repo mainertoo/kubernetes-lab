@@ -1,0 +1,57 @@
+---
+# CloudNativePG cluster `wiki-cnpg-db` for Wiki.js 3.x (side-by-side with the
+# 2.x install's wiki-js-cnpg-db; see docs/plans/wiki-js-v3-migration.md).
+# v3 requires PostgreSQL 17+ on an EMPTY database — it cannot reuse the 2.x DB.
+# It creates its own `wiki` schema and the trusted ltree/pg_trgm extensions as
+# the DB owner on first boot.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: wiki-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  # Build target carries the wiki Namespace so it exists before the
+  # cnpg-cluster Components render into it (same pattern as airtrail).
+  path: ./apps/base/wiki/db-cnpg
+  targetNamespace: wiki
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: wiki-cnpg-db
+      namespace: wiki
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
+  postBuild:
+    substitute:
+      APP: wiki-cnpg-db
+      APP_NAMESPACE: wiki
+      CNPG_DB_NAME: wiki
+      CNPG_DB_OWNER: wiki
+      CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.6-bookworm
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+      CNPG_INSTANCES: "1"
+      # Daily base backup at 08:30 UTC — open slot after wiki-js (08:00) and
+      # the 08:15 cluster.
+      CNPG_BACKUP_SCHEDULE: "0 30 8 * * *"
+      CNPG_RETENTION: "30d"
+      CNPG_LINEAGE: v1
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base
