@@ -64,7 +64,9 @@ spec:
       CNPG_DB_OWNER: authentik
       # Default CNPG image — vanilla postgres 17.5, no postgis.
       # CNPG_IMAGE omitted → defaults to ghcr.io/cloudnative-pg/postgresql:17.5-bookworm
-      CNPG_STORAGE_SIZE: 5Gi
+      # 15Gi (was 5Gi, 2026-11-04): headroom for WAL that piles up locally while
+      # the Garage S3 archive target is unreachable (QNAS hang). Online RBD resize.
+      CNPG_STORAGE_SIZE: 15Gi
       CNPG_STORAGECLASS: ceph-rbd
       CNPG_INSTANCES: "1"
       # Daily base backup at 06:30 UTC — clear of joplin (04:30), qnap_pbs

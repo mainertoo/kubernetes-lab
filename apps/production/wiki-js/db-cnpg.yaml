@@ -62,7 +62,9 @@ spec:
       # Major-upgraded 15 -> 17 in place (CNPG offline pg_upgrade, 2026-11-03).
       # Pre-upgrade PG15 backups/WAL stay under the -v1 serverName prefix.
       CNPG_IMAGE: ghcr.io/cloudnative-pg/postgresql:17.6-bookworm
-      CNPG_STORAGE_SIZE: 5Gi
+      # 15Gi (was 5Gi, 2026-11-04): headroom for WAL that piles up locally while
+      # the Garage S3 archive target is unreachable (QNAS hang). Online RBD resize.
+      CNPG_STORAGE_SIZE: 15Gi
       CNPG_STORAGECLASS: ceph-rbd
       CNPG_INSTANCES: "1"
       # Daily base backup at 08:00 UTC — the last open slot in the morning
