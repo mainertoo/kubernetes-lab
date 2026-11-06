@@ -172,7 +172,6 @@ via `PUT /_api/sites/:site/storage`. Port it or retire it in PR C.
    Remove the v2 and `wiki-v3` URIs once SSO is verified.
 6. **Readers and tools:**
    - `wiki3.py` default `BASE` becomes `https://wiki.lab.mainertoo.com`
-   - Spark `~/scripts/wiki-vault-mirror.sh` reads branch `v3` (see below)
 7. **Verify:**
    - Gatus is green
    - SSO login works on `wiki.lab`
@@ -181,12 +180,15 @@ via `PUT /_api/sites/:site/storage`. Port it or retire it in PR C.
    - the MkDocs guides site rebuilds
    - the next 03:30 vault-mirror run is clean
 
-**Obsidian / Hermes vault mirror.** The Spark's `~/scripts/wiki-vault-mirror.sh` runs at
-03:30 and does `git pull --ff-only` in `~/wiki-mirror`, then rsyncs into the vault.
-- Its git auth (an expired `gh` token) has been failing since 2026-10-31.
-- The fix is a dedicated **read-only deploy key** on `mainertoo/wiki` and an SSH remote.
-- Then switch the checkout to `v3`, and use `fetch` + `reset --hard origin/v3` rather
-  than `pull --ff-only`, so a force-push from v3 can't wedge it.
+**Obsidian / Hermes vault mirror ✅ (done 2026-11-06, ahead of cutover).** The Spark's
+`~/scripts/wiki-vault-mirror.sh` (cron 03:30) now reads branch **`v3`**:
+- it uses `fetch` + `checkout -B` + `reset --hard origin/v3`, so a force-push can't wedge it
+- it authenticates over SSH with a dedicated **read-only** deploy key,
+  `spark-wiki-vault-mirror (ro)` (`~/.ssh/wiki_mirror_ro`)
+
+It had been failing since 2026-10-31 on an expired `gh` token behind its HTTPS remote.
+The first run brought the vault from 290 to 299 pages. The backup of the old script is
+`~/scripts/wiki-vault-mirror.sh.bak-2026-11-06`. Nothing more to do at cutover.
 
 ### 5. Soak and decommission (PR D, ≥ 2 weeks after cutover)
 
