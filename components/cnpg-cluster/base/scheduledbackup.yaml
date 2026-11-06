@@ -12,7 +12,14 @@ spec:
   cluster:
     name: ${APP}
   backupOwnerReference: self
-  immediate: false
+  # Take a base backup as soon as the ScheduledBackup is created. Without it a
+  # fresh (initdb or recovery) cluster has no backup until the first cron slot
+  # — up to ~24h unprotected — and the barman-cloud
+  # last_available_backup_timestamp metric sits at 0, which trips
+  # CNPGBackupStale ~1h after creation. CNPG only honours `immediate` when the
+  # ScheduledBackup has no status.lastCheckTime, so existing clusters don't
+  # get an extra backup when this changes.
+  immediate: true
   # Plugin-based backup (replaces the deprecated default `barmanObjectStore`
   # method). The pluginConfiguration name must match the plugin's CNPG-I
   # registration name; barmanObjectName references the sibling ObjectStore.
