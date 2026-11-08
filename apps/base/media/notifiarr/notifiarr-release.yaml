@@ -60,7 +60,7 @@ spec:
           main:
             image:
               repository: ghcr.io/notifiarr/notifiarr
-              tag: v0.9.7
+              tag: v0.10.0
               pullPolicy: IfNotPresent
             env:
               TZ: America/Los_Angeles
