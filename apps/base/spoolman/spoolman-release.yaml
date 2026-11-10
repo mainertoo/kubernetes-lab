@@ -37,6 +37,10 @@ spec:
                 value: "/data"
               - name: SPOOLMAN_DIR_BACKUPS
                 value: "/data/backups"
+              # Fluidd's Spoolman card talks to Spoolman from the browser; allow
+              # the QIDI Max 4's Fluidd origins (LAN IP and the Traefik host).
+              - name: SPOOLMAN_CORS_ORIGIN
+                value: "http://192.168.20.56,https://qidi.lab.mainertoo.com"
             probes:
               liveness:
                 enabled: false
