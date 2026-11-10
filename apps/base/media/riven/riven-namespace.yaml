@@ -2,3 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: media
+  annotations:
+    # The whole media namespace (Plex, Jellyfin, the arrs, ...) is owned by
+    # this Kustomization only by historical accident. Protect it from Flux
+    # garbage collection so retiring riven can never delete the namespace.
+    kustomize.toolkit.fluxcd.io/prune: disabled
