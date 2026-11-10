@@ -10,8 +10,8 @@ metadata:
     backup: daily
     backup-engine: kopia
   annotations:
-    # Mounted by Plex and Jellyfin at /mnt/library. Protect it from Flux
-    # garbage collection while it moves out of the riven Kustomization.
+    # Mounted by Plex and Jellyfin at /mnt/library (was riven's library).
+    # Kept out of Flux garbage collection; delete by hand if ever retired.
     kustomize.toolkit.fluxcd.io/prune: disabled
     # Override mover cache PVC size (policy default 5Gi). Big-data
     # sources benefit from a larger cache to reduce repeat-fetch from
