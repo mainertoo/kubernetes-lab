@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/requarks/wiki
-              tag: "3.2.0"
+              tag: "3.3.0"
             # The image's built-in /wiki/config.yml reads DB_* from the
             # environment. v3 needs PostgreSQL 17+ and creates its own schema
             # (`wiki`) plus the trusted ltree/pg_trgm extensions as DB owner.
