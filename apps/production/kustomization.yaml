@@ -31,7 +31,6 @@ resources:
   - home-assistant/ratgdo-logger/kustomization.yaml
   - media/tracearr/
   - sparky-fitness/
-  - media/riven/
   - ui-toolkit/kustomization.yaml
   - media/jellyfin/kustomization.yaml
   - media/prowlarr/kustomization.yaml

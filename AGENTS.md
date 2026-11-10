@@ -68,7 +68,8 @@ clusters/production/
 
 Note: some apps split their PVCs into separate Flux Kustomizations (top-level
 `apps/base/<app>-*-pvc/` satellite dirs) so the PVC lifecycle is decoupled from
-the app's — see e.g. `apps/production/media/riven/`.
+the app's. Shared media volumes (and the `media` Namespace itself) live in
+`apps/base/media/storage-qnap/`.
 
 `prune: true` is set on all Flux Kustomizations — **removing a resource from a kustomization.yaml will delete it from the cluster**, including PVCs and their data.
 

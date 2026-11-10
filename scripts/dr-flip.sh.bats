@@ -25,7 +25,6 @@ teardown() {
         apps/production/opencut/db-cnpg.yaml \
         apps/production/wiki-js/db-cnpg.yaml \
         apps/production/sparky-fitness/db-cnpg.yaml \
-        apps/production/media/riven/db-cnpg.yaml \
         apps/production/media/zilean/db-cnpg.yaml 2>/dev/null || true
 }
 
