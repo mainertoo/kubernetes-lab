@@ -68,7 +68,6 @@ resources:
   - kitchenowl/kustomization.yaml
   - scrypted/kustomization.yaml
   - crafty/kustomization.yaml
-  - wiki-js/
   - wiki/
   - it-tools/kustomization.yaml
   - homepage/kustomization.yaml

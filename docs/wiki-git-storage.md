@@ -18,7 +18,7 @@ Wiki.js's built-in Git storage module.
   (`guides/docs/`). Its `mkdocs.yml` and asset hook live in this repo
   (`apps/base/mkdocs/site-config/`), not on the branch.
 - **Branch `main` is the frozen Wiki.js 2.x archive** (bidirectional sync until the
-  2026-11-11 cutover). Nothing writes to it any more.
+  2026-11-11 cutover; v2 itself was retired the same day). Nothing writes to it.
 - Wiki content is **private**: it lives only in `mainertoo/wiki`, never in this
   public repo. `kubernetes-lab/docs` is a separate, curated public subset.
 - Other readers of branch `v3`: the Spark `~/scripts/wiki-vault-mirror.sh`
@@ -31,11 +31,11 @@ inline) is runtime state in the v3 Postgres DB (`wiki-cnpg-db`, CNPG-backed, so 
 survives in DB backups). There is no manifest for it, and no PVC: v3 commits from
 a scratch checkout on each sync.
 
-The deploy key is `wiki-js-storage` (read-write on `mainertoo/wiki`), shared with
-v2. Its private half is SOPS-encrypted as `WIKI_GIT_SSH_KEY` in
-`apps/base/wiki-js/wiki-js-secret.sops.yaml`. ⚠️ **Move that value into
-`apps/base/wiki/wiki-secret.sops.yaml` before deleting `apps/base/wiki-js/`** when
-v2 is retired, or the only git copy of the key goes with it.
+The deploy key is `wiki-js-storage` (read-write on `mainertoo/wiki`; the name dates
+from v2). Its private half is SOPS-encrypted as `WIKI_GIT_SSH_KEY` in
+`apps/base/wiki/wiki-git-deploy-key.sops.yaml` (Secret `wiki-git-deploy-key`). Nothing
+mounts it: it's the git copy for DR and key rotation, and the live copy is in the
+storage config. It's kept out of `wiki-secret`, which the pod loads as env vars.
 
 ## Setup / DR runbook
 
@@ -63,7 +63,7 @@ for them. Over the REST API, log in first
    (`gh repo deploy-key add /tmp/k.pub -R mainertoo/wiki -w -t wiki-js-storage`),
    and remove the old one.
 3. Store the private key in the SOPS secret (no plaintext on disk):
-   `sops set <secret>.sops.yaml '["stringData"]["WIKI_GIT_SSH_KEY"]' "$(jq -Rs . < /tmp/k)"`
+   `sops set apps/base/wiki/wiki-git-deploy-key.sops.yaml '["stringData"]["WIKI_GIT_SSH_KEY"]' "$(jq -Rs . < /tmp/k)"`
 4. Paste the new key into *Administration → Storage → Git*, save, then
    `shred -u /tmp/k*`.
 
