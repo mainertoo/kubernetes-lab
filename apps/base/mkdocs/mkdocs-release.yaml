@@ -40,7 +40,8 @@ spec:
               tag: v4.8.0
             env:
               GITSYNC_REPO: "git@github.com:mainertoo/wiki.git"
-              GITSYNC_REF: "main"
+              # Wiki.js v3 pushes to branch v3 (main is the frozen v2 archive).
+              GITSYNC_REF: "v3"
               GITSYNC_ROOT: "/repo"
               GITSYNC_LINK: "current"
               GITSYNC_PERIOD: "60s"

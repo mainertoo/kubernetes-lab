@@ -1,78 +1,73 @@
 # Wiki.js Git Storage → mainertoo/wiki
 
-The homelab Wiki.js (`wiki.lab.mainertoo.com`) mirrors its **entire** content tree
-to the **private** `mainertoo/wiki` repo using Wiki.js's built-in **Git Storage**
-module, in **bidirectional (`sync`)** mode. This replaced the old one-way
-`docs-publisher` CronJob (retired 2026-06-08).
+The homelab wiki (`wiki.lab.mainertoo.com`, Wiki.js **3.x**, namespace `wiki`)
+mirrors its whole content tree to the **private** `mainertoo/wiki` repo with
+Wiki.js's built-in Git storage module.
 
-- Every page is a Markdown file with YAML frontmatter; the repo directory tree
-  mirrors page paths (e.g. `infrastructure/networking/adguard-internal.md`).
-- **Bidirectional**: editing in the wiki UI/API commits + pushes to the repo;
-  pushing a `.md` change to the repo pulls into the wiki on the next sync (~5 min).
-- Wiki content is **private** — it lives only in `mainertoo/wiki`, never in this
+- **Branch `v3`, mode `push`, every 5 minutes.** The wiki is the only source of
+  truth: Wiki.js force-pushes, so edits made directly on the branch are
+  overwritten. Always edit through the wiki UI or the `wikijs-update` skill
+  (`wiki3.py`).
+- Every page is a Markdown file with YAML frontmatter, and the folder tree mirrors
+  page paths (e.g. `infrastructure/networking/adguard-internal.md`). Uploaded files
+  sit at the repo root (`screenshot-2026-06-11-at-4.33.35-pm.png`).
+- Files Wiki.js doesn't own survive its pushes: `guides/mkdocs.yml` and
+  `guides/hooks/stage_assets.py` (the MkDocs guides site, `apps/base/mkdocs`, which
+  git-syncs branch `v3`) live on the branch alongside the pages.
+- **Branch `main` is the frozen Wiki.js 2.x archive** (bidirectional sync until the
+  2026-11-11 cutover). Nothing writes to it any more.
+- Wiki content is **private**: it lives only in `mainertoo/wiki`, never in this
   public repo. `kubernetes-lab/docs` is a separate, curated public subset.
+- Other readers of branch `v3`: the Spark `~/scripts/wiki-vault-mirror.sh`
+  (Obsidian/Hermes vault, read-only deploy key `spark-wiki-vault-mirror (ro)`).
 
-## Why not GitOps-managed?
+## Where the config lives
 
-The storage **config** (repo URL, mode, key) is runtime state in the Wiki.js
-Postgres DB (CNPG-backed, so it survives in DB backups), set via the Wiki.js
-GraphQL API — there is no manifest for it. The **deploy key** is the one piece
-kept in git: SOPS-encrypted as `WIKI_GIT_SSH_KEY` in
-`apps/base/wiki-js/wiki-js-secret.sops.yaml`. `scripts/wiki/configure-git-storage.py`
-re-applies the config from these two sources, so the setup is reproducible.
+The storage target (repo URL, branch, mode, schedule and the SSH key, entered
+inline) is runtime state in the v3 Postgres DB (`wiki-cnpg-db`, CNPG-backed, so it
+survives in DB backups). There is no manifest for it, and no PVC: v3 commits from
+a scratch checkout on each sync.
 
-## Auth
-
-- An **ed25519 SSH deploy key** with read-write on `mainertoo/wiki` (no passphrase
-  — Wiki.js requires that). Public half = a deploy key on the repo; private half =
-  `WIKI_GIT_SSH_KEY` in the SOPS secret.
-- Configured in **`contents` mode**: Wiki.js writes the key to
-  `data/secure/git-ssh.pem` itself (correct perms) and runs
-  `ssh -i <key> -o StrictHostKeyChecking=no`, so there's no in-pod known_hosts or
-  fsGroup permission setup to do.
+The deploy key is `wiki-js-storage` (read-write on `mainertoo/wiki`), shared with
+v2. Its private half is SOPS-encrypted as `WIKI_GIT_SSH_KEY` in
+`apps/base/wiki-js/wiki-js-secret.sops.yaml`. ⚠️ **Move that value into
+`apps/base/wiki/wiki-secret.sops.yaml` before deleting `apps/base/wiki-js/`** when
+v2 is retired, or the only git copy of the key goes with it.
 
 ## Setup / DR runbook
 
-After a wiki rebuild (or to reconfigure), from the repo root:
+After a wiki rebuild with an empty DB:
 
-```bash
-# 1. (rebuild only) ensure the repo has a `main` branch with at least one commit
-#    so the first bidirectional pull has a ref. A fresh mainertoo/wiki needs:
-#      git init && git commit --allow-empty -m init && git push -u origin main
+1. The target branch must already exist: v3 refuses to push to a missing branch.
+   Branch `v3` exists today; for a new branch, create it with one commit first.
+2. In the wiki, *Administration → Storage → Git*:
+   - repository `git@github.com:mainertoo/wiki.git`, branch `v3`
+   - auth: SSH, key pasted inline from `WIKI_GIT_SSH_KEY`
+   - mode **push**, schedule 5 minutes
+   - site setting `localePrefix` **off**, so paths match the existing branch
+3. To export every page at once, run the target's *sync untracked* action.
 
-# 2. point Wiki.js at the repo in bidirectional mode (reads key from SOPS,
-#    token from env or the live k8s secret):
-python3 scripts/wiki/configure-git-storage.py config sync
-python3 scripts/wiki/configure-git-storage.py status      # expect status: operational
-
-# 3a. SEED FROM WIKI (DB has the pages, repo is empty) — export everything:
-python3 scripts/wiki/configure-git-storage.py action syncUntracked
-python3 scripts/wiki/configure-git-storage.py action sync
-
-# 3b. SEED FROM REPO (fresh wiki DB, repo has the content) — import everything:
-python3 scripts/wiki/configure-git-storage.py action importAll
-```
-
-Actions: `syncUntracked` (export all DB pages → local repo), `sync` (force a
-sync, respects direction), `importAll` (import all repo content → wiki), `purge`
-(clear the local repo clone — use for unrelated-merge-history errors; does not
-touch the remote).
+Storage actions and saves need a **logged-in user session**: v3 refuses API keys
+for them. Over the REST API, log in first
+(`PUT /_api/sites/:site/auth/login`, as `wiki3.py` does), then call
+`POST /_api/sites/:site/storage/targets/:id/actions/syncUntracked`. The v2-era
+`scripts/wiki/configure-git-storage.py` (GraphQL) was retired at the cutover.
 
 ## Rotating the deploy key
 
 1. `ssh-keygen -t ed25519 -f /tmp/k -N "" -C wiki-js-storage` (no passphrase).
 2. Add `/tmp/k.pub` as a **read-write** deploy key on `mainertoo/wiki`
-   (`gh repo deploy-key add /tmp/k.pub -R mainertoo/wiki -w -t wiki-js-storage`);
-   remove the old one.
-3. Store the private key into the SOPS secret (MAC-safe, no plaintext on disk):
-   `sops set apps/base/wiki-js/wiki-js-secret.sops.yaml '["stringData"]["WIKI_GIT_SSH_KEY"]' "$(jq -Rs . < /tmp/k)"`
-4. `python3 scripts/wiki/configure-git-storage.py config sync` to push the new key
-   into the live storage config; `shred -u /tmp/k*`.
+   (`gh repo deploy-key add /tmp/k.pub -R mainertoo/wiki -w -t wiki-js-storage`),
+   and remove the old one.
+3. Store the private key in the SOPS secret (no plaintext on disk):
+   `sops set <secret>.sops.yaml '["stringData"]["WIKI_GIT_SSH_KEY"]' "$(jq -Rs . < /tmp/k)"`
+4. Paste the new key into *Administration → Storage → Git*, save, then
+   `shred -u /tmp/k*`.
 
 ## Gotchas
 
 - Wiki.js **lowercases** page paths (`migrations/README.md` → `migrations/readme.md`).
-- The GraphQL `storage.updateTargets` config encodes each value as `{"v": <value>}`;
-  a value of `********` means "keep the existing stored value" (used for sensitive
-  fields). `updateTargets` patches per-target, so sending only `git` leaves the
-  `local` target untouched.
+- Push mode force-pushes: never point the target at `main` or any branch with
+  history you want to keep.
+- Imported upload names use `-` instead of `_` (`screenshot_x.png` →
+  `screenshot-x.png`); pages reference the new names.

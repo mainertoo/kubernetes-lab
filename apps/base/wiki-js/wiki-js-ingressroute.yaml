@@ -3,20 +3,15 @@ kind: IngressRoute
 metadata:
   name: wiki-js-ingressroute
   namespace: wiki-js
-  annotations:
-    gethomepage.dev/href: "https://wiki.lab.mainertoo.com"
-    gethomepage.dev/enabled: "true"
-    gethomepage.dev/name: "Wiki.js"
-    gethomepage.dev/description: "Personal knowledge base"
-    gethomepage.dev/app: wiki-js
-    gethomepage.dev/group: "Apps"
-    gethomepage.dev/icon: "sh-wiki-js.svg"
+  # v2, frozen and scaled to 0 since the v3 cutover. wiki.lab and the homepage
+  # tile moved to the v3 route (apps/base/wiki). To read v2 during rollback,
+  # scale it back to 1 and use wiki-v2.lab.
 spec:
   entryPoints:
     - websecure
     - web
   routes:
-    - match: Host(`wiki.lab.mainertoo.com`)
+    - match: Host(`wiki-v2.lab.mainertoo.com`)
       kind: Rule
       # middlewares:
       #   - name: authentik-sso
