@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: henmedia/layerling
-              tag: 1.156.4@sha256:4de37cd38a3e34d55816c4b0c6bdde0664a4b1ed02a7fb583df193d67810b4cf
+              tag: 1.157.0@sha256:fbaa3c2ab5fb9cf70b01513bb2b1a28a8b18c8be6f8a846307ba5ccfe92ba930
             env:
               - name: TZ
                 value: America/Los_Angeles
