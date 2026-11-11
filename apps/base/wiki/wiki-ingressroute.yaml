@@ -3,14 +3,22 @@ kind: IngressRoute
 metadata:
   name: wiki-ingressroute
   namespace: wiki
-  # No homepage annotations until cutover — the v2 route still owns the tile.
+  annotations:
+    gethomepage.dev/href: "https://wiki.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Wiki.js"
+    gethomepage.dev/description: "Personal knowledge base"
+    gethomepage.dev/app: wiki
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-wiki-js.svg"
 spec:
   entryPoints:
     - websecure
     - web
   routes:
-    # Temporary host while v3 runs alongside v2; moves to wiki.lab at cutover.
-    - match: Host(`wiki-v3.lab.mainertoo.com`)
+    # wiki.lab moved here from v2 (wiki-js) at the v3 cutover. wiki-v3.lab stays
+    # as an alias until v2 is retired so old links and bookmarks keep working.
+    - match: Host(`wiki.lab.mainertoo.com`) || Host(`wiki-v3.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: wiki

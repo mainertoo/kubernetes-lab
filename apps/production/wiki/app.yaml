@@ -1,6 +1,6 @@
 ---
-# Flux Kustomization for Wiki.js 3.x. Runs on wiki-v3.lab.mainertoo.com until
-# cutover, when the wiki.lab host moves here from apps/production/wiki-js.
+# Flux Kustomization for Wiki.js 3.x, serving wiki.lab.mainertoo.com since the
+# 2026-11-11 cutover (wiki-v3.lab stays as an alias until v2 is retired).
 #
 # yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -28,10 +28,11 @@ spec:
     namespace: flux-system
   components:
     - ../../../components/gatus/internal
+    - ../../../components/gatus/external
   postBuild:
     substitute:
       APP: *app
-      SUBDOMAIN: wiki-v3
+      SUBDOMAIN: wiki
       GATUS_DOMAIN: lab.mainertoo.com
       GATUS_PORT: "3000"
       GATUS_PATH: /_ready

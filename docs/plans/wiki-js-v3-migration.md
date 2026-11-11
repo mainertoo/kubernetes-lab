@@ -1,5 +1,14 @@
 # Wiki.js 2.x → 3.x migration (side-by-side)
 
+> **Status 2026-11-11: cut over (PR C).** `wiki.lab.mainertoo.com` serves v3; `wiki-v3.lab`
+> stays as an alias until v2 is retired. v2 is scaled to 0 and reachable at `wiki-v2.lab`
+> if scaled back up for rollback. MkDocs git-syncs branch `v3` for its pages; its
+> `mkdocs.yml` + asset hook moved into this repo (`apps/base/mkdocs/site-config/`), because
+> Wiki.js force-pushes `v3` and deleted them when they were copied onto the branch (the
+> runbook's "push mode keeps files it doesn't own" was wrong). `scripts/wiki/configure-git-storage.py`
+> was retired; `docs/wiki-git-storage.md` describes v3. Next: retire v2 after ~2 weeks
+> (step 6), first moving `WIKI_GIT_SSH_KEY` into `apps/base/wiki/wiki-secret.sops.yaml`.
+
 ## Problem
 
 Renovate's bump to `ghcr.io/requarks/wiki:3.0.2` (PR #2020) crash-looped prod on

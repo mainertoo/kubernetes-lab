@@ -8,3 +8,14 @@ resources:
   - mkdocs-nginx-configmap.yaml
   - mkdocs-release.yaml
   - mkdocs-ingressroute.yaml
+
+# mkdocs.yml + the asset hook for the build container. No name hash: the
+# HelmRelease references the ConfigMap by name, and the build loop notices
+# content changes itself (it rebuilds when the config checksum changes).
+configMapGenerator:
+  - name: mkdocs-site-config
+    files:
+      - site-config/mkdocs.yml
+      - site-config/stage_assets.py
+generatorOptions:
+  disableNameSuffixHash: true

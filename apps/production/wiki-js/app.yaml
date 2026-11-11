@@ -30,9 +30,7 @@ spec:
     name: flux-system
     namespace: flux-system
 
-  components:
-    - ../../../components/gatus/internal
-    - ../../../components/gatus/external
+  # No Gatus endpoints: v2 is scaled to 0 since the v3 cutover.
 
   postBuild:
     substitute:

@@ -30,7 +30,9 @@ spec:
     controllers:
       main:
         type: deployment
-        replicas: 1
+        # Scaled to 0 at the v3 cutover (2026-11-11). Kept, with its DB and PVC,
+        # for rollback until v2 is retired; see docs/plans/wiki-js-v3-migration.md.
+        replicas: 0
 
         # Init container for CephFS perms on /wiki/config + /wiki/data
         initContainers:

@@ -1,0 +1,64 @@
+# MkDocs config for the public guides site (guides.mainertoo.com).
+# Mounted from ConfigMap mkdocs-site-config at /etc/mkdocs. The pages come from
+# the wiki: git-sync checks out mainertoo/wiki branch v3 into /repo/current, and
+# the Markdown lives in guides/docs/ there (the wiki's guides/ section).
+#
+# This file and hooks/stage_assets.py used to sit in the wiki repo itself, but
+# Wiki.js 3.x force-pushes branch v3 and deletes any file the wiki doesn't own,
+# so they live here now.
+site_name: mainertoo Guides
+site_url: https://guides.mainertoo.com
+site_description: Self-hosting how-to guides
+docs_dir: /repo/current/guides/docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search
+
+# Auto-publish Wiki.js-uploaded images (stored at repo root, linked as /abs paths).
+# Authors just upload + insert in Wiki.js; no manual file moving needed.
+hooks:
+  - hooks/stage_assets.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Books:
+      - Getting Started: books/getting-started.md
