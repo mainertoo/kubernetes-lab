@@ -26,4 +26,4 @@ The multi-Kustomization pattern (using `apps/base/empty`) predates that approach
 
 **Do not delete this directory** — removing it will break all Flux Kustomizations that use `path: ./apps/base/empty` as their target.
 
-Current users: calibre, authentik, sparky-fitness, dawarich, wiki-js, tracearr, zilean, calibre-web-automated, notifiarr, shelfmark, jackett, cinesync (and others).
+Current users: calibre, authentik, sparky-fitness, dawarich, tracearr, zilean, calibre-web-automated, notifiarr, shelfmark, jackett, cinesync (and others).

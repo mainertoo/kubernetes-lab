@@ -16,9 +16,7 @@ spec:
     - websecure
     - web
   routes:
-    # wiki.lab moved here from v2 (wiki-js) at the v3 cutover. wiki-v3.lab stays
-    # as an alias until v2 is retired so old links and bookmarks keep working.
-    - match: Host(`wiki.lab.mainertoo.com`) || Host(`wiki-v3.lab.mainertoo.com`)
+    - match: Host(`wiki.lab.mainertoo.com`)
       kind: Rule
       services:
         - name: wiki

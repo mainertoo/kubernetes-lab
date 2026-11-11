@@ -143,12 +143,6 @@
       "enabled": false
     },
     {
-      "description": "Hold Wiki.js on v2.x. v3 is a full rewrite that refuses an in-place upgrade from 2.x: it needs an EMPTY PostgreSQL 17+ database plus a v2 export imported through the v3 UI, not an image bump. The v3.0.2 bump (PR #2020) crash-looped prod on 2026-11-03. Do the side-by-side migration in docs/plans/wiki-js-v3-migration.md, then remove this hold.",
-      "matchPackageNames": ["ghcr.io/requarks/wiki"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
-    },
-    {
       "description": "Hold Gotenberg on v8.x (paperless-ngx sidecar). v9 drops /forms/pdfengines/merge (404) and the 'pdfa' form field (400). paperless-ngx 3.4.2's gotenberg-client 1.x uses both: email merge, and office-doc conversion with the default PAPERLESS_OCR_OUTPUT_TYPE=pdfa. Remove this hold once paperless-ngx ships a gotenberg-client that supports Gotenberg 9.",
       "matchPackageNames": ["docker.io/gotenberg/gotenberg"],
       "matchUpdateTypes": ["major"],

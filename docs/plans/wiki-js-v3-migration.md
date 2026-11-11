@@ -1,6 +1,13 @@
 # Wiki.js 2.x → 3.x migration (side-by-side)
 
-> **Status 2026-11-11: cut over (PR C).** `wiki.lab.mainertoo.com` serves v3; `wiki-v3.lab`
+> **Status 2026-11-11: done.** v2 retired the same day as the cutover, after the Spark vault
+> mirror ran clean from `v3`: `apps/{base,production}/wiki-js` removed, the Renovate hold
+> dropped, `WIKI_GIT_SSH_KEY` moved into `apps/base/wiki/wiki-git-deploy-key.sops.yaml` and the `wiki-v3.lab` alias removed.
+> Final v2 copies: CNPG backups of `wiki-js-cnpg-db` in Garage (`s3://volsync/cnpg/wiki-js-cnpg-db`,
+> last daily 2026-11-11 08:00 UTC; v2 was unchanged since 2026-11-05), the
+> `wikijs-20261105T133338794Z.wkbackup` export (off-repo), and branch `main`.
+>
+> **Earlier, cut over (PR C).** `wiki.lab.mainertoo.com` serves v3; `wiki-v3.lab`
 > stays as an alias until v2 is retired. v2 is scaled to 0 and reachable at `wiki-v2.lab`
 > if scaled back up for rollback. MkDocs git-syncs branch `v3` for its pages; its
 > `mkdocs.yml` + asset hook moved into this repo (`apps/base/mkdocs/site-config/`), because

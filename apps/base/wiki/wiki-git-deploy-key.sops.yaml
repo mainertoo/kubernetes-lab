@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: wiki-git-deploy-key
+    namespace: wiki
+type: Opaque
+stringData:
+    WIKI_GIT_SSH_KEY: ENC[AES256_GCM,data:M9BRXdgFHRvaihiRLFuBBjd/+lN7kjqaidpBPvt00bpEOrdk5/smri3Fw86p5CoqNv1oicydLYHrJ2T2FPkmT0id9vu8JzkZ7TyUF8KtRE+x2WutkXbaiZnwMru7C3CmvfaXqd1Fp17PneLvlTifv9K7dEErmJqeUNCvTI6nsaXVCq+eFOrpKqbFcbq6hf8P6vy0PcOgjUtN6Z37jEcR+/JpkvzgkqErJno5+HpyRUnm1InWhCkAhRqV9cystAuu5B/hZ+9FYnel6WS0fTjDni4GNmAMv2qzSJC6hjDWTmjc9FCsZ2iptjrywfsS4JSjY6S3y7AnghBxEw/DqwJMSTaIjuBq3ypbzNk60Dp87Ri6AejqBN+355HusoLqcfsy3kSZCl/CXt1czQTBMWDFaR1OsXxPUu04OCYvxJfuMlti4IZevKZVO/+hBCQ9Cnc9cmOrjLl/SutoeRfbP0XX7uoT9ufRM6M2Q0mUxUeR1eW762XLKZzOPMxbQh8vCFQSnIK265CuIPEyo/c9AdjdlsGq54vHoRNBgNpn5O0kmHtPSBY=,iv:eXBSu30x9MGI3i79uFbAJUGtQEAbAHJx7mbOvKAP6TM=,tag:caGB6b6VKHTmNisDqpbqSg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBDQW1SeWozZEEzS0dreTd3
+            Um5sY1RRNEdibm12dndjcWNiUk1JZXRTWDJNCk9xVk9pV244V3lHTTdzQzFuYndt
+            YmNTOEFjYmhCWnRpejZKWmVWMDJRZDgKLS0tIHpFQ2E0cnNESGwreWRaSFpBMXE5
+            bGZJcnkvZXhBazhoL1JIb3ZmM2tadGcKJ/sUxljflZaBab8vNAAGbOnbPJmnRz3d
+            vFz8AbHAQKU2Sqt090R3MoV+Ab3k73GsZQZgtZIk2nKhmDdv21dTIg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-11T14:33:22Z"
+    mac: ENC[AES256_GCM,data:7aAUoN31V4NxMcp5hgSDqG0UtdkpYKbugt29ULLPKr0KHUSueWrxP6AtfEWleceFzYGlKhh8TIMBWCv58d8VPTjCodR3IAiX4XQT0YsarqTexCT2tnY0C60dA1thWUVM2es5IlxQGas1mA4VAdrKSojHCmEPaIVGpzVv/TGfEMc=,iv:RXl57mkGhJLTfbTB9UY1MVUa0D2HQxP1WIx/TD9ARl8=,tag:JzqyX1SrEXkxcTWpAcBpRQ==,type:str]
+    version: 3.13.1
