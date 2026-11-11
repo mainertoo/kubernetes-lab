@@ -86,19 +86,25 @@ spec:
               # postBuild.substitute blanks unmatched `$VAR`. `$(...)` is safe.
               - |
                 set -u
-                CFG=/repo/current/guides/mkdocs.yml
+                # mkdocs.yml + hooks/ come from ConfigMap mkdocs-site-config;
+                # the pages come from the git-synced wiki (guides/docs).
+                CFG=/etc/mkdocs/mkdocs.yml
+                DOCS=/repo/current/guides/docs
                 published=""
                 while true; do
-                  if [ -f "$$CFG" ]; then
+                  if [ -d "$$DOCS" ]; then
                     rev=$(readlink /repo/current 2>/dev/null || true)
                     rev=$${rev##*/}
-                    if [ -n "$$rev" ] && [ "$$rev" != "$$published" ]; then
+                    # Rebuild on a new wiki commit OR a changed site config.
+                    cfgsum=$(cat /etc/mkdocs/mkdocs.yml /etc/mkdocs/hooks/stage_assets.py | md5sum | cut -c1-8)
+                    key="$$rev-$$cfgsum"
+                    if [ -n "$$rev" ] && [ "$$key" != "$$published" ]; then
                       out=/site/build-$$rev
                       rm -rf "$$out"
                       if mkdocs build -f "$$CFG" -d "$$out" --clean; then
                         ln -sfn "build-$$rev" /site/.current.new
                         mv -fT /site/.current.new /site/current
-                        published="$$rev"
+                        published="$$key"
                         echo "[build] published $$rev"
                         for old in /site/build-*; do
                           [ -d "$$old" ] || continue
@@ -110,7 +116,7 @@ spec:
                       fi
                     fi
                   else
-                    echo "[build] waiting for git-sync ($$CFG)"
+                    echo "[build] waiting for git-sync ($$DOCS)"
                   fi
                   sleep 60
                 done
@@ -165,6 +171,21 @@ spec:
               - path: /repo
             build:
               - path: /repo
+                readOnly: true
+
+      # mkdocs.yml + hooks/stage_assets.py (apps/base/mkdocs/site-config).
+      site-config:
+        type: configMap
+        name: mkdocs-site-config
+        items:
+          - key: mkdocs.yml
+            path: mkdocs.yml
+          - key: stage_assets.py
+            path: hooks/stage_assets.py
+        advancedMounts:
+          mkdocs:
+            build:
+              - path: /etc/mkdocs
                 readOnly: true
 
       # Rendered static HTML handed from the build loop to nginx.

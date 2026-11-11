@@ -11,9 +11,12 @@ Wiki.js's built-in Git storage module.
 - Every page is a Markdown file with YAML frontmatter, and the folder tree mirrors
   page paths (e.g. `infrastructure/networking/adguard-internal.md`). Uploaded files
   sit at the repo root (`screenshot-2026-06-11-at-4.33.35-pm.png`).
-- Files Wiki.js doesn't own survive its pushes: `guides/mkdocs.yml` and
-  `guides/hooks/stage_assets.py` (the MkDocs guides site, `apps/base/mkdocs`, which
-  git-syncs branch `v3`) live on the branch alongside the pages.
+- ⚠️ **Wiki.js keeps its own history and force-pushes it.** Any commit made to `v3`
+  outside the wiki, including files the wiki doesn't own, is deleted on the next
+  push (verified 2026-11-11). Never store anything else on this branch.
+- The MkDocs guides site (`apps/base/mkdocs`) git-syncs branch `v3` for its pages
+  (`guides/docs/`). Its `mkdocs.yml` and asset hook live in this repo
+  (`apps/base/mkdocs/site-config/`), not on the branch.
 - **Branch `main` is the frozen Wiki.js 2.x archive** (bidirectional sync until the
   2026-11-11 cutover). Nothing writes to it any more.
 - Wiki content is **private**: it lives only in `mainertoo/wiki`, never in this
@@ -67,7 +70,7 @@ for them. Over the REST API, log in first
 ## Gotchas
 
 - Wiki.js **lowercases** page paths (`migrations/README.md` → `migrations/readme.md`).
-- Push mode force-pushes: never point the target at `main` or any branch with
-  history you want to keep.
+- Push mode force-pushes its own history: never point the target at `main` or any
+  branch with history you want to keep, and never commit to `v3` by hand.
 - Imported upload names use `-` instead of `_` (`screenshot_x.png` →
   `screenshot-x.png`); pages reference the new names.
