@@ -67,9 +67,10 @@ spec:
               - secretRef:
                   name: dumb-secret
 
-            # DUMB 2.23.x: load the setgid shim (persistence.setgid-shim) so
-            # private 0700 dirs don't inherit fsGroup's setgid and fail DUMB's
-            # exact-mode checks. The image sets no PYTHONPATH of its own.
+            # Load the fsGroup shim (persistence.setgid-shim) so private 0700
+            # dirs don't inherit fsGroup's setgid and private 0600 ledgers
+            # don't fail DUMB's mode checks after the kubelet adds group bits.
+            # The image sets no PYTHONPATH of its own.
             env:
               PYTHONPATH: /opt/dumb-setgid-shim
 
