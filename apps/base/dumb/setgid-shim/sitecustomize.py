@@ -1,5 +1,6 @@
 # DUMB fsGroup workarounds — loaded via PYTHONPATH (see dumb-release.yaml).
-# 1) setgid on private directories (2.23.x); 2) group bits on private files.
+# 1) setgid on private directories (2.23.x); 2) group bits on private files;
+# 3) group/setgid bits on DUMB's private controller-state trees.
 #
 # Kubernetes fsGroup makes the kubelet set S_ISGID on every directory of the
 # pod's volumes, so any directory DUMB creates with mode 0o700 inherits setgid
@@ -83,11 +84,82 @@ def _patch_private_files(module):
     module.read_private_text = read_private_text
 
 
+# Same root cause for DUMB's private controller-state DIRECTORIES (seen
+# 2026-11-11): /config/installation-backups (also .dumb-setup, backup-storage)
+# is created 0700, the kubelet turns it into 2770 at the next pod start, and
+# utils.user_management._repair_private_controller_tree rejects any
+# mode & 0o7077 ("Private controller state installation-backups requires
+# review ... Unsafe owner, permissions or mount identity"). DUMB then starts
+# in installation-recovery mode with NO services: a full outage on every pod
+# restart. Before its preflight we tighten the tree: clear group bits (and
+# setgid on directories) on entries in our fsGroup with no world bits,
+# without following links or leaving the directory's filesystem.
+def _tighten_private_tree(directory):
+    try:
+        root = os.lstat(directory)
+    except OSError:
+        return
+    if not stat.S_ISDIR(root.st_mode):
+        return
+    stack, seen = [directory], 0
+    while stack and seen < 10000:
+        current = stack.pop()
+        seen += 1
+        try:
+            info = os.lstat(current)
+        except OSError:
+            continue
+        if info.st_dev != root.st_dev or stat.S_ISLNK(info.st_mode):
+            continue
+        mode = stat.S_IMODE(info.st_mode)
+        if info.st_gid == _FS_GROUP and not mode & 0o007:
+            if stat.S_ISDIR(info.st_mode):
+                tight = mode & ~0o2070
+            elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                tight = mode & ~0o070
+            else:
+                tight = mode
+            if tight != mode:
+                try:
+                    os.chmod(current, tight, follow_symlinks=False)
+                except (OSError, NotImplementedError):
+                    pass
+        if stat.S_ISDIR(info.st_mode):
+            try:
+                with os.scandir(current) as entries:
+                    stack.extend(entry.path for entry in entries)
+            except OSError:
+                pass
+
+
+def _patch_user_management(module):
+    real = getattr(module, "_repair_private_controller_tree", None)
+    if real is None or getattr(real, "_fsgroup_shim", False):
+        return
+
+    def _repair_private_controller_tree(directory, *args, **kwargs):
+        _tighten_private_tree(directory)
+        return real(directory, *args, **kwargs)
+
+    _repair_private_controller_tree._fsgroup_shim = True
+    _repair_private_controller_tree.__wrapped__ = real
+    module._repair_private_controller_tree = _repair_private_controller_tree
+
+
+_PATCHES = {
+    "utils.private_files": _patch_private_files,
+    "utils.user_management": _patch_user_management,
+}
+
+
 class _PrivateFilesPatcher(importlib.abc.MetaPathFinder):
-    # Patch utils.private_files as it loads, before integration_ownership and
-    # prowlarr_settings bind read_private_text with `from ... import`.
+    # Patch DUMB modules as they load: utils.private_files before
+    # integration_ownership and prowlarr_settings bind read_private_text with
+    # `from ... import`; utils.user_management calls its function by global
+    # name, so replacing the module attribute is enough.
     def find_spec(self, fullname, path=None, target=None):
-        if fullname != "utils.private_files":
+        patch = _PATCHES.get(fullname)
+        if patch is None:
             return None
         spec = importlib.machinery.PathFinder.find_spec(fullname, path)
         if spec is None or spec.loader is None:
@@ -96,7 +168,7 @@ class _PrivateFilesPatcher(importlib.abc.MetaPathFinder):
 
         def exec_module(module):
             real_exec(module)
-            _patch_private_files(module)
+            patch(module)
 
         spec.loader.exec_module = exec_module
         return spec
