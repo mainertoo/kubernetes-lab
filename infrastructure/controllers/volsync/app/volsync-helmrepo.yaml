@@ -22,6 +22,8 @@ kind: HelmRepository
 metadata:
   name: perfectra1n-volsync
   namespace: volsync-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   interval: 1h
   url: https://perfectra1n.github.io/volsync/charts
