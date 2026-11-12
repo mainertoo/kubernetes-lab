@@ -1,0 +1,42 @@
+---
+# Flux Kustomization for the self-hosted Obico server (AI print-failure
+# detection for the QIDI Max 4 via Valve Oil's Obico add-on). Internal-only, so
+# only the gatus/internal component.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app obico
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/obico
+  targetNamespace: obico
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  # Obico reads the CNPG-generated obico-db-app Secret (DATABASE_URL) and runs
+  # Django migrations in an initContainer, so a from-scratch GitOps restore
+  # must wait for the postgres Cluster to be Ready.
+  dependsOn:
+    - name: obico-db-cnpg
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+  postBuild:
+    substitute:
+      APP: *app
+      GATUS_PORT: "3334"
+      GATUS_PATH: /hc/
+      GATUS_STATUS_INTERNAL: "200"

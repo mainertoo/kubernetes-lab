@@ -1,0 +1,59 @@
+---
+# CloudNativePG-managed postgres cluster `obico-db` for Obico. Upstream Obico
+# runs on PostgreSQL (the chart's SQLite default is evaluation-only: web and the
+# Celery worker write the same file and hit "database is locked"). The app
+# connects via the CNPG-generated `obico-db-app` Secret (key `uri`).
+#
+# Fresh deploy: initdb overlay creates database+owner `obico`. WAL archiving
+# and daily base backups stream to Garage S3 via the barman-cloud plugin.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: obico-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  # Build target carries the obico Namespace so it exists before the
+  # cnpg-cluster Components render the Cluster/Secret into it. The app
+  # Kustomization dependsOn this one.
+  path: ./apps/base/obico/db-cnpg
+  targetNamespace: obico
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: obico-db
+      namespace: obico
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
+  postBuild:
+    substitute:
+      APP: obico-db
+      APP_NAMESPACE: obico
+      CNPG_DB_NAME: obico
+      CNPG_DB_OWNER: obico
+      CNPG_STORAGE_SIZE: 5Gi
+      CNPG_STORAGECLASS: ceph-rbd
+      CNPG_INSTANCES: "1"
+      # Daily base backup at 04:20 UTC — clear of airtrail (04:15) and the
+      # 04:30/04:45 joplin/qnap_pbs slots.
+      CNPG_BACKUP_SCHEDULE: "0 20 4 * * *"
+      CNPG_RETENTION: "30d"
+      CNPG_LINEAGE: v1
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base

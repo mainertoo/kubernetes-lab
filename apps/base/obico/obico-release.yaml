@@ -1,0 +1,277 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: obico
+  namespace: obico
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  # Pod layout mirrors upstream's own chart (obico-server charts/obico): web +
+  # Celery tasks share one pod, ml-api and redis are separate. Images are the
+  # prebuilt ones upstream's release workflow publishes to GHCR; the CalVer
+  # `-g<sha>` tag is immutable.
+  values:
+    controllers:
+      obico:
+        strategy: Recreate # RWO media PVC shared by web + tasks
+        pod:
+          # The web image runs as nobody (65534); fsGroup lets it write the
+          # ceph-rbd media volume.
+          securityContext:
+            fsGroup: 65534
+            fsGroupChangePolicy: OnRootMismatch
+        initContainers:
+          # Generates static assets into the shared static emptyDir. Runs as
+          # root because the image's /app tree is owned by root.
+          collectstatic:
+            image: &web-image
+              repository: ghcr.io/thespaghettidetective/obico-web
+              tag: 2026.11.6-gdf8190ef
+            command: ["python", "manage.py", "collectstatic", "-v", "0", "--noinput"]
+            envFrom: &env-from
+              - configMapRef:
+                  name: obico-env
+            env: &env
+              - name: DATABASE_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: obico-db-app
+                    key: uri
+              - name: DJANGO_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: obico-secret
+                    key: DJANGO_SECRET_KEY
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+          migrate:
+            image: *web-image
+            command: ["python", "manage.py", "migrate", "--noinput"]
+            envFrom: *env-from
+            env: *env
+            securityContext: &nobody
+              runAsUser: 65534
+              runAsGroup: 65534
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+        containers:
+          web:
+            image: *web-image
+            command: ["daphne", "-b", "0.0.0.0", "-p", "3334", "config.routing:application"]
+            envFrom: *env-from
+            env: *env
+            securityContext: *nobody
+            # Liveness is a socket check: /hc/ queries the DB and Redis, so it
+            # would restart the pod on any dependency blip. Readiness uses /hc/.
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 3334
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /hc/
+                    port: 3334
+                  initialDelaySeconds: 20
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+          # Celery worker + beat. No liveness probe: a flaky `celery inspect
+          # ping` would restart the whole pod, web included. The 2Gi limit sits
+          # above ffmpeg's timelapse-encode peak; an OOM there kills ffmpeg
+          # silently and the print just gets no timelapse.
+          tasks:
+            image: *web-image
+            command:
+              - celery
+              - -A
+              - config
+              - worker
+              - --beat
+              - --schedule
+              - /data/celerybeat-schedule
+              - -l
+              - info
+              - -c
+              - "2"
+              - -Q
+              - realtime,celery
+            envFrom: *env-from
+            env: *env
+            securityContext: *nobody
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      # Failure-detection model (ONNX Runtime on CPU). One printer posting a
+      # frame every few seconds while printing is well within a CPU's reach.
+      ml-api:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/thespaghettidetective/obico-ml-api-cpu
+              tag: 2026.11.6-gdf8190ef
+            command:
+              - gunicorn
+              - --bind=0.0.0.0:3333
+              - --workers=1
+              # The model loads inside worker boot; the 30s default has the
+              # arbiter kill and respawn the worker forever on a slow start.
+              - --timeout=120
+              - --access-logfile=-
+              - wsgi
+            env:
+              - name: FLASK_APP
+                value: server.py
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /hc/
+                    port: 3333
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /hc/
+                    port: 3333
+                  periodSeconds: 15
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /hc/
+                    port: 3333
+                  periodSeconds: 10
+                  timeoutSeconds: 10
+                  failureThreshold: 18
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                memory: 2Gi
+
+      # Celery broker / Channels layer / cache. Nothing durable, so no PVC.
+      redis:
+        containers:
+          app:
+            image:
+              repository: redis
+              tag: 8.10.3-alpine
+            securityContext:
+              runAsUser: 999
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+            probes:
+              liveness: { enabled: false }
+              readiness: { enabled: false }
+              startup: { enabled: false }
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    service:
+      obico:
+        controller: obico
+        ports:
+          http:
+            port: 3334
+      ml-api:
+        controller: ml-api
+        ports:
+          http:
+            port: 3333
+      redis:
+        controller: redis
+        ports:
+          redis:
+            port: 6379
+
+    persistence:
+      # Holds only the Celery beat schedule (the DB is CNPG postgres).
+      data:
+        type: emptyDir
+        advancedMounts:
+          obico:
+            tasks:
+              - path: /data
+      # collectstatic output. Must be mounted before `uploads`, which nests
+      # inside it — keys render alphabetically, and "static" < "uploads".
+      static:
+        type: emptyDir
+        advancedMounts:
+          obico:
+            collectstatic:
+              - path: /app/static_build
+            web:
+              - path: /app/static_build
+      # MEDIA_ROOT = STATIC_ROOT/media: snapshots, detection frames, timelapses.
+      uploads:
+        existingClaim: obico-media
+        advancedMounts:
+          obico:
+            web:
+              - path: /app/static_build/media
+            tasks:
+              - path: /app/static_build/media

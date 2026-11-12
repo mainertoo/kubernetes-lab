@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: obico
+resources:
+  # Namespace is created by the DB layer (apps/base/obico/db-cnpg) so it
+  # exists before the CNPG cluster targets it; this layer dependsOn that.
+  - obico-secret.sops.yaml
+  - obico-env-configmap.yaml
+  - obico-media-pvc.yaml
+  - obico-release.yaml
+  - obico-ingressroute.yaml
