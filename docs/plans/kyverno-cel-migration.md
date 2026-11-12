@@ -126,8 +126,29 @@ only realistic objects:
 >   blocks the PVC, fail-closed like today (CLI). Live confirmation on staging pending.
 > - A server-side dry run of a policy does **not** compile its CEL; only the CLI (or a real
 >   admission) does.
-> - Remaining live tests on staging: the two oracle-calling policies against the stub
->   (restore / fresh / nonauth / error / slow, skip-restore with and without a reason).
+> - **Live tests on staging (2026-11-12), scratch PVCs in `kyverno-rehearsal`, all cleaned up:**
+>   - `restore` answer: `dataSourceRef` injected (`<pvc>-backup` RD); `fresh`/`nonauth`/`error`: none.
+>   - Generated objects correct for rbd/daily and cephfs/hourly/10Gi cache (backingSnapshot + ROX,
+>     minute = len(namespace) mod 60).
+>   - Restore checks (Audit): `nonauth` and `error` flagged by check 1, `skip-restore` without a
+>     reason flagged by check 4, everything else passes, no PVC blocked.
+>   - Engine gate: a PVC without `backup-engine` is denied.
+>   - **Fail-closed confirmed live:** the `slow` oracle (25s) times out the 20s webhook and the PVC
+>     is rejected.
+>   - skip-restore PVCs get no Secret/RS/RD.
+>   - **PVC label/annotation updates do not recreate or even touch the generated objects** (UIDs
+>     and resourceVersions unchanged); answers open question 5.
+>   - A deleted generated RS is recreated within seconds; deleting the PVC removes all three objects.
+>   - New objects are labelled `generate.kyverno.io/policy-name: volsync-pvc-backup-objects` with
+>     no `rule-name` (legacy objects carry the legacy policy and rule names). Relevant to phase 2.
+>   - ⚠️ **Drift is NOT reverted.** Editing a generated RS's schedule stayed edited; the background
+>     controller logs `failed to revert downstream resource ... metadata.resourceVersion: Invalid
+>     value: 0: must be specified for an update` (Kyverno 1.19.2). The legacy policy reverted such
+>     edits in seconds. Next: test `spec.useServerSideApply: true` (server-side apply needs no
+>     resourceVersion) and check upstream for a fix. Not a blocker for backups (nothing edits the
+>     RS/RD specs), but it is a regression in self-healing.
+>   - Not tested live: the jitter MutatingPolicy (needs a test Job; its offline output is
+>     byte-identical to legacy) and editing the policy in place (needs a policy change via git).
 - `kyverno test` suites with fixtures for every branch:
   - restore / fresh / oracle error / non-authoritative
   - `skip-restore` with and without a reason
