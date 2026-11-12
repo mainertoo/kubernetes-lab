@@ -1,42 +1,52 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# volsync-mover-jitter (CEL MutatingPolicy; replaced the legacy ClusterPolicy
+# of the same name, Kyverno CEL migration phase 3). Adds a random-sleep
+# initContainer to VolSync mover Jobs (backup volsync-src-* and restore
+# volsync-dst-*) to spread their start times. Part of
+# docs/plans/kyverno-cel-migration.md.
+#
+# Legacy matched all operations; a Job's pod template is immutable after
+# creation, so CREATE is the only operation where the patch can apply.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
 metadata:
   name: volsync-mover-jitter
   annotations:
     policies.kyverno.io/title: VolSync Mover Jitter
     policies.kyverno.io/description: >-
-      Adds a random sleep initContainer to volsync source mover jobs to stagger
-      backup start times and prevent thundering-herd lock contention in restic.
+      Adds a random sleep initContainer to volsync mover jobs to stagger
+      backup start times.
 spec:
   failurePolicy: Ignore
-  rules:
-    - name: add-jitter
-      match:
-        any:
-          - resources:
-              kinds:
-                - Job
-              # Covers both backup (volsync-src-*) and restore
-              # (volsync-dst-*) movers.
-              name: "volsync-*"
-              selector:
-                matchLabels:
-                  app.kubernetes.io/created-by: volsync
-      mutate:
-        patchStrategicMerge:
-          spec:
-            template:
-              spec:
-                initContainers:
-                  - name: jitter
-                    image: busybox:latest
-                    imagePullPolicy: IfNotPresent
-                    # 3-min spread (RANDOM % 180). Kopia's concurrent
-                    # multi-writer access means this is plenty in
-                    # steady state — there is no Restic-era
-                    # mover-vs-mover lock contention to avoid.
-                    # Widen temporarily (e.g. `% 1800`) before
-                    # force-recreating the volsync generate policy,
-                    # to spread the resulting cold-start wave; revert
-                    # once the wave drains.
-                    command: ["sh", "-c", "sleep $((RANDOM % 180))"]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["jobs"]
+    objectSelector:
+      matchLabels:
+        app.kubernetes.io/created-by: volsync
+  matchConditions:
+    - name: volsync-mover-job
+      expression: object.metadata.name.startsWith('volsync-')
+    - name: no-jitter-yet
+      expression: >-
+        !object.spec.template.spec.?initContainers.orValue([]).exists(c, c.name == 'jitter')
+  variables:
+    - name: jitter
+      expression: >-
+        {
+          "name": dyn("jitter"),
+          "image": dyn("busybox:latest"),
+          "imagePullPolicy": dyn("IfNotPresent"),
+          "command": dyn(["sh", "-c", "sleep $((RANDOM % 180))"])
+        }
+  # JSONPatch, not ApplyConfiguration: an apply configuration may not set
+  # atomic lists such as a container's command.
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          has(object.spec.template.spec.initContainers) ?
+          [JSONPatch{op: "add", path: "/spec/template/spec/initContainers/0", value: variables.jitter}] :
+          [JSONPatch{op: "add", path: "/spec/template/spec/initContainers", value: [variables.jitter]}]

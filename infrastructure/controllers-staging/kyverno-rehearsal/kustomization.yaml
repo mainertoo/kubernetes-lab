@@ -12,7 +12,6 @@ resources:
   - pvc-plumber-stub.yaml
   - volsync-kopia-shared-base.sops.yaml
   - rehearsal-namespace.yaml
-  - volsync-policy-rbac.yaml
 configMapGenerator:
   - name: pvc-plumber-stub
     namespace: volsync-system
