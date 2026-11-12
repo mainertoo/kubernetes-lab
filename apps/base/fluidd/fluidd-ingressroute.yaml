@@ -1,0 +1,29 @@
+# Internal-only. No authentik-sso, matching the printer's own
+# http://192.168.20.56: Moonraker trusts LAN/pod source ranges and has no login
+# of its own. Fluidd connects to Moonraker at the page's own host, so the
+# websocket and API go through this same route to the printer's nginx.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: fluidd-ingressroute
+  namespace: fluidd
+  annotations:
+    gethomepage.dev/href: "https://fluidd.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Fluidd"
+    gethomepage.dev/description: "QIDI Max 4 (Klipper)"
+    gethomepage.dev/app: fluidd
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-fluidd.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`fluidd.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: fluidd
+          port: 80
+          scheme: http
+  tls: {}

@@ -1,0 +1,32 @@
+---
+# Stable in-cluster name for the QIDI Max 4's own nginx (Fluidd + the
+# Moonraker API/websocket proxy on :80), so Traefik can serve it at
+# fluidd.lab.mainertoo.com. Same shape as spark-egress: a selector-less
+# Service + Endpoints, reached directly from cluster Pods (Home Assistant
+# already talks to Moonraker on this IP). The Endpoints object MUST share the
+# Service name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluidd
+  namespace: fluidd
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: fluidd
+  namespace: fluidd
+subsets:
+  - addresses:
+      # QIDI Max 4, IoT VLAN. DHCP reservation "QIDI Max 4 (wired)".
+      - ip: 192.168.20.56
+    ports:
+      - name: http
+        protocol: TCP
+        port: 80
