@@ -93,6 +93,33 @@ Mapping notes:
 
 ## Plan
 
+> **Revised 2026-11-12 (option 1): the backup policy switches over AT the Kyverno 1.20 upgrade.**
+> Phase 1 found that Kyverno 1.19.2's GeneratingPolicy can't safely sync (upstream
+> [kyverno#16747](https://github.com/kyverno/kyverno/issues/16747), fixed by PR #16748 on `main`
+> only, so in 1.20 and not in 1.19.2):
+> 1. edits to generated **custom resources** (our RS/RD) are never reverted (`metadata.resourceVersion:
+>    Invalid value: 0`); `useServerSideApply` doesn't help;
+> 2. after a background-controller restart, a namespace whose generated set is incomplete makes
+>    Kyverno **delete that kind's downstreams in every other namespace**. For us that could mean
+>    fleet-wide RD deletion, dest-PVC cascade and a restore storm.
+>
+> So the GeneratingPolicy must not run on 1.19.2 in production. New order:
+> - **Phase 3 (on 1.19):** only the engine gate and the mover jitter move to CEL. They have no
+>   generate rules, so deleting their legacy versions removes nothing.
+> - **The legacy `volsync-pvc-backup-restore-kopia` stays whole on 1.19**: restore-on-rebuild
+>   (rule 2), the audit checks (1, 3, 4) and generation (5–7). Splitting it would mean editing a
+>   generate ClusterPolicy (write-once).
+> - **Phase 4 = the 1.20 upgrade itself:** in one change, upgrade the chart to 3.10 and add
+>   `../policies-cel` (restore-datasource, restore-checks, backup-objects). On 1.20 the legacy
+>   ClusterPolicy is inert, so it can no longer delete what it generated when it is removed. That
+>   sidesteps the hardest phase 2 question (orphaning). The GeneratingPolicy's `generateExisting`
+>   then has to **adopt** the 73 existing objects in place: same UIDs, no RD recreation. That is
+>   what the staging rehearsal must prove on 1.20.
+> - **Phase 2 is now a rehearsal of that exact change on staging:** staging runs the same policies
+>   as production (legacy backup ClusterPolicy + CEL gate + CEL jitter), scratch PVCs get
+>   legacy-generated objects, then staging takes the 1.20 + `policies-cel` change and we check
+>   adoption.
+
 ### Phase 0: rehearsal environment (staging)
 > **Status:** manifests in `infrastructure/controllers-staging/{volsync-crds,kyverno-rehearsal}/`
 > plus `../controllers/kyverno` (patched to 1 replica, no PDBs/ServiceMonitors).
@@ -182,15 +209,16 @@ find the cutover technique that **keeps those exact objects**, trying in order:
 Also rehearse rollback: re-apply the legacy policies over the new ones without
 recreating objects.
 
-### Phase 3: production, low-risk policies first (one PR each)
-1. `volsync-mover-jitter` → MutatingPolicy, replacing the old one in the same PR.
-   Both together would add two `jitter` initContainers. Verify on the next 02:xx
-   mover wave.
-2. `volsync-pvc-engine-required` → ValidatingPolicy. Run both side by side for a
-   day (two denies are harmless), then remove the old one. Verify with a server
-   dry-run of a PVC missing `backup-engine`.
+### Phase 3: production, low-risk policies (on 1.19)
+> **Status:** one PR moves the CEL `volsync-mover-jitter` (MutatingPolicy) and
+> `volsync-pvc-engine-required` (ValidatingPolicy) into `policies/`, replacing the legacy files of the
+> same names. Flux applies the new ones before pruning the old, so there is no gap. Staging now
+> includes the same `policies/` folder.
+- Verify the engine gate with a server dry-run of a PVC missing `backup-engine` (must be denied).
+- Verify jitter on the next mover Job (hourly backups: grafana, vaultwarden): one `jitter`
+  initContainer, first in the list.
 
-### Phase 4: production, the backup policy (quiet window)
+### Phase 4: production, the backup policy at the 1.20 upgrade (quiet window)
 - **Pre-flight:**
   - The last nightly backups succeeded.
   - Snapshot all RS/RD/Secret UIDs and statuses to a file.

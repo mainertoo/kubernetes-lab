@@ -52,9 +52,11 @@ resources:
   - ../controllers/kyverno
   - ./volsync-crds
   - ./kyverno-rehearsal
-  # The CEL policies under test (plan phase 1). Staging has no backup-labelled
-  # PVCs outside the kyverno-rehearsal namespace, so nothing else is affected.
-  - ../controllers/kyverno/policies-cel
+  # Same VolSync policies as production (legacy backup ClusterPolicy + CEL
+  # engine gate + CEL jitter + RBAC), the baseline for rehearsing the Kyverno
+  # 1.20 cutover. Staging has no backup-labelled PVCs outside the
+  # kyverno-rehearsal namespace, so nothing else is affected.
+  - ../controllers/kyverno/policies
 
 patches:
   # The shared cert-manager release enables a ServiceMonitor (#600) for

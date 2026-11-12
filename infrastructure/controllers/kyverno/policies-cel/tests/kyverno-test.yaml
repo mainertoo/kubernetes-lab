@@ -8,8 +8,8 @@ metadata:
   name: volsync-cel-policies
 context: context.yaml
 policies:
-  - ../volsync-pvc-engine-required.yaml
-  - ../volsync-mover-jitter.yaml
+  - ../../policies/volsync-pvc-engine-required.yaml
+  - ../../policies/kyverno-volsync-jitter.yaml
   - ../volsync-pvc-backup-objects.yaml
 resources:
   - pvcs.yaml

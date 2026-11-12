@@ -1,10 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Mover start-time jitter (CEL MutatingPolicy).
   - kyverno-volsync-jitter.yaml
   - volsync-policy-rbac.yaml
-  # Engine-label admission gate (validate, Enforce). Allowed values: [kopia].
+  # Engine-label admission gate (CEL ValidatingPolicy, Deny). Allowed: [kopia].
   - volsync-pvc-engine-required.yaml
-  # Kopia policy — generates Secret/RS/RD trio with spec.kopia for any
-  # PVC carrying both `backup: hourly|daily` and `backup-engine: kopia`.
+  # Kopia policy (LEGACY ClusterPolicy) — generates Secret/RS/RD trio with
+  # spec.kopia for any PVC carrying both `backup: hourly|daily` and
+  # `backup-engine: kopia`. Stays legacy until the Kyverno 1.20 upgrade, where
+  # ../policies-cel replaces it (docs/plans/kyverno-cel-migration.md).
   - volsync-pvc-backup-restore-kopia.yaml
