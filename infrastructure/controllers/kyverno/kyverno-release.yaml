@@ -26,17 +26,6 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    # Kyverno 1.20 cutover (docs/plans/kyverno-cel-migration.md, phase 4).
-    # 1.20 no longer runs legacy kyverno.io ClusterPolicies; acknowledge that
-    # the legacy VolSync backup policy goes inert until PR B replaces it.
-    upgrade:
-      acknowledgeLegacyPoliciesNotEnforced: true
-    # TEMPORARY: lets scripts/kyverno/adopt-legacy-generated.py relabel the
-    # legacy-generated Secret/RS/RD for the CEL GeneratingPolicy to adopt.
-    # Back to the default (true) in PR C.
-    features:
-      protectGenerationLabels:
-        enabled: false
     admissionController:
       replicas: 2
       podDisruptionBudget:
