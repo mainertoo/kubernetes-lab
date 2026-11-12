@@ -6,8 +6,9 @@ resources:
   - volsync-policy-rbac.yaml
   # Engine-label admission gate (CEL ValidatingPolicy, Deny). Allowed: [kopia].
   - volsync-pvc-engine-required.yaml
-  # Kopia policy (LEGACY ClusterPolicy) — generates Secret/RS/RD trio with
-  # spec.kopia for any PVC carrying both `backup: hourly|daily` and
-  # `backup-engine: kopia`. Stays legacy until the Kyverno 1.20 upgrade, where
-  # ../policies-cel replaces it (docs/plans/kyverno-cel-migration.md).
-  - volsync-pvc-backup-restore-kopia.yaml
+  # Backup/restore policies (CEL, replaced the legacy ClusterPolicy
+  # volsync-pvc-backup-restore-kopia at the Kyverno 1.20 upgrade):
+  # restore-on-rebuild dataSourceRef, audit checks, and the GeneratingPolicy
+  # for each backup PVC's Kopia Secret / ReplicationSource /
+  # ReplicationDestination. See docs/plans/kyverno-cel-migration.md.
+  - ../policies-cel

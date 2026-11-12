@@ -1,11 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# CEL replacements for the LEGACY ClusterPolicy
-# ../policies/volsync-pvc-backup-restore-kopia.yaml, applied at the Kyverno
-# 1.20 upgrade (docs/plans/kyverno-cel-migration.md): Kyverno 1.19.2's
-# GeneratingPolicy can't safely sync (kyverno#16747, fixed in 1.20).
-# Not deployed anywhere until that cutover. The engine-label and jitter
-# policies already moved to ../policies (phase 3). tests/ holds the offline
+# CEL backup/restore policies that replaced the legacy ClusterPolicy
+# volsync-pvc-backup-restore-kopia at the Kyverno 1.20 upgrade
+# (docs/plans/kyverno-cel-migration.md). Included from ../policies, so they
+# deploy with the kyverno-policies Kustomization. tests/ holds the offline
 # `kyverno test` suite and is not part of the build.
 resources:
   - volsync-pvc-restore-datasource.yaml
