@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: volsync-kopia-shared-base
+    namespace: flux-system
+    annotations:
+        # Staging rehearsal only: same name and keys as production, DUMMY values.
+        rehearsal.mainertoo.com/purpose: kyverno-cel-migration
+type: Opaque
+stringData:
+    KOPIA_PASSWORD: ENC[AES256_GCM,data:GWOZmLP6TM/6vOd2hagBrPrtSYrQbt2g,iv:JqJfsfNWq++0AlDkXeNsgS4BZ5aSLmUjueBH6U2Suu8=,tag:9VUFUlrYse0f8KoV6gNT/g==,type:str]
+    AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:IqxqV0i8/sM++EvdOzAdlJc=,iv:sSPUQ3hiEZP8EoO8904pDKLxiB3lFCkKO24kVUindTA=,tag:w5jg9/3ie7IzPnO9qbY/8w==,type:str]
+    AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:pnaq/EFNQ53YWzGah1JDcXKXUvuL/w==,iv:TwAQBwPycl7UCWS/722Yu7GKRvrCqcuKugsPC4kcNBM=,tag:voBJY1XRKfsm8PVK8VWBAQ==,type:str]
+    AWS_DEFAULT_REGION: ENC[AES256_GCM,data:tfgjKWkcLBO6,iv:BVHWDVeL58vtMeRaveuvgqTwJ75U6SELu6DApC18vCY=,tag:tz8ov4dmVpecbGjDIdYV3Q==,type:str]
+    AWS_REGION: ENC[AES256_GCM,data:TvgpcJJhzmby,iv:wKYnD2con5Xf4WKNvpXOL7EtUWALG0Z+GccwbLmDIT8=,tag:ibTOrIu96oN1UMOmE1wg+g==,type:str]
+    AWS_EC2_METADATA_DISABLED: ENC[AES256_GCM,data:I3ZstQ==,iv:6v+pb89ezCUbON39DFEgx4e01VMjG0FxEUK21EYcVxw=,tag:tDNeZTX+JZ6LjYifBParyQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA5eGNyenRWcDkvQnlYTnZH
+            REpzd2MrM2prNjlRWE83YkhTRVFHNnJBbjBBCndaTSsySk9DK0xzZ1lISW5pYy90
+            ZDVxaWFJT0dVeHcySG9sQ1N0Nmplcm8KLS0tIEU2T2hlSlJpSkRmYTEwZFQvN0tZ
+            Tzh4cEJURGI2RzlaWE9FakxkZ244MWsKSSoN4lK9crPO1GvZJIeBCyVviU26+NLO
+            cOHpKqRz09Tp2V1vMHNwtyUq7SCeYxIUVXiXESkWFUNRfpqXo+vrTg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1znqy83dnxfsdg88ahwxgt2dmazcj5aandmyg5fxty0nheup0jums6grjvk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-12T01:07:42Z"
+    mac: ENC[AES256_GCM,data:93xkcQAd+/xx0TLVXY+2pEJF4JDfYqzUeRb5RWvn+nFSgQabziql1YaNoOjEH+d3oZEjnoQQpDfsDqbvTv4bxSbuCh6vH6Xwuy0MCUA6UK5hworYYH4+o3bZdxkVcLeKaSTGhhVjv8psf+7aPJqLSMv4LVOMpb5RN/Dy2QKaqOk=,iv:lIyVszer0NV7mc9KxU1VDKpnAMlI/LF1hSJ0Uzd1TnY=,tag:KSKgnChXsk7SRgFQFyiAcg==,type:str]
+    version: 3.13.1

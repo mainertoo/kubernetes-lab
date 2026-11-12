@@ -23,13 +23,22 @@ kind: Kustomization
 #                      and points at the dedicated, quota'd `staging-rbd`
 #                      pool through a cephx user scoped to that pool only —
 #                      isolated from production's k3s-rbd.
+#   - kyverno        — shared with production (../controllers/kyverno), same
+#                      chart and version; patched below to 1 replica per
+#                      controller, no PDBs, no ServiceMonitors. Rehearsal
+#                      target for the ClusterPolicy -> CEL migration
+#                      (docs/plans/kyverno-cel-migration.md), together with:
+#   - volsync-crds   — VolSync CRDs only (./volsync-crds/), NO controller,
+#                      so generated RS/RD stay inert.
+#   - kyverno-rehearsal — pvc-plumber stub + dummy volsync-kopia-shared-base
+#                      + scratch namespace (./kyverno-rehearsal/).
 #
 # Deliberately NOT in staging yet (add later when needed):
 #   - newt           — pangolin tunnel client for external access at
 #                      *.staging.mainertoo.com. Needs a fresh pangolin
 #                      client registration; follow-up PR once you have
 #                      the secret.
-#   - cephfs / snapshot-controller / volsync / kyverno / cnpg /
+#   - cephfs / snapshot-controller / volsync (controller) / cnpg /
 #     cloudflared / tailscale-operator / intel-gpu / pvc-plumber /
 #     kube-prometheus-stack / etc.
 resources:
@@ -39,6 +48,10 @@ resources:
   - ../controllers/ceph-csi-base
   - ../controllers/ceph-csi-rbd
   - ./storage/ceph-rbd
+  # Kyverno CEL migration rehearsal (docs/plans/kyverno-cel-migration.md).
+  - ../controllers/kyverno
+  - ./volsync-crds
+  - ./kyverno-rehearsal
 
 patches:
   # The shared cert-manager release enables a ServiceMonitor (#600) for
@@ -51,3 +64,41 @@ patches:
       - op: replace
         path: /spec/values/prometheus/servicemonitor/enabled
         value: false
+  # Kyverno on staging: same chart/version as production, sized down.
+  # Staging has no Prometheus Operator CRDs (ServiceMonitors would fail the
+  # Helm render) and a single replica can't satisfy a minAvailable:1 PDB
+  # during drains.
+  - target:
+      kind: HelmRelease
+      name: kyverno
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: kyverno
+      spec:
+        values:
+          admissionController:
+            replicas: 1
+            podDisruptionBudget:
+              enabled: false
+            serviceMonitor:
+              enabled: false
+          backgroundController:
+            replicas: 1
+            podDisruptionBudget:
+              enabled: false
+            serviceMonitor:
+              enabled: false
+          cleanupController:
+            replicas: 1
+            podDisruptionBudget:
+              enabled: false
+            serviceMonitor:
+              enabled: false
+          reportsController:
+            replicas: 1
+            podDisruptionBudget:
+              enabled: false
+            serviceMonitor:
+              enabled: false

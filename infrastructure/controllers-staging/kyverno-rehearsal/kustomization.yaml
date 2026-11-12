@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Rehearsal fixtures for the Kyverno ClusterPolicy -> CEL migration
+# (docs/plans/kyverno-cel-migration.md, Phase 0). Mirrors what production's
+# VolSync policy depends on, without a real backup stack:
+#   - pvc-plumber-stub: answers /exists/<ns>/<pvc> at the same in-cluster
+#     URL as production's oracle, with canned answers chosen by PVC name
+#   - volsync-kopia-shared-base: same name/keys as production, DUMMY values
+#   - kyverno-rehearsal namespace for scratch PVCs
+resources:
+  - volsync-system-namespace.yaml
+  - pvc-plumber-stub.yaml
+  - volsync-kopia-shared-base.sops.yaml
+  - rehearsal-namespace.yaml
+configMapGenerator:
+  - name: pvc-plumber-stub
+    namespace: volsync-system
+    files:
+      - stub.py
+generatorOptions:
+  disableNameSuffixHash: true
