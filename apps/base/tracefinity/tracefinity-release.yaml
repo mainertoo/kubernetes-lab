@@ -65,6 +65,11 @@ spec:
               # non-empty key. Not a secret.
               - name: OPENROUTER_API_KEY
                 value: unused
+              # Cap glibc malloc arenas so freed inference memory is reused
+              # instead of fragmenting across per-thread arenas (resident set
+              # grew 8.2 → 13 GiB between traces 1 and 2 on 2026-09-28).
+              - name: MALLOC_ARENA_MAX
+                value: "2"
             # uvicorn binds 127.0.0.1:8000 (unreachable by kubelet), and nginx
             # on :3000 only proxies /api/ — so probe /api/version through nginx,
             # which exercises nginx + backend end to end.
