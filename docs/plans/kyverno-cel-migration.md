@@ -110,6 +110,24 @@ only realistic objects:
 - A copy of `volsync-kopia-shared-base` with dummy values.
 
 ### Phase 1: write and unit-test the five policies
+> **Status (2026-11-12):** policies in `infrastructure/controllers/kyverno/policies-cel/`,
+> offline suite in `tests/` (`kyverno test infrastructure/controllers/kyverno/policies-cel/tests`, 10/10).
+> - **Golden diff vs production:** the GeneratingPolicy was run over all 73 production backup PVCs
+>   and compared with the live objects: **146/146 RS/RD specs identical, 73/73 Secrets identical**
+>   (keys + every non-credential value). The legacy RD rule's `kopia.sourcePathOverride` is not in
+>   the RD CRD, so the API server drops it; the new policy omits it to match what is stored.
+> - **Excludes:** skip-restore, both CNPG labels, infra namespaces and missing/wrong engine labels
+>   generate nothing.
+> - **Jitter:** byte-identical to the legacy mutation (including a Job with an existing initContainer;
+>   jitter goes first). ApplyConfiguration can't set the atomic `command` list, so it's a JSONPatch
+>   with a no-duplicate guard.
+> - **Engine gate:** same pass/fail set as the legacy policy.
+> - **`http.Get` failure errors the policy**, so with `failurePolicy: Fail` an unreachable oracle
+>   blocks the PVC, fail-closed like today (CLI). Live confirmation on staging pending.
+> - A server-side dry run of a policy does **not** compile its CEL; only the CLI (or a real
+>   admission) does.
+> - Remaining live tests on staging: the two oracle-calling policies against the stub
+>   (restore / fresh / nonauth / error / slow, skip-restore with and without a reason).
 - `kyverno test` suites with fixtures for every branch:
   - restore / fresh / oracle error / non-authoritative
   - `skip-restore` with and without a reason

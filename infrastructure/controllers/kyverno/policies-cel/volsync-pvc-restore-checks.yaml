@@ -1,0 +1,107 @@
+# CEL replacement for rules 1, 3 and 4 of the legacy ClusterPolicy
+# volsync-pvc-backup-restore-kopia (../policies/volsync-pvc-backup-restore-kopia.yaml).
+# Part of docs/plans/kyverno-cel-migration.md.
+#
+# Audit only, like the legacy rules (validationFailureAction: Audit): findings
+# land in policy reports and never block a PVC.
+#   1. the oracle must give an authoritative, error-free backup decision
+#   3. if the oracle says restore, the PVC must carry a dataSourceRef by the
+#      time it is validated (volsync-pvc-restore-datasource should have
+#      patched it in)
+#   4. a volsync.backup/skip-restore=true bypass must say why, in
+#      volsync.backup/skip-restore-reason
+# Validating webhooks run after mutating ones, so check 3 sees the patched PVC.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: volsync-pvc-restore-checks
+  annotations:
+    policies.kyverno.io/title: VolSync restore decision checks
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+spec:
+  validationActions:
+    - Audit
+  failurePolicy: Fail
+  webhookConfiguration:
+    timeoutSeconds: 20
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["persistentvolumeclaims"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - flux-system
+            - kube-system
+            - kyverno
+            - volsync-system
+            - cert-manager
+            - traefik
+            - ceph-csi-rbd
+            - ceph-csi-cephfs
+            - monitoring
+            - tailscale
+            - cloudflared
+            - newt
+            - intel-gpu
+    objectSelector:
+      matchExpressions:
+        - key: backup
+          operator: In
+          values: [hourly, daily]
+        - key: backup-engine
+          operator: In
+          values: [kopia]
+        - key: cnpg.io/cluster
+          operator: DoesNotExist
+        - key: app.kubernetes.io/managed-by
+          operator: NotIn
+          values: [cnpg, cloudnative-pg]
+  variables:
+    - name: skipRestore
+      expression: >-
+        object.metadata.?annotations['volsync.backup/skip-restore'].orValue('') == 'true'
+    # Only evaluated by checks 1 and 3, and only when skipRestore is false.
+    - name: oracle
+      expression: >-
+        http.Get('http://pvc-plumber.volsync-system.svc.cluster.local:80/exists/' +
+          request.namespace + '/' + object.metadata.name)
+  validations:
+    # 1. require-authoritative-backup-decision
+    - expression: >-
+        variables.skipRestore ||
+        (variables.oracle.?authoritative.orValue(false) == true &&
+         variables.oracle.?error.orValue('') == '')
+      messageExpression: >-
+        'PVC ' + request.namespace + '/' + object.metadata.name +
+        ' admission requires an authoritative backup-existence decision (Kopia oracle).' +
+        ' Oracle returned authoritative=' + string(variables.oracle.?authoritative.orValue(false)) +
+        ', decision=' + string(variables.oracle.?decision.orValue('')) +
+        ', error=' + string(variables.oracle.?error.orValue('none')) + '.'
+    # 3. require-datasource-when-restore
+    - expression: >-
+        request.operation != 'CREATE' || variables.skipRestore ||
+        !(variables.oracle.?decision.orValue('') == 'restore' &&
+          variables.oracle.?authoritative.orValue(false) == true) ||
+        object.spec.?dataSourceRef.?name.orValue('') != ''
+      messageExpression: >-
+        'PVC ' + request.namespace + '/' + object.metadata.name +
+        ': oracle says decision=restore but spec.dataSourceRef.name is empty.' +
+        ' volsync-pvc-restore-datasource should have patched it in; retry.'
+    # 4. require-skip-restore-reason
+    - expression: >-
+        !variables.skipRestore ||
+        object.metadata.?annotations['volsync.backup/skip-restore-reason'].orValue('') != ''
+      messageExpression: >-
+        'PVC ' + request.namespace + '/' + object.metadata.name +
+        ' carries volsync.backup/skip-restore=true but no' +
+        ' volsync.backup/skip-restore-reason annotation. Document the bypass.'

@@ -1,0 +1,69 @@
+# Test PVCs for the CEL policies. Names pick the pvc-plumber stub's answer
+# on staging (restore / nonauth / error / fresh); see
+# infrastructure/controllers-staging/kyverno-rehearsal/stub.py.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: daily-rbd-fresh
+  namespace: kyverno-rehearsal
+  labels: {backup: daily, backup-engine: kopia}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hourly-cephfs-restore
+  namespace: kyverno-rehearsal
+  labels: {backup: hourly, backup-engine: kopia}
+  annotations: {volsync.backup/cache-capacity: 10Gi}
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: cephfs
+  resources: {requests: {storage: 2Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: no-engine-label
+  namespace: kyverno-rehearsal
+  labels: {backup: daily}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wrong-engine-label
+  namespace: kyverno-rehearsal
+  labels: {backup: daily, backup-engine: restic}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: skip-no-reason
+  namespace: kyverno-rehearsal
+  labels: {backup: daily, backup-engine: kopia}
+  annotations: {volsync.backup/skip-restore: "true"}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: no-backup-label
+  namespace: kyverno-rehearsal
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}

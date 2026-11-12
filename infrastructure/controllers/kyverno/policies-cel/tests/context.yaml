@@ -1,0 +1,17 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Context
+metadata:
+  name: context
+spec:
+  resources:
+  # DUMMY stand-in for flux-system/volsync-kopia-shared-base (fake values only).
+  - apiVersion: v1
+    kind: Secret  # gitleaks:allow
+    metadata:
+      name: volsync-kopia-shared-base
+      namespace: flux-system
+    type: Opaque
+    data:
+      KOPIA_PASSWORD: ZHVtbXktcGFzc3dvcmQ=
+      AWS_ACCESS_KEY_ID: RFVNTVlLRVk=
+      AWS_SECRET_ACCESS_KEY: ZHVtbXktc2VjcmV0

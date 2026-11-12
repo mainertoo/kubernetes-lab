@@ -1,0 +1,193 @@
+# CEL replacement for rules 5-7 (generate-kopia-secret,
+# generate-replication-source, generate-replication-destination) of the legacy
+# ClusterPolicy volsync-pvc-backup-restore-kopia
+# (../policies/volsync-pvc-backup-restore-kopia.yaml). Part of
+# docs/plans/kyverno-cel-migration.md.
+#
+# For every PVC labelled `backup: hourly|daily` + `backup-engine: kopia`
+# (outside the infra namespaces, not CNPG-managed, no skip-restore), generate
+# in the PVC's namespace:
+#   - Secret volsync-<pvc>: Kopia/Garage credentials from
+#     flux-system/volsync-kopia-shared-base plus fixed endpoint settings
+#   - ReplicationSource <pvc>-backup: the scheduled Kopia backup
+#   - ReplicationDestination <pvc>-backup: the restore source that
+#     volsync-pvc-restore-datasource points rebuilt PVCs at
+# The generated objects must stay byte-identical to the legacy rules' output;
+# see the comments in the legacy file for why each value is what it is
+# (no path in KOPIA_REPOSITORY, cephfs backingSnapshot copies, no retain:).
+#
+# The legacy RD rule also set kopia.sourcePathOverride, but the
+# ReplicationDestination CRD has no such field and the API server drops it,
+# so it is omitted here to generate exactly what is stored (golden diff vs
+# all 73 production RDs, 2026-11-12).
+#
+# Expression mode (generator.Apply), not YAML templates: templates are still
+# beta in Kyverno 1.19 and this policy carries every app's backups.
+#
+# orphanDownstreamOnPolicyDelete is on from day one: deleting or replacing
+# this policy must never delete the 70+ generated RS/RD/Secrets (recreating
+# an RD re-runs its restore-once restore from Garage).
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
+metadata:
+  name: volsync-pvc-backup-objects
+  annotations:
+    policies.kyverno.io/title: VolSync Kopia backup objects per PVC
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+spec:
+  evaluation:
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: true
+    orphanDownstreamOnPolicyDelete:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["persistentvolumeclaims"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - flux-system
+            - kube-system
+            - kyverno
+            - volsync-system
+            - cert-manager
+            - traefik
+            - ceph-csi-rbd
+            - ceph-csi-cephfs
+            - monitoring
+            - tailscale
+            - cloudflared
+            - newt
+            - intel-gpu
+    objectSelector:
+      matchExpressions:
+        - key: backup
+          operator: In
+          values: [hourly, daily]
+        - key: backup-engine
+          operator: In
+          values: [kopia]
+        - key: cnpg.io/cluster
+          operator: DoesNotExist
+        - key: app.kubernetes.io/managed-by
+          operator: NotIn
+          values: [cnpg, cloudnative-pg]
+  matchConditions:
+    - name: not-skip-restore
+      expression: >-
+        object.metadata.?annotations['volsync.backup/skip-restore'].orValue('') != 'true'
+  variables:
+    - name: ns
+      expression: object.metadata.namespace
+    - name: pvc
+      expression: object.metadata.name
+    - name: shared
+      expression: resource.Get('v1', 'secrets', 'flux-system', 'volsync-kopia-shared-base')
+    - name: isCephfs
+      expression: object.spec.?storageClassName.orValue('') == 'cephfs'
+    - name: storageClass
+      expression: object.spec.?storageClassName.orValue('')
+    # Same schedule spread as legacy: minute = len(namespace) mod 60,
+    # hourly runs every hour, daily runs at 02:xx.
+    - name: schedule
+      expression: >-
+        string(size(variables.ns) % 60) + ' ' +
+        (object.metadata.labels['backup'] == 'hourly' ? '*' : '2') + ' * * *'
+    - name: snapClass
+      expression: "variables.isCephfs ? 'cephfs-snapclass' : 'ceph-rbd-snapclass'"
+    - name: rwMode
+      expression: "variables.isCephfs ? 'ReadWriteMany' : 'ReadWriteOnce'"
+    - name: cacheCap
+      expression: >-
+        object.metadata.?annotations['volsync.backup/cache-capacity'].orValue('5Gi')
+    # cephfs copies use the backingSnapshot class + ReadOnlyMany (zero-copy
+    # shallow mount); rbd copies keep their own class + ReadWriteOnce.
+    - name: pitStorageClass
+      expression: "variables.isCephfs ? 'cephfs-backingsnapshot' : variables.storageClass"
+    - name: pitAccessMode
+      expression: "variables.isCephfs ? 'ReadOnlyMany' : 'ReadWriteOnce'"
+    - name: mover
+      expression: >-
+        {"fsGroup": 1000, "runAsUser": 1000, "runAsGroup": 1000}
+  generate:
+    - expression: >-
+        generator.Apply(variables.ns, [
+          {
+            "apiVersion": dyn("v1"),
+            "kind": dyn("Secret"),
+            "metadata": dyn({"name": "volsync-" + variables.pvc, "namespace": variables.ns}),
+            "type": dyn("Opaque"),
+            "data": dyn({
+              "KOPIA_REPOSITORY": base64.encode(bytes("s3://garage.lab.mainertoo.com")),
+              "KOPIA_PASSWORD": variables.shared.data.KOPIA_PASSWORD,
+              "AWS_ACCESS_KEY_ID": variables.shared.data.AWS_ACCESS_KEY_ID,
+              "AWS_SECRET_ACCESS_KEY": variables.shared.data.AWS_SECRET_ACCESS_KEY,
+              "KOPIA_S3_ENDPOINT": base64.encode(bytes("garage.lab.mainertoo.com")),
+              "KOPIA_S3_BUCKET": base64.encode(bytes("volsync-kopia")),
+              "KOPIA_S3_DISABLE_TLS": base64.encode(bytes("false")),
+              "AWS_DEFAULT_REGION": base64.encode(bytes("us-west-1")),
+              "AWS_REGION": base64.encode(bytes("us-west-1")),
+              "AWS_EC2_METADATA_DISABLED": base64.encode(bytes("true"))
+            })
+          }
+        ])
+    - expression: >-
+        generator.Apply(variables.ns, [
+          {
+            "apiVersion": dyn("volsync.backube/v1alpha1"),
+            "kind": dyn("ReplicationSource"),
+            "metadata": dyn({"name": variables.pvc + "-backup", "namespace": variables.ns}),
+            "spec": dyn({
+              "sourcePVC": variables.pvc,
+              "trigger": {"schedule": variables.schedule},
+              "kopia": {
+                "repository": "volsync-" + variables.pvc,
+                "copyMethod": "Snapshot",
+                "storageClassName": variables.pitStorageClass,
+                "volumeSnapshotClassName": variables.snapClass,
+                "accessModes": [variables.pitAccessMode],
+                "cacheCapacity": variables.cacheCap,
+                "cacheStorageClassName": "ceph-rbd",
+                "cacheAccessModes": ["ReadWriteOnce"],
+                "moverSecurityContext": variables.mover,
+                "hostname": variables.ns,
+                "username": variables.pvc + "-backup",
+                "sourcePathOverride": "/data"
+              }
+            })
+          }
+        ])
+    - expression: >-
+        generator.Apply(variables.ns, [
+          {
+            "apiVersion": dyn("volsync.backube/v1alpha1"),
+            "kind": dyn("ReplicationDestination"),
+            "metadata": dyn({"name": variables.pvc + "-backup", "namespace": variables.ns}),
+            "spec": dyn({
+              "trigger": {"manual": "restore-once"},
+              "kopia": {
+                "repository": "volsync-" + variables.pvc,
+                "copyMethod": "Snapshot",
+                "capacity": object.spec.resources.requests.storage,
+                "accessModes": [variables.rwMode],
+                "storageClassName": variables.storageClass,
+                "volumeSnapshotClassName": variables.snapClass,
+                "cacheCapacity": variables.cacheCap,
+                "cacheStorageClassName": "ceph-rbd",
+                "cacheAccessModes": ["ReadWriteOnce"],
+                "moverSecurityContext": variables.mover,
+                "hostname": variables.ns,
+                "username": variables.pvc + "-backup"
+              }
+            })
+          }
+        ])

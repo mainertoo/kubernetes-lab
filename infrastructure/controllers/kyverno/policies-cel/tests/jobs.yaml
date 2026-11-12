@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: volsync-src-daily-rbd-fresh-backup
+  namespace: kyverno-rehearsal
+  labels: {app.kubernetes.io/created-by: volsync}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: kopia, image: quay.io/backube/volsync:latest}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: unrelated-job
+  namespace: kyverno-rehearsal
+  labels: {app.kubernetes.io/created-by: volsync}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: main, image: busybox:latest}

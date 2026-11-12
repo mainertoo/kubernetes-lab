@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: volsync-daily-rbd-fresh
+  namespace: kyverno-rehearsal
+type: Opaque
+data:
+  AWS_ACCESS_KEY_ID: RFVNTVlLRVk=
+  AWS_DEFAULT_REGION: dXMtd2VzdC0x
+  AWS_EC2_METADATA_DISABLED: dHJ1ZQ==
+  AWS_REGION: dXMtd2VzdC0x
+  AWS_SECRET_ACCESS_KEY: ZHVtbXktc2VjcmV0
+  KOPIA_PASSWORD: ZHVtbXktcGFzc3dvcmQ=
+  KOPIA_REPOSITORY: czM6Ly9nYXJhZ2UubGFiLm1haW5lcnRvby5jb20=
+  KOPIA_S3_BUCKET: dm9sc3luYy1rb3BpYQ==
+  KOPIA_S3_DISABLE_TLS: ZmFsc2U=
+  KOPIA_S3_ENDPOINT: Z2FyYWdlLmxhYi5tYWluZXJ0b28uY29t
+---
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: daily-rbd-fresh-backup
+  namespace: kyverno-rehearsal
+spec:
+  sourcePVC: daily-rbd-fresh
+  trigger:
+    schedule: 17 2 * * *
+  kopia:
+    repository: volsync-daily-rbd-fresh
+    copyMethod: Snapshot
+    storageClassName: ceph-rbd
+    volumeSnapshotClassName: ceph-rbd-snapclass
+    accessModes:
+    - ReadWriteOnce
+    cacheCapacity: 5Gi
+    cacheStorageClassName: ceph-rbd
+    cacheAccessModes:
+    - ReadWriteOnce
+    moverSecurityContext:
+      fsGroup: 1000
+      runAsUser: 1000
+      runAsGroup: 1000
+    hostname: kyverno-rehearsal
+    username: daily-rbd-fresh-backup
+    sourcePathOverride: /data
+---
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: daily-rbd-fresh-backup
+  namespace: kyverno-rehearsal
+spec:
+  trigger:
+    manual: restore-once
+  kopia:
+    repository: volsync-daily-rbd-fresh
+    copyMethod: Snapshot
+    capacity: 1Gi
+    accessModes:
+    - ReadWriteOnce
+    storageClassName: ceph-rbd
+    volumeSnapshotClassName: ceph-rbd-snapclass
+    cacheCapacity: 5Gi
+    cacheStorageClassName: ceph-rbd
+    cacheAccessModes:
+    - ReadWriteOnce
+    moverSecurityContext:
+      fsGroup: 1000
+      runAsUser: 1000
+      runAsGroup: 1000
+    hostname: kyverno-rehearsal
+    username: daily-rbd-fresh-backup

@@ -1,0 +1,14 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: volsync-dst-hourly-cephfs-restore-backup
+  namespace: kyverno-rehearsal
+  labels: {app.kubernetes.io/created-by: volsync}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - {name: existing-init, image: busybox:latest}
+      containers:
+        - {name: kopia, image: quay.io/backube/volsync:latest}

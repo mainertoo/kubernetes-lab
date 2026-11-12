@@ -1,0 +1,40 @@
+# Offline CLI tests for the CEL policies: `kyverno test infrastructure/controllers/kyverno/policies-cel/tests`.
+# The two oracle-calling policies (restore-datasource, restore-checks) need
+# the in-cluster pvc-plumber, so they are tested live on staging instead
+# (docs/plans/kyverno-cel-migration.md).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: volsync-cel-policies
+context: context.yaml
+policies:
+  - ../volsync-pvc-engine-required.yaml
+  - ../volsync-mover-jitter.yaml
+  - ../volsync-pvc-backup-objects.yaml
+resources:
+  - pvcs.yaml
+  - pvcs-excluded.yaml
+  - jobs.yaml
+  - jobs-with-init.yaml
+results:
+  - policy: volsync-pvc-engine-required
+    isValidatingPolicy: true
+    kind: PersistentVolumeClaim
+    resources: [daily-rbd-fresh, hourly-cephfs-restore, skip-no-reason]
+    result: pass
+  - policy: volsync-pvc-engine-required
+    isValidatingPolicy: true
+    kind: PersistentVolumeClaim
+    resources: [no-engine-label, wrong-engine-label]
+    result: fail
+  - policy: volsync-mover-jitter
+    isMutatingPolicy: true
+    kind: Job
+    resources: [volsync-src-daily-rbd-fresh-backup, volsync-dst-hourly-cephfs-restore-backup]
+    result: pass
+  - policy: volsync-pvc-backup-objects
+    isGeneratingPolicy: true
+    kind: PersistentVolumeClaim
+    resources: [daily-rbd-fresh]
+    generatedResource: generated-daily-rbd-fresh.yaml
+    result: pass
