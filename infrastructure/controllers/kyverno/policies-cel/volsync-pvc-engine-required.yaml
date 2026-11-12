@@ -1,0 +1,59 @@
+# CEL replacement for the legacy ClusterPolicy volsync-pvc-engine-required
+# (../policies/volsync-pvc-engine-required.yaml). Same behaviour: deny any
+# backup-labelled PVC that doesn't also carry `backup-engine: kopia`, so a
+# missing or mistyped engine label can't silently leave a PVC unbacked.
+# Part of docs/plans/kyverno-cel-migration.md.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: volsync-pvc-engine-required
+  annotations:
+    policies.kyverno.io/title: VolSync engine-label admission gate
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+spec:
+  validationActions:
+    - Deny
+  failurePolicy: Fail
+  webhookConfiguration:
+    timeoutSeconds: 10
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["persistentvolumeclaims"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - flux-system
+            - kube-system
+            - kyverno
+            - volsync-system
+            - cert-manager
+            - traefik
+            - ceph-csi-rbd
+            - ceph-csi-cephfs
+            - monitoring
+            - tailscale
+            - cloudflared
+            - newt
+            - intel-gpu
+    objectSelector:
+      matchExpressions:
+        - key: backup
+          operator: In
+          values: [hourly, daily]
+  validations:
+    - expression: object.metadata.?labels['backup-engine'].orValue('') == 'kopia'
+      messageExpression: >-
+        'PVC ' + object.metadata.namespace + '/' + object.metadata.name +
+        ' has `backup: ' + object.metadata.labels['backup'] +
+        '` but no valid `backup-engine` label. Add `backup-engine: kopia`.' +
+        ' See docs/volsync-kopia-transition.md.'

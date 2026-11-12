@@ -22,6 +22,13 @@ regexTarget = "line"
 regexes = [
   '''ENC\[AES256_GCM,''',          # SOPS-encrypted value or comment (ciphertext)
   '''sops_mac=ENC\[''',            # SOPS integrity MAC
+  # Exact DUMMY values used by the Kyverno CEL policy test fixtures
+  # (infrastructure/controllers/kyverno/policies-cel/tests): base64 of
+  # "dummy-password", "DUMMYKEY" and "dummy-secret". Only these literals are
+  # allowlisted, so a real secret in those files would still be flagged.
+  '''ZHVtbXktcGFzc3dvcmQ=''',
+  '''RFVNTVlLRVk=''',
+  '''ZHVtbXktc2VjcmV0''',
 ]
 # Only the SOPS *config* file (creation_rules + age PUBLIC keys — not secret).
 # NOTE: we intentionally do NOT allowlist `.decrypted~*` tempfiles — those are

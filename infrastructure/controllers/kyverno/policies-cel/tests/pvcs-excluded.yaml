@@ -1,0 +1,33 @@
+# PVCs the backup policies must NOT act on.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cnpg-data
+  namespace: kyverno-rehearsal
+  labels: {backup: daily, backup-engine: kopia, cnpg.io/cluster: some-db}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cnpg-managed-by
+  namespace: kyverno-rehearsal
+  labels: {backup: daily, backup-engine: kopia, app.kubernetes.io/managed-by: cloudnative-pg}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: in-excluded-namespace
+  namespace: monitoring
+  labels: {backup: daily, backup-engine: kopia}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 1Gi}}

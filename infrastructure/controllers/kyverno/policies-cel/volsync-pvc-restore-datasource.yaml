@@ -1,0 +1,99 @@
+# CEL replacement for rule 2 (add-datasource-if-backup-exists) of the legacy
+# ClusterPolicy volsync-pvc-backup-restore-kopia
+# (../policies/volsync-pvc-backup-restore-kopia.yaml). Part of
+# docs/plans/kyverno-cel-migration.md.
+#
+# On PVC CREATE, ask the pvc-plumber oracle whether a Kopia backup exists for
+# <namespace>/<pvc>. If it answers decision=restore authoritatively, point
+# spec.dataSourceRef at the PVC's ReplicationDestination (<pvc>-backup) so the
+# VolSync populator fills the new PVC from the latest backup: restore on
+# rebuild. Otherwise the PVC is left alone (fresh).
+#
+# The oracle call can't live in matchConditions (the API server evaluates
+# those without Kyverno's libraries), so it is a variable and the patch is
+# conditional. timeoutSeconds stays above pvc-plumber's 15s Kopia timeout.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: volsync-pvc-restore-datasource
+  annotations:
+    policies.kyverno.io/title: VolSync restore-on-rebuild dataSourceRef
+    policies.kyverno.io/category: VolSync
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PersistentVolumeClaim
+spec:
+  failurePolicy: Fail
+  webhookConfiguration:
+    timeoutSeconds: 20
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["persistentvolumeclaims"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - flux-system
+            - kube-system
+            - kyverno
+            - volsync-system
+            - cert-manager
+            - traefik
+            - ceph-csi-rbd
+            - ceph-csi-cephfs
+            - monitoring
+            - tailscale
+            - cloudflared
+            - newt
+            - intel-gpu
+    objectSelector:
+      matchExpressions:
+        - key: backup
+          operator: In
+          values: [hourly, daily]
+        - key: backup-engine
+          operator: In
+          values: [kopia]
+        # CNPG data PVCs restore through Cluster.bootstrap.recovery instead.
+        - key: cnpg.io/cluster
+          operator: DoesNotExist
+        - key: app.kubernetes.io/managed-by
+          operator: NotIn
+          values: [cnpg, cloudnative-pg]
+  matchConditions:
+    - name: not-skip-restore
+      expression: >-
+        object.metadata.?annotations['volsync.backup/skip-restore'].orValue('') != 'true'
+    - name: no-datasource-yet
+      expression: >-
+        object.spec.?dataSourceRef.?name.orValue('') == ''
+  variables:
+    - name: oracle
+      expression: >-
+        http.Get('http://pvc-plumber.volsync-system.svc.cluster.local:80/exists/' +
+          request.namespace + '/' + object.metadata.name)
+    - name: restore
+      expression: >-
+        variables.oracle.?decision.orValue('') == 'restore' &&
+        variables.oracle.?authoritative.orValue(false) == true
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >
+          variables.restore ?
+          Object{
+            spec: Object.spec{
+              dataSourceRef: Object.spec.dataSourceRef{
+                apiGroup: "volsync.backube",
+                kind: "ReplicationDestination",
+                name: object.metadata.name + "-backup"
+              }
+            }
+          } :
+          Object{}
