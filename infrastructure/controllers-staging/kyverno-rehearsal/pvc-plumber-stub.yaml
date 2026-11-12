@@ -23,7 +23,7 @@ spec:
         runAsGroup: 65534
       containers:
         - name: stub
-          image: docker.io/library/python:3.13-alpine
+          image: docker.io/library/python:3.15-alpine
           command: ["python3", "-u", "/stub/stub.py"]
           ports:
             - name: http
