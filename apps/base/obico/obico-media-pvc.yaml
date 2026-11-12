@@ -1,0 +1,17 @@
+# Obico media: print snapshots, failure-detection frames and timelapses.
+# Grows with retained print history.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: obico-media
+  namespace: obico
+  labels:
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 10Gi

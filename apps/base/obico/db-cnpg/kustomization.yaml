@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: obico
+# The obico Namespace is created HERE (the DB layer), not in the app layer,
+# so it exists before the cnpg-cluster Components (referenced from
+# apps/production/obico/db-cnpg.yaml) render the Cluster / ScheduledBackup /
+# ObjectStore / S3 Secret into it. The app layer (apps/base/obico) depends on
+# obico-db-cnpg and simply lands in this pre-existing namespace at reconcile.
+# Same bootstrap pattern as apps/base/airtrail/db-cnpg.
+resources:
+  - obico-namespace.yaml

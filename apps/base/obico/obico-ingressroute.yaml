@@ -1,0 +1,29 @@
+# Internal-only. No authentik-sso middleware: the printer's moonraker-obico
+# agent and the Obico mobile app talk to the API/websockets with their own
+# tokens and can't complete a forward-auth flow. Obico's own login gates the
+# UI (sign-up disabled). Remote access is via the tailnet.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: obico-ingressroute
+  namespace: obico
+  annotations:
+    gethomepage.dev/href: "https://obico.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Obico"
+    gethomepage.dev/description: "3D print failure detection"
+    gethomepage.dev/app: obico
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-obico.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`obico.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: obico
+          port: 3334
+          scheme: http
+  tls: {}

@@ -6,6 +6,7 @@ resources:
   - tracefinity/kustomization.yaml
   - orcaslicer/kustomization.yaml
   - qidistudio/kustomization.yaml
+  - obico/
   - karakeep/kustomization.yaml
   - beam/kustomization.yaml
   - obsidian/kustomization.yaml
