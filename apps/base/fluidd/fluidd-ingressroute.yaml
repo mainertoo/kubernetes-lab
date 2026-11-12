@@ -20,6 +20,14 @@ spec:
     - websecure
     - web
   routes:
+    # config.json comes from the cluster, so Fluidd gets this host as its
+    # endpoint and skips its timed first-connect probe (see fluidd-config).
+    - match: Host(`fluidd.lab.mainertoo.com`) && Path(`/config.json`)
+      kind: Rule
+      services:
+        - name: fluidd-config
+          port: 8080
+          scheme: http
     - match: Host(`fluidd.lab.mainertoo.com`)
       kind: Rule
       services:

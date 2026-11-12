@@ -1,0 +1,233 @@
+# Fluidd's config.json for fluidd.lab only (Traefik routes /config.json here;
+# everything else goes to the printer). Identical to the printer's copy except
+# `endpoints`: with an endpoint listed, Fluidd saves it as the active printer
+# on first load and connects with its normal socket client. Without it, Fluidd
+# first probes the page origin with a 1.2 s websocket timeout (src/init.ts),
+# which a phone on a relayed tailnet path doesn't meet, and it then shows
+# "Add printer" (whose own 3 s check fails the same way). Kept in the cluster so
+# Valve Oil updates on the printer can't overwrite it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluidd-config
+  namespace: fluidd
+data:
+  config.json: |
+    {
+      "blacklist": [
+        "fluidd.xyz",
+        "fluidd.net"
+      ],
+      "endpoints": [
+        "https://fluidd.lab.mainertoo.com"
+      ],
+      "hosted": false,
+      "themePresets": [
+        {
+          "name": "Fluidd",
+          "color": "#2196F3",
+          "isDark": true,
+          "logo": {
+            "src": "logo_fluidd.svg"
+          }
+        },
+        {
+          "name": "Annex",
+          "color": "#96CC4A",
+          "isDark": true,
+          "logo": {
+            "src": "logo_annex.svg"
+          }
+        },
+        {
+          "name": "Automated Layers",
+          "color": "#81bfc6",
+          "isDark": true,
+          "logo": {
+            "src": "logo_automated_layers.svg"
+          }
+        },
+        {
+          "name": "BTT",
+          "color": "#475A91",
+          "isDark": true,
+          "logo": {
+            "src": "logo_btt.svg"
+          }
+        },
+        {
+          "name": "Cocoa Press",
+          "color": "#F27121",
+          "isDark": true,
+          "logo": {
+            "src": "logo_cocoapress.svg"
+          }
+        },
+        {
+          "name": "EVA",
+          "color": "#76FB00",
+          "isDark": true,
+          "logo": {
+            "src": "logo_eva.svg",
+            "dark": "#232323",
+            "light": "#ffffff"
+          }
+        },
+        {
+          "name": "HevORT",
+          "color": "#dfff3e",
+          "isDark": true,
+          "logo": {
+            "src": "logo_hevort.svg"
+          }
+        },
+        {
+          "name": "Kingroon",
+          "color": "#DA7A2C",
+          "isDark": true,
+          "logo": {
+            "src": "logo_kingroon.svg"
+          }
+        },
+        {
+          "name": "Klipper",
+          "color": "#B12F36",
+          "isDark": true,
+          "logo": {
+            "src": "logo_klipper.svg"
+          }
+        },
+        {
+          "name": "LDO",
+          "color": "#326799",
+          "isDark": true,
+          "logo": {
+            "src": "logo_ldo.svg"
+          }
+        },
+        {
+          "name": "Mellow",
+          "color": "#003DFF",
+          "isDark": true,
+          "logo": {
+            "src": "logo_mellow.svg"
+          }
+        },
+        {
+          "name": "Peopoly",
+          "color": "#007CC2",
+          "isDark": true,
+          "logo": {
+            "src": "logo_peopoly.svg"
+          }
+        },
+        {
+          "name": "Prusa",
+          "color": "#E05D2D",
+          "isDark": false,
+          "logo": {
+            "src": "logo_prusa.svg"
+          }
+        },
+        {
+          "name": "Qidi Tech",
+          "color": "#5B7AEA",
+          "isDark": true,
+          "logo": {
+            "src": "logo_qidi.svg"
+          }
+        },
+        {
+          "name": "RatRig",
+          "color": "#76FB00",
+          "isDark": true,
+          "logo": {
+            "src": "logo_ratrig.svg",
+            "dark": "#232323",
+            "light": "#ffffff"
+          }
+        },
+        {
+          "name": "Siboor",
+          "color": "#32E0DF",
+          "isDark": true,
+          "logo": {
+            "src": "logo_siboor.svg"
+          }
+        },
+        {
+          "name": "Snapmaker",
+          "color": "#0c63e2",
+          "isDark": true,
+          "logo": {
+            "src": "logo_snapmaker.svg"
+          }
+        },
+        {
+          "name": "Voron",
+          "color": "#FF2300",
+          "isDark": true,
+          "logo": {
+            "src": "logo_voron.svg"
+          }
+        },
+        {
+          "name": "VzBot",
+          "color": "#FF2300",
+          "isDark": true,
+          "logo": {
+            "src": "logo_vzbot.svg"
+          }
+        },
+        {
+          "name": "Z-Bolt",
+          "color": "#2196F3",
+          "isDark": true,
+          "logo": {
+            "src": "logo_z-bolt.svg",
+            "dark": "#232323",
+            "light": "#ffffff"
+          }
+        },
+        {
+          "name": "ZeroG",
+          "color": "#e34234",
+          "isDark": true,
+          "logo": {
+            "src": "logo_zerog.svg"
+          }
+        },
+        {
+          "name": "SnakeOil",
+          "color": "#4bc3ca",
+          "isDark": true,
+          "logo": {
+            "src": "logo_snakeoil.svg"
+          }
+        },
+        {
+          "name": "Printers for Ants",
+          "color": "#42d62c",
+          "isDark": true,
+          "logo": {
+            "src": "logo_pfa.svg"
+          }
+        },
+        {
+          "name": "Micron",
+          "color": "#42d62c",
+          "isDark": true,
+          "logo": {
+            "src": "logo_micron.svg"
+          }
+        },
+        {
+          "name": "Salad Fork",
+          "color": "#0cff28",
+          "isDark": true,
+          "logo": {
+            "src": "logo_salad_fork.svg"
+          }
+        }
+      ]
+    }
