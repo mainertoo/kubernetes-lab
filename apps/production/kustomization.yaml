@@ -7,6 +7,7 @@ resources:
   - orcaslicer/kustomization.yaml
   - qidistudio/kustomization.yaml
   - obico/
+  - fluidd/kustomization.yaml
   - karakeep/kustomization.yaml
   - beam/kustomization.yaml
   - obsidian/kustomization.yaml

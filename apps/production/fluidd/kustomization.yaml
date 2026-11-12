@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# fluidd.lab.mainertoo.com → the QIDI Max 4's Fluidd (192.168.20.56:80). No
+# gatus check: the printer is often powered off at its smart plug.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fluidd
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: "./apps/base/fluidd"
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
