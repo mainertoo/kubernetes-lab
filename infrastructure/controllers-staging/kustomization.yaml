@@ -96,6 +96,13 @@ patches:
         values:
           upgrade:
             acknowledgeLegacyPoliciesNotEnforced: true
+          # Phase 2 rehearsal: TEMPORARILY drop the protect-generation-labels
+          # webhook so the legacy-generated objects can be relabelled for the
+          # GeneratingPolicy to adopt (it ignores objects carrying another
+          # policy's labels). Revert to the default (true) after the test.
+          features:
+            protectGenerationLabels:
+              enabled: false
           admissionController:
             replicas: 1
             podDisruptionBudget:
