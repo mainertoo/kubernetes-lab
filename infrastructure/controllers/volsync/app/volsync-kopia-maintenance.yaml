@@ -23,6 +23,8 @@ kind: KopiaMaintenance
 metadata:
   name: volsync-kopia-shared
   namespace: volsync-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   repository:
     repository: volsync-kopia-maintenance

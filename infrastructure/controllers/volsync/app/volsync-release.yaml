@@ -3,6 +3,8 @@ kind: HelmRelease
 metadata:
   name: volsync
   namespace: volsync-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   interval: 1h
   chart:
