@@ -209,6 +209,25 @@ find the cutover technique that **keeps those exact objects**, trying in order:
 Also rehearse rollback: re-apply the legacy policies over the new ones without
 recreating objects.
 
+> **Rehearsal findings (staging, 2026-11-12):**
+> - **Step 1 (1.20 upgrade with the acknowledge flag) is safe:** all 9 legacy-generated objects kept
+>   their UID, resourceVersion and labels. The legacy ClusterPolicy reports `policy is not enforced`,
+>   and a new restore-named PVC got no `dataSourceRef` and no objects (inert). The CEL engine gate
+>   still denies on 1.20.
+> - ⚠️ **On 1.20 Kyverno denies create *and update* of legacy ClusterPolicies**, so Flux's dry-run of
+>   the unchanged legacy file fails and the whole Kustomization containing it stalls (staging's
+>   `infra-controllers` did). In production that is `kyverno-policies`. So the production cutover is
+>   **two PRs**:
+>   1. Chart 3.10 + `upgrade.acknowledgeLegacyPoliciesNotEnforced: true` (in `infra-controllers`).
+>      `kyverno-policies` then stalls, without deleting anything.
+>   2. Minutes later: delete `policies/volsync-pvc-backup-restore-kopia.yaml` **and** add
+>      `../policies-cel` in the same commit.
+>
+>   Never one PR: if Flux pruned the legacy policy while Kyverno was still 1.19, it would delete
+>   all 73 generated object sets.
+> - Between the two PRs, new PVCs get no backup objects and no restore-on-rebuild. Keep the gap to
+>   minutes, with no app deploys.
+
 ### Phase 3: production, low-risk policies (on 1.19)
 > **Status:** one PR moves the CEL `volsync-mover-jitter` (MutatingPolicy) and
 > `volsync-pvc-engine-required` (ValidatingPolicy) into `policies/`, replacing the legacy files of the

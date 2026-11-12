@@ -120,3 +120,19 @@ patches:
               enabled: false
             serviceMonitor:
               enabled: false
+  # Phase 2 rehearsal, step 3: on Kyverno 1.20 the legacy ClusterPolicy can't
+  # be created or updated any more (Flux's dry-run is denied, stalling this
+  # whole Kustomization), so drop it from STAGING's build only. Production
+  # shares ../controllers/kyverno/policies and is still on 1.19, where
+  # deleting it would delete every generated Secret/RS/RD; never remove the
+  # file there before the 1.20 upgrade.
+  - target:
+      group: kyverno.io
+      kind: ClusterPolicy
+      name: volsync-pvc-backup-restore-kopia
+    patch: |
+      $patch: delete
+      apiVersion: kyverno.io/v1
+      kind: ClusterPolicy
+      metadata:
+        name: volsync-pvc-backup-restore-kopia
