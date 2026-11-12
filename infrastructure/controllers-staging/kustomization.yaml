@@ -57,6 +57,10 @@ resources:
   # 1.20 cutover. Staging has no backup-labelled PVCs outside the
   # kyverno-rehearsal namespace, so nothing else is affected.
   - ../controllers/kyverno/policies
+  # Phase 2 rehearsal, step 2: the CEL replacements for the (now inert on
+  # 1.20) legacy backup ClusterPolicy. The GeneratingPolicy must adopt the
+  # legacy-generated Secret/RS/RD in place (same UIDs).
+  - ../controllers/kyverno/policies-cel
 
 patches:
   # The shared cert-manager release enables a ServiceMonitor (#600) for
