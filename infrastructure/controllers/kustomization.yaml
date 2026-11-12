@@ -31,8 +31,10 @@ resources:
   # Snapshot Controller
   - snapshot-controller
 
-  # # Volsync
-  - volsync
+  # VolSync is NOT built here: the standalone Flux Kustomization `volsync`
+  # (clusters/production/volsync.yaml, path volsync/app) is its single owner.
+  # Building it from both made flux-local race on volsync/app/kustomization.yaml
+  # and left two Kustomizations claiming the same objects.
 
   # Kyverno policy engine (manages volsync mover jitter + future policies)
   - kyverno
