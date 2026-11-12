@@ -1,0 +1,5 @@
+# Scratch PVCs for the policy rehearsal live here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyverno-rehearsal

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# VolSync CRDs ONLY, no controller: Kyverno rehearsal target for the
+# ClusterPolicy -> CEL migration (docs/plans/kyverno-cel-migration.md).
+# ReplicationSources/Destinations generated on staging sit inert: nothing
+# backs up or restores. Vendored from production (volsync chart 0.18.5) with
+# `kubectl get crd -o yaml`, so the schema matches what production validates.
+# Remove with the rest of the rehearsal once the migration is done.
+resources:
+  - replicationsources.yaml
+  - replicationdestinations.yaml

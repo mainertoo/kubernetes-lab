@@ -94,6 +94,10 @@ Mapping notes:
 ## Plan
 
 ### Phase 0: rehearsal environment (staging)
+> **Status:** manifests in `infrastructure/controllers-staging/{volsync-crds,kyverno-rehearsal}/`
+> plus `../controllers/kyverno` (patched to 1 replica, no PDBs/ServiceMonitors).
+> The stub picks its answer from the PVC name: `*restore*`, `*nonauth*`,
+> `*error*`, `*slow*` (25s, past the 20s webhook timeout), otherwise `fresh`.
 Staging runs no Kyverno and no backup stack (memory notes this blocked the
 pvc-plumber v4 soak too). The rehearsal doesn't need a working backup stack,
 only realistic objects:
