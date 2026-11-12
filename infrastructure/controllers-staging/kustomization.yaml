@@ -82,7 +82,16 @@ patches:
       metadata:
         name: kyverno
       spec:
+        # Kyverno CEL migration phase 2, step 1: rehearse the production 1.20
+        # upgrade (docs/plans/kyverno-cel-migration.md). 1.20 no longer runs
+        # legacy kyverno.io ClusterPolicies; the flag acknowledges that the
+        # legacy backup policy here goes inert. Production stays on 3.9.2.
+        chart:
+          spec:
+            version: 3.10.0
         values:
+          upgrade:
+            acknowledgeLegacyPoliciesNotEnforced: true
           admissionController:
             replicas: 1
             podDisruptionBudget:
