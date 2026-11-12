@@ -37,6 +37,11 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: PersistentVolumeClaim
 spec:
+  # Server-side apply for generated objects. Under test on staging: with the
+  # default client-side update, Kyverno 1.19.2 can't revert edits to generated
+  # objects ("failed to revert downstream resource ... resourceVersion:
+  # Invalid value: 0"), which the legacy ClusterPolicy could.
+  useServerSideApply: true
   evaluation:
     synchronize:
       enabled: true
