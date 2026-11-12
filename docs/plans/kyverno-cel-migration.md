@@ -238,20 +238,48 @@ recreating objects.
   initContainer, first in the list.
 
 ### Phase 4: production, the backup policy at the 1.20 upgrade (quiet window)
-- **Pre-flight:**
-  - The last nightly backups succeeded.
-  - Snapshot all RS/RD/Secret UIDs and statuses to a file.
-  - Widen jitter only if the rehearsal showed any recreation risk.
-  - Have the circuit breaker ready: `kubectl -n volsync-system scale deploy
-    volsync-system-volsync --replicas=0`.
-- **Cutover:** apply the technique proven in Phase 2. The mutate and validate
-  replacements (`restore-datasource`, `restore-checks`) go in the same PR.
-- **Verify:**
-  - Every UID is unchanged, and no restore Jobs start.
-  - A scratch PVC gets its Secret, RS and RD; deleting it cleans them up.
-  - **A restore drill:** create a scratch PVC whose name has an existing backup
-    and confirm `dataSourceRef` is injected and the data comes back.
-  - The 02:xx backup wave runs normally.
+> **Rehearsed end to end on staging (2026-11-12).** Adoption findings:
+> - On 1.20 the GeneratingPolicy **ignores** objects carrying the legacy policy's generate labels.
+>   Touching their PVC doesn't change that.
+> - The `protect-generation-labels` webhook blocks relabelling them. Chart 3.10's
+>   `features.protectGenerationLabels.enabled: false` (kyverno#18222) removes it.
+> - Relabel (`policy-name=volsync-pvc-backup-objects`, add `trigger-name=<pvc>`, drop `rule-name` and
+>   `policy-namespace`), then **one PVC event**. The GeneratingPolicy then adopts the objects
+>   **in place**: Secret/RS/RD UIDs unchanged, edits reverted in about 2s from then on, PVC deletion
+>   removes all three. Relabelling without the PVC event is not picked up.
+> - `scripts/kyverno/adopt-legacy-generated.py` does that in bulk. Rehearsed on staging: 6/6
+>   relabelled with unchanged UIDs, then drift on an adopted RS and RD reverted in 2s, and a rerun
+>   finds nothing (idempotent). Its production dry run (read-only) finds **219 objects across 73 PVCs,
+>   0 orphans**, and its pre-flight refuses to apply while production is still on 1.19.
+
+**Runbook (one quiet window, no app deploys; pick a time away from the 02:xx backup wave):**
+0. **Pre-flight:**
+   - Last nightly backups OK.
+   - `python3 scripts/kyverno/adopt-legacy-generated.py --context production` (dry run) shows 219 / 73 / 0.
+   - Circuit breaker ready: `kubectl -n volsync-system scale deploy volsync-system-volsync --replicas=0`.
+1. **PR A:** in `infrastructure/controllers/kyverno/kyverno-release.yaml`, set chart `3.10.0` plus
+   `upgrade.acknowledgeLegacyPoliciesNotEnforced: true` and
+   `features.protectGenerationLabels.enabled: false`. Remove the Renovate `<3.10.0` hold.
+   - Wait for the HelmRelease to be Ready on 1.20.0.
+   - Check the 73 RS / 73 RD / 73 Secret counts are unchanged.
+   - `kyverno-policies` now stalls on the legacy policy. That is expected and deletes nothing.
+2. **PR B (immediately after):** delete `policies/volsync-pvc-backup-restore-kopia.yaml` and add
+   `../policies-cel` to the production kyverno-policies path.
+   - Reconcile; `kyverno-policies` Ready.
+   - The legacy ClusterPolicy is pruned; the counts are still 73/73/73.
+3. **Adopt:** `python3 scripts/kyverno/adopt-legacy-generated.py --context production --apply`.
+   It must report 219/219 with unchanged UIDs. Drift-test one RS, which must revert within seconds.
+4. **PR C:** `features.protectGenerationLabels.enabled` back to the default (true).
+5. **Verify:**
+   - No ReplicationDestination restore Jobs started.
+   - A scratch PVC gets Secret/RS/RD and is cleaned up on delete.
+   - **Restore drill:** create a PVC whose name has an existing backup and confirm `dataSourceRef` and the data.
+   - The next backup wave runs normally.
+
+**Gaps to keep short:**
+- Between A and B, new PVCs get no backup objects and no restore-on-rebuild.
+- Between B and step 3, existing objects are unmanaged (backups still run).
+- **Never** remove the legacy file before PR A is live: on 1.19 that would delete all 219 objects.
 
 ### Phase 5: finish
 - `sum(kyverno_legacy_policies_total) == 0` (the metric 1.19 exposes); no
