@@ -1,5 +1,28 @@
 # Kyverno: migrate the VolSync ClusterPolicies to CEL policy types
 
+> **Status 2026-11-12: DONE in production.** Kyverno 1.20.0 (chart 3.10.0) runs five CEL
+> policies (`policies/` + `policies-cel/`); no legacy `kyverno.io` policies remain.
+> - Cutover via PRs #2197 (A), #2198 (B) and #2203 (C).
+> - Adoption script: 219/219 objects across 73 PVCs adopted, UIDs unchanged. Against the pre-flight
+>   baseline: 0 missing, 0 UID changes, 0 ReplicationDestination restore re-runs, 0 spec changes.
+> - Drift on a production RS reverted in 1s.
+> - Verified live: a fresh scratch PVC gets its 3 objects and no `dataSourceRef`. Restore drill:
+>   recreating the retired `media/riven-data-pvc` got `dataSourceRef`, restored in 3 min, and the
+>   data was Riven's real files. Obico, deployed mid-window, got its objects from the new
+>   GeneratingPolicy.
+>
+> ⚠️ **Known Kyverno 1.20 issue, deleting a backup PVC that is still in use:** if the PVC sits in
+> Terminating (a pod still holds it), the GeneratingPolicy can **recreate** its Secret/RS/RD for the
+> deleted PVC, re-run the RD's restore Job, and keep recreating them when deleted by hand. Seen on
+> the drill PVC. Fix:
+> 1. `kubectl -n kyverno delete pod -l app.kubernetes.io/component=background-controller`
+> 2. Delete the orphaned RS/RD/Secret.
+> 3. Restart VolSync (`kubectl -n volsync-system delete pod -l app.kubernetes.io/name=volsync`) to
+>   clear stale `volsync_kopia_repository_connectivity` series.
+>
+> Prevent it by stopping the pods before deleting a backup-labelled PVC. After any app retirement,
+> check `kubectl get replicationsource -A` for leftovers.
+
 ## Problem
 
 Kyverno **1.20** (chart 3.10.0) no longer executes legacy `kyverno.io` policies
