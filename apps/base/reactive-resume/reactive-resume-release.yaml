@@ -66,6 +66,16 @@ spec:
               # first Authentik login can create its account.
               - name: FLAG_DISABLE_EMAIL_AUTH
                 value: "true"
+              # Allow http:// / private AI base URLs so users can add the
+              # DGX Spark vLLM endpoint (spark-llm.spark-egress.svc:8000/v1)
+              # as an "OpenAI-compatible" provider. SSRF risk is acceptable:
+              # internal-only, single-tenant, Authentik-gated instance.
+              - name: FLAG_ALLOW_UNSAFE_AI_BASE_URL
+                value: "true"
+              # Qwen3.6 on the Spark is a reasoning model — "Save and test"
+              # can exceed the 30s default while it thinks.
+              - name: AI_TEST_TIMEOUT_MS
+                value: "120000"
             envFrom:
               - secretRef:
                   name: reactive-resume-secret
