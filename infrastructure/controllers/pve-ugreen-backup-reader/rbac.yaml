@@ -1,0 +1,75 @@
+---
+# Read-only cluster access for pve-ugreen (off-cluster backup host).
+#
+# rbd-nightly-backup.sh (pve-ugreen root cron, 00:00 America/Los_Angeles)
+# runs kubectl to write PV/PVC/HelmRelease/Flux-revision metadata next to
+# each nightly RBD export. It previously used a COPY of the K3s admin
+# kubeconfig (cluster-admin), which went stale when K3s rotated its certs
+# (2026-11-05) and caused KubeClientCertificateExpiration to flap — see wiki
+# operations/common-incidents/2026-11-13-kube-client-cert-expiration-stale-kubeconfigs.
+#
+# A ServiceAccount token is not tied to the K3s cert lifecycle, and this SA
+# gets only what the script (plus read-only runbook checks run from pve-ugreen)
+# actually needs: get/list/watch, no Secret values (`view` excludes Secrets).
+#
+# pve-ugreen /root/.kube/config is built from the token Secret below, with
+# server https://192.168.90.160:6443 (kube-vip VIP).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pve-ugreen-backup-reader
+  namespace: kube-system
+---
+# Long-lived token. Empty data: Kubernetes fills in token + ca.crt at
+# admission, so nothing secret is committed here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pve-ugreen-backup-reader-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: pve-ugreen-backup-reader
+type: kubernetes.io/service-account-token
+---
+# Things `view` leaves out that the script and runbooks read:
+#   persistentvolumes - `kubectl get pv -o json` (PV -> PVC mapping, core of the metadata)
+#   nodes             - `kubectl get nodes` health checks
+#   volsync.backube   - `kubectl get replicationsources -A` (backup-system runbook)
+# Flux Kustomizations/HelmReleases are already in `view` via flux-view-flux-system.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pve-ugreen-backup-reader
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["volsync.backube"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pve-ugreen-backup-reader-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: pve-ugreen-backup-reader
+    namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pve-ugreen-backup-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pve-ugreen-backup-reader
+subjects:
+  - kind: ServiceAccount
+    name: pve-ugreen-backup-reader
+    namespace: kube-system

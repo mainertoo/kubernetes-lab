@@ -404,7 +404,7 @@ Window 01:30–08:00 is the densest. Each consumer reads what the prior step wro
 
 - `/zbackup` ZFS pool mounted (local export staging since 2026-06-02) — script aborts if not mounted
 - `/etc/ceph/ceph.conf` + ceph keyring readable (so `rbd ls` and `rbd export` work)
-- `/root/.kube/config` valid kubeconfig for the k3s cluster (for PV / HelmRelease metadata lookups)
+- `/root/.kube/config` = **read-only ServiceAccount token kubeconfig** (`kube-system/pve-ugreen-backup-reader`, RBAC in `infrastructure/controllers/pve-ugreen-backup-reader/`), server `https://192.168.90.160:6443` (VIP). Replaced a copied cluster-admin K3s kubeconfig on 2026-11-13: that copy went stale after the K3s cert rotation. The token is not tied to K3s certs. If kubectl fails, the script still exports but writes `unknown` metadata.
 
 ```bash
 #!/bin/bash
@@ -541,13 +541,9 @@ for IMG in ${IMAGES}; do
       } >> "${META}"
     fi
 
-    # --- OPTIONAL app-specific secret-material branch ---
-    # (Snippet redacted for the public version of this doc. The legacy branch
-    #  extracted a postgres password from a Secret and wrote it into ${META} so
-    #  that a future restore could re-bind the data PVC to the live cluster
-    #  without manual lookup. Obsolete now that the relevant apps are on CNPG.
-    #  See P1 task below to replace any remaining branch with a SOPS-encrypted
-    #  backup of the whole Secret rather than a meta-file echo.)
+    # (A legacy branch that read a postgres password Secret into ${META} was
+    #  removed on 2026-11-13. It hadn't fired since authentik moved to CNPG,
+    #  and the read-only SA can't read Secrets.)
 
     echo "# PV/PVC mapping found for image=${IMG}" >> "${META}"
   else
@@ -560,7 +556,7 @@ done
 echo "[RBD BACKUP] Finished backup run at $(date)"
 ```
 
-> ⚠ **Security note**: lines 138–146 capture the Authentik Postgres password into the `.meta.txt` file in plaintext. The file lives one day on CephFS (read access restricted to ceph admin keyring holders) before being snapshotted into the (encrypted) Kopia repo. If you ever take the wiki public, that's fine — only the *mechanism* leaks, not the value. Consider replacing the special-case with a SOPS-encrypted backup of the *whole* authentik-postgresql Secret instead, so this script doesn't need a per-app branch.
+> **Security note (resolved 2026-11-13):** the script used to write a Postgres password from a Secret into `.meta.txt` in plaintext. That branch was removed when pve-ugreen moved to a read-only SA that cannot read Secrets. Older `.meta.txt` copies in the Kopia history may still contain the old password.
 
 ### 6b. `k3s-pv-index.sh`
 
@@ -1116,7 +1112,7 @@ The LXC mounts CephFS k3s-fs directly via the kernel ceph client (privileged con
 | P1 | Add monthly `kopia snapshot verify --verify-files-percent=1` per source | 10 min | Catch repo corruption early |
 | P1 | Test-restore a VM and a PVC quarterly (calendar reminder) | 30 min/qtr | Backup is unproven until restored |
 | P2 | Migrate `dawarich-db` and `authentik-postgresql` to CNPG | 2–4 hr each | App-consistent DB backups |
-| P1 | Replace `db_password=` special-case in `rbd-nightly-backup.sh` with SOPS-encrypted backup of the whole Secret (was P2 — bumped during the public-repo prep on 2026-05-24; do this before the repo flips public if any apps still hit this branch) | 1 hr | Cleaner secret handling, no plaintext meta-file echo |
+| ~~P1~~ ✅ | ~~Replace `db_password=` special-case in `rbd-nightly-backup.sh`~~: **branch removed 2026-11-13** (dead since the CNPG migration; the script now uses a read-only SA with no Secret access) | — | — |
 | P2 | Document this audit's findings in CLAUDE.md | 5 min | Continuity for future work |
 | ~~P3~~ ✅ | ~~Drop legacy `kube-rbd` Ceph pool~~ — **done 2026-09-15** | 5 min | Cleanup |
 | P3 | Garage replication or HA config | half-day | Resilience inside cluster |
