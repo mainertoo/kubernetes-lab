@@ -1,0 +1,62 @@
+---
+# CloudNativePG-managed postgres cluster `reactive-resume-db` for the Reactive Resume app.
+# Reactive Resume uses plain PostgreSQL (startup migrations) — no postgis — so the
+# default CNPG community image applies. The app connects via the CNPG-generated
+# `reactive-resume-db-app` Secret (key `uri`), built in reactive-resume-release.yaml.
+#
+# Fresh deploy: initdb overlay creates database+owner `resume`. WAL archiving
+# and daily base backups stream to Garage S3 via the barman-cloud plugin.
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: reactive-resume-db-cnpg
+  namespace: flux-system
+spec:
+  interval: 1h
+  # Build target carries the reactive-resume Namespace so it exists before the
+  # cnpg-cluster Components render the Cluster/Secret into it (same pattern as
+  # apps/base/immich/db-cnpg). The app Kustomization dependsOn this one.
+  path: ./apps/base/reactive-resume/db-cnpg
+  targetNamespace: reactive-resume
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+  # Health-check the CNPG Cluster so the app Kustomization (dependsOn:
+  # reactive-resume-db-cnpg) properly waits for postgres to be Ready during a
+  # from-scratch GitOps restore.
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: reactive-resume-db
+      namespace: reactive-resume
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../../components/cnpg-cluster/base
+    - ../../../../components/cnpg-cluster/initdb
+  postBuild:
+    substitute:
+      APP: reactive-resume-db
+      APP_NAMESPACE: reactive-resume
+      CNPG_DB_NAME: resume
+      CNPG_DB_OWNER: resume
+      CNPG_STORAGE_SIZE: 2Gi
+      CNPG_STORAGECLASS: ceph-rbd
+      CNPG_INSTANCES: "1"
+      # Daily base backup at 04:45 UTC — clear of the 04:15 airtrail, 04:20,
+      # 04:30 and 05:15 slots.
+      CNPG_BACKUP_SCHEDULE: "0 45 4 * * *"
+      CNPG_RETENTION: "30d"
+      CNPG_LINEAGE: v1
+    substituteFrom:
+      - kind: Secret
+        name: volsync-garage-base

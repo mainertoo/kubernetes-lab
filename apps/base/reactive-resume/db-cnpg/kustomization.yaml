@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: reactive-resume
+# The reactive-resume Namespace is created HERE (the DB layer), not in the app
+# layer, so it exists before the cnpg-cluster Components (referenced from
+# apps/production/reactive-resume/db-cnpg.yaml) render the Cluster into it.
+# Same bootstrap pattern as apps/base/airtrail/db-cnpg.
+resources:
+  - reactive-resume-namespace.yaml

@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: reactive-resume
+resources:
+  # Namespace is created by the DB layer (apps/base/reactive-resume/db-cnpg) so
+  # it exists before the CNPG cluster targets it; this layer dependsOn that.
+  - reactive-resume-secret.sops.yaml
+  - reactive-resume-pvc.yaml
+  - reactive-resume-release.yaml
+  - reactive-resume-ingressroute.yaml

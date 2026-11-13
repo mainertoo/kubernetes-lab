@@ -1,0 +1,45 @@
+---
+# Flux Kustomization for the reactive-resume app.
+# The gatus/internal + gatus/external components establish both health-check
+# endpoints declaratively (auto-discovered ConfigMaps labelled gatus.io/enabled).
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app reactive-resume
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/reactive-resume
+  targetNamespace: reactive-resume
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+
+  # Reactive Resume reads DATABASE_URL from the CNPG-generated
+  # reactive-resume-db-app Secret and runs migrations at startup, so a
+  # from-scratch restore must wait for the postgres Cluster to be Ready.
+  dependsOn:
+    - name: reactive-resume-db-cnpg
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../components/gatus/internal
+    - ../../../components/gatus/external
+  postBuild:
+    substitute:
+      APP: *app
+      SUBDOMAIN: rx-resume
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PORT: "3000"
+      GATUS_PATH: /api/health
+      GATUS_STATUS_INTERNAL: "200"

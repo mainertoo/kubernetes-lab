@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: reactive-resume-ingressroute
+  namespace: reactive-resume
+  annotations:
+    gethomepage.dev/href: "https://rx-resume.lab.mainertoo.com"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Reactive Resume"
+    gethomepage.dev/description: "Resume builder"
+    gethomepage.dev/app: reactive-resume
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "sh-reactive-resume.png"
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`rx-resume.lab.mainertoo.com`)
+      kind: Rule
+      services:
+        - name: reactive-resume
+          port: 3000
+          scheme: http
+  tls: {}
