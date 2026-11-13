@@ -452,7 +452,9 @@ echo "[RBD BACKUP] Fetching PV list via kubectl..."
 PV_JSON=$(${KCTL} get pv -o json 2>/dev/null || echo '{"items":[]}')
 
 # --- Fetch Flux Git SHA (apps Kustomization) once ---
-FLUX_REV=$(${KCTL} -n flux-system get kustomization apps -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || echo "unknown")
+# Kustomization is `apps-production` (was `apps` until 2026-11-13, which didn't exist,
+# so every .meta.txt before then has flux_last_applied_revision=unknown).
+FLUX_REV=$(${KCTL} -n flux-system get kustomization apps-production -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || echo "unknown")
 
 # Loop over each RBD image
 for IMG in ${IMAGES}; do
