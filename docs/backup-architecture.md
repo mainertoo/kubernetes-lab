@@ -236,10 +236,10 @@ For each image:
 ### Notes
 
 - The "wipe and re-export" pattern is intentional: the staging dir holds only the most recent export, Kopia provides history via its repo.
-- Script needs `rbd ls` / `rbd export` / `kubectl` / `jq`. Runs on pve-ugreen (which has Ceph keyring + kubeconfig at `/root/.kube/config`).
+- Script needs `rbd ls` / `rbd export` / `kubectl` / `jq`. Runs on pve-ugreen (which has the Ceph keyring, plus a **read-only SA token** kubeconfig at `/root/.kube/config`: `kube-system/pve-ugreen-backup-reader`, `view` + PVs/nodes/volsync, server = VIP `.160`; since 2026-11-13).
 - **The `.meta.txt` file is one of two RBD-PV inventory mechanisms** (the other is `k3s-pv-index.sh` on each master, see Layer 6).
 - **`POOL` is hardcoded to `k3s-rbd`** — `ceph-shared` (the legacy docker-swarm RBD pool, 699 GiB) is **not** exported. Mostly fine, since that pool's data is also accessible via cephfs-swarm and gets snapshotted that way, but worth flagging.
-- The `KCTL` query for PV info uses `/root/.kube/config` on pve-ugreen — if that config rotates, the script silently continues with `unknown` metadata.
+- The `KCTL` query for PV info uses `/root/.kube/config` on pve-ugreen. If kubectl fails, the script silently continues with `unknown` metadata. Before 2026-11-13 this was a copied cluster-admin K3s kubeconfig, which went stale after the K3s cert rotation (wiki incident 2026-11-13). The SA token doesn't expire with the K3s certs.
 
 ---
 

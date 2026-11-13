@@ -59,3 +59,7 @@ resources:
   # count, so rolling drains pile pods on whichever node uncordoned
   # first). See [[project_install_descheduler]].
   - descheduler
+
+  # Read-only SA + token for pve-ugreen's rbd-nightly-backup.sh metadata
+  # lookups (replaces a copied cluster-admin kubeconfig, 2026-11-13).
+  - pve-ugreen-backup-reader
