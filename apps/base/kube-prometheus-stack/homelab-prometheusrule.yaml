@@ -208,6 +208,32 @@ spec:
             description: "Cert `{{ $labels.exported_namespace }}/{{ $labels.name }}` has less than 3 days to expiry. Manually inspect cert-manager controller logs and the underlying Certificate / Order resources."
 
     # ----------------------------------------------------------------------
+    # Certificates — K3s apiserver client certs (copied admin kubeconfigs)
+    # ----------------------------------------------------------------------
+    # The upstream KubeClientCertificateExpiration (7d / 1d) only sees a cert
+    # while a client is actively using it (quantile of a 5m rate), so it
+    # flaps and arrives late. This one fires 30 days out and holds steady:
+    # a 25h increase window keeps once-a-day clients (pve-ugreen's nightly
+    # rbd-nightly-backup.sh) firing continuously instead of flapping.
+    # `instance` = which master the client hits — the main clue for finding
+    # it (VIP holder = Mac; master-1 .161 = pve-ugreen). Routed with a 24h
+    # repeat in alertmanager-secret. Incident: 2026-11-13.
+    - name: certificates.k3s-clients
+      rules:
+        - alert: KubeClientCertExpiringIn30d
+          expr: |
+            sum by (instance) (
+              increase(apiserver_client_certificate_expiration_seconds_bucket{job="apiserver",le="2.592e+06"}[25h])
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A client cert used against {{ $labels.instance }} expires in < 30 days"
+            description: "~{{ $value | printf \"%.0f\" }} requests in the last 25h presented a client certificate expiring within 30 days to apiserver {{ $labels.instance }}. Usually a copied K3s admin kubeconfig (Mac ~/.kube/config or pve-ugreen /root/.kube/config) still holding the pre-renewal cert. Refresh client-certificate-data/client-key-data from a master's /etc/rancher/k3s/k3s.yaml. Clears ~25h after the last stale request."
+            runbook_url: "https://wiki.lab.mainertoo.com/operations/common-incidents/2026-11-13-kube-client-cert-expiration-stale-kubeconfigs"
+
+    # ----------------------------------------------------------------------
     # Observability pipeline health — Loki + Alloy
     # ----------------------------------------------------------------------
     - name: observability.health
