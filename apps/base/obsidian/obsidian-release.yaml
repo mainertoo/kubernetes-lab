@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/obsidian
-              tag: 1.15.0
+              tag: 1.15.1
               pullPolicy: IfNotPresent
             env:
               - name: TZ
