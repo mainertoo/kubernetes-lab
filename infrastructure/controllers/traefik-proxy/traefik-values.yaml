@@ -1,5 +1,7 @@
-image:
-  tag: "v3.6.7"
+# Traefik image: chart default (appVersion). The old `image.tag: "v3.6.7"` pin
+# (2026-01) had no `repository:` key, so Renovate never saw it and Traefik
+# stayed on 3.6.7 for 10 months while the chart moved on. Unpinned 2026-11-17
+# after a staging canary (#2284): chart bumps (Renovate) now carry the version.
 
 deployment:
   replicas: 3
