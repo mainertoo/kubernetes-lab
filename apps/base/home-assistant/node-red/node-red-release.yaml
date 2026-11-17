@@ -29,6 +29,9 @@ spec:
   values:
     controllers:
       node-red:
+        # Decommission step 1/2: stop the pod BEFORE the PVC is pruned (Kyverno 1.20 gpol
+        # re-creates RS/RD/Secret for a backup PVC deleted while still mounted).
+        replicas: 0
         containers:
           app:
             image:
