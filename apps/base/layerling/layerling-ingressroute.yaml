@@ -16,13 +16,22 @@ spec:
     - websecure
     - web
   routes:
-    # MCP bridge API WITHOUT SSO — the local bridge script can't do the
-    # Authentik login; every command is gated by LAYERLING_MCP_TOKEN instead.
+    # MCP relay API WITHOUT SSO — a bridge can't do the Authentik login;
+    # every command is gated by LAYERLING_MCP_TOKEN instead.
     - match: Host(`layerling.lab.mainertoo.com`) && PathPrefix(`/api/layerling-mcp`)
       kind: Rule
       services:
         - name: layerling
           port: 3000
+          scheme: http
+    # Remote MCP endpoint (Streamable HTTP) served by the `mcp` sidecar —
+    # also outside SSO; the wrapper itself rejects requests without the
+    # LAYERLING_MCP_TOKEN bearer.
+    - match: Host(`layerling.lab.mainertoo.com`) && Path(`/mcp`)
+      kind: Rule
+      services:
+        - name: layerling
+          port: 3100
           scheme: http
     - match: Host(`layerling.lab.mainertoo.com`)
       kind: Rule
