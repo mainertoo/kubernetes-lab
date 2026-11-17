@@ -60,7 +60,7 @@ spec:
               # an empty Renovate digest and left a bare `tag: dev`, which silently
               # un-pinned the image for a month — a 2.22.x build then rolled in on
               # the next restart. A bare `tag: dev` is a bug, not a valid state.
-              tag: dev@sha256:355d49aef5067d374932ef67911450fe9cc22395253f5711905170be1c369f7d
+              tag: dev@sha256:51ed52c7e645f9fd3571093e8e44c04219c9c090c8fc7bb134bca2a61dca3a39
               pullPolicy: IfNotPresent
 
             envFrom:
