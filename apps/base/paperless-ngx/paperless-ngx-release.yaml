@@ -69,6 +69,11 @@ spec:
 
               PAPERLESS_TIME_ZONE: America/Los_Angeles
               PAPERLESS_URL: https://paperless.lab.mainertoo.com
+              # paperless >= 3.5.0 (#14735): when PAPERLESS_URL is set, ALLOWED_HOSTS is no
+              # longer "*" — only the URL's host + localhost. The Gatus internal check
+              # (components/gatus, GATUS_APP=paperless-ngx-app) calls the Service by its
+              # in-cluster name and got 400 DisallowedHost. The URL host is still appended.
+              PAPERLESS_ALLOWED_HOSTS: "paperless-ngx-app.paperless-ngx.svc.cluster.local,paperless-ngx-app.paperless-ngx.svc,paperless-ngx-app"
 
               # 🔐 Authentik / allauth OIDC integration
               PAPERLESS_ENABLE_ALLAUTH: "true"
