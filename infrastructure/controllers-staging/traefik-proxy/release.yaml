@@ -12,6 +12,12 @@ spec:
         name: traefik-proxy
         namespace: traefik-system
       version: "42.4.1"
+  # Keep the Traefik CRDs in step with the chart. Flux's default never upgrades
+  # CRDs, so ours were still the 2025-11-19 originals (no 3.6.9+ fields).
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
   valuesFrom:
     - kind: ConfigMap
       name: traefik-values
