@@ -14,6 +14,10 @@ data:
           forwardAuth:
             address: "http://authentik-server.authentik.svc.cluster.local/outpost.goauthentik.io/auth/traefik"
             trustForwardHeader: true
+            # Traefik >= 3.6.9 field; 3.7 logs "maxResponseBodySize is not configured" on every
+            # config build (~15/min/pod) when unset. Authentik's forward-auth replies are small
+            # redirects/401s, so 1 MiB is generous while still bounding memory.
+            maxResponseBodySize: 1048576
             authResponseHeaders:
               - X-authentik-username
               - X-authentik-groups
