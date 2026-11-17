@@ -7,3 +7,17 @@ resources:
   - layerling-pvc.yaml
   - layerling-release.yaml
   - layerling-ingressroute.yaml
+
+# Hash suffix ON so editing the wrapper rolls the pod; kustomizeconfig.yaml
+# rewrites the HelmRelease's persistence name to the suffixed ConfigMap.
+configMapGenerator:
+  - name: layerling-mcp-http
+    files:
+      - mcp-http/mcp-http.mjs
+    options:
+      # Flux postBuild would try to envsubst the JS template literals (${...}).
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+
+configurations:
+  - kustomizeconfig.yaml

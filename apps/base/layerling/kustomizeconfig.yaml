@@ -1,0 +1,10 @@
+---
+# Rewrites persistence.mcp-http.name to the hash-suffixed name of the generated
+# `layerling-mcp-http` ConfigMap, so a wrapper edit rolls the pod
+# (same pattern as home-assistant).
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - path: spec/values/persistence/mcp-http/name
+        kind: HelmRelease

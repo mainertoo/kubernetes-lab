@@ -30,7 +30,7 @@ spec:
       layerling:
         containers:
           app:
-            image:
+            image: &image
               repository: henmedia/layerling
               tag: 1.165.2@sha256:5d7387bb6da6d7587e5923a57fdf31e69ca851d5e1f44de9d3d28f26471a0a1e
             env:
@@ -44,8 +44,8 @@ spec:
                 value: /shared-projects
               - name: LAYERLING_NEW_DESIGNS_ON_SERVER
                 value: "always"
-              # MCP bridge: AI client on the Mac drives open editor tabs.
-              # LAYERLING_MCP_TOKEN comes from layerling-secret.
+              # MCP relay: the `mcp` sidecar (and any legacy local bridge)
+              # drives open editor tabs. LAYERLING_MCP_TOKEN from layerling-secret.
               - name: LAYERLING_MCP_REMOTE
                 value: "true"
               - name: LAYERLING_MCP_ALLOWED_HOSTS
@@ -80,6 +80,51 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 1Gi
+          # Remote MCP: upstream's stdio bridge behind a tiny Streamable-HTTP
+          # wrapper (mcp-http/mcp-http.mjs), so any MCP client reaches
+          # https://layerling.lab.mainertoo.com/mcp with the bearer token — no
+          # local bridge checkout. Same image as the app: the wrapper reads
+          # /app/package.json and fetches the bridge at that exact tag, so
+          # Renovate bumps move app + bridge together.
+          mcp:
+            image: *image
+            command: ["node", "/mcp-http/mcp-http.mjs"]
+            env:
+              - name: TZ
+                value: America/Los_Angeles
+              - name: MCP_HTTP_PORT
+                value: "3100"
+              - name: APP_URL
+                value: http://127.0.0.1:3000
+              # export_mesh outputPath (relative) lands on the backed-up PVC,
+              # in a dot-folder the shared-projects list doesn't show.
+              - name: BRIDGE_CWD
+                value: /shared-projects/.mcp-exports
+            envFrom:
+              - secretRef:
+                  name: layerling-secret
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 3100
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              # Never gate the editor's readiness on the MCP sidecar.
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
         pod:
           securityContext:
             # Image runs as nextjs (999:999); fsGroup lets it write the PVC root.
@@ -95,9 +140,19 @@ spec:
         ports:
           http:
             port: 3000
+          mcp:
+            port: 3100
 
     persistence:
       projects:
         existingClaim: layerling-projects
         globalMounts:
           - path: /shared-projects
+      mcp-http:
+        type: configMap
+        name: layerling-mcp-http
+        advancedMounts:
+          layerling:
+            mcp:
+              - path: /mcp-http
+                readOnly: true
