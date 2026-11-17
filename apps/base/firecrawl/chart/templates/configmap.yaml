@@ -35,10 +35,17 @@ data:
   FIRECRAWL_APP_SCHEME: {{ .Values.config.FIRECRAWL_APP_SCHEME | quote }}
   FIRECRAWL_APP_HOST: {{ default $apiHostDefault .Values.config.FIRECRAWL_APP_HOST | quote }}
   FIRECRAWL_APP_PORT: {{ default $apiPortDefault .Values.config.FIRECRAWL_APP_PORT | quote }}
-  OPENAI_BASE_URL: {{ .Values.config.OPENAI_BASE_URL | quote }}
+  # Rendered only when set: Firecrawl >= 2.11.766 (@ai-sdk/provider-utils 5.x) throws
+  # "baseURL must be a non-empty string" at import time if these are "", crashlooping
+  # api/worker/nuq-worker. Unset = the SDK's default, and /extract is disabled here anyway.
+  {{- with .Values.config.OPENAI_BASE_URL }}
+  OPENAI_BASE_URL: {{ . | quote }}
+  {{- end }}
   MODEL_NAME: {{ .Values.config.MODEL_NAME | quote }}
   MODEL_EMBEDDING_NAME: {{ .Values.config.MODEL_EMBEDDING_NAME | quote }}
-  OLLAMA_BASE_URL: {{ .Values.config.OLLAMA_BASE_URL | quote }}
+  {{- with .Values.config.OLLAMA_BASE_URL }}
+  OLLAMA_BASE_URL: {{ . | quote }}
+  {{- end }}
   PROXY_SERVER: {{ .Values.config.PROXY_SERVER | quote }}
   PROXY_USERNAME: {{ .Values.config.PROXY_USERNAME | quote }}
   SEARXNG_ENDPOINT: {{ .Values.config.SEARXNG_ENDPOINT | quote }}
