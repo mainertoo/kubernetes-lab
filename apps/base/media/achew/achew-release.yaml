@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: sirgibblets/achew
-              tag: 1.14.0
+              tag: 1.14.1
             env:
               - name: TZ
                 value: America/Los_Angeles
