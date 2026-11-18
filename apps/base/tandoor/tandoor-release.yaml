@@ -57,7 +57,7 @@ spec:
           main:
             image:
               repository: ghcr.io/tandoorrecipes/recipes
-              tag: 2.7.4
+              tag: 2.7.6
               pullPolicy: IfNotPresent
             env:
               - name: TZ
