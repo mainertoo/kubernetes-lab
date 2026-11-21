@@ -226,7 +226,8 @@ under [Kyverno policies](#kyverno-policies-cel-kyverno-120)).
 3. **Let the GeneratingPolicy clean up.** With the pod already gone, the PVC deletes immediately and Kyverno GCs `<pvc>-backup` RS + RD and the `volsync-<pvc>` Secret by itself; the dest/cache PVCs and the dest VolumeSnapshot cascade from them. Watch ~2 min — nothing should reappear (`kubectl get replicationsource,replicationdestination,secret -A -l generate.kyverno.io/trigger-name=<pvc>`).
 4. **Restart the VolSync controller.** `volsync_kopia_repository_connectivity{obj_name="<pvc>-backup"}` keeps being exported at its last value for the deleted RS (the controller never drops per-object series). At `0` that's a permanent `VolSyncKopiaRepoDisconnected`; at `1` it's just stale. `kubectl -n volsync-system rollout restart deploy/volsync-system-volsync` clears it — doesn't interrupt running mover Jobs.
 5. **Restart Gatus** so the removed app's checks disappear: `kubectl -n gatus rollout restart deploy/gatus`.
-6. **Hand-made leftovers:** if the route used `authentik-sso`, delete the app's **Application** and **Proxy Provider** in the Authentik admin (UI-managed, not in git). Remove the app from the wiki's route lists.
+6. **Delete the namespace by hand** if the app owned one: `kubectl delete namespace <ns>`. Namespaces are annotated `kustomize.toolkit.fluxcd.io/prune: disabled`, so Flux leaves an empty namespace behind (confirm it is empty first: `kubectl -n <ns> get all,pvc`).
+7. **Hand-made leftovers:** if the route used `authentik-sso`, delete the app's **Application** and **Proxy Provider** in the Authentik admin (UI-managed, not in git). Remove the app from the wiki's route lists.
 
 **Old
 Kopia snapshots stay in the shared repo** until pruned manually

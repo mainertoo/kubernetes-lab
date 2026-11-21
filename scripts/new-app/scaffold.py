@@ -33,6 +33,9 @@ NAMESPACE = Template("""apiVersion: v1
 kind: Namespace
 metadata:
   name: ${app}
+  annotations:
+    # Never let a kustomization edit delete the namespace (and everything in it).
+    kustomize.toolkit.fluxcd.io/prune: disabled
 """)
 
 PVC = Template("""apiVersion: v1
