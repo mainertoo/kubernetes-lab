@@ -26,7 +26,7 @@
 #      resume Flux, wait for Ready=True.
 #
 # Usage:
-#   scripts/migrate-stage-bc-kopia.sh <namespace> <rs-name> [options]
+#   scripts/archive/volsync-kopia-migration/migrate-stage-bc-kopia.sh <namespace> <rs-name> [options]
 #
 # Required positional:
 #   <namespace>         App's k8s namespace
@@ -45,7 +45,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # ─── arg parsing ────────────────────────────────────────────────────
 BACKUP_LABEL="daily"
@@ -451,7 +451,7 @@ open_5b_pr() {
   fi
   git commit -m "feat($APP): Kopia cutover — drop volsync-v2 Components, static PVC manifest
 
-Driven by scripts/migrate-stage-bc-kopia.sh (Phase 5 of the Kopia
+Driven by scripts/archive/volsync-kopia-migration/migrate-stage-bc-kopia.sh (Phase 5 of the Kopia
 transition). Stage B already ran (Flux Kustomization $APP suspended,
 legacy $RS RS in ns $NS deleted; cold-start on Kopia repo, no history
 transfer).

@@ -18,7 +18,7 @@
 #      in render), resume Flux, wait for Ready=True.
 #
 # Usage:
-#   scripts/migrate-stage-bc.sh <namespace> <rs-name> [options]
+#   scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh <namespace> <rs-name> [options]
 #
 # Required positional:
 #   <namespace>         App's k8s namespace
@@ -37,7 +37,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # ─── arg parsing ────────────────────────────────────────────────────
 BACKUP_LABEL="daily"
@@ -202,7 +202,7 @@ run_stage_b() {
   # 5. Final catch-up restic copy — idempotent, captures any
   #    snapshots that landed since Phase 3 Stage A.
   echo "  [5/6] Final catch-up restic copy (idempotent)"
-  if ! "$REPO_ROOT/scripts/migrate-stage-a.sh" "$NS" "$RS" >/tmp/stage-a-$NS.log 2>&1; then
+  if ! "$REPO_ROOT/scripts/archive/volsync-kopia-migration/migrate-stage-a.sh" "$NS" "$RS" >/tmp/stage-a-$NS.log 2>&1; then
     echo "ERROR: migrate-stage-a.sh failed; tail of log:" >&2
     tail -20 "/tmp/stage-a-$NS.log" >&2
     exit 6
@@ -417,7 +417,7 @@ open_5b_pr() {
   fi
   git commit -m "feat($APP): Phase 5b — drop volsync-v2 Components, static PVC manifest
 
-Driven by scripts/migrate-stage-bc.sh. Stage B already ran (Flux
+Driven by scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh. Stage B already ran (Flux
 Kustomization $APP suspended, legacy $RS RS in ns $NS deleted, final
 restic copy completed).
 

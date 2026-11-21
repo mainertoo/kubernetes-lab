@@ -1,6 +1,6 @@
 # Pocket AI → Open Notebook Pipeline (planning doc)
 
-> **✅ SHIPPED — live in production:** `apps/base/pocket-bridge/` (release, PVC, ServiceMonitor, PrometheusRule, NetworkPolicies, SOPS secret), activated via `apps/production/pocket-bridge/`, image built by `.github/workflows/pocket-bridge-image.yaml`. This doc is retained as the cited reference (alert table §8.2 → `docs/observability.md`; DR fallback §10 → `scripts/pocket-manual-ingest.sh`; D10 → `docs/backup-system-wiki.md`; single-replica rationale → `docs/ha-architecture.md`); the version history below is preserved for that purpose.
+> **✅ SHIPPED — live in production:** `apps/base/pocket-bridge/` (release, PVC, ServiceMonitor, PrometheusRule, NetworkPolicies, SOPS secret), activated via `apps/production/pocket-bridge/`, image built by `.github/workflows/build-pocket-bridge.yml`. This doc is retained as the cited reference (alert table §8.2 → `docs/observability.md`; DR fallback §10 → `scripts/pocket-manual-ingest.sh`; D10 → `docs/backup-system-wiki.md`; single-replica rationale → `docs/ha-architecture.md`); the version history below is preserved for that purpose.
 >
 > **Live-ops update — 2026-07 (PR #1139, post-ship):** Two corrections to the shipped system running `open_notebook:1.10.0-single`, outside the v1→v12 pre-ship convergence:
 > - **`GET /api/commands/jobs` returns `[]` on ON 1.10.0** regardless of queue depth — F8-008's pinned contract no longer holds. The stale-commands probe was therefore blind and `PocketBridgeOpenNotebookCommandStalled` never fired. `open_notebook_stale_commands_total` is now set by the §7.8 periodic scanner from the bridge's own `embed_pending` backlog (recordings stuck past the ~12min window); the dedicated probe + `list_commands_jobs` client method were removed. (§6, §7.8, §8.1, §8.2)
@@ -258,7 +258,7 @@ apps/base/open-webui/                       # NEW
 └── open-webui-secret.sops.yaml
 
 .github/workflows/
-└── pocket-bridge-image.yaml               # paths: apps/base/pocket-bridge/{src,contracts}/**
+└── build-pocket-bridge.yml               # paths: apps/base/pocket-bridge/{src,contracts}/**
 
 scripts/
 └── pocket-manual-ingest.sh                # F4 — DR fallback per §10
@@ -406,7 +406,7 @@ Goal: container image published to GHCR. No cluster wiring yet.
      - **Per F5-007**: bridge generates `owner_uuid = uuid4()` once per ingest; Lua stores and echoes it as confirmation. No Lua-side UUID generation.
    - **Status code handling (F2-007)**: pinned per-endpoint from `contracts/open-notebook-2026-05-28.json`. `POST /api/sources/json` → 200. `POST /api/notebooks` → 201. `POST /api/notes` → 200. `POST /api/credentials` → 201. Bridge accepts only the pinned code per endpoint; any other 2xx counts as fail (catches API drift).
 2. **Contract test**: load `contracts/open-notebook-2026-05-28.json` as fixture; bridge's Open Notebook client validates request shapes + expected response codes against the fixture (F18, F19, F2-007)
-3. `.github/workflows/pocket-bridge-image.yaml` — paths filter `apps/base/pocket-bridge/{src,contracts}/**`; build, push to `ghcr.io/mainertoo/pocket-bridge:{sha,latest}`
+3. `.github/workflows/build-pocket-bridge.yml` — paths filter `apps/base/pocket-bridge/{src,contracts}/**`; build, push to `ghcr.io/mainertoo/pocket-bridge:{sha,latest}`
 4. Manual local smoke: `docker run` against stubbed Open Notebook; `/healthz` returns 200; `/metrics` returns prometheus text
 
 **Acceptance:** image builds; healthcheck passes locally; contract tests pass; conservative payload mapping handles missing-field cases gracefully.

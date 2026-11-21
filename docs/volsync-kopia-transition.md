@@ -65,7 +65,7 @@ The mover-image fork is technically workable (~2 hr) but signs us up for indefin
 - **The whole label-driven UX.** `backup: hourly | daily` on a PVC. The user-facing contract in [`docs/label-driven-backups.md`](./label-driven-backups.md) is unchanged.
 - **The Kyverno admission policy structure** — 7 rules, same matches/excludes, same skip-restore semantics. Only rules 5/6/7's `generate.data` swaps from `spec.restic:` to `spec.kopia:`.
 - **The bootstrap chain** — `volsync-bootstrap` Flux Kustomization, dependsOn ordering, probe Job pattern.
-- **The migration driver** — `scripts/migrate-stage-bc.sh` already exists, will be reused with Kopia secret names.
+- **The migration driver** — `scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh` already exists, will be reused with Kopia secret names.
 - **All Phase 5 cutover protocol** — Stage A / Stage B / Stage C, the per-app sequence, the trap-based rollback paths.
 - **The 10-min cluster-rebuild target.** Restore path is RD → CSI populator regardless of mover type.
 - **Garage S3 as the storage backend** — Kopia supports S3 natively.
@@ -474,7 +474,7 @@ kubectl -n "$NS" wait --for=jsonpath='{.status.lastSyncTime}' --timeout=30m \
 
 For each app, the sequence is:
 
-1. **Stage B Job — driver `scripts/migrate-stage-bc.sh --engine kopia` (extended in Phase 5 prep).** The driver runs while `backup-engine: restic` is STILL set on the PVC. Steps:
+1. **Stage B Job — driver `scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh --engine kopia` (extended in Phase 5 prep).** The driver runs while `backup-engine: restic` is STILL set on the PVC. Steps:
    1. `flux suspend kustomization` for the app's namespace.
    2. Preflight: confirm app's Restic Secret/RS/RD exist (this app IS currently backed up on Restic).
    3. **Same-PVC CSI snapshot preflight gate (Codex v3 finding [1]):** wait for any active Restic backup Job on this PVC to finish before spawning the Kopia probe. Two concurrent CSI VolumeSnapshots on the same source PVC are not a data hazard (each is independent crash-consistent), but they pressure the snapshotter queue, Ceph metadata, and worker memory. Gate:
@@ -522,7 +522,7 @@ The previous `migrating` design created a window where neither engine had a Secr
 The 2026-05-17 incident showed that even 10–12 concurrent volsync movers can OOM a worker (51 RSes → worker-2 SystemOOM; 42 restore movers at 1.5–2 GiB each → worker-1 saturated). Batch SIZE in the plan is one thing; CONCURRENT IN-FLIGHT probe RSes is the actual control variable. v4 caps in-flight concurrency with a driver semaphore:
 
 ```text
-# In scripts/migrate-stage-bc.sh (Phase 5 prep)
+# In scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh (Phase 5 prep)
 MAX_CONCURRENT_PROBES=3                  # normal ceph-rbd PVCs
 BIG_DATA_MAX_CONCURRENT_PROBES=1         # cephfs OR PVC > 50Gi
 NODE_MEM_HEADROOM_PCT=70                 # don't start a new probe if any node > 70% mem
@@ -700,7 +700,7 @@ Still open, for the user to decide before Phase 1:
 
 - **Original design:** [`docs/volsync-storage-recovery.md`](./volsync-storage-recovery.md) — read §2.1 (rejected Kopia), §2.4 (schedule), §4.1 (cutover protocol)
 - **User-facing UX:** [`docs/label-driven-backups.md`](./label-driven-backups.md) — what stays the same for app authors
-- **Driver script:** [`scripts/migrate-stage-bc.sh`](../scripts/migrate-stage-bc.sh) — extended in Phase 5 with `--engine kopia`
+- **Driver script:** [`scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh`](../scripts/archive/volsync-kopia-migration/migrate-stage-bc.sh) — extended in Phase 5 with `--engine kopia`
 - **Upstream reference:** [`mitchross/talos-argocd-proxmox/docs/volsync-storage-recovery.md`](https://github.com/mitchross/talos-argocd-proxmox/blob/main/docs/volsync-storage-recovery.md) — the design we're now matching
 - **Memory entries** (in `/Users/darcymainville/.claude/projects/-Users-darcymainville-kubernetes-lab/memory/`):
   - `feedback_kopia_vs_restic_shared_repo.md` — locking-model differences
