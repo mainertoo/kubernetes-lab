@@ -157,7 +157,8 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 8-bookworm
+              # Major 9 to match upstream Immich's docker-compose (valkey:9).
+              tag: 9.2.0
             env:
               - name: TZ
                 value: America/Los_Angeles

@@ -11,6 +11,11 @@
 #     cloudnative-vectorchord:17.5-0.4.2), so the only delta on restore is the
 #     PG14→PG17 major jump. Immich v2.7.5 accepts vchord >=0.3 <2 (verified
 #     against server/src/constants.ts), so 0.4.2 is in range.
+#   - 2026-11-21: bumped to vchord 0.4.3 to match upstream Immich's compose
+#     (immich-app/postgres:14-vectorchord0.4.3-*). The 0.4.2→0.4.3 upgrade SQL
+#     is a no-op and the index format is unchanged (no REINDEX). After the
+#     image rolls, run once as superuser in the immich DB:
+#       ALTER EXTENSION vchord UPDATE;   -- extversion 0.4.2 → 0.4.3
 #
 # Superuser posture (Codex review #9): the app role `immich` is a plain,
 # non-superuser owner. The vchord/cube/earthdistance extensions are created
@@ -93,8 +98,9 @@ spec:
       APP_NAMESPACE: immich
       CNPG_DB_NAME: immich
       CNPG_DB_OWNER: immich
-      # VectorChord-enabled CNPG operand image (PG17.5 + vchord 0.4.2).
-      CNPG_IMAGE: ghcr.io/tensorchord/cloudnative-vectorchord:17.5-0.4.2
+      # VectorChord-enabled CNPG operand image (PG17.5 + vchord 0.4.3, matching
+      # the vchord version in upstream Immich's docker-compose).
+      CNPG_IMAGE: ghcr.io/tensorchord/cloudnative-vectorchord:17.5-0.4.3
       # Placeholder — set from the measured DB size after the QNAS vchord
       # migration (docs §5 Phase 1). Rule of thumb: >=3x measured DB size.
       CNPG_STORAGE_SIZE: 10Gi
