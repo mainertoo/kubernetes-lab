@@ -106,9 +106,17 @@ spec:
                 # an evicted replica lands straight back on the node it left:
                 # on 2026-11-21 a csi-nfsplugin-provisioner replica was
                 # evicted from worker-1 and rescheduled onto worker-1.
+                #
+                # Never evict from kube-prometheus-stack either. On 2026-11-21
+                # prometheus-kube-prometheus-stack-0 was evicted from worker-1
+                # in two consecutive runs and rescheduled onto worker-1 both
+                # times (the scheduler places by resource requests, and by
+                # requests worker-1 looks emptiest). Each eviction is a gap in
+                # metrics for no change in the pod counts.
                 evictableNamespaces:
                   exclude:
                     - kube-system
+                    - kube-prometheus-stack
                 thresholds:
                   pods: 50
                 targetThresholds:
