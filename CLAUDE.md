@@ -29,10 +29,12 @@ Two real clusters: `production` (3 master + 3 worker, the live homelab serving `
 terraform/
   modules/k3s-cluster/         # Reusable Proxmox VM + cloud-init module
   environments/{production,staging}/   # Per-cluster module call + tfstate (gitignored)
+  unifi/                                # UniFi VLANs, WLANs and firewall policies (separate state; run via tf.sh)
 ansible/
   k3s-cluster/
     inventory/{production,staging}/    # Per-cluster dynamic inventory + group_vars
     playbooks/                          # K3s install/upgrade/uninstall, kube-vip, MetalLB
+  fleet/                                # OS patching and host maintenance for PVE hosts, VMs and LXCs
 clusters/{production,staging}/         # Flux entrypoint Kustomizations
 infrastructure/
   controllers/                          # Production-side controllers (full set)
@@ -44,12 +46,13 @@ infrastructure/
 apps/
   base/                                 # All app definitions (HelmRelease, IngressRoute, PVC, etc.)
   production/                           # Per-app Flux Kustomization overlays + kustomization.yaml listing active apps
-  staging/                              # Same pattern for staging (currently: meshcentral)
+  staging/                              # Same pattern for staging (currently: chaptarr, openemr, openmrs)
 components/
   cnpg-cluster/                         # Reusable Kustomize Component for CNPG database clusters
   gatus/                                # Reusable Kustomize Component for Gatus health endpoints
-docker/                                 # Build contexts for self-built images (cnpg-timescaledb)
-scripts/                                # Operational tooling (dispatcharr, homebox, immich, proxmox, unifi, wiki, …)
+docker/                                 # Build contexts for self-built images (beam, cnpg-timescaledb, qidistudio)
+scripts/                                # Operational tooling (dispatcharr, home-assistant, homebox, immich, portainer, proxmox, unifi, …)
+  archive/                              # Finished one-off migration scripts, kept for reference
 docs/                                   # Architecture, recovery runbooks, plans
 ```
 
@@ -57,19 +60,24 @@ docs/                                   # Architecture, recovery runbooks, plans
 
 ```
 clusters/production/
-  infra-repositories.yaml  →  infrastructure/repositories  (HelmRepository CRDs)
-  infra-secrets-prod.yaml  →  infrastructure/secrets-prod  (SOPS secrets)
-  infrastructure.yaml      →  infrastructure/controllers   (all controllers)
-  apps-production.yaml     →  apps/production/kustomization.yaml
+  infra-repositories.yaml  →  infra-repositories         →  infrastructure/repositories  (HelmRepository / OCIRepository CRDs)
+  infra-secrets-prod.yaml  →  infra-secrets-prod         →  infrastructure/secrets-prod  (SOPS secrets, production only)
+  infrastructure.yaml      →  infra-controllers          →  infrastructure/controllers   (all controllers)
+                           →  infra-secrets              →  infrastructure/secrets-shared
+                           →  infra-cert-manager-config  →  infrastructure/configs/cert-manager/production  (dependsOn infra-controllers)
+                           →  kyverno-policies           →  infrastructure/controllers/kyverno/policies     (dependsOn infra-controllers)
+  volsync.yaml             →  volsync                    →  infrastructure/controllers/volsync/app  (sole owner of VolSync)
+  apps-production.yaml     →  apps-production            →  apps/production/kustomization.yaml
                                   └── refs to apps/production/<app>/  (per-app Flux Kustomization CRDs)
                                           └── path: apps/base/<app>/  (the actual manifests)
-  volsync.yaml             →  volsync namespace bootstrap
 ```
 
-Note: some apps split their PVCs into separate Flux Kustomizations (top-level
-`apps/base/<app>-*-pvc/` satellite dirs) so the PVC lifecycle is decoupled from
-the app's. Shared media volumes (and the `media` Namespace itself) live in
-`apps/base/media/storage-qnap/`.
+The middle column is the Flux Kustomization name. Staging mirrors this under `clusters/staging/` with `infrastructure/controllers-staging`, no `infra-secrets-prod` or `volsync`, and an apps Kustomization named `apps` (not `apps-staging`).
+
+Shared media volumes live in `apps/base/media/storage-qnap/`. The `media`
+Namespace is declared there and also in `apps/base/audiobookshelf/` and
+`apps/base/media/jellyfin/`; do not remove any of the three declarations
+without a plan, because pruning one would delete the namespace.
 
 `prune: true` is set on all Flux Kustomizations — **removing a resource from a kustomization.yaml will delete it from the cluster**, including PVCs and their data.
 
@@ -83,9 +91,15 @@ Each app lives under `apps/base/<name>/` and typically contains:
 - `<name>-secret.sops.yaml` — SOPS-encrypted `Secret` (if needed)
 - `<name>-pvc.yaml` — `PersistentVolumeClaim` with a `backup: hourly|daily` label to opt into automatic volsync backups (Phase 5+ label-driven pattern)
 
-To activate an app: create a Flux Kustomization overlay in `apps/production/<app>/` (pointing its `path:` at `apps/base/<app>`), then add that overlay to `apps/production/kustomization.yaml`. To disable without deleting, comment it out there (re-enabling later requires the overlay to still exist or be recreated).
+To activate an app: create a Flux Kustomization overlay in `apps/production/<app>/` (pointing its `path:` at `apps/base/<app>`), then add that overlay to `apps/production/kustomization.yaml`. Commenting an app out there removes its Flux Kustomization, and with `prune: true` that **deletes everything the Kustomization owns, PVCs included** — it is a decommission, not a pause. To pause an app and keep its data, scale it to zero instead.
 
-The bjw-s `app-template` chart is the standard HelmRelease base for all apps. Refer to existing releases (e.g. `apps/base/media/plex/plex-release.yaml`) as the canonical pattern.
+The bjw-s `app-template` chart is the standard HelmRelease base for all apps. Use the `new-app` skill to scaffold one; `apps/base/reactive-resume/reactive-resume-release.yaml` is a current example. Conventions:
+- `chartRef` to the shared `OCIRepository/app-template` in `flux-system` (never `chart.spec` with a HelmRepository), `interval: 30m`, `install.createNamespace: false`, no `upgrade.force`.
+- Name the controller after the app. Older releases use `main`; do not rename them (it renames the Deployment and Service).
+- `resources:` goes on the container (`controllers.<name>.containers.<name>.resources`). A top-level `values.resources` is silently ignored.
+- Pin image tags and chart versions; no `latest` and no `version: "*"`.
+
+Apps with a CNPG database have two Flux Kustomizations and a three-file overlay: `db-cnpg.yaml` (`<app>-db-cnpg`), `app.yaml` (`<app>`, `dependsOn` the database) and a plain `kustomization.yaml` listing both. Never rename an existing Flux Kustomization (including the older `joplin-db` and `zilean-db`): the rename prunes everything it owns.
 
 ### Backing up an app's PVC
 
