@@ -88,7 +88,7 @@ Each app lives under `apps/base/<name>/` and typically contains:
 - `kustomization.yaml` — lists all resources and sets the namespace
 - `<name>-release.yaml` — `HelmRelease` using `app-template` from bjw-s (`OCIRepository`)
 - `<name>-ingressroute.yaml` — Traefik `IngressRoute`
-- `<name>-namespace.yaml` — `Namespace` (if the app owns it)
+- `<name>-namespace.yaml` — `Namespace` (if the app owns it), always annotated `kustomize.toolkit.fluxcd.io/prune: disabled` so no kustomization edit can delete the namespace; when decommissioning an app, delete its namespace by hand as the last step
 - `<name>-secret.sops.yaml` — SOPS-encrypted `Secret` (if needed)
 - `<name>-pvc.yaml` — `PersistentVolumeClaim` with a `backup: hourly|daily` label to opt into automatic volsync backups (Phase 5+ label-driven pattern)
 

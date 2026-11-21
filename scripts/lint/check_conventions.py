@@ -14,6 +14,7 @@ Rules (see CLAUDE.md "Apps pattern" and the wiki page gitops/apps-pattern):
         wait false, namespace flux-system, path under ./apps/base
   KS02  a directory holding db-cnpg.yaml also holds app.yaml and a plain
         kustomization.yaml listing both
+  NS01  every Namespace manifest carries kustomize.toolkit.fluxcd.io/prune: disabled
   SOPS01 every *.sops.yaml is actually encrypted
   REF01 every YAML file in an apps/base directory is listed in its kustomization.yaml
 
@@ -127,6 +128,19 @@ def check_overlays():
                 err("KS02", k, "must be a plain kustomization listing db-cnpg.yaml and app.yaml")
 
 
+def check_namespaces():
+    files = glob.glob("apps/base/**/*.yaml", recursive=True) + glob.glob("infrastructure/**/*.yaml", recursive=True)
+    for f in sorted(files):
+        if "/chart/" in f or "/tests/" in f or f.endswith("gotk-components.yaml"):
+            continue
+        for d in docs(f):
+            if d.get("kind") != "Namespace":
+                continue
+            ann = (d.get("metadata") or {}).get("annotations") or {}
+            if ann.get("kustomize.toolkit.fluxcd.io/prune") != "disabled":
+                err("NS01", f, "Namespace needs annotation kustomize.toolkit.fluxcd.io/prune: disabled")
+
+
 def check_sops():
     for f in sorted(glob.glob("**/*.sops.yaml", recursive=True)):
         text = open(f).read()
@@ -152,6 +166,7 @@ def check_references():
 def main():
     check_helmreleases()
     check_overlays()
+    check_namespaces()
     check_sops()
     check_references()
     if errors:
