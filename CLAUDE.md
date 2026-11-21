@@ -91,7 +91,7 @@ Each app lives under `apps/base/<name>/` and typically contains:
 - `<name>-secret.sops.yaml` — SOPS-encrypted `Secret` (if needed)
 - `<name>-pvc.yaml` — `PersistentVolumeClaim` with a `backup: hourly|daily` label to opt into automatic volsync backups (Phase 5+ label-driven pattern)
 
-To activate an app: create a Flux Kustomization overlay in `apps/production/<app>/` (pointing its `path:` at `apps/base/<app>`), then add that overlay to `apps/production/kustomization.yaml`. To disable without deleting, comment it out there (re-enabling later requires the overlay to still exist or be recreated).
+To activate an app: create a Flux Kustomization overlay in `apps/production/<app>/` (pointing its `path:` at `apps/base/<app>`), then add that overlay to `apps/production/kustomization.yaml`. Commenting an app out there removes its Flux Kustomization, and with `prune: true` that **deletes everything the Kustomization owns, PVCs included** — it is a decommission, not a pause. To pause an app and keep its data, scale it to zero instead.
 
 The bjw-s `app-template` chart is the standard HelmRelease base for all apps. Use the `new-app` skill to scaffold one; `apps/base/reactive-resume/reactive-resume-release.yaml` is a current example. Conventions:
 - `chartRef` to the shared `OCIRepository/app-template` in `flux-system` (never `chart.spec` with a HelmRepository), `interval: 30m`, `install.createNamespace: false`, no `upgrade.force`.
