@@ -60,7 +60,7 @@ spec:
           init-model-inbox:
             image:
               repository: busybox
-              tag: latest
+              tag: "1.38"
             command: ["/bin/sh", "-c"]
             args:
               - |

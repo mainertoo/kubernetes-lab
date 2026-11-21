@@ -36,7 +36,7 @@ spec:
           init-media-perms:
             image:
               repository: busybox
-              tag: latest
+              tag: "1.38"
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -135,7 +135,7 @@ spec:
           health:
             image:
               repository: busybox
-              tag: latest
+              tag: "1.38"
             command: ["/bin/sh", "-lc"]
             args:
               - |

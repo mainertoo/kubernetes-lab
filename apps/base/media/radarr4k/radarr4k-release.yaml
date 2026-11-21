@@ -37,7 +37,7 @@ spec:
           fix-symlinks-perms:
             image:
               repository: busybox
-              tag: latest
+              tag: "1.38"
             command: ["/bin/sh", "-c"]
             args:
               - |
