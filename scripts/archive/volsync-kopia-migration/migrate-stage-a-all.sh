@@ -3,18 +3,18 @@
 #
 # Iterates every volsync ReplicationSource that uses the restic mover,
 # skips entries already recorded in apps/archive/PHASE3-STAGE-A-LOG.md,
-# and runs scripts/migrate-stage-a.sh against the remaining ones in
+# and runs scripts/archive/volsync-kopia-migration/migrate-stage-a.sh against the remaining ones in
 # sequence. Appends a log line per success. Continue-on-failure: one
 # bad app doesn't block the rest; failures are summarized at the end
 # so you can retry each one manually with the single-app driver.
 #
 # Usage:
-#   scripts/migrate-stage-a-all.sh                     # all pending, interactive
-#   scripts/migrate-stage-a-all.sh --dry-run           # list what would run
-#   scripts/migrate-stage-a-all.sh --yes               # skip confirmation
-#   scripts/migrate-stage-a-all.sh --max 5             # cap to first 5 pending
-#   scripts/migrate-stage-a-all.sh --include media     # only ns/rs containing "media"
-#   scripts/migrate-stage-a-all.sh --exclude plex,jellyfin
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh                     # all pending, interactive
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh --dry-run           # list what would run
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh --yes               # skip confirmation
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh --max 5             # cap to first 5 pending
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh --include media     # only ns/rs containing "media"
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a-all.sh --exclude plex,jellyfin
 #
 # Filter patterns are simple substring matches against either the
 # namespace or the ReplicationSource name (case-sensitive). Comma-
@@ -23,9 +23,9 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 LOG="${REPO_ROOT}/apps/archive/PHASE3-STAGE-A-LOG.md"
-DRIVER="${REPO_ROOT}/scripts/migrate-stage-a.sh"
+DRIVER="${REPO_ROOT}/scripts/archive/volsync-kopia-migration/migrate-stage-a.sh"
 
 DRY_RUN=0
 SKIP_CONFIRM=0
@@ -129,7 +129,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 if [ "$SKIP_CONFIRM" -ne 1 ]; then
-  echo "Will sequentially run scripts/migrate-stage-a.sh for ${#PENDING[@]} app(s)."
+  echo "Will sequentially run scripts/archive/volsync-kopia-migration/migrate-stage-a.sh for ${#PENDING[@]} app(s)."
   echo "Successes are auto-appended to $LOG; commit when done."
   echo ""
   printf 'Continue? [y/N] '
@@ -193,7 +193,7 @@ if [ ${#FAILED[@]} -gt 0 ]; then
   echo "Retry failed apps with:"
   for f in "${FAILED[@]}"; do
     ns="${f%/*}"; rs="${f#*/}"
-    echo "  scripts/migrate-stage-a.sh $ns $rs"
+    echo "  scripts/archive/volsync-kopia-migration/migrate-stage-a.sh $ns $rs"
   done
 fi
 

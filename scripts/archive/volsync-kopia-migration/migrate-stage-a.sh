@@ -3,11 +3,11 @@
 # per-app snapshot migration into the shared restic repo on Garage.
 #
 # Usage:
-#   scripts/migrate-stage-a.sh <namespace> <replication-source-name>
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a.sh <namespace> <replication-source-name>
 #
 # Example:
-#   scripts/migrate-stage-a.sh homepage homepage
-#   scripts/migrate-stage-a.sh home-assistant esphome
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a.sh homepage homepage
+#   scripts/archive/volsync-kopia-migration/migrate-stage-a.sh home-assistant esphome
 #
 # What it does:
 #   1. Looks up the ReplicationSource to discover sourcePVC + legacy Secret name
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TEMPLATE="${REPO_ROOT}/apps/archive/volsync-stage-a-template.yaml"
 
 usage() {
