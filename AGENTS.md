@@ -52,6 +52,8 @@ components/
   gatus/                                # Reusable Kustomize Component for Gatus health endpoints
 docker/                                 # Build contexts for self-built images (beam, cnpg-timescaledb, qidistudio)
 scripts/                                # Operational tooling (dispatcharr, home-assistant, homebox, immich, portainer, proxmox, unifi, …)
+  new-app/, wiki/, portainer/, proxmox/, home-assistant/ha-automation/   # Claude Code skills (SKILL.md + helper), symlinked into ~/.claude/skills
+  lint/check_conventions.py             # Manifest convention checks, run in CI on every PR
   archive/                              # Finished one-off migration scripts, kept for reference
 docs/                                   # Architecture, recovery runbooks, plans
 ```
@@ -74,10 +76,9 @@ clusters/production/
 
 The middle column is the Flux Kustomization name. Staging mirrors this under `clusters/staging/` with `infrastructure/controllers-staging`, no `infra-secrets-prod` or `volsync`, and an apps Kustomization named `apps` (not `apps-staging`).
 
-Shared media volumes live in `apps/base/media/storage-qnap/`. The `media`
-Namespace is declared there and also in `apps/base/audiobookshelf/` and
-`apps/base/media/jellyfin/`; do not remove any of the three declarations
-without a plan, because pruning one would delete the namespace.
+Shared media volumes and the `media` Namespace itself live in
+`apps/base/media/storage-qnap/` (Flux Kustomization `media-storage-qnap`).
+Removing the Namespace from that kustomization would prune the whole namespace.
 
 `prune: true` is set on all Flux Kustomizations — **removing a resource from a kustomization.yaml will delete it from the cluster**, including PVCs and their data.
 
@@ -98,6 +99,8 @@ The bjw-s `app-template` chart is the standard HelmRelease base for all apps. Us
 - Name the controller after the app. Older releases use `main`; do not rename them (it renames the Deployment and Service).
 - `resources:` goes on the container (`controllers.<name>.containers.<name>.resources`). A top-level `values.resources` is silently ignored.
 - Pin image tags and chart versions; no `latest` and no `version: "*"`.
+
+These rules are enforced by `python3 scripts/lint/check_conventions.py` (CI job `Conventions`); run it before pushing.
 
 Apps with a CNPG database have two Flux Kustomizations and a three-file overlay: `db-cnpg.yaml` (`<app>-db-cnpg`), `app.yaml` (`<app>`, `dependsOn` the database) and a plain `kustomization.yaml` listing both. Never rename an existing Flux Kustomization (including the older `joplin-db` and `zilean-db`): the rename prunes everything it owns.
 

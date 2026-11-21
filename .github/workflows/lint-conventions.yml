@@ -1,0 +1,30 @@
+---
+# Enforces the manifest conventions documented in CLAUDE.md ("Apps pattern").
+# Rules and the exception list live in scripts/lint/check_conventions.py.
+name: Conventions
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'apps/**'
+      - 'infrastructure/**'
+      - 'components/**'
+      - 'scripts/lint/**'
+      - '.github/workflows/lint-conventions.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  conventions:
+    name: Conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+      - name: Check conventions
+        run: python3 scripts/lint/check_conventions.py
