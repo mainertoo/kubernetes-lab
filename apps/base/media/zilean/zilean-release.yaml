@@ -4,20 +4,15 @@ metadata:
   name: zilean
   namespace: media
 spec:
-  interval: 10m
-  chart:
-    spec:
-      chart: app-template
-      version: 5.3.0
-      sourceRef:
-        kind: HelmRepository
-        name: bjw-s
-        namespace: flux-system
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
   install:
     remediation:
       retries: 3
   upgrade:
-    force: true
     remediation:
       retries: 3
 

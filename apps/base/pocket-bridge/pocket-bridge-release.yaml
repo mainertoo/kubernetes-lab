@@ -5,15 +5,10 @@ metadata:
   namespace: open-notebook
 spec:
   interval: 30m
-  chart:
-    spec:
-      chart: app-template
-      version: 5.3.0
-      sourceRef:
-        kind: HelmRepository
-        name: bjw-s
-        namespace: flux-system
-      reconcileStrategy: ChartVersion
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
 
   maxHistory: 2
 
@@ -23,7 +18,6 @@ spec:
       retries: 3
 
   upgrade:
-    force: true
     cleanupOnFail: true
     remediation:
       retries: 3
