@@ -27,7 +27,8 @@ spec:
           app:
             image:
               repository: tanq16/local-content-share
-              tag: main
+              # Upstream publishes only `main`; pin it by digest so Renovate proposes updates.
+              tag: main@sha256:135f89c69456ec1ad104eba5b832bbe912e1fd0a9c1a9708a1e5e686762f314b
             env:
               TZ: America/Los_Angeles
               PUID: "1000"

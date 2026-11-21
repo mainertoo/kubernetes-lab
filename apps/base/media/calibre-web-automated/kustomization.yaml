@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: media
 resources:
   - calibre-web-automated-pvc.yaml
-  - cwa-secret.sops.yaml
-  - cwa-ingest-pvc.yaml
-  - cwa-release.yaml
-  - cwa-ingressroute.yaml
+  - calibre-web-automated-secret.sops.yaml
+  - calibre-web-automated-ingest-pvc.yaml
+  - calibre-web-automated-release.yaml
+  - calibre-web-automated-ingressroute.yaml
