@@ -30,11 +30,6 @@ ROLLING = {"latest", "main", "master", "dev", "develop", "nightly", "edge", "sta
 
 # (rule, path-or-prefix) -> reason. Keep this short; fix the manifest when you can.
 ALLOW = {
-    ("HR05", "apps/base/lcshare/"): "upstream publishes no version tags (tracked in the audit page)",
-    ("HR03", "apps/base/tandoor/"): "legacy ingress block, pending removal",
-    ("HR03", "apps/base/kitchenowl/"): "legacy ingress block, pending removal",
-    ("HR03", "apps/base/vaultwarden/"): "legacy ingress block, pending removal",
-    ("HR03", "apps/base/mealie/"): "legacy ingress block, pending removal",
     ("REF01", "apps/base/rancher/rancher-adfsconfig-spkey.sops.yaml"): "manual-apply secret, see apps/base/rancher/README.md",
     ("REF01", "apps/base/rancher/rancher-backup-schedule.yaml"): "consumed by apps/base/rancher-backup-schedule",
     ("REF01", "apps/base/media/jellyfin/jellyfin-restore-rsync.yaml"): "manual restore Job, see JELLYFIN-RESTORE-PLAYBOOK.md",
