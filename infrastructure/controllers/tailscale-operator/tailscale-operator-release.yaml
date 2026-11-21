@@ -13,8 +13,7 @@ spec:
         kind: HelmRepository
         name: tailscale
         namespace: tailscale
-      # optional: pin a version once you confirm what you want
-      # version: ">=1.0.0"
+      version: 1.104.7
 
   install:
     createNamespace: true

@@ -121,6 +121,12 @@ spec:
               runAsGroup: 0
               runAsNonRoot: false
 
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
             probes:
               liveness:
                 enabled: true
@@ -196,10 +202,3 @@ spec:
               - path: /data
             main:
               - path: /data
-
-    resources:
-      requests:
-        cpu: 50m
-        memory: 256Mi
-      limits:
-        memory: 1Gi
