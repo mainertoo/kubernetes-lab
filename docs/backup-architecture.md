@@ -1,5 +1,13 @@
 # Backup Architecture
 
+> **Update 2026-11-12 (Kyverno 1.20, CEL policies):** the legacy `volsync-pvc-backup-restore-kopia`
+> ClusterPolicy referenced in this document was replaced and no longer exists; Kyverno 1.20 does not run
+> legacy policies. Its job is now done by `volsync-pvc-backup-objects` (GeneratingPolicy: Secret/RS/RD),
+> `volsync-pvc-restore-datasource` (MutatingPolicy: restore-on-rebuild `dataSourceRef`) and
+> `volsync-pvc-restore-checks` (ValidatingPolicy, Audit), all under
+> `infrastructure/controllers/kyverno/policies-cel/`. Labels and generated objects are unchanged.
+> Details: [label-driven-backups.md](label-driven-backups.md#kyverno-policies-cel-kyverno-120).
+
 > Audited 2026-05-07 by reading every host, cron entry, script body, and config end-to-end. Re-confirmed 2026-05-09–10 after the CNPG migration completed. Captures **the actual state of the system as of 2026-05-10**, not the way I described it from memory. Companion runbook: `docs/backup-recovery.md`.
 >
 > **2026-05-09–10 changes**: All 8 in-cluster postgres apps migrated to CloudNativePG. Layer 10 added (CNPG WAL streaming + base backups → Garage S3). 88 GiB of legacy postgres PVCs reclaimed in Phase 5. Finding 4 (raw-PVC postgres backups) RESOLVED.
@@ -318,7 +326,7 @@ This is a cleanly-running daily job — multi-month history visible in `kopia sn
 ## 6b. Layer 10 — K8s Postgres CNPG (WAL stream + base backups → Garage S3)
 
 ```
-[8 in-cluster postgres apps]              joplin / zilean / riven / dawarich / authentik
+[8 in-cluster postgres apps]              joplin / zilean / dawarich / authentik (riven retired 2026-11-10)
                                           opencut / sparky-fitness / wiki-js
         │
         │ Each app's HelmRelease connects to its CNPG Cluster's <APP>-rw Service.
@@ -346,7 +354,7 @@ This is a cleanly-running daily job — multi-month history visible in `kopia sn
 |---|---|---|---|---|
 | `joplin` | `joplin-db` | postgres 16.10 | 2 GiB ceph-rbd | 04:30 |
 | `media` | `zilean-db` | postgres 16.10 | 5 GiB ceph-rbd | 05:15 |
-| `media` | `riven-db` | postgres 17.5 | 2 GiB ceph-rbd | 05:45 |
+| `media` | ~~`riven-db`~~ | postgres 17.5 | 2 GiB ceph-rbd | ~~05:45~~ retired 2026-11-10 |
 | `dawarich` | `dawarich-db` | postgis 17/3.5 | 50 GiB ceph-rbd | 06:00 |
 | `authentik` | `authentik-db` | postgres 17.5 | 5 GiB ceph-rbd | 06:30 |
 | `opencut` | `opencut-cnpg-db` | postgres 17.5 | 5 GiB ceph-rbd | 07:00 |
@@ -423,7 +431,7 @@ Two parallel inventories, neither alone is sufficient — they cover different d
 04:45 UTC ──── kopia snapshot /mnt/qnap_pbs (F1 PBS mirror)    → zbackup
 05:15 UTC ──── CNPG ScheduledBackup: zilean-db                 → Garage S3
 05:30 UTC ──── kopia snapshot /mnt/qnap_garage (F2 Garage mirror)  → zbackup
-05:45 UTC ──── CNPG ScheduledBackup: riven-db                  → Garage S3
+05:45 UTC ──── (riven-db retired 2026-11-10)
 06:00 UTC ──── CNPG ScheduledBackup: dawarich-db (postgis)     → Garage S3
 06:30 UTC ──── CNPG ScheduledBackup: authentik-db              → Garage S3
 07:00 UTC ──── CNPG ScheduledBackup: opencut-cnpg-db           → Garage S3

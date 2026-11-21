@@ -1,5 +1,13 @@
 # Backup Recovery Runbook
 
+> **Update 2026-11-12 (Kyverno 1.20, CEL policies):** the legacy `volsync-pvc-backup-restore-kopia`
+> ClusterPolicy referenced in this document was replaced and no longer exists; Kyverno 1.20 does not run
+> legacy policies. Its job is now done by `volsync-pvc-backup-objects` (GeneratingPolicy: Secret/RS/RD),
+> `volsync-pvc-restore-datasource` (MutatingPolicy: restore-on-rebuild `dataSourceRef`) and
+> `volsync-pvc-restore-checks` (ValidatingPolicy, Audit), all under
+> `infrastructure/controllers/kyverno/policies-cel/`. Labels and generated objects are unchanged.
+> Details: [label-driven-backups.md](label-driven-backups.md#kyverno-policies-cel-kyverno-120).
+
 > Recovery procedures for every backup layer documented in `docs/backup-architecture.md`. Read that first if you need context.
 >
 > Convention: `$` = run on your laptop, `kopia#` = inside the kopia LXC, `pbs#` = on the PBS VM, `pve-X#` = on a Proxmox node, `k8s$` = on a k3s master with kubectl.
@@ -144,7 +152,7 @@ contents without touching the live PVC, either:
 
 ## 1b. Restore a CNPG postgres cluster (Layer 10)
 
-For any of the 8 CNPG-managed databases (`joplin-db`, `zilean-db`, `riven-db`, `dawarich-db`, `authentik-db`, `opencut-cnpg-db`, `sparky-fitness-cnpg-db`, `wiki-js-cnpg-db`).
+For any of the 8 CNPG-managed databases (`joplin-db`, `zilean-db`, ~~`riven-db`~~ *(retired 2026-11-10)*, `dawarich-db`, `authentik-db`, `opencut-cnpg-db`, `sparky-fitness-cnpg-db`, `wiki-js-cnpg-db`).
 
 ### Restore the LATEST state
 
