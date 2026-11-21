@@ -98,15 +98,6 @@
       ]
     },
     {
-      "description": "Group infrastructure controller updates (non-critical path)",
-      "matchFileNames": [
-        "/infrastructure/controllers/.+"
-      ],
-      "matchUpdateTypes": ["patch"],
-      "groupName": "infrastructure-controllers (patch)",
-      "groupSlug": "infra-patch"
-    },
-    {
       "description": "Use loose versioning for Plex (non-semver tags)",
       "versioning": "loose",
       "matchPackageNames": [
@@ -137,15 +128,6 @@
         "/app-template/",
         "/ghcr.io/bjw-s/helm/app-template/"
       ]
-    },
-    {
-      "description": "Media app container image updates",
-      "matchFileNames": [
-        "/apps/base/media/.+"
-      ],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "media apps",
-      "groupSlug": "media-apps"
     },
     {
       "description": "plugin-barman-cloud is tracked via the manifest-version sentinel in its kustomization.yaml. Suppress the image-tag-only PR that Renovate's default kubernetes manager would otherwise raise from the vendored manifest.yaml.",
