@@ -53,6 +53,10 @@ spec:
       # control-plane taint to land on a master. First-run evidence:
       # 78 removable pods on worker-3 (over), all skipped, 0 evictions.
       nodeSelector: "!node-role.kubernetes.io/control-plane"
+      # Cap evictions per node per run so a rebalance happens as a trickle
+      # (at most 3 pods from each overused worker every 15 min), not as one
+      # wave of stateful apps restarting together.
+      maxNoOfPodsToEvictPerNode: 3
       profiles:
         - name: pod-balance
           pluginConfig:
@@ -80,7 +84,7 @@ spec:
                 # Pod-count balancing only. CPU/memory imbalance is rare
                 # and the scheduler already optimizes for those at create
                 # time.
-                # Underutilized: <40% of node max-pods (≈44 of 110)
+                # Underutilized: <50% of node max-pods (≈55 of 110)
                 # Overutilized:  >60% of node max-pods (≈66 of 110)
                 #
                 # Two real worker distributions this is sized for:
@@ -92,8 +96,13 @@ spec:
                 # 30/60 left worker-2 (38 pods, 35%) classified as
                 # "appropriately utilized" — too narrow a window for the
                 # steady-state distribution.
+                #
+                # 2026-11-21: raised the under threshold 40 -> 50. The steady
+                # state had drifted to 86 / 47 / 77: two workers over target
+                # but worker-2 three pods above the 44-pod cutoff, so every
+                # run logged "No node is underutilized, nothing to do".
                 thresholds:
-                  pods: 40
+                  pods: 50
                 targetThresholds:
                   pods: 60
                 useDeviationThresholds: false
