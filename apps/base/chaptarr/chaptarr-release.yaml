@@ -45,6 +45,12 @@ spec:
             # config which can take a bit; probes left off for the staging eval to
             # avoid masking a real crash loop. Tighten to a /ping HTTP probe on
             # 8787 once it's confirmed booting cleanly.
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
             probes:
               liveness:
                 enabled: false
@@ -77,11 +83,3 @@ spec:
         existingClaim: chaptarr-media
         globalMounts:
           - path: /media
-
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 1000m
-        memory: 1Gi
