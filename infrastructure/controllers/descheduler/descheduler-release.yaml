@@ -101,6 +101,14 @@ spec:
                 # state had drifted to 86 / 47 / 77: two workers over target
                 # but worker-2 three pods above the 44-pod cutoff, so every
                 # run logged "No node is underutilized, nothing to do".
+                # Never evict from kube-system. Its pods (CSI provisioners,
+                # CoreDNS, metrics-server) are spread by their own rules, so
+                # an evicted replica lands straight back on the node it left:
+                # on 2026-11-21 a csi-nfsplugin-provisioner replica was
+                # evicted from worker-1 and rescheduled onto worker-1.
+                evictableNamespaces:
+                  exclude:
+                    - kube-system
                 thresholds:
                   pods: 50
                 targetThresholds:
