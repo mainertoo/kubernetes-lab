@@ -1,5 +1,10 @@
 # Kyverno policies
 
+> **Update 2026-11-12:** the core `volsync-pvc-backup-restore-kopia` ClusterPolicy described below was replaced by three
+> CEL policies in [`../policies-cel/`](../policies-cel/) (`volsync-pvc-backup-objects`, `volsync-pvc-restore-datasource`,
+> `volsync-pvc-restore-checks`); the file no longer exists here. The behaviour described is unchanged. Current reference:
+> [`docs/label-driven-backups.md`](../../../../docs/label-driven-backups.md#kyverno-policies-cel-kyverno-120).
+
 ClusterPolicies reconciled by the `kyverno-policies` Flux Kustomization. Today
 they all serve one job: **label-driven VolSync (Kopia) backups** for app PVCs.
 

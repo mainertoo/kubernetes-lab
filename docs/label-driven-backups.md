@@ -27,9 +27,9 @@ spec:
       storage: 5Gi
 ```
 
-[`ClusterPolicy/volsync-pvc-backup-restore-kopia`](../infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml)
-sees the labels and generates three resources, all owned by Kyverno's
-background controller with `synchronize: true` — remove the labels and they are
+The [`volsync-pvc-backup-objects`](../infrastructure/controllers/kyverno/policies-cel/volsync-pvc-backup-objects.yaml)
+GeneratingPolicy (see [Kyverno policies](#kyverno-policies-cel-kyverno-120)) sees the labels and generates three
+resources, all owned by Kyverno's background controller and kept in sync — remove the labels and they are
 garbage-collected:
 
 | Resource | Name | Purpose |
@@ -138,6 +138,30 @@ CR (`infrastructure/controllers/volsync/app/volsync-kopia-maintenance.yaml`)
 fleet (maintenance is repo-wide). Without it, the index fragments and every
 backup mover prints a "Found too many index blobs" warning.
 
+## Kyverno policies (CEL, Kyverno 1.20)
+
+Migrated from legacy ClusterPolicies on 2026-11-12 (plan + runbook: [`plans/kyverno-cel-migration.md`](plans/kyverno-cel-migration.md)).
+
+| Policy | Kind | Job |
+|---|---|---|
+| [`volsync-pvc-backup-objects`](../infrastructure/controllers/kyverno/policies-cel/volsync-pvc-backup-objects.yaml) | GeneratingPolicy | Secret `volsync-<pvc>`, RS + RD `<pvc>-backup` per backup PVC. Synchronized; `generateExisting`; **`orphanDownstreamOnPolicyDelete`** (deleting the policy keeps every generated object) |
+| [`volsync-pvc-restore-datasource`](../infrastructure/controllers/kyverno/policies-cel/volsync-pvc-restore-datasource.yaml) | MutatingPolicy | On PVC CREATE, asks pvc-plumber (`http.Get`) and, if a backup exists, sets `dataSourceRef` → `<pvc>-backup` RD. Fail-closed: an unreachable oracle blocks the PVC (20s timeout) |
+| [`volsync-pvc-restore-checks`](../infrastructure/controllers/kyverno/policies-cel/volsync-pvc-restore-checks.yaml) | ValidatingPolicy (Audit) | Flags non-authoritative oracle answers, a missing `dataSourceRef` on restore, and skip-restore without a reason; never blocks |
+| [`volsync-pvc-engine-required`](../infrastructure/controllers/kyverno/policies/volsync-pvc-engine-required.yaml) | ValidatingPolicy (Deny) | Rejects `backup` without `backup-engine: kopia` |
+| [`volsync-mover-jitter`](../infrastructure/controllers/kyverno/policies/kyverno-volsync-jitter.yaml) | MutatingPolicy | Random 0–180s `jitter` initContainer on VolSync mover Jobs |
+
+Test offline: `kyverno test infrastructure/controllers/kyverno/policies-cel/tests`.
+
+**Things to know:**
+- ⚠️ **Delete a backup PVC only after its pods are gone.** If the PVC sits in Terminating (a pod still holds it), Kyverno 1.20 can **recreate** its Secret/RS/RD for the deleted PVC, re-run the RD restore Job, and keep recreating them. Seen 2026-11-12 on a drill PVC. Fix:
+  1. `kubectl -n kyverno delete pod -l app.kubernetes.io/component=background-controller`
+  2. Delete the orphaned RS/RD/Secret.
+  3. `kubectl -n volsync-system delete pod -l app.kubernetes.io/name=volsync`, to clear stale `volsync_kopia_repository_connectivity` series that would otherwise fire `VolSyncKopiaRepoDisconnected`.
+- **Generate labels are protected:** editing `generate.kyverno.io/*` labels is denied unless `features.protectGenerationLabels.enabled: false` (it was briefly off for the 2026-11-12 adoption, `scripts/kyverno/adopt-legacy-generated.py`).
+- **The legacy policy type is gone:** Kyverno 1.20 refuses to create or update `kyverno.io` ClusterPolicies, so never add one back.
+- **The legacy rule's RD `kopia.sourcePathOverride` is not in the RD CRD** (the API server drops it); the GeneratingPolicy omits it.
+- **Untested so far: editing the GeneratingPolicy's generated shape in place.** The old "generate rules are write-once" behaviour applied to legacy ClusterPolicies; try a change on staging first.
+
 ## Troubleshooting
 
 ### "I added the labels but nothing happened"
@@ -190,7 +214,21 @@ admission; violations are `PolicyReport` entries only. The
 
 ## Retiring an app's backups
 
-Remove the `backup` label — Kyverno garbage-collects the Secret/RS/RD. **Old
+Remove the `backup` label — Kyverno garbage-collects the Secret/RS/RD. When
+retiring a whole app, **stop its pods before its PVCs are deleted**, then check
+`kubectl get replicationsource -A` for leftovers (see the Kyverno 1.20 caveat
+under [Kyverno policies](#kyverno-policies-cel-kyverno-120)).
+
+### Full app decommission — the recipe (verified 2026-11-17 on Node-RED, #2272 → #2274)
+
+1. **PR A — scale to 0.** Set `controllers.<app>.replicas: 0` in the HelmRelease, merge, reconcile. Confirm the pod is gone **and** no VolSync mover Job is running for the PVC (`kubectl -n <ns> get jobs,pods | grep <app>`; the RS shows `nextSyncTime`).
+2. **PR B — remove.** `git rm -r apps/base/<app> apps/production/<app>` and delete its line from `apps/production/kustomization.yaml`. (CLAUDE.md: confirm removing a Flux Kustomization and deleting PVCs with the owner first.) Flux prunes the HR, routes, Gatus ConfigMaps and the PVC.
+3. **Let the GeneratingPolicy clean up.** With the pod already gone, the PVC deletes immediately and Kyverno GCs `<pvc>-backup` RS + RD and the `volsync-<pvc>` Secret by itself; the dest/cache PVCs and the dest VolumeSnapshot cascade from them. Watch ~2 min — nothing should reappear (`kubectl get replicationsource,replicationdestination,secret -A -l generate.kyverno.io/trigger-name=<pvc>`).
+4. **Restart the VolSync controller.** `volsync_kopia_repository_connectivity{obj_name="<pvc>-backup"}` keeps being exported at its last value for the deleted RS (the controller never drops per-object series). At `0` that's a permanent `VolSyncKopiaRepoDisconnected`; at `1` it's just stale. `kubectl -n volsync-system rollout restart deploy/volsync-system-volsync` clears it — doesn't interrupt running mover Jobs.
+5. **Restart Gatus** so the removed app's checks disappear: `kubectl -n gatus rollout restart deploy/gatus`.
+6. **Hand-made leftovers:** if the route used `authentik-sso`, delete the app's **Application** and **Proxy Provider** in the Authentik admin (UI-managed, not in git). Remove the app from the wiki's route lists.
+
+**Old
 Kopia snapshots stay in the shared repo** until pruned manually
 (`kopia snapshot list --all` then `kopia snapshot delete` against the
 `<pvc>-backup@<ns>` identity, using the shared key + password).

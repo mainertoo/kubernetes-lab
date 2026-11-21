@@ -1,5 +1,13 @@
 # Backup System — Complete Reference
 
+> **Update 2026-11-12 (Kyverno 1.20, CEL policies):** the legacy `volsync-pvc-backup-restore-kopia`
+> ClusterPolicy referenced in this document was replaced and no longer exists; Kyverno 1.20 does not run
+> legacy policies. Its job is now done by `volsync-pvc-backup-objects` (GeneratingPolicy: Secret/RS/RD),
+> `volsync-pvc-restore-datasource` (MutatingPolicy: restore-on-rebuild `dataSourceRef`) and
+> `volsync-pvc-restore-checks` (ValidatingPolicy, Audit), all under
+> `infrastructure/controllers/kyverno/policies-cel/`. Labels and generated objects are unchanged.
+> Details: [label-driven-backups.md](label-driven-backups.md#kyverno-policies-cel-kyverno-120).
+
 > Self-contained reference for the homelab backup system. Designed to survive the loss of any host: every custom script, cron entry, and config file is reproduced verbatim below. Drop into wiki-js as one page, or split by `## ` heading if your wiki prefers smaller pages.
 >
 > Companion files in this repo: `docs/backup-architecture.md` (longer prose form) and `docs/backup-recovery.md` (procedure-only).
@@ -288,7 +296,7 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
 ### Layer 10 — K8s Postgres (CNPG WAL streaming + base backups → Garage S3)
 
 ```
-[8 in-cluster postgres apps]                joplin / zilean / riven / dawarich / authentik
+[8 in-cluster postgres apps]                joplin / zilean / dawarich / authentik (riven retired 2026-11-10)
                                             opencut / sparky-fitness / wiki-js
         │
         │ App's HelmRelease connects to Service <APP>-rw of its Cluster.
@@ -316,7 +324,7 @@ Cron on kopia-lxc covering QNAP layers (and the related rbd-backup + cephfs-k3s 
 |---|---|---|---|---|
 | `joplin` | `joplin-db` | postgres 16.10 | 2 GiB ceph-rbd | 04:30 |
 | `media` | `zilean-db` | postgres 16.10 | 5 GiB ceph-rbd | 05:15 |
-| `media` | `riven-db` | postgres 17.5 | 2 GiB ceph-rbd | 05:45 |
+| `media` | ~~`riven-db`~~ | postgres 17.5 | 2 GiB ceph-rbd | ~~05:45~~ retired 2026-11-10 |
 | `dawarich` | `dawarich-db` | postgis 17/3.5 | 50 GiB ceph-rbd | 06:00 |
 | `authentik` | `authentik-db` | postgres 17.5 | 5 GiB ceph-rbd | 06:30 |
 | `opencut` | `opencut-cnpg-db` | postgres 17.5 | 5 GiB ceph-rbd | 07:00 |
@@ -373,7 +381,7 @@ cluster-nuke ergonomics on the PVC side.
 04:45 ──────── kopia snapshot /mnt/qnap_pbs    → zbackup    (F1, added 2026-05-08)
 05:15 ──────── CNPG ScheduledBackup: zilean-db                → Garage S3 (added 2026-05-09)
 05:30 ──────── kopia snapshot /mnt/qnap_garage → zbackup    (F2, added 2026-05-08)
-05:45 ──────── CNPG ScheduledBackup: riven-db                 → Garage S3 (added 2026-05-09)
+05:45 ──────── (riven-db retired 2026-11-10)
 06:00 ──────── CNPG ScheduledBackup: dawarich-db (postgis)    → Garage S3 (added 2026-05-09)
 06:00 ──────── kopia snapshot /mnt/qnap_container → zbackup (added 2026-05-08)
 06:15 ──────── kopia snapshot /mnt/qnap_appdata → zbackup   (added 2026-05-08)
