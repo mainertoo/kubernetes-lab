@@ -5,7 +5,6 @@ resources:
   - zilean-tmp-pvc.yaml
   - zilean-pgadmin-data-pvc.yaml
   - zilean-release.yaml
-  - zilean-env.sops.yaml
   - zilean-ingressroute.yaml
   # pgAdmin still in place but its target (zilean-postgres Service) is gone
   # after Phase 5c. Either delete pgadmin entirely or update

@@ -51,8 +51,8 @@ spec:
               # - bjw-s app-template renders env maps as alphabetically-ordered
               #   lists; P < Z, so PGUSER+PGPASSWORD evaluate before the
               #   Zilean__... reference, which $(VAR) substitution requires.
-              # - Legacy zilean-env / ZILEAN_DB_CONNECTION no longer referenced;
-              #   cleaned up in Phase 3a-decommission after 24h soak.
+              # - The legacy zilean-env Secret (pre-CNPG connection string) was
+              #   removed 2026-11-22.
               PGUSER:
                 valueFrom:
                   secretKeyRef:

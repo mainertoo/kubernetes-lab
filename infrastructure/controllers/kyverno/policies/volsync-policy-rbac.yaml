@@ -1,4 +1,7 @@
-# Phase 5 prep RBAC for the volsync-pvc-backup-restore ClusterPolicy.
+# RBAC for the label-driven VolSync backup policies. Written for the
+# volsync-pvc-backup-restore ClusterPolicy and still required by its
+# replacement, the GeneratingPolicy volsync-pvc-backup-objects in
+# ../policies-cel/ (the part-of label below keeps the original name).
 #
 # Kyverno needs RBAC on TWO of its own service accounts to ship a
 # generate-rule policy:
