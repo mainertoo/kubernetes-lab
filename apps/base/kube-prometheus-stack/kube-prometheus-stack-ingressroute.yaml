@@ -18,9 +18,9 @@ spec:
   routes:
     - match: Host(`alerts.lab.mainertoo.com`)
       kind: Rule
-      # middlewares:
-      #   - name: authentik-sso
-      #     namespace: traefik-system
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: kube-prometheus-stack-alertmanager
           port: 9093
@@ -46,9 +46,9 @@ spec:
   routes:
     - match: Host(`prometheus.lab.mainertoo.com`)
       kind: Rule
-      # middlewares:
-      #   - name: authentik-sso
-      #     namespace: traefik-system
+      middlewares:
+        - name: authentik-sso
+          namespace: traefik-system
       services:
         - name: kube-prometheus-stack-prometheus
           port: 9090
