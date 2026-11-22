@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: bridge
-          image: ghcr.io/sriramanujam/alertmanager-discord-bridge:latest
+          image: ghcr.io/sriramanujam/alertmanager-discord-bridge:latest@sha256:45b81676981e16f1b775ccffbade9180ca31fc38e9b5f9b9a2e491bbe6091754
           imagePullPolicy: IfNotPresent
           env:
             - name: DISCORD_WEBHOOK
