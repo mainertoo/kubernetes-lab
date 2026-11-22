@@ -29,6 +29,11 @@ spec:
               repository: tombursch/kitchenowl
               tag: v0.8.1
               pullPolicy: IfNotPresent
+            # Request only, no limit: sized to the 7-day average so the scheduler
+            # counts what this pod really uses (avg and peak 0.45G).
+            resources:
+              requests:
+                memory: 450Mi
             env:
               - name: TZ
                 value: "America/Los_Angeles"

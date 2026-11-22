@@ -53,7 +53,7 @@ spec:
     resources:
       requests:
         cpu: "100m"
-        memory: "512Mi"
+        memory: "1Gi"   # each replica averages 0.9-1.2G (peak 1.8G)
       limits:
         cpu: "500m"
         memory: "2Gi"

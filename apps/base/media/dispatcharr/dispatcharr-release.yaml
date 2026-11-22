@@ -32,6 +32,11 @@ spec:
               repository: ghcr.io/dispatcharr/dispatcharr
               tag: 0.34.1
               pullPolicy: IfNotPresent
+            # Request only, no limit: sized to the 7-day average so the scheduler
+            # counts what this pod really uses (avg 1.7G, peak 1.9G).
+            resources:
+              requests:
+                memory: 1750Mi
 
             env:
               TZ: America/Los_Angeles

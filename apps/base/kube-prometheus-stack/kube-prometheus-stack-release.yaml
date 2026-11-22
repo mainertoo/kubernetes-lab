@@ -177,6 +177,14 @@ spec:
           - memory-snapshot-on-shutdown
           - new-service-discovery-manager
 
+        # Request only, no limit. Prometheus averages 8.7G and peaks near 13G;
+        # with no request the scheduler saw its node (worker-1) as the emptiest
+        # and kept placing pods there. A limit is left off on purpose: an
+        # OOM-killed Prometheus loses its head block and replays the WAL.
+        resources:
+          requests:
+            memory: 10Gi
+
         retention: 14d
         retentionSize: 18GB
         storageSpec:
