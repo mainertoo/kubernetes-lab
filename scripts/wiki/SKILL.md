@@ -35,6 +35,7 @@ python3 $SKILL/wiki3.py render (--id UUID | --path PATH)        # re-render from
 All secrets come from `apps/base/wiki/wiki-secret.sops.yaml` in `~/kubernetes-lab`, read with `sops`. Override the repo location with `$KLAB_REPO`.
 - **Reads** use the API key `CLAUDE_API_KEY` (Administrators group, expires 2029-11-06).
 - **Writes** need a user: v3 refuses API keys for save, move, delete, render and storage actions. The script logs in as `wiki-admin` (`ADMIN_EMAIL`/`ADMIN_PASS`) and uses that session, so edits are authored by "Administrator".
+- **The session is cached** in `~/.cache/wiki3/session.cookies` (mode 600; override with `$WIKI3_COOKIES`) and reused across runs; an expired session triggers one fresh login. The wiki rate-limits logins: logging in on every call, especially from parallel sessions, causes HTTP 429 and a 15-minute lockout.
 
 ## Backup / git mirror
 v3 pushes everything to the **PRIVATE** repo `mainertoo/wiki`, branch **`v3`**, in **push-only** mode every 5 minutes. Each page is a markdown file with YAML frontmatter, and the folder tree mirrors page paths. The mirror is the backup.

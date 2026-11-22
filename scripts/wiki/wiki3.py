@@ -42,11 +42,27 @@ def secret(key):
             sys.exit(f"cannot read {key} from {SOPS_FILE}: {e}")
     return _secrets[key]
 
-_jar = http.cookiejar.CookieJar()
+# The wiki rate-limits logins (HTTP 429, 15-minute lockout), so the session
+# cookie is cached between runs instead of logging in on every call.
+COOKIE_FILE = os.environ.get("WIKI3_COOKIES", os.path.expanduser("~/.cache/wiki3/session.cookies"))
+_jar = http.cookiejar.LWPCookieJar(COOKIE_FILE)
 _opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_jar))
 _session = False
+try:
+    _jar.load(ignore_discard=True, ignore_expires=True)
+    _session = len(_jar) > 0
+except Exception:
+    pass
 
-def call(method, path, body=None, user=False):
+def _save_session():
+    try:
+        os.makedirs(os.path.dirname(COOKIE_FILE), mode=0o700, exist_ok=True)
+        _jar.save(ignore_discard=True, ignore_expires=True)
+        os.chmod(COOKIE_FILE, 0o600)
+    except Exception:
+        pass  # caching is best-effort
+
+def call(method, path, body=None, user=False, _retry=True):
     """user=True: use the wiki-admin session (writes); else the API key."""
     global _session
     # -> Fastify rejects a JSON content-type with no body (e.g. DELETE)
@@ -61,6 +77,11 @@ def call(method, path, body=None, user=False):
         raw = _opener.open(req, timeout=60).read()
     except urllib.error.HTTPError as e:
         msg = e.read().decode(errors="replace")[:500]
+        if user and _retry and e.code in (401, 403):
+            # cached session expired: log in once and retry
+            _session = False
+            _jar.clear()
+            return call(method, path, body, user=True, _retry=False)
         raise SystemExit(f"{method} {path} -> {e.code}: {msg}")
     return json.loads(raw) if raw else {}
 
@@ -76,6 +97,7 @@ def login():
     if not r.get("authenticated"):
         raise SystemExit(f"login not authenticated: {r.get('nextAction')}")
     _session = True
+    _save_session()
 
 def pages_list():
     return call("GET", f"/sites/{SITE}/tree/pages?depth=10&limit=1000")
