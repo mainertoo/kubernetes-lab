@@ -10,6 +10,14 @@ deployment:
       configMap:
         name: traefik-file-provider-pve
 
+# Pin the LoadBalancer address. MetalLB had auto-assigned it, so recreating the
+# Service or rebuilding the cluster could have handed out a different one.
+# AdGuard rewrites *.lab.mainertoo.com to this address and the UniFi firewall
+# rules reference it.
+service:
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.90.180"
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
