@@ -19,14 +19,26 @@ spec:
   values:
     fullnameOverride: zilean
 
+    # The h1n054ur image runs as uid 100 (zilean), not root. Both PVCs are
+    # group-owned by gid 1000 with mode 2775, so fsGroup 1000 gives it write
+    # access without a recursive chown.
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
     controllers:
       main:
         replicas: 1
         containers:
           main:
             image:
-              repository: ipromknight/zilean
-              tag: v3.5.0
+              # Community fork that took over from iPromKnight (dormant since
+              # v3.5.0, 2025-05) via Thoroslives; it reads DMM's post-2026-09-30
+              # hashlist layout. Its migrations change data: roll back by
+              # restoring the CNPG backup, not by starting the old image.
+              repository: ghcr.io/h1n054ur/zilean
+              tag: v4.2.0
               pullPolicy: IfNotPresent
 
             env:
