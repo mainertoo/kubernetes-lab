@@ -4,7 +4,7 @@ metadata:
   name: homepage
   labels:
     # Phase 5b of the volsync label-driven restore project. The label
-    # is consumed by ClusterPolicy `volsync-pvc-backup-restore` which
+    # is consumed by GeneratingPolicy `volsync-pvc-backup-objects` which
     # generates `volsync-homepage` Secret + `homepage-backup` RS + RD
     # in this namespace. Was previously a kubectl-patched out-of-band
     # label (PR #353 patch attempt didn't survive Flux's pre-postBuild

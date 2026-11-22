@@ -6,7 +6,7 @@ resources:
   - homepage-default-configmap.yaml
   # Phase 5b: PVC ownership transferred from components/volsync-v2 to a
   # static manifest carrying `backup: daily`. ClusterPolicy
-  # `volsync-pvc-backup-restore` generates the volsync trio off the label.
+  # `volsync-pvc-backup-objects` generates the volsync trio off the label.
   - homepage-pvc.yaml
   - homepage-rbac.yaml
   - homepage-release.yaml

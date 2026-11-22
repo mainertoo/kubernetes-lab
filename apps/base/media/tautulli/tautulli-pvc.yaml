@@ -4,7 +4,7 @@ metadata:
   name: tautulli
   labels:
     # Phase 5b of the volsync label-driven restore project.
-    # ClusterPolicy volsync-pvc-backup-restore matches this label and
+    # GeneratingPolicy volsync-pvc-backup-objects matches this label and
     # generates volsync-tautulli Secret + tautulli-backup RS + RD in this ns.
     backup: daily
     backup-engine: kopia

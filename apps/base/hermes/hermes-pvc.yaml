@@ -7,7 +7,7 @@
 #
 # Config is seeded onto this PVC interactively (Option B), so the daily Kopia
 # backup IS the source of truth for a cluster rebuild — the label below opts
-# the PVC into the Kyverno volsync-pvc-backup-restore-kopia policy, which
+# the PVC into the Kyverno volsync-pvc-backup-objects policy, which
 # auto-generates the Secret + ReplicationSource + ReplicationDestination.
 # `daily` (not hourly): memories/skills accrete slowly, not DB-churn.
 apiVersion: v1
