@@ -33,7 +33,7 @@ spec:
           app:
             image:
               repository: neosmemo/memos
-              tag: 26.11.1
+              tag: 26.11.2
               pullPolicy: IfNotPresent
 
             env:
