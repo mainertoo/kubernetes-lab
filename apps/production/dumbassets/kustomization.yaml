@@ -16,6 +16,10 @@ spec:
   retryInterval: 2m
   timeout: 10m
   wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   sourceRef:
     kind: GitRepository
     name: flux-system
