@@ -63,7 +63,7 @@ spec:
           backend:
             image:
               repository: zimengxiong/excalidash-backend
-              tag: "0.6.9"
+              tag: "0.6.10"
             env:
               - name: TZ
                 value: America/Los_Angeles
