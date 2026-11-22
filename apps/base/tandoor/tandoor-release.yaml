@@ -54,6 +54,11 @@ spec:
               repository: ghcr.io/tandoorrecipes/recipes
               tag: 2.7.6
               pullPolicy: IfNotPresent
+            # Request only, no limit: sized to the 7-day average so the scheduler
+            # counts what this pod really uses (avg and peak 0.8G).
+            resources:
+              requests:
+                memory: 850Mi
             env:
               - name: TZ
                 value: "America/Los_Angeles"

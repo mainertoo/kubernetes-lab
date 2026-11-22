@@ -89,6 +89,12 @@ spec:
         host: "{{ .Release.Name }}-redis-master"
 
     server:
+      # Request only, no limit: sized to the 7-day average so the scheduler
+      # counts what this pod really uses (avg 0.7G, peak 0.8G).
+      resources:
+        requests:
+          memory: 800Mi
+
       ingress:
         enabled: false
 
