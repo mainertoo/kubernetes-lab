@@ -47,7 +47,6 @@ resources:
   - media/plex/kustomization.yaml
   - media/notifiarr/kustomization.yaml
   - media/tautulli/kustomization.yaml
-  - media/jackett/kustomization.yaml
   - media/zilean/
   - media/seerr/kustomization.yaml
   - paperless-ngx/kustomization.yaml
