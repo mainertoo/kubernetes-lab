@@ -27,6 +27,10 @@ spec:
       GATUS_PORT: "9000"
   prune: true
   retryInterval: 2m
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   sourceRef:
     kind: GitRepository
     name: flux-system

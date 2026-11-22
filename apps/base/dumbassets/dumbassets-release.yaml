@@ -35,8 +35,9 @@ spec:
             env:
               - name: NODE_ENV
                 value: "production"
+              # DEBUG=true makes the app print the PIN to its log at startup.
               - name: DEBUG
-                value: "true"
+                value: "false"
               - name: SITE_TITLE
                 value: "DumbAssets"
               - name: BASE_URL

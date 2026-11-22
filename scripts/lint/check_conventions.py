@@ -16,6 +16,10 @@ Rules (see CLAUDE.md "Apps pattern" and the wiki page gitops/apps-pattern):
         kustomization.yaml listing both
   NS01  every Namespace manifest carries kustomize.toolkit.fluxcd.io/prune: disabled
   SOPS01 every *.sops.yaml is actually encrypted
+  SOPS02 an overlay whose base lists a *.sops.yaml has spec.decryption (sops);
+         without it Flux applies the ciphertext as the secret value
+  SOPS03 values in an encrypted Secret are strings (a bare number in stringData
+         is rejected by the API server once decrypted)
   REF01 every YAML file in an apps/base directory is listed in its kustomization.yaml
 
 Exceptions live in ALLOW below, each with a reason.
@@ -118,6 +122,11 @@ def check_overlays():
                     err("KS01", f, "metadata.namespace should be flux-system")
                 if not str(s.get("path", "")).startswith("./apps/base"):
                     err("KS01", f, f"spec.path should start with ./apps/base (got {s.get('path')!r})")
+                base = os.path.join(str(s.get("path", "")).lstrip("./"), "kustomization.yaml")
+                if os.path.exists(base):
+                    listed = [r for b in docs(base) for r in (b.get("resources") or []) if str(r).endswith(".sops.yaml")]
+                    if listed and (s.get("decryption") or {}).get("provider") != "sops":
+                        err("SOPS02", f, f"base lists {listed[0]} but the Kustomization has no spec.decryption")
         for f in sorted(glob.glob(f"{root}/**/db-cnpg.yaml", recursive=True)):
             d = os.path.dirname(f)
             k = os.path.join(d, "kustomization.yaml")
@@ -146,6 +155,8 @@ def check_sops():
         text = open(f).read()
         if "ENC[" not in text or not re.search(r"^sops:", text, re.M):
             err("SOPS01", f, "file has the .sops.yaml suffix but is not encrypted")
+        if re.search(r"^kind: Secret", text, re.M) and re.search(r",type:(int|float|bool)\]", text):
+            err("SOPS03", f, "a Secret value is not a string; quote it")
 
 
 def check_references():
