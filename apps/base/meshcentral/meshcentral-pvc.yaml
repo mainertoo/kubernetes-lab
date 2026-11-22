@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: meshcentral
   labels:
-    # Label-driven volsync backup: ClusterPolicy volsync-pvc-backup-restore-kopia
+    # Label-driven volsync backup: GeneratingPolicy volsync-pvc-backup-objects
     # matches these labels and generates the volsync-meshcentral Secret +
     # meshcentral-backup RS + RD in this namespace. `daily` is plenty for an
     # AMT-management console (low-churn: a handful of device records).

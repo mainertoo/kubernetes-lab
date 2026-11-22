@@ -4,7 +4,7 @@ metadata:
   name: calibre
   labels:
     # Phase 5 of the Kopia transition (docs/volsync-kopia-transition.md).
-    # ClusterPolicy volsync-pvc-backup-restore-kopia matches both labels
+    # GeneratingPolicy volsync-pvc-backup-objects matches both labels
     # and generates volsync-calibre Secret + calibre-backup RS + RD with
     # spec.kopia in this ns.
     backup: daily

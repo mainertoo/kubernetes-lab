@@ -4,7 +4,7 @@ metadata:
   name: open-webui
   labels:
     # Label-driven volsync backup (ClusterPolicy
-    # volsync-pvc-backup-restore-kopia auto-generates the
+    # volsync-pvc-backup-objects auto-generates the
     # per-PVC Kopia Secret + ReplicationSource + ReplicationDestination).
     backup: daily
     backup-engine: kopia

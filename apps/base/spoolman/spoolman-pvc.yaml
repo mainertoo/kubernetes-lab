@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: spoolman
   labels:
-    # Label-driven volsync backup — ClusterPolicy volsync-pvc-backup-restore-kopia
+    # Label-driven volsync backup — GeneratingPolicy volsync-pvc-backup-objects
     # generates the volsync-spoolman Secret + RS + RD in this namespace.
     backup: daily
     backup-engine: kopia

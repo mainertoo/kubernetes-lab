@@ -5,7 +5,7 @@ resources:
   - donetick-namespace.yaml
   # Phase 5b: PVC ownership transferred from components/volsync-v2 to a
   # static manifest carrying `backup: daily`. ClusterPolicy
-  # `volsync-pvc-backup-restore` generates the volsync trio off the label.
+  # `volsync-pvc-backup-objects` generates the volsync trio off the label.
   - donetick-pvc.yaml
   - donetick-secret.sops.yaml
   - donetick-release.yaml

@@ -7,7 +7,7 @@ metadata:
     # auto-selects copyMethod=Snapshot + ceph-rbd-snapclass (RBD CSI
     # clone), not the cephfs `backingsnapshot` shallow-mount path. See:
     #   docs/label-driven-backups.md
-    #   infrastructure/controllers/kyverno/policies/volsync-pvc-backup-restore-kopia.yaml
+    #   infrastructure/controllers/kyverno/policies-cel/volsync-pvc-backup-objects.yaml
     backup: daily
     backup-engine: kopia
   annotations:
