@@ -47,7 +47,7 @@ spec:
               mountPath: /var/lib/pgadmin
       containers:
         - name: pgadmin
-          image: dpage/pgadmin4:latest
+          image: dpage/pgadmin4:9.19.0
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 5050
