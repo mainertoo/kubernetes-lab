@@ -70,9 +70,10 @@ spec:
               requests:
                 cpu: 100m
                 memory: 256Mi
+              # No CPU limit: the hourly DMM sync was pinned at 2 cores. The
+              # first sync on v4.2.0 used 1.6Gi, so 2Gi left too little room.
               limits:
-                cpu: 2000m
-                memory: 2Gi
+                memory: 4Gi
 
     service:
       main:
@@ -86,8 +87,13 @@ spec:
       data:
         enabled: true
         existingClaim: zilean-data
+        # /app/data is where Zilean keeps settings.json (API key), the IMDb
+        # file and the ~3G DMM hashlist clone. Mounted from the `appdata`
+        # sub-folder, which the app user owns; the volume root still holds
+        # stale root-owned files from 2025 that it cannot rewrite.
         globalMounts:
-          - path: /data
+          - path: /app/data
+            subPath: appdata
       tmp:
         enabled: true
         existingClaim: zilean-tmp
