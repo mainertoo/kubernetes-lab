@@ -20,7 +20,7 @@ spec:
   values:
     controllers:
       main:
-        replicas: 1
+        replicas: 0
         containers:
           main:
             image:
