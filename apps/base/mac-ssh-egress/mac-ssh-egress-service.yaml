@@ -6,7 +6,9 @@
 # Split into its own Flux app (no targetNamespace) because it spans two
 # namespaces; the hermes app itself uses targetNamespace + the gatus Component.
 # The Service lives in the `hermes` ns so it resolves as
-# mac-egress.hermes.svc.cluster.local (= TERMINAL_SSH_HOST in the release).
+# mac-egress.hermes.svc.cluster.local. Hermes' TERMINAL_SSH_HOST now points
+# at the DGX Spark, so nothing uses this at present; it is kept so the pod can
+# still SSH to the Mac.
 #
 # Prereqs (verify at deploy):
 #   - Tailnet ACL allows tag:k8s-egress → darcys-macbookpro:22

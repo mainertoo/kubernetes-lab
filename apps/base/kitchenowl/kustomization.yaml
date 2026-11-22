@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: kitchenowl
 resources:
   - kitchenowl-namespace.yaml
-  # PVC owned by volsync-v2 (bootstrap on first deploy, plain after settle).
+  # PVC carries the backup labels; Kyverno generates its VolSync objects
+  # (docs/label-driven-backups.md).
   # Renamed from kitchenowl-data → kitchenowl during Phase 1c migration.
   - kitchenowl-pvc.yaml
   - kitchenowl-sso-secret.sops.yaml
