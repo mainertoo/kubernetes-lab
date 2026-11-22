@@ -42,7 +42,10 @@ spec:
               - name: BASE_URL
                 value: "https://dumbassets.lab.mainertoo.com"
               - name: DUMBASSETS_PIN
-                value: "6996"
+                valueFrom:
+                  secretKeyRef:
+                    name: dumbassets-secret
+                    key: DUMBASSETS_PIN
               - name: ALLOWED_ORIGINS
                 value: "*"
               - name: APPRISE_URL
