@@ -7,7 +7,7 @@ metadata:
     gethomepage.dev/href: "https://zilean.lab.mainertoo.com"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Zilean"
-    gethomepage.dev/description: "Zurg/Torrent scraper backend feeding Riven"
+    gethomepage.dev/description: "Torrent-hash search for debrid content"
     gethomepage.dev/app: zilean
     gethomepage.dev/group: "Media"
     gethomepage.dev/icon: "sh-jackett.svg"

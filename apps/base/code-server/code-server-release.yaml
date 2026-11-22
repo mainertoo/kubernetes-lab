@@ -100,7 +100,7 @@ spec:
 
     persistence:
       config:
-        # PVC is provisioned by components/volsync-v2 with name = ${APP}.
+        # Plain PVC from code-server-pvc.yaml (label-driven Kopia backup).
         # Renamed from code-server-config during the Phase 1c migration.
         existingClaim: code-server
         globalMounts:

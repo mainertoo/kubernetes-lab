@@ -3,8 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: symlinks-cephfs
   namespace: media
-  # Intentionally NOT volsync-labelled: the symlink farm is fully reproducible —
-  # zurg/riven rebuild it from the debrid mounts on startup. No durable state.
+  # Intentionally NOT volsync-labelled: legacy symlink farm from the pre-DUMB
+  # stack (Riven, retired 2026-11-10). Still mounted at /mnt/symlinks by Plex,
+  # Jellyfin and the *arrs, but it holds no durable state.
 spec:
   storageClassName: cephfs
   accessModes:
