@@ -11,7 +11,7 @@ spec:
         kind: HelmRepository
         name: traefik-proxy
         namespace: traefik-system
-      version: "42.4.3"
+      version: "43.0.0"
   # Keep the Traefik CRDs in step with the chart. Flux's default never upgrades
   # CRDs, so ours were still the 2025-11-19 originals (no 3.6.9+ fields).
   install:
