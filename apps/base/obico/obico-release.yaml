@@ -214,7 +214,7 @@ spec:
           app:
             image:
               repository: redis
-              tag: 8.10.3-alpine
+              tag: 8.12.0-alpine
             securityContext:
               runAsUser: 999
               runAsNonRoot: true
