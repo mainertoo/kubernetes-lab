@@ -336,7 +336,7 @@ spec:
           redis:
             image:
               repository: redis
-              tag: 8.10-alpine
+              tag: 8.12-alpine
               pullPolicy: IfNotPresent
             command:
               - redis-server
