@@ -45,6 +45,20 @@ spec:
         type: deployment
         strategy: Recreate
         replicas: 1
+        # TEMPORARY workaround (2026-11-24) for LP#2172640 / LP#2172422.
+        # Ubuntu kernels >= 7.0.0-41/42 with apparmor_restrict_unprivileged_unconfined=1
+        # force a `cri-containerd.apparmor.d//&unconfined` AppArmor stack on container
+        # processes. containerd's default profile then denies signals a process sends
+        # to itself or its threads, so gosu (in docker-entrypoint.sh) livelocks at
+        # 100% CPU and mariadbd hangs on "Signal handler thread did not exit".
+        # Unconfined drops ONLY AppArmor for this pod (seccomp, capabilities and
+        # namespaces still apply). Remove once K3s bundles a containerd with the
+        # fixed profile (containerd#14487, backported to 2.0/2.3/2.4, NOT 2.2) and
+        # `gosu mysql id` passes without this override (the update-gh skill checks).
+        pod:
+          securityContext:
+            appArmorProfile:
+              type: Unconfined
         containers:
           app:
             image:
