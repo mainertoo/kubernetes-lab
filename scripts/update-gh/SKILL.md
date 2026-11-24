@@ -83,6 +83,39 @@ kubectl get pods -A --no-headers | awk '($4!="Running" && $4!="Completed") || ($
 Finally, re-list open Renovate PRs. New ones often appear mid-run (Renovate
 rebases after merges). Triage them the same way or report them.
 
+## 5b. K3s / containerd AppArmor watch (every run, until resolved)
+
+```bash
+~/.claude/skills/update-gh/k3s-containerd-check.sh   # exit 0 = nothing yet, 10 = act
+```
+Background: Ubuntu kernels >= 7.0.0-41/42 force an `//&unconfined` AppArmor
+stack on container processes, so containerd's default profile blocks
+self-signals. gosu livelocks and mariadbd hangs (LP#2172640, LP#2172422). The
+fix is containerd#14487, backported to 2.0/2.3/2.4 but **not 2.2**, and K3s
+v1.35 bundles 2.2.x. So the fix most likely arrives via a **K3s minor upgrade**
+(v1.36+, containerd 2.3.x). Two things are held until then: the prod kernel
+(memory `project_ubuntu_kernel_7_0_0_42_gosu_hang_2026_10_29`) and
+`appArmorProfile: Unconfined` on the staging openemr/openmrs MariaDB pods (PR #2422).
+
+When the script exits 10, report it and propose this order. Every step needs the user's OK:
+1. Upgrade **staging** K3s to that release (`k3s_version` in
+   `ansible/k3s-cluster/inventory/staging/group_vars/all.yml`, then `k3s_upgrade.yml`).
+   A minor bump: read the K3s/Kubernetes upgrade notes first.
+2. On a staging node still on kernel -42/-44, run the gosu test **without** the override:
+   `kubectl run gosutest --context staging --restart=Never --image=docker.io/library/mariadb:13.0.2 --overrides='{"spec":{"activeDeadlineSeconds":60}}' --command -- gosu mysql id`
+   It must print `uid=999(mysql)`. `DeadlineExceeded` means not fixed.
+3. Revert the PR #2422 lines and confirm openemr/openmrs MariaDB still start.
+4. Upgrade **prod** K3s while the kernel is still held on -38.
+5. Only then lift the hold (`k3s_os_upgrade.yml -e kernel_hold=unhold`). Patch one
+   node, run the gosu test pinned to it, check firecrawl rabbitmq and nuq-postgres
+   (they use gosu), then roll the rest.
+Never lift the kernel hold before the K3s upgrade. Leave the
+`apparmor_restrict_unprivileged_unconfined` sysctl at its default.
+
+If the script reports `backport-merged-on-release/2.2`, a 2.2 backport now exists:
+add its merge SHA to `fix_sha()` so a K3s v1.35 patch release can qualify.
+Once the hold and workaround are both gone, delete this section and the script.
+
 ## 6. Report
 
 One short summary: merged (low / approved), anything held and why, any
