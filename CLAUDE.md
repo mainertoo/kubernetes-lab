@@ -52,7 +52,7 @@ components/
   gatus/                                # Reusable Kustomize Component for Gatus health endpoints
 docker/                                 # Build contexts for self-built images (beam, cnpg-timescaledb, qidistudio)
 scripts/                                # Operational tooling (dispatcharr, home-assistant, homebox, immich, portainer, proxmox, unifi, …)
-  new-app/, wiki/, portainer/, proxmox/, home-assistant/ha-automation/   # Claude Code skills (SKILL.md + helper), symlinked into ~/.claude/skills
+  new-app/, wiki/, portainer/, proxmox/, update-gh/, home-assistant/ha-automation/   # Claude Code skills (SKILL.md + helper), symlinked into ~/.claude/skills
   lint/check_conventions.py             # Manifest convention checks, run in CI on every PR
   archive/                              # Finished one-off migration scripts, kept for reference
 docs/                                   # Architecture, recovery runbooks, plans
