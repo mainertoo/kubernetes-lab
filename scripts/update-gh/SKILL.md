@@ -189,8 +189,8 @@ Only stacks whose own compose file changed need a deploy: compare
 `git diff <deployed_hash>..HEAD -- <dir>`, where `deployed_hash` comes from `ListStacks`.
 
 Portainer manual stack: `scripts/portainer/portainer.py redeploy --id <id> --endpoint <ep> --pull --yes`.
-⚠️ Before the first use, check that the stack's env vars survive: compare
-`GET stacks/<id>` `.Env` before and after. The redeploy payload here sends no `env`.
+It keeps the stack's env vars, git credential and ref, and fails loudly if the env names change.
+Run it without `--yes` first and check the env list it plans to keep.
 
 ### 5c.5 Verify
 After merging, wait for the deployers (Komodo `:00/:05…`, Portainer polls every 5 min) and

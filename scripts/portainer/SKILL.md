@@ -38,10 +38,15 @@ portainer.py stacks           # list stacks (id, endpoint, git source)
 portainer.py git-creds        # list git credentials -> find --git-cred-id
 portainer.py create-git    --name N --endpoint ID --compose-path PATH --git-cred-id 8 [--env KEY|KEY=VAL] [--no-autoupdate] --yes
 portainer.py create-compose --name N --endpoint ID --file ./docker-compose.yml [--env ...] --yes
-portainer.py redeploy --id ID --endpoint ID [--ref refs/heads/main] [--pull] --yes
+portainer.py redeploy --id ID --endpoint ID [--ref REF] [--git-cred-id N] [--pull] --yes
 portainer.py rm --id ID --endpoint ID --yes
 ```
 `--env KEY` (no `=`) pulls the value from `$KEY` so secrets stay off the command line.
+
+`redeploy` keeps the stack's **current** env vars, git credential and ref unless you override them.
+Portainer's git/redeploy *replaces* the env list with whatever the request sends, so the command sends
+the existing list back and then checks the env names are unchanged (it exits non-zero if not). The
+dry-run prints the env names it will keep. `--pull` re-pulls images; it's needed for an image bump.
 
 ## Safety
 **Writes (create / redeploy / rm) are DRY-RUN unless `--yes`.** Honor the repo
