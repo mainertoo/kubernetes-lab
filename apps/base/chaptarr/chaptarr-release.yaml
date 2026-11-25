@@ -31,20 +31,30 @@ spec:
           app:
             # Community-maintained image — Chaptarr is a Readarr fork that handles
             # audiobooks + ebooks in one instance. No official/GitHub image yet,
-            # only this Docker Hub build, and only a `latest` tag is published
-            # (nothing to pin — Renovate has no version stream to track here).
+            # only this Docker Hub build. It now publishes numbered tags (0.9.x;
+            # `main` == `latest` == the newest one), so pin a version: the old
+            # `latest@sha256` pin was ignored by Renovate's moving-tag rule and sat
+            # on a 2026-06 build for 5 months.
             image:
               repository: robertlordhood/chaptarr
-              tag: "latest@sha256:4b79c55b61044ddc1c3bfa7812c559e7a76dc986d9fade45db3271d31881dc6f"
+              tag: "0.9.1000@sha256:bacb27cc04abe1900412df45ad5ad4e392368fe3e783012824b2ad768c72daa1"
+            # TEMPORARY workaround (2026-11-25) for LP#2172640: on Ubuntu kernels
+            # >= 7.0.0-42 containerd's AppArmor profile blocks self-signals, so the
+            # entrypoint's `gosu ubuntu` spins forever at 100% CPU and the app never
+            # starts (pod showed 1/1 Running for 4 days with nothing on :8789).
+            # Same fix as the staging EMR MariaDBs (#2422); remove once K3s ships a
+            # containerd with containerd#14487 (the update-gh skill flags it).
+            securityContext:
+              appArmorProfile:
+                type: Unconfined
             env:
               TZ: "America/Los_Angeles"
               # Servarr defaults: PUID/PGID drive file ownership on /config.
               PUID: "1000"
               PGID: "1000"
-            # Servarr exposes /ping, but on first boot the app generates its DB +
-            # config which can take a bit; probes left off for the staging eval to
-            # avoid masking a real crash loop. Tighten to a /ping HTTP probe on
-            # 8787 once it's confirmed booting cleanly.
+            # Readiness = a TCP connect on 8789: with no probes at all, a hung start
+            # (see AppArmor note above) looked healthy for days. Liveness/startup
+            # stay off so a slow first boot or DB migration isn't killed mid-way.
             resources:
               requests:
                 cpu: 50m
@@ -55,7 +65,14 @@ spec:
               liveness:
                 enabled: false
               readiness:
-                enabled: false
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8789
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 4
               startup:
                 enabled: false
 
