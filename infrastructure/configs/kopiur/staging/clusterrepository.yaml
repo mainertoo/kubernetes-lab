@@ -1,0 +1,35 @@
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: ClusterRepository
+metadata:
+  name: primary
+spec:
+  backend:
+    s3:
+      # Staging's own bucket on Garage (100 GiB quota). Its access key has
+      # no rights on production's volsync-kopia bucket.
+      bucket: kopiur-staging
+      # Garage's S3 port on the QNAP, directly. Not garage.lab.mainertoo.com:
+      # that name goes through production's Traefik, and backups must stay
+      # reachable when a cluster is being rebuilt. Plain HTTP on the LAN;
+      # requests are still signed and Kopia encrypts the data itself.
+      endpoint: 192.168.1.252:3900
+      region: us-west-1
+      tls:
+        disableTls: true
+      auth:
+        secretRef:
+          name: kopiur-repository
+          namespace: kopiur-system
+  encryption:
+    passwordSecretRef:
+      name: kopiur-repository
+      namespace: kopiur-system
+      key: KOPIA_PASSWORD
+  # Initialise the repository if the bucket is empty.
+  create:
+    enabled: true
+  allowedNamespaces:
+    all: true
+  # Maintenance is managed by the operator; this is where its object lands.
+  maintenance:
+    namespace: kopiur-system
