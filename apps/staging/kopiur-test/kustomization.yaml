@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app kopiur-test
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/kopiur-test
+  targetNamespace: *app
+  # The repository must be Ready before the PVCs are created, so the
+  # restore-on-create populator can look for a backup.
+  dependsOn:
+    - name: infra-kopiur-config
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

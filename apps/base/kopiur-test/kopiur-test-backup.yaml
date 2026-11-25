@@ -1,0 +1,95 @@
+# --- Ceph RBD volume -------------------------------------------------------
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: kopiur-test-rbd
+spec:
+  repository:
+    kind: ClusterRepository
+    name: primary
+  # CSI snapshot, restored into a temporary volume that the mover reads.
+  copyMethod: Snapshot
+  volumeSnapshotClassName: ceph-rbd-snapclass
+  sources:
+    - pvc:
+        name: kopiur-test-rbd
+  retention:
+    keepHourly: 6
+    keepDaily: 3
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: kopiur-test-rbd
+spec:
+  policyRef:
+    name: kopiur-test-rbd
+  schedule:
+    # H = a stable minute picked per schedule, so schedules do not all fire
+    # on the hour.
+    cron: "H * * * *"
+    runOnCreate: false
+---
+# Restore-on-create: claimed by the PVC's dataSourceRef. Latest snapshot if
+# one exists, otherwise an empty volume (Continue).
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: kopiur-test-rbd
+spec:
+  source:
+    fromPolicy:
+      name: kopiur-test-rbd
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Continue
+    waitTimeout: 2m
+---
+# --- CephFS volume ---------------------------------------------------------
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: kopiur-test-cephfs
+spec:
+  repository:
+    kind: ClusterRepository
+    name: primary
+  copyMethod: Snapshot
+  volumeSnapshotClassName: cephfs-snapclass
+  # Shallow snapshot: the temporary volume is a read-only view of the CephFS
+  # snapshot, not a full clone.
+  staging:
+    storageClassName: cephfs-backingsnapshot
+    accessModes: [ReadOnlyMany]
+  sources:
+    - pvc:
+        name: kopiur-test-cephfs
+  retention:
+    keepHourly: 6
+    keepDaily: 3
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: kopiur-test-cephfs
+spec:
+  policyRef:
+    name: kopiur-test-cephfs
+  schedule:
+    cron: "H * * * *"
+    runOnCreate: false
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: kopiur-test-cephfs
+spec:
+  source:
+    fromPolicy:
+      name: kopiur-test-cephfs
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Continue
+    waitTimeout: 2m

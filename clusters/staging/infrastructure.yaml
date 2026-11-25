@@ -82,3 +82,30 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+
+---
+# kopiur repository (ClusterRepository + its credentials). wait: true makes
+# this Kustomization Ready only when the repository is connected, so apps
+# that dependsOn it get their restore-on-create check against a live
+# repository.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-kopiur-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  wait: true
+  dependsOn:
+    - name: infra-controllers
+  path: ./infrastructure/configs/kopiur/staging
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

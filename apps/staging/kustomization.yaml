@@ -8,3 +8,4 @@ resources:
   # EMR evaluation pair (2026-09-03) — throwaway, no backups.
   - openemr/kustomization.yaml
   - openmrs/kustomization.yaml
+  - kopiur-test/kustomization.yaml
