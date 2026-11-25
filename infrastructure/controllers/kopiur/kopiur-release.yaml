@@ -1,0 +1,36 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kopiur
+  namespace: kopiur-system
+spec:
+  interval: 1h
+  # Explicit so the Deployments are kopiur-controller / kopiur-webhook, the
+  # names the upstream docs use.
+  releaseName: kopiur
+  chartRef:
+    kind: OCIRepository
+    name: kopiur
+    namespace: kopiur-system
+  install:
+    # The 9 CRDs ship in the chart's crds/ directory, which Helm installs
+    # once and never upgrades. CreateReplace makes Flux keep them current.
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # Cluster scope (the chart default, stated because it matters): the
+    # restore-on-create populator and Snapshot/Clone copy methods are
+    # refused under a namespaced install.
+    installScope: cluster
+    # Webhook certificate is self-managed by the operator (chart default),
+    # so there is no cert-manager dependency during a rebuild.
+    webhook:
+      tls:
+        mode: self

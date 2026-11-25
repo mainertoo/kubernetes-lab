@@ -1,0 +1,17 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  # Same name as production so app manifests are portable between clusters.
+  name: ceph-rbd-snapclass
+  annotations:
+    snapshot.storage.kubernetes.io/is-default-class: "true"
+driver: rbd.csi.ceph.com
+deletionPolicy: Delete
+parameters:
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+  # Staging's own pool; the cephx user in ceph-rbd-secret is scoped to it.
+  pool: staging-rbd
+
+  # Snapshotter auth (must be set on SnapshotClass)
+  csi.storage.k8s.io/snapshotter-secret-name: ceph-rbd-secret
+  csi.storage.k8s.io/snapshotter-secret-namespace: kube-system
