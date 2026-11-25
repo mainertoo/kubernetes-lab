@@ -30,6 +30,9 @@ spec:
     enabled: true
   allowedNamespaces:
     all: true
+  # Owner's consent to copying the credentials into consumer namespaces.
+  credentialProjection:
+    allowed: true
   # Maintenance is managed by the operator; this is where its object lands.
   maintenance:
     namespace: kopiur-system

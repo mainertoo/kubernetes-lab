@@ -4,6 +4,8 @@ kind: SnapshotPolicy
 metadata:
   name: kopiur-test-rbd
 spec:
+  credentialProjection:
+    enabled: true
   repository:
     kind: ClusterRepository
     name: primary
@@ -37,6 +39,8 @@ kind: Restore
 metadata:
   name: kopiur-test-rbd
 spec:
+  credentialProjection:
+    enabled: true
   source:
     fromPolicy:
       name: kopiur-test-rbd
@@ -52,6 +56,8 @@ kind: SnapshotPolicy
 metadata:
   name: kopiur-test-cephfs
 spec:
+  credentialProjection:
+    enabled: true
   repository:
     kind: ClusterRepository
     name: primary
@@ -85,6 +91,8 @@ kind: Restore
 metadata:
   name: kopiur-test-cephfs
 spec:
+  credentialProjection:
+    enabled: true
   source:
     fromPolicy:
       name: kopiur-test-cephfs

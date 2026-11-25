@@ -29,6 +29,13 @@ spec:
     # restore-on-create populator and Snapshot/Clone copy methods are
     # refused under a namespaced install.
     installScope: cluster
+    # Lets the operator copy the repository credentials into the namespace
+    # of each backup/restore Job for the length of the run, then delete the
+    # copy. Without it every app namespace needs its own copy of the Secret.
+    # Cost: the operator can create Secrets in any namespace.
+    features:
+      credentialProjection:
+        enabled: true
     # Webhook certificate is self-managed by the operator (chart default),
     # so there is no cert-manager dependency during a rebuild.
     webhook:
