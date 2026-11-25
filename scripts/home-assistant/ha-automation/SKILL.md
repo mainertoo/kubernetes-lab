@@ -157,6 +157,9 @@ Use the `wikijs-update` skill.
 2. `logbook <the affected entities> --minutes 90` — the `← automation.…` context shows
    who changed what. A device that changed physically but **isn't in the logbook** means
    HA never saw it: suspect a toggle/assumed-state device.
+   `--minutes` can go past a day (e.g. `--minutes 2880`); output is dated beyond 12 h. If you call
+   HA's `/api/logbook` or `/api/history/period` by hand, always pass `end_time` — without it HA
+   returns only one day from the start and silently drops the newest events.
 3. `trace <automation> --runs 3` — shows the branch taken, every condition result, wait
    outcome, and service params.
 4. Fix in git → PR → merge → `verify` → `enable` → add the lesson to the wiki.
