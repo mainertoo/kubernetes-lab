@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# kopiur - Kopia-native backup operator (replaces VolSync + pvc-plumber +
+# the Kyverno backup policies; decision 2026-11-23). Operator only: no
+# Repository / SnapshotPolicy objects live here, because they need the CRDs
+# this release installs and would fail the dry-run of the same Flux
+# Kustomization on a fresh cluster.
+#
+# Currently referenced by staging only (infrastructure/controllers-staging).
+resources:
+  - kopiur-namespace.yaml
+  - kopiur-repository.yaml
+  - kopiur-release.yaml

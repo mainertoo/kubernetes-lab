@@ -60,3 +60,25 @@ spec:
 # ./infrastructure/controllers/kyverno/policies would fail dry-run
 # (no matching CRD). Add this Kustomization back if/when kyverno gets
 # opted into infrastructure/controllers-staging/kustomization.yaml.
+
+---
+# Storage objects whose CRDs come from a controller in infra-controllers
+# (VolumeSnapshotClasses today). Separate so a fresh cluster does not
+# deadlock: see infrastructure/configs/storage/staging/kustomization.yaml.
+# infra-controllers does not wait for its HelmReleases, so on a rebuild this
+# retries every minute until the snapshot CRDs are installed.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-storage-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  dependsOn:
+    - name: infra-controllers
+  path: ./infrastructure/configs/storage/staging
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

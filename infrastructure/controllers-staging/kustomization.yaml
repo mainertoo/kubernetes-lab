@@ -32,14 +32,24 @@ kind: Kustomization
 #                      so generated RS/RD stay inert.
 #   - kyverno-rehearsal — pvc-plumber stub + dummy volsync-kopia-shared-base
 #                      + scratch namespace (./kyverno-rehearsal/).
+#   - snapshot-controller — shared with production
+#                      (../controllers/snapshot-controller), patched below
+#                      to 1 replica, no PDB. Production's two
+#                      VolumeSnapshotClasses are removed from this build;
+#                      staging's own live in
+#                      infrastructure/configs/storage/staging (Flux
+#                      Kustomization infra-storage-config).
+#   - kopiur         — shared (../controllers/kopiur). Kopia backup
+#                      operator, on staging first as the replacement for
+#                      VolSync + pvc-plumber + the Kyverno backup policies.
 #
 # Deliberately NOT in staging yet (add later when needed):
 #   - newt           — pangolin tunnel client for external access at
 #                      *.staging.mainertoo.com. Needs a fresh pangolin
 #                      client registration; follow-up PR once you have
 #                      the secret.
-#   - cephfs / snapshot-controller / volsync (controller) / cnpg /
-#     cloudflared / tailscale-operator / intel-gpu / pvc-plumber /
+#   - cephfs / volsync (controller) / cnpg / cloudflared /
+#     tailscale-operator / intel-gpu / pvc-plumber /
 #     kube-prometheus-stack / etc.
 resources:
   - ../controllers/cert-manager
@@ -48,6 +58,9 @@ resources:
   - ../controllers/ceph-csi-base
   - ../controllers/ceph-csi-rbd
   - ./storage/ceph-rbd
+  # CSI snapshots + the kopiur backup operator (staging first).
+  - ../controllers/snapshot-controller
+  - ../controllers/kopiur
   # Kyverno CEL migration rehearsal (docs/plans/kyverno-cel-migration.md).
   - ../controllers/kyverno
   - ./volsync-crds
@@ -69,6 +82,36 @@ patches:
       - op: replace
         path: /spec/values/prometheus/servicemonitor/enabled
         value: false
+  # snapshot-controller on staging: one replica, so no PDB (a single replica
+  # cannot satisfy minAvailable: 1 during a drain).
+  - target:
+      kind: HelmRelease
+      name: snapshot-controller
+    patch: |
+      - op: replace
+        path: /spec/values/controller/replicaCount
+        value: 1
+  - patch: |
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: snapshot-controller
+        namespace: snapshot-controller-system
+  # Production's snapshot classes point at production's pool and filesystem.
+  # Staging's are applied by infra-storage-config, after the CRDs exist.
+  - patch: |
+      $patch: delete
+      apiVersion: snapshot.storage.k8s.io/v1
+      kind: VolumeSnapshotClass
+      metadata:
+        name: ceph-rbd-snapclass
+  - patch: |
+      $patch: delete
+      apiVersion: snapshot.storage.k8s.io/v1
+      kind: VolumeSnapshotClass
+      metadata:
+        name: cephfs-snapclass
   # Kyverno on staging: same chart/version as production, sized down.
   # Staging has no Prometheus Operator CRDs (ServiceMonitors would fail the
   # Helm render) and a single replica can't satisfy a minAvailable:1 PDB
