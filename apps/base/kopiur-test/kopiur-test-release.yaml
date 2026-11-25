@@ -40,7 +40,7 @@ spec:
             # and checksummed by hand with kubectl exec.
             image:
               repository: busybox
-              tag: "1.37.0"
+              tag: "1.38.0"
             command: ["sh", "-c", "trap 'exit 0' TERM; sleep infinity & wait"]
             resources:
               requests:
