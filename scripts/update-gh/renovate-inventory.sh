@@ -2,10 +2,16 @@
 # Renovate PR inventory for the update-gh skill.
 #   renovate-inventory.sh               all open Renovate PRs: state, CI, changed lines
 #   renovate-inventory.sh <PR#>...      only those PRs
+#   renovate-inventory.sh -R mainertoo/home_server [PR#...]
+#       same, for another repo (home_server has no CI: shows "CI: none")
 #   renovate-inventory.sh --bazarr <sha256-hex>
 #       diff bazarr Alembic migrations: running pod vs the new digest (needs crane)
 set -euo pipefail
 REPO=mainertoo/kubernetes-lab
+if [[ "${1:-}" == "-R" ]]; then
+  REPO="${2:?usage: -R owner/repo}"
+  shift 2
+fi
 
 if [[ "${1:-}" == "--bazarr" ]]; then
   new="${2:?usage: --bazarr <sha256 hex of new digest>}"
@@ -40,6 +46,6 @@ fi
 for n in $prs; do
   gh pr view "$n" -R "$REPO" --json number,title,mergeable,statusCheckRollup --jq '
     "=== #\(.number) \(.title)  [\(.mergeable)]  CI: " +
-    ([.statusCheckRollup[]? | (if (.conclusion // "") != "" then .conclusion else (.state // .status // "PENDING") end)] | group_by(.) | map("\(.[0])x\(length)") | join(" "))'
+    (([.statusCheckRollup[]? | (if (.conclusion // "") != "" then .conclusion else (.state // .status // "PENDING") end)] | group_by(.) | map("\(.[0])x\(length)") | join(" ")) as $ci | if $ci == "" then "none" else $ci end)'
   gh pr diff "$n" -R "$REPO" | grep -E '^(\+\+\+ b/|[-+] )' | sed 's|^+++ b/|  file: |' | head -30
 done
