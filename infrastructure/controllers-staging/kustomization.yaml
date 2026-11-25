@@ -42,15 +42,21 @@ kind: Kustomization
 #   - kopiur         — shared (../controllers/kopiur). Kopia backup
 #                      operator, on staging first as the replacement for
 #                      VolSync + pvc-plumber + the Kyverno backup policies.
+#   - ceph-csi-cephfs — shared driver (../controllers/ceph-csi-cephfs),
+#                      staging StorageClasses in ./storage/cephfs/. Same
+#                      filesystem as production (k3s-fs) but its own
+#                      subvolume group `staging` (100 GiB quota) and its own
+#                      journal namespace, set by the ceph-csi-config patch
+#                      below. cephx user client.k3s-staging-cephfs is
+#                      limited to /volumes/staging.
 #
 # Deliberately NOT in staging yet (add later when needed):
 #   - newt           — pangolin tunnel client for external access at
 #                      *.staging.mainertoo.com. Needs a fresh pangolin
 #                      client registration; follow-up PR once you have
 #                      the secret.
-#   - cephfs / volsync (controller) / cnpg / cloudflared /
-#     tailscale-operator / intel-gpu / pvc-plumber /
-#     kube-prometheus-stack / etc.
+#   - volsync (controller) / cnpg / cloudflared / tailscale-operator /
+#     intel-gpu / pvc-plumber / kube-prometheus-stack / etc.
 resources:
   - ../controllers/cert-manager
   - ./traefik-proxy
@@ -58,6 +64,9 @@ resources:
   - ../controllers/ceph-csi-base
   - ../controllers/ceph-csi-rbd
   - ./storage/ceph-rbd
+  # CephFS - shared driver manifests + staging-only StorageClasses.
+  - ../controllers/ceph-csi-cephfs
+  - ./storage/cephfs
   # CSI snapshots + the kopiur backup operator (staging first).
   - ../controllers/snapshot-controller
   - ../controllers/kopiur
@@ -82,6 +91,34 @@ patches:
       - op: replace
         path: /spec/values/prometheus/servicemonitor/enabled
         value: false
+  # ceph-csi cluster config for staging: CephFS volumes go to the `staging`
+  # subvolume group and keep their journal in the `staging` RADOS namespace
+  # of the metadata pool, apart from production's (group `csi`, default
+  # namespace). RBD is unaffected: it is separated by pool. Both names are
+  # fixed once volumes exist; changing them orphans those volumes.
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: ceph-csi-config
+        namespace: ceph-csi
+      data:
+        config.json: |-
+          [
+            {
+              "clusterID": "2b142655-7791-4f14-8934-0ea16121b652",
+              "monitors": [
+                "192.168.99.12:6789",
+                "192.168.99.13:6789",
+                "192.168.99.14:6789"
+              ],
+              "cephFS": {
+                "kernelMountOptions": "recover_session=clean",
+                "subvolumeGroup": "staging",
+                "radosNamespace": "staging"
+              }
+            }
+          ]
   # snapshot-controller on staging: one replica, so no PDB (a single replica
   # cannot satisfy minAvailable: 1 during a drain).
   - target:

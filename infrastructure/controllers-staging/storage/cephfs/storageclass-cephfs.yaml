@@ -1,0 +1,25 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  # Same name as production so app manifests are portable between clusters.
+  name: cephfs
+allowVolumeExpansion: true
+provisioner: cephfs.csi.ceph.com
+parameters:
+  clusterID: 2b142655-7791-4f14-8934-0ea16121b652
+  csi.storage.k8s.io/node-stage-secret-name: cephfs-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/provisioner-secret-name: cephfs-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
+  csi.storage.k8s.io/controller-expand-secret-name: cephfs-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
+  # Same filesystem as production, but staging volumes live in their own
+  # subvolume group `staging` (100 GiB quota), set per cluster in the
+  # ceph-csi-config patch in ../../kustomization.yaml. The cephx user in
+  # cephfs-secret (client.k3s-staging-cephfs) can only write under
+  # /volumes/staging.
+  fsName: k3s-fs
+  monitors: 192.168.99.12:6789,192.168.99.13:6789,192.168.99.14:6789
+  pool: k3s-fs-data
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
