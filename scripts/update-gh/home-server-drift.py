@@ -116,14 +116,21 @@ def komodo():
         if p["name"] != "git-auto-deploy":
             continue
         info = p["info"]
-        scheduled = info.get("next_scheduled_run") is not None
-        ok = scheduled and info["state"] == "Ok"
+        # Read the setting itself. `next_scheduled_run` is null for a few seconds
+        # at every run (and the state is "Running"), which looked like a disabled
+        # schedule whenever this check landed on a 5-minute boundary.
+        scheduled = bool(call("GetProcedure", {"procedure": p["id"]})
+                         ["config"].get("schedule_enabled"))
+        state_ok = info["state"] in ("Ok", "Running")
+        ok = scheduled and state_ok and not info.get("schedule_error")
         print(f"  {'ok   ' if ok else 'WARN '} git-auto-deploy: last={info['state']} "
               f"scheduled={scheduled}")
         if not scheduled:
             problems.append("Komodo git-auto-deploy schedule is DISABLED")
-        if info["state"] != "Ok":
+        if not state_ok:
             problems.append(f"Komodo git-auto-deploy last run {info['state']}")
+        if info.get("schedule_error"):
+            problems.append(f"Komodo git-auto-deploy schedule error: {info['schedule_error']}")
     for st in call("ListStacks"):
         full = call("GetStack", {"stack": st["id"]})
         cfg = full["config"]
