@@ -58,8 +58,9 @@ python3 $P create-git --name myapp --endpoint 16 \
 # Deploy from a LOCAL compose file (no git):
 python3 $P create-compose --name myapp --endpoint 2 --file ./docker-compose.yml --yes
 
-# Pull latest for an existing git stack / re-pin its ref:
-python3 $P redeploy --id 100 --endpoint 16 --ref refs/heads/main --yes
+# Pull latest for an existing git stack (keeps its env vars, git credential and ref;
+# add --pull for an image bump, --ref to re-pin):
+python3 $P redeploy --id 100 --endpoint 16 --pull --yes
 
 # Remove a stack:
 python3 $P rm --id 100 --endpoint 16 --yes

@@ -107,6 +107,9 @@ class Portainer:
     def stacks(self):
         return self._req("GET", "stacks")
 
+    def stack(self, stack_id: int):
+        return self._req("GET", f"stacks/{stack_id}")
+
     def git_creds(self):
         uid = self.me().get("Id")
         return self._req("GET", f"users/{uid}/gitcredentials")
@@ -205,16 +208,42 @@ def cmd_create_compose(p: Portainer, a):
 
 
 def cmd_redeploy(p: Portainer, a):
-    payload = {"repositoryAuthentication": a.git_cred_id is not None,
-               "pullImage": a.pull, "prune": False}
-    if a.ref:
-        payload["repositoryReferenceName"] = a.ref
-    if a.git_cred_id is not None:
-        payload["repositoryGitCredentialID"] = a.git_cred_id
+    # Portainer's git/redeploy REPLACES the stack's env list with the payload's
+    # `env` (omitted => wiped), and a private repo needs its git credential again.
+    # So start from the stack's CURRENT settings and override only what was asked.
+    # (Before 2026-11-25 this sent no env and no credential.)
+    stack = p.stack(a.id)
+    if stack.get("EndpointId") != a.endpoint:
+        sys.exit(f"stack {a.id} is on endpoint {stack.get('EndpointId')}, not {a.endpoint}")
+    gc = stack.get("GitConfig") or {}
+    if not gc:
+        sys.exit(f"stack {a.id} ({stack.get('Name')}) is not a git stack; nothing to redeploy")
+    env = stack.get("Env") or []
+    env_names = sorted(e["name"] for e in env)
+    cred = a.git_cred_id if a.git_cred_id is not None else \
+        (gc.get("Authentication") or {}).get("GitCredentialID") or None
+    ref = a.ref or gc.get("ReferenceName")
+    payload = {"env": env, "prune": False, "pullImage": a.pull,
+               "repositoryAuthentication": cred is not None}
+    if ref:
+        payload["repositoryReferenceName"] = ref
+    if cred is not None:
+        payload["repositoryGitCredentialID"] = cred
+
+    def do():
+        res = p.redeploy(a.id, a.endpoint, payload)
+        after = sorted(e["name"] for e in (p.stack(a.id).get("Env") or []))
+        if after != env_names:
+            sys.exit(f"ERROR: stack {a.id} env changed during redeploy: "
+                     f"before={env_names} after={after}")
+        print(f"env preserved: {len(after)} var(s) {after}")
+        return res
+
     _maybe_write(a, "git-redeploy stack",
-                 f"stack {a.id} on endpoint {a.endpoint}"
-                 f"{(' -> ' + a.ref) if a.ref else ''}, pullImage={a.pull}",
-                 lambda: p.redeploy(a.id, a.endpoint, payload))
+                 f"stack {a.id} {stack.get('Name')!r} on endpoint {a.endpoint} "
+                 f"-> {ref}, pullImage={a.pull}, git-cred={cred}, "
+                 f"keeping env={env_names}",
+                 do)
 
 
 def cmd_rm(p: Portainer, a):
@@ -268,8 +297,9 @@ def main():
     r = sub.add_parser("redeploy", help="git-redeploy a stack (pull latest)")
     r.add_argument("--id", type=int, required=True)
     r.add_argument("--endpoint", type=int, required=True)
-    r.add_argument("--ref", help="re-pin reference, e.g. refs/heads/main")
-    r.add_argument("--git-cred-id", type=int)
+    r.add_argument("--ref", help="re-pin reference (default: the stack's current ref)")
+    r.add_argument("--git-cred-id", type=int,
+                   help="git credential id (default: the one the stack already uses)")
     r.add_argument("--pull", action="store_true", help="also re-pull images")
     r.add_argument("--yes", action="store_true")
 
