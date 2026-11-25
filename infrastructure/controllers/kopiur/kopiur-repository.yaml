@@ -16,5 +16,11 @@ spec:
   url: oci://ghcr.io/home-operations/charts/kopiur
   # The published chart is cosign-signed (keyless) and pins the controller,
   # webhook and mover images by digest.
+  # Keyless verification needs the signer named: Flux refuses a bare
+  # `provider: cosign` here ("can't verify identities without providing at
+  # least one identity"). The chart is signed by kopiur's release workflow.
   verify:
     provider: cosign
+    matchOIDCIdentity:
+      - issuer: ^https://token\.actions\.githubusercontent\.com$
+        subject: ^https://github\.com/home-operations/kopiur/\.github/workflows/release\.yaml@.+$
