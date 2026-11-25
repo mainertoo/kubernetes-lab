@@ -35,4 +35,4 @@ spec:
       # Service, so point Gatus at it explicitly.
       GATUS_APP: firecrawl-api
       GATUS_PORT: '3002'
-      GATUS_PATH: "/v0/health/liveness"
+      GATUS_PATH: "/health/liveness"
