@@ -8,16 +8,19 @@
 # Sensor: the Third Reality night light's PIR in the master bedroom ("Master Bedroom
 # Motion"; device_class overridden to motion in scripts/home-assistant/registry-overrides.yaml).
 #
-# Turns off the bedroom, bathroom and closet lights plus the bathroom exhaust fan.
+# Turns off the bedside, bathroom and closet lights plus the bathroom exhaust fan.
 # Deliberately NOT touched:
 # - fan.master_ceiling_fan — keeps running until someone turns it off.
+# - light.master_ceiling_fan — Bond RF light with no discrete "off". The bridge's only light
+#   command for this fan is "Light -> ToggleLight" (checked on the bridge 2026-11-25), so HA's
+#   "off" is that same toggle and HA's state is a guess. Filtering on `is_state 'on'` was not
+#   enough: with the guess inverted, this automation turned the light ON twice overnight
+#   (01:02 and 01:49 on 2026-11-25; also 2026-10-22). Do not add it back unless the light
+#   gets a real off command or a real state sensor.
 # - light.0xb40ecfd7ce8c0000 — the night light itself is the house-status light.
 # - light.outdoor_light — outdoor, owned by the sunset/sunrise automations.
 #
-# ⚠️ Only entities that are currently ON get a turn_off. light.master_ceiling_fan is a Bond
-# RF light whose remote has a single light button: Bond sends that same TOGGLE code for
-# "off", so an "off" to a light that is already off turns it ON while HA still shows it
-# off (assumed_state). Happened 2026-10-22.
+# Only entities that are currently ON get a turn_off (keeps logbooks and HomeKit quiet).
 #
 # ⚠️ The only sensor is in the BEDROOM. 30 min still in the bathroom or closet (a long
 # bath) with nobody moving in the bedroom will turn the bathroom lights off.
@@ -27,8 +30,8 @@ automation:
   - id: master_suite_lights_off_when_vacant
     alias: "Master suite — lights off after 30 min without motion"
     description: >-
-      No motion in the master bedroom for 30 min: bedroom, bathroom and closet lights and
-      the bathroom exhaust fan off. The ceiling fan keeps running.
+      No motion in the master bedroom for 30 min: bedside, bathroom and closet lights and
+      the bathroom exhaust fan off. The ceiling fan and its light are left alone.
     # restart: a 'vacant' trigger during the post-startup wait supersedes it.
     mode: restart
     triggers:
@@ -66,7 +69,6 @@ automation:
           lights_on: >-
             {{ ['light.master_bedroom_darcy_bedside_light',
                 'light.master_bedroom_preya_bedside_light',
-                'light.master_ceiling_fan',
                 'light.master_bathroom_fan_light',
                 'light.master_bathroom_mirror_light_outlet',
                 'light.master_closet_switch'] | select('is_state', 'on') | list }}
