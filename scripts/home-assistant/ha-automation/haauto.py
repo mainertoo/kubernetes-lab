@@ -9,7 +9,7 @@ env vars override). Read-only except `enable` / `disable`.
   haauto.py audit <entity_id>...            # automations that already touch these (or their devices)
   haauto.py check <package.yaml>            # entity ids used vs live HA; templates rendered
   haauto.py template '<jinja>'              # render a template in live HA
-  haauto.py logbook <entity_id>... [--minutes 60]   # with "caused by" context
+  haauto.py logbook <entity_id>... [--minutes 60]   # with "caused by" context; any look-back, dated past 12 h
   haauto.py trace <automation_entity_or_id> [--runs 3]
   haauto.py verify <automation_config_id>... [--wait]   # after merge: running, loaded, on
   haauto.py enable|disable <automation_entity>
@@ -22,6 +22,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -219,9 +220,15 @@ def cmd_template(a):
 
 
 def cmd_logbook(a):
-    start = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=a.minutes)).isoformat()
-    for e in rest("GET", f"/api/logbook/{start}?entity={','.join(a.entities)}"):
-        when = datetime.datetime.fromisoformat(e["when"]).astimezone().strftime("%H:%M:%S")
+    # end_time is required: without it HA returns only ONE DAY from the start time, so a
+    # look-back over 24 h silently dropped the most recent events (2026-11-25).
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = (now - datetime.timedelta(minutes=a.minutes)).isoformat()
+    query = urllib.parse.urlencode({"entity": ",".join(a.entities), "end_time": now.isoformat()})
+    # Show the date as soon as the window can span midnight more than once.
+    fmt = "%a %m-%d %H:%M:%S" if a.minutes > 720 else "%H:%M:%S"
+    for e in rest("GET", f"/api/logbook/{urllib.parse.quote(start)}?{query}"):
+        when = datetime.datetime.fromisoformat(e["when"]).astimezone().strftime(fmt)
         cause = e.get("context_entity_id") or e.get("context_event_type") or ""
         print(f"{when}  {e.get('entity_id', ''):50} {e.get('state') or e.get('message', '')}"
               + (f"   ← {cause}" if cause else ""))
