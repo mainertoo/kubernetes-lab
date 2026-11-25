@@ -1,6 +1,6 @@
 ---
 name: update-gh
-description: Triage and merge all open Renovate PRs in the kubernetes-lab (Hephaestus) GitHub repo — inventory every PR's version jump, auto-merge the low-risk ones, run per-app pre-checks on the risky ones (CSI/storage, monitoring CRDs, DB-migrating apps, bazarr/DUMB dev digests), get the user's OK, merge, reconcile Flux and verify the rollout. Use when the user says "update GH", "update github", "check renovate PRs", "merge the renovate PRs", or invokes /update-gh.
+description: Triage and merge all open Renovate PRs in the kubernetes-lab (Hephaestus) GitHub repo AND the mainertoo/home_server Docker-compose repo (Komodo + Portainer stacks on QNAS/Spark/VPS/zwave-js/matter) — inventory every PR's version jump, auto-merge the low-risk ones, run per-app pre-checks on the risky ones (CSI/storage, monitoring CRDs, DB-migrating apps, bazarr/DUMB dev digests), get the user's OK, merge, reconcile Flux / confirm Komodo+Portainer deployed it, and verify the rollout. Use when the user says "update GH", "update github", "check renovate PRs", "merge the renovate PRs", or invokes /update-gh.
 ---
 
 # Update GH — Renovate PR triage
@@ -21,6 +21,9 @@ commits, not squash). Helper: `~/.claude/skills/update-gh/renovate-inventory.sh`
 For each PR it prints: number, title, mergeable state, a CI summary, and every
 changed `-`/`+` line per file. Also run `flux get all -A --status-selector ready=false`.
 If the cluster is already unhealthy, fix that or tell the user before merging anything.
+
+Do the same for `mainertoo/home_server` (section 5c): `renovate-inventory.sh -R mainertoo/home_server`
+plus `home-server-drift.py`. Ask about the higher-risk PRs from **both** repos in one question.
 
 Read the memory index for **held** PRs (search "Renovate", "HOLD", "held").
 A PR the user explicitly held stays open unless they lift the hold.
@@ -116,8 +119,86 @@ If the script reports `backport-merged-on-release/2.2`, a 2.2 backport now exist
 add its merge SHA to `fix_sha()` so a K3s v1.35 patch release can qualify.
 Once the hold and workaround are both gone, delete this section and the script.
 
+## 5c. home_server (Docker stacks outside the cluster)
+
+Repo `mainertoo/home_server` (private, trunk `main`, merge `--merge`, **no CI**).
+Its compose stacks are deployed by two git-polling deployers:
+
+| Deployer | Hosts / stacks | How it deploys |
+|---|---|---|
+| **Komodo** (Core on QNAS, `komodo.lab.mainertoo.com`; API creds `scripts/komodo/credentials.sops.yaml`, headers `X-Api-Key`/`X-Api-Secret`) | spark: vllm, mxbai-embed, syncthing · vps: pangolin (+gerbil, traefik), coturn, socks5, rustdesk | Procedure `git-auto-deploy` = `DeployStackIfChanged *` every 5 min |
+| **Portainer** (`portainer` skill, `scripts/portainer/portainer.py`) | QNAS ep 2, zwave-js ep 15, matter ep 17 | Git auto-update 5m per stack, **except** `newt` and `komodo` (manual by design) |
+
+A merged PR is **not done** until the drift check shows it running.
+
+### 5c.1 Health and drift first (every run, even with 0 PRs)
+```bash
+~/.claude/skills/update-gh/home-server-drift.py   # read-only; exit 1 = drift or deployer unhealthy
+```
+- **Komodo server `NotOk`**: that host's `komodo-periphery` lost Core (seen after the
+  11-04 QNAS hang: no reconnect for 3 weeks, nothing deployed). Fix with
+  `docker restart komodo-periphery` (vps: `ssh root@100.96.193.81`; spark: `ssh spark`).
+  Before restarting, **pause `git-auto-deploy`** if several stacks drifted, or the
+  next run deploys them all at once. See 5c.4.
+- **`git-auto-deploy` last=Failed** with `id is not ObjectId … got ""`: a target
+  server is down. Fix the server, not the procedure.
+- **DRIFT on a `(no auto-update)` Portainer stack** (newt, komodo): expected after a
+  merge. Redeploy by hand with the user's OK (5c.4).
+- `note … no running containers`: a leftover stack record (e.g. immich moved to
+  K3s). Mention it; delete the record only with the user's OK.
+
+### 5c.2 Inventory and classify
+```bash
+~/.claude/skills/update-gh/renovate-inventory.sh -R mainertoo/home_server
+```
+Honor `renovate.json` holds (qBittorrent 5.2.x for MAM, portainer/agent 2.39 LTS).
+There is no CI, so review every diff yourself.
+
+**Low risk** (merge, then let the deployer pick it up):
+- patch or build bumps of QNAS utilities, cloud-sync, downloaders, garage, tailscale,
+  exitnodes, syncthing, coturn, socks5/gost, rustdesk, mxbai-embed (llama.cpp)
+- zwave-js-ui patch or minor (a Z-Wave blip of a few seconds on restart)
+
+**Higher risk** (pre-check, then ask once together with the kubernetes-lab group):
+| Stack | Pre-check |
+|---|---|
+| **pangolin-stack** (pangolin ee-*, gerbil, newt) and **traefik** in docker-vps/pangolin | This is the external ingress for `*.mainertoo.com`. Read the release notes for every minor skipped. **Back up first**: online SQLite backup via the container's Node (`docker exec -w /app pangolin node -e 'new (require("better-sqlite3"))("/app/config/db/db.sqlite",{readonly:true}).backup("/app/config/db/backups/pre-<ver>.sqlite")'`, then check `integrity_check`), plus `tar --exclude=config/db --exclude=config/traefik/logs -czf /flash/backups/pangolin-config-pre-<ver>.tgz -C /flash/pangolin config`. A plain tar of the live DB is inconsistent ("file changed as we read it"). Expect about 30 s of external downtime. |
+| **vllm** (spark) | Read the "breaking changes" table for every minor skipped and grep the compose `command:` flags and `VLLM_*` env against it. **Pre-pull** on the Spark (`docker pull <ref>`; it's ~22 GB) so the outage is only the model load (about 3 min). Then test `/v1/models` and a short chat completion. |
+| **matter-server** | Thread/Matter for HA; read the notes, since restarts drop Matter devices for a while. |
+| **komodo** (core/periphery/ferretdb on QNAS) and **portainer** | These are the deployers themselves; manual Portainer stacks. Read the notes; FerretDB/Postgres bumps need a DB backup. |
+| Any major version | Read the breaking changes; never merge without the user. |
+
+### 5c.3 Merge
+Merge low risk, plus higher-risk PRs the user approved. For a higher-risk **Komodo**
+stack, do a controlled deploy (5c.4), not the 5-min schedule.
+
+### 5c.4 Controlled deploys
+Komodo API (inline; see wiki `infrastructure/software/komodo`):
+```bash
+J=$(sops -d scripts/komodo/credentials.sops.yaml | yq -o=json .stringData)
+K=$(jq -r .KOMODO_ADMIN_API_KEY <<<"$J"); S=$(jq -r .KOMODO_ADMIN_API_SECRET <<<"$J"); U=$(jq -r .KOMODO_URL <<<"$J")
+kq(){ curl -s -X POST "$U/$1" -H "X-Api-Key: $K" -H "X-Api-Secret: $S" -H 'Content-Type: application/json' -d "$2"; }
+kq write '{"type":"UpdateProcedure","params":{"id":"git-auto-deploy","config":{"schedule_enabled":false}}}'   # pause
+id=$(kq execute '{"type":"DeployStack","params":{"stack":"<name>"}}' | jq -r '._id."$oid"')
+until [ "$(kq read "{\"type\":\"GetUpdate\",\"params\":{\"id\":\"$id\"}}" | jq -r .status)" = Complete ]; do sleep 3; done
+kq write '{"type":"UpdateProcedure","params":{"id":"git-auto-deploy","config":{"schedule_enabled":true}}}'    # resume
+```
+Deploy one stack at a time, verify it (container image + health, the endpoint),
+**always re-enable the schedule**, then confirm its next run is `success=true`.
+Only stacks whose own compose file changed need a deploy: compare
+`git diff <deployed_hash>..HEAD -- <dir>`, where `deployed_hash` comes from `ListStacks`.
+
+Portainer manual stack: `scripts/portainer/portainer.py redeploy --id <id> --endpoint <ep> --pull --yes`.
+⚠️ Before the first use, check that the stack's env vars survive: compare
+`GET stacks/<id>` `.Env` before and after. The redeploy payload here sends no `env`.
+
+### 5c.5 Verify
+After merging, wait for the deployers (Komodo `:00/:05…`, Portainer polls every 5 min) and
+re-run `home-server-drift.py` until it is clean. Use an `until` loop or Monitor, not
+`sleep` chains. Report anything still drifting.
+
 ## 6. Report
 
-One short summary: merged (low / approved), anything held and why, any
+One short summary covering **both repos**: merged (low / approved), anything held and why, any
 post-merge issues, and any PR still open with a recommendation. If a hold or
 gotcha was learned, update the Renovate memory file.
