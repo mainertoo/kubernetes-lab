@@ -8,3 +8,4 @@ kind: Kustomization
 # a failed dry-run applies nothing, so the HelmRelease is never created.
 resources:
   - volumesnapshotclass-ceph-rbd.yaml
+  - volumesnapshotclass-cephfs.yaml
