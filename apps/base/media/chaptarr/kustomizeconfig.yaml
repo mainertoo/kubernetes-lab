@@ -1,0 +1,10 @@
+---
+# Rewrites persistence.oidc-config.name to the hash-suffixed name of the
+# generated `chaptarr-oidc-config` ConfigMap, so a script edit rolls the pod
+# (same pattern as layerling / home-assistant).
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - path: spec/values/persistence/oidc-config/name
+        kind: HelmRelease
