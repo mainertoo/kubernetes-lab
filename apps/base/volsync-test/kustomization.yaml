@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Staging-only test bed for adopting VolSync (Kopia) backups into kopiur.
+# Shaped like a production app: two PVCs carrying the `backup` labels, so the
+# Kyverno policies generate the per-PVC Secret, ReplicationSource and
+# ReplicationDestination, and VolSync backs them up to the staging-only
+# Garage bucket volsync-staging.
+#
+# No `namespace:` here and no targetNamespace on the Flux Kustomization: the
+# KopiaMaintenance and its Secret belong in volsync-system, as in production.
+# The KopiaMaintenance kind comes from the VolSync chart, so this
+# Kustomization fails its dry-run (and creates nothing) until VolSync is
+# installed. That is the ordering guard: no PVC is created before the
+# ReplicationSource CRD exists.
+resources:
+  - volsync-test-namespace.yaml
+  - volsync-test-rbd-pvc.yaml
+  - volsync-test-cephfs-pvc.yaml
+  - volsync-test-release.yaml
+  - volsync-test-maintenance-secret.sops.yaml
+  - volsync-test-maintenance.yaml

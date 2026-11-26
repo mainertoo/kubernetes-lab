@@ -1,0 +1,66 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app volsync-test
+  namespace: volsync-test
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    controllers:
+      volsync-test:
+        type: deployment
+        replicas: 1
+        containers:
+          app:
+            # Idle pod that holds both volumes mounted; test data is written
+            # and checksummed by hand with kubectl exec.
+            image:
+              repository: busybox
+              tag: "1.38.0"
+            command: ["sh", "-c", "trap 'exit 0' TERM; sleep infinity & wait"]
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 128Mi
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+    persistence:
+      rbd:
+        existingClaim: volsync-test-rbd
+        globalMounts:
+          - path: /data/rbd
+      cephfs:
+        existingClaim: volsync-test-cephfs
+        globalMounts:
+          - path: /data/cephfs

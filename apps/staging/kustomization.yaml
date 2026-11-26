@@ -10,3 +10,4 @@ resources:
   - openemr/kustomization.yaml
   - openmrs/kustomization.yaml
   - kopiur-test/kustomization.yaml
+  - volsync-test/kustomization.yaml
