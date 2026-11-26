@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Shared `media` namespace: it is owned by apps/base/media/storage-qnap
+# (Flux Kustomization media-storage-qnap), so no Namespace object here.
+namespace: media
+resources:
+  - chaptarr-pvc.yaml
+  - chaptarr-release.yaml
+  - chaptarr-ingressroute.yaml

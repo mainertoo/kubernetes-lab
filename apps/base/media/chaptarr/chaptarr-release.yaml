@@ -1,0 +1,131 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: chaptarr
+  namespace: media
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+
+  uninstall:
+    keepHistory: false
+
+  # Chaptarr: a community Readarr fork that handles audiobooks AND ebooks in one
+  # instance (https://github.com/Chaptarr/chaptarr, GPL-3.0). Promoted from the
+  # staging eval (apps/base/chaptarr) on 2026-11-25.
+  #
+  # It deliberately gets its OWN library folders on the QNAP share, separate from
+  # the existing stack (Audiobookshelf/ReadMeABook audiobooks, CWA/Calibre
+  # ebooks), so it can never rename or move files in those libraries:
+  #   /data/media/books/chaptarr-audiobooks   (same NFS filesystem as
+  #   /data/media/books/chaptarr-ebooks        books/audiobooks -> hardlinkable)
+  # A separate, later sync job (PR 2) will add books between the two worlds;
+  # until then Chaptarr only sees what it downloads itself.
+  values:
+    controllers:
+      chaptarr:
+        strategy: Recreate
+
+        initContainers:
+          init-library:
+            image:
+              repository: busybox
+              tag: "1.38"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                for d in /data/media/books/chaptarr-audiobooks /data/media/books/chaptarr-ebooks; do
+                  mkdir -p "$d"
+                  chown 1000:1000 "$d"
+                  chmod 0775 "$d"
+                  touch "$d/.chaptarr-write-test" && rm -f "$d/.chaptarr-write-test"
+                  ls -ld "$d"
+                done
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+        containers:
+          app:
+            image:
+              repository: robertlordhood/chaptarr
+              tag: 0.9.1000@sha256:bacb27cc04abe1900412df45ad5ad4e392368fe3e783012824b2ad768c72daa1
+            env:
+              TZ: America/Los_Angeles
+              # The image's entrypoint starts as root, fixes /config ownership,
+              # then drops to PUID/PGID with gosu. (On staging, Ubuntu kernel
+              # 7.0.0-42+ makes that gosu hang — LP#2172640; production is held
+              # on 7.0.0-38, so no AppArmor workaround here. Revisit if the
+              # kernel hold is lifted before K3s ships the containerd fix.)
+              PUID: "1000"
+              PGID: "1000"
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+            probes:
+              # /ping is unauthenticated and answers {"status":"OK"} once the app
+              # is up. Liveness/startup stay off so a first-boot DB build or a
+              # long migration on upgrade is never killed mid-way.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: 8789
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              liveness:
+                enabled: false
+              startup:
+                enabled: false
+
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      # Key == release name so the Service is named `chaptarr` (not
+      # `chaptarr-app`), matching the IngressRoute and the internal Gatus check.
+      chaptarr:
+        controller: chaptarr
+        ports:
+          http:
+            port: 8789
+
+    persistence:
+      config:
+        existingClaim: chaptarr
+        globalMounts:
+          - path: /config
+      # Same QNAP NFS PVC as ReadMeABook/Shelfmark (192.168.1.252:/QNAS/data).
+      qnap-data:
+        existingClaim: qnap-media-pvc
+        globalMounts:
+          - path: /data

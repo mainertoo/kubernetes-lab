@@ -1,0 +1,39 @@
+---
+# Flux Kustomization for the chaptarr app.
+# The gatus/internal + gatus/external components establish both health-check
+# endpoints declaratively (auto-discovered ConfigMaps labelled gatus.io/enabled).
+#
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app chaptarr
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/media/chaptarr
+  targetNamespace: media
+  prune: true
+  retryInterval: 2m
+  timeout: 5m
+  wait: false
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  components:
+    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/external
+  postBuild:
+    substitute:
+      APP: *app
+      APP_NAMESPACE: media
+      SUBDOMAIN: chaptarr
+      GATUS_DOMAIN: lab.mainertoo.com
+      GATUS_PORT: "8789"
+      GATUS_PATH: /ping
+      GATUS_STATUS_INTERNAL: "200"
