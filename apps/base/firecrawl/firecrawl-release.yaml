@@ -51,7 +51,10 @@ spec:
     # api + worker + nuq-worker all share this image/tag.
     image:
       repository: ghcr.io/firecrawl/firecrawl
-      tag: "2.11.872"
+      # HELD at 2.11.864 (renovate.json): 2.11.865+ rejects the maxAge and
+      # storeInCache scrape keys that the firecrawl-py SDK always sends, which
+      # breaks Hermes web_extract.
+      tag: "2.11.864"
       pullPolicy: IfNotPresent
       dockerSecretEnabled: false
 
