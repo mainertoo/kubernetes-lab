@@ -37,9 +37,12 @@ spec:
   # A separate, later sync job (PR 2) will add books between the two worlds;
   # until then Chaptarr only sees what it downloads itself.
   #
-  # Auth: native OIDC (configured in-app, stored in /config/config.xml), not the
-  # Traefik authentik-sso middleware. Authentik side = OAuth2/OpenID provider +
-  # application `chaptarr` (confidential, redirect https://chaptarr.lab.mainertoo.com/signin-oidc).
+  # Auth: native OIDC, not the Traefik authentik-sso middleware. Authentik side =
+  # OAuth2/OpenID provider + application `chaptarr` (confidential, redirect
+  # https://chaptarr.lab.mainertoo.com/signin-oidc). Chaptarr reads OIDC settings
+  # only from /config/config.xml, so the `init-oidc` initContainer writes them
+  # there from the SOPS secret `chaptarr-oidc` (client id/secret, allowed emails)
+  # + the env below (issuer, scopes). Empty secret values => no-op.
   # ⚠️ Chaptarr requires email_verified=true by default and Authentik's managed
   # email mapping hardcodes false -> use the custom verified email scope mapping
   # on the provider (wiki authentik-sso#oidc-email_verified-gotcha).
@@ -72,6 +75,28 @@ spec:
               capabilities:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+
+          # Writes native-OIDC settings into /config/config.xml (script:
+          # oidc-config/oidc-config.sh). Runs after init-library (alphabetical).
+          init-oidc:
+            image:
+              repository: busybox
+              tag: "1.38"
+            command: ["/bin/sh", "/oidc-config/oidc-config.sh"]
+            env:
+              OIDC_AUTHORITY: https://authentik.lab.mainertoo.com/application/o/chaptarr/
+              OIDC_SCOPES: openid profile email
+            envFrom:
+              - secretRef:
+                  name: chaptarr-oidc
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN"]
 
         containers:
           app:
@@ -136,3 +161,14 @@ spec:
         existingClaim: qnap-media-pvc
         globalMounts:
           - path: /data
+      # OIDC init script (generated ConfigMap; name rewritten to the hashed one
+      # by kustomizeconfig.yaml). Mounted into init-oidc only.
+      oidc-config:
+        type: configMap
+        name: chaptarr-oidc-config
+        defaultMode: 0555
+        advancedMounts:
+          chaptarr:
+            init-oidc:
+              - path: /oidc-config
+                readOnly: true

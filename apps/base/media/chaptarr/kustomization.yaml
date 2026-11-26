@@ -4,6 +4,22 @@ kind: Kustomization
 # (Flux Kustomization media-storage-qnap), so no Namespace object here.
 namespace: media
 resources:
+  - chaptarr-oidc.sops.yaml
   - chaptarr-pvc.yaml
   - chaptarr-release.yaml
   - chaptarr-ingressroute.yaml
+
+# Init script that writes the native-OIDC settings into /config/config.xml
+# (Chaptarr reads OIDC only from config.xml). Hash suffix ON so editing it rolls
+# the pod; kustomizeconfig.yaml rewrites the HelmRelease reference.
+configMapGenerator:
+  - name: chaptarr-oidc-config
+    files:
+      - oidc-config/oidc-config.sh
+    options:
+      # Flux postBuild would envsubst the script's shell ${...} into empty strings.
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+
+configurations:
+  - kustomizeconfig.yaml
