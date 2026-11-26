@@ -4,7 +4,8 @@ kind: Kustomization
 # to opt it into the staging cluster. Pattern matches apps/production/.
 resources:
   # meshcentral promoted to production 2026-06-14 (apps/production/meshcentral)
-  - chaptarr/kustomization.yaml
+  # chaptarr promoted to production 2026-11-26 (apps/production/media/chaptarr);
+  # staging eval decommissioned 2026-11-26.
   # EMR evaluation pair (2026-09-03) — throwaway, no backups.
   - openemr/kustomization.yaml
   - openmrs/kustomization.yaml
