@@ -260,6 +260,9 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
       # local NVMe to the k3s-rbd Ceph pool via `qm move-disk`). Ignore datastore_id so a
       # later `terraform apply` does NOT drag the disk back onto var.storage_pool.
       disk[0].datastore_id,
+      # A disk moved from local (qcow2) to Ceph RBD becomes raw; without this a cluster
+      # whose var.disk_file_format is qcow2 (staging) would plan a disk change.
+      disk[0].file_format,
     ]
   }
 }
