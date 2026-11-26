@@ -1,0 +1,28 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: volsync-test
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/volsync-test
+  # No targetNamespace: the base also holds the KopiaMaintenance and its
+  # Secret in volsync-system. Every object sets its own namespace.
+  dependsOn:
+    - name: infra-controllers
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system

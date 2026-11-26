@@ -1,0 +1,14 @@
+# Same object as production's (infrastructure/controllers/volsync/app/
+# volsync-kopia-maintenance.yaml), pointed at the staging bucket, so the
+# adoption test covers handing repository maintenance from VolSync to kopiur.
+# Hourly instead of daily so it has run before the adoption starts.
+# The cron goes on the top-level spec.schedule (see the production file).
+apiVersion: volsync.backube/v1alpha1
+kind: KopiaMaintenance
+metadata:
+  name: volsync-kopia-shared
+  namespace: volsync-system
+spec:
+  repository:
+    repository: volsync-kopia-maintenance
+  schedule: "40 * * * *"
