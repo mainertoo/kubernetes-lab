@@ -154,6 +154,11 @@
       "enabled": false
     },
     {
+      "description": "Hold Firecrawl at 2.11.864. From 2.11.865 the self-hosted /v2/scrape rejects the maxAge and storeInCache body keys (400 unrecognized_keys). The official firecrawl-py SDK (4.17.0, used by Hermes) sends both on every scrape, so Hermes web_extract fails on every call; still broken on 2.11.872 (tested 2026-11-26). Remove this hold once an upstream release accepts those keys again: POST /v2/scrape with maxAge and storeInCache must return 200.",
+      "matchPackageNames": ["ghcr.io/firecrawl/firecrawl"],
+      "allowedVersions": "<=2.11.864"
+    },
+    {
       "description": "dumb is pinned to the rolling :dev tag by digest (tag: dev@sha256:...). There is no semver to bump, so track digest changes: Renovate raises a PR each time the dev image is rebuilt. Review/merge to upgrade deliberately instead of pulling latest dev on every restart.",
       "matchPackageNames": ["ghcr.io/i-am-puid-0/dumb"],
       "matchUpdateTypes": ["digest"],
