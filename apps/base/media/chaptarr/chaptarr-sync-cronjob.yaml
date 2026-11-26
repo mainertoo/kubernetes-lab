@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: chaptarr-sync
+  namespace: media
+  labels:
+    app.kubernetes.io/name: chaptarr-sync
+    app.kubernetes.io/part-of: chaptarr
+spec:
+  # Two-way, loop-free book sync between Chaptarr's own folders and the
+  # existing book stack (Audiobookshelf/ReadMeABook/Shelfmark audiobooks,
+  # CWA/Calibre ebooks). Logic + full description: sync/chaptarr_sync.py.
+  # Rollout: MODE=dry-run first (logs only); flip to apply once the logs look
+  # right. First run records the existing libraries as a baseline (new books
+  # only); BACKFILL=true would import everything instead.
+  schedule: "*/30 * * * *"
+  timeZone: America/Los_Angeles
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: chaptarr-sync
+        spec:
+          restartPolicy: Never
+          securityContext:
+            # UID/GID 1000 = Chaptarr's PUID/PGID and the owner of the book
+            # folders, so hardlinks/copies land with the right ownership.
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+          containers:
+            - name: sync
+              image: docker.io/library/python:3.13.18-alpine3.24
+              command: ["python3", "-I", "/app/chaptarr_sync.py"]
+              env:
+                - name: MODE
+                  value: dry-run
+                - name: INBOUND
+                  value: "true"
+                - name: OUTBOUND
+                  value: "true"
+                - name: BACKFILL
+                  value: "false"
+                - name: MIN_AGE_MINUTES
+                  value: "30"
+                - name: MAX_IMPORTS_PER_RUN
+                  value: "20"
+                - name: CHAPTARR_URL
+                  value: http://chaptarr.media.svc.cluster.local:8789
+                - name: CHAPTARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: chaptarr-oidc
+                      key: CHAPTARR_API_KEY
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: state
+                  mountPath: /state
+                # Same QNAP NFS PVC (and path) as Chaptarr, ReadMeABook and
+                # Shelfmark, so paths match Chaptarr's view and hardlinks work.
+                - name: qnap-data
+                  mountPath: /data
+                - name: calibre-library
+                  mountPath: /calibre-library
+                  readOnly: true
+                - name: cwa-ingest
+                  mountPath: /cwa-book-ingest
+          volumes:
+            - name: script
+              configMap:
+                name: chaptarr-sync-script
+            - name: state
+              persistentVolumeClaim:
+                claimName: chaptarr-sync
+            - name: qnap-data
+              persistentVolumeClaim:
+                claimName: qnap-media-pvc
+            - name: calibre-library
+              persistentVolumeClaim:
+                claimName: calibre-library-cephfs
+                readOnly: true
+            - name: cwa-ingest
+              persistentVolumeClaim:
+                claimName: cwa-book-ingest-cephfs

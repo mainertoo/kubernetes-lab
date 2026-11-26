@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chaptarr-sync
+  namespace: media
+  labels:
+    # The sync ledger (which books were baseline/imported/exported) is what
+    # keeps the two-way sync loop-free, so back it up. Fresh PVC: no
+    # dataSourceRef (Kyverno adds the restore ref on a future rebuild).
+    backup: daily
+    backup-engine: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 1Gi
