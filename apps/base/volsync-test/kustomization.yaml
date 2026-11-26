@@ -16,6 +16,7 @@ resources:
   - volsync-test-namespace.yaml
   - volsync-test-rbd-pvc.yaml
   - volsync-test-cephfs-pvc.yaml
+  - volsync-test-ds-pvc.yaml
   - volsync-test-release.yaml
   - volsync-test-maintenance-secret.sops.yaml
   - volsync-test-maintenance.yaml
