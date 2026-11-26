@@ -44,11 +44,15 @@ kind: Restore
 metadata:
   name: kopiur-test-rbd
 spec:
-  # Restore as the user recorded on the backup. Needs no running pod, so it
-  # works before the app exists (restore-on-create).
+  # Restore as the app's user, stated explicitly. `inheritSecurityContextFrom:
+  # snapshot: {}` (replay the user recorded on the backup) holds forever when
+  # no backup exists yet, so a brand-new app would never get its volume.
   mover:
-    inheritSecurityContextFrom:
-      snapshot: {}
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
   credentialProjection:
     enabled: true
   source:
@@ -106,11 +110,15 @@ kind: Restore
 metadata:
   name: kopiur-test-cephfs
 spec:
-  # Restore as the user recorded on the backup. Needs no running pod, so it
-  # works before the app exists (restore-on-create).
+  # Restore as the app's user, stated explicitly. `inheritSecurityContextFrom:
+  # snapshot: {}` (replay the user recorded on the backup) holds forever when
+  # no backup exists yet, so a brand-new app would never get its volume.
   mover:
-    inheritSecurityContextFrom:
-      snapshot: {}
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
   credentialProjection:
     enabled: true
   source:
