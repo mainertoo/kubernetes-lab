@@ -8,7 +8,7 @@ module "cluster" {
   k3s_master_ips       = ["192.168.90.167/24"]
   k3s_master_vmids     = [671]
   k3s_master_cores     = 2
-  k3s_master_memory    = "4096"
+  k3s_master_memory    = "8192"
   k3s_master_disk_size = "50"
 
   k3s_worker_count = 2
