@@ -36,6 +36,13 @@ spec:
   #   /data/media/books/chaptarr-ebooks        books/audiobooks -> hardlinkable)
   # A separate, later sync job (PR 2) will add books between the two worlds;
   # until then Chaptarr only sees what it downloads itself.
+  #
+  # Auth: native OIDC (configured in-app, stored in /config/config.xml), not the
+  # Traefik authentik-sso middleware. Authentik side = OAuth2/OpenID provider +
+  # application `chaptarr` (confidential, redirect https://chaptarr.lab.mainertoo.com/signin-oidc).
+  # ⚠️ Chaptarr requires email_verified=true by default and Authentik's managed
+  # email mapping hardcodes false -> use the custom verified email scope mapping
+  # on the provider (wiki authentik-sso#oidc-email_verified-gotcha).
   values:
     controllers:
       chaptarr:

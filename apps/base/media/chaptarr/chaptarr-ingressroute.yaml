@@ -18,9 +18,14 @@ spec:
   routes:
     - match: Host(`chaptarr.lab.mainertoo.com`)
       kind: Rule
-      middlewares:
-        - name: authentik-sso
-          namespace: traefik-system
+      # No forward-auth: Chaptarr does native OIDC against Authentik (Settings →
+      # General → Security → Authentication = OIDC; issuer
+      # https://authentik.lab.mainertoo.com/application/o/chaptarr/, redirect URI
+      # https://chaptarr.lab.mainertoo.com/signin-oidc). Same pattern as
+      # Audiobookshelf/ReadMeABook. Keeps API-key clients working.
+      # middlewares:
+      #   - name: authentik-sso
+      #     namespace: traefik-system
       services:
         - name: chaptarr
           port: 8789
