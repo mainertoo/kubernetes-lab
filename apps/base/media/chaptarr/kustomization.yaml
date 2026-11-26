@@ -8,6 +8,8 @@ resources:
   - chaptarr-pvc.yaml
   - chaptarr-release.yaml
   - chaptarr-ingressroute.yaml
+  - chaptarr-sync-pvc.yaml
+  - chaptarr-sync-cronjob.yaml
 
 # Init script that writes the native-OIDC settings into /config/config.xml
 # (Chaptarr reads OIDC only from config.xml). Hash suffix ON so editing it rolls
@@ -18,6 +20,14 @@ configMapGenerator:
       - oidc-config/oidc-config.sh
     options:
       # Flux postBuild would envsubst the script's shell ${...} into empty strings.
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+  # Two-way library sync run by the chaptarr-sync CronJob (kustomize rewrites
+  # the CronJob's configMap reference to the hashed name natively).
+  - name: chaptarr-sync-script
+    files:
+      - sync/chaptarr_sync.py
+    options:
       annotations:
         kustomize.toolkit.fluxcd.io/substitute: disabled
 
