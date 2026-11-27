@@ -121,6 +121,11 @@ def db_open() -> sqlite3.Connection:
             history_id INTEGER PRIMARY KEY, kind TEXT, src TEXT, dest TEXT,
             status TEXT, ts TEXT);
     """)
+    try:  # added with BACKFILL; ignore "duplicate column" on later runs
+        con.execute("ALTER TABLE items ADD COLUMN backfill INTEGER DEFAULT 0")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass
     return con
 
 
@@ -150,6 +155,87 @@ def api(method: str, path: str, body=None, timeout=120):
             return json.loads(raw) if raw else None
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"Chaptarr {method} {path} -> HTTP {e.code}: {e.read().decode()[:300]}")
+
+
+def api_status(method: str, path: str, body=None, timeout=180):
+    """Like api() but returns (http_status, parsed_body) instead of raising."""
+    url = f"{CHAPTARR_URL}/api/v1/{path.lstrip('/')}"
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        "X-Api-Key": CHAPTARR_API_KEY, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode()
+            return r.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode()
+        try:
+            return e.code, json.loads(raw)
+        except ValueError:
+            return e.code, raw[:300]
+
+
+# Existing authors (by provider id) and the root-folder defaults, loaded once per run.
+_AUTHORS: set[str] | None = None
+_ROOT_DEFAULTS: dict | None = None
+
+
+def known_authors() -> set[str]:
+    global _AUTHORS
+    if _AUTHORS is None:
+        _AUTHORS = {(a.get("foreignAuthorId") or "").lower() for a in (api("GET", "author") or [])}
+    return _AUTHORS
+
+
+def root_defaults() -> dict:
+    """Quality/metadata profiles + paths from Chaptarr's own root folders."""
+    global _ROOT_DEFAULTS
+    if _ROOT_DEFAULTS is None:
+        d: dict = {}
+        for r in api("GET", "rootfolder") or []:
+            if r.get("folderType") == 1:
+                d.update(audiobookRootFolderPath=r["path"],
+                         audiobookQualityProfileId=r.get("audiobookQualityProfileId"),
+                         audiobookMetadataProfileId=r.get("audiobookMetadataProfileId"))
+            elif r.get("folderType") == 2:
+                d.update(ebookRootFolderPath=r["path"],
+                         ebookQualityProfileId=r.get("ebookQualityProfileId"),
+                         ebookMetadataProfileId=r.get("ebookMetadataProfileId"))
+        _ROOT_DEFAULTS = d
+    return _ROOT_DEFAULTS
+
+
+def ensure_author(foreign_id: str, name: str) -> str:
+    """Make sure the suggested author exists in Chaptarr, UNMONITORED.
+
+    Works around a Chaptarr 0.9.1000 bug: ManualImport with a metadata
+    suggestion only adds the author when `suggestedAuthor?.Id <= 0`, which is
+    false (not true) when the author is null, so new authors are never added
+    and the import fails with "authoritative author catalog does not currently
+    contain suggested work". Adding the author first (monitor none, no search)
+    makes the suggested-import path work. Returns "exists" | "added" | "queued".
+    """
+    fid = (foreign_id or "").lower()
+    if fid in known_authors():
+        return "exists"
+    body = {"foreignAuthorId": foreign_id, "authorName": name,
+            "monitored": False, "audiobookMonitored": False, "ebookMonitored": False,
+            "audiobookMonitorNewItems": "none", "ebookMonitorNewItems": "none",
+            "addOptions": {"monitor": "none", "searchForMissingBooks": False}, "tags": [],
+            **root_defaults()}
+    code, resp = api_status("POST", "author?queueIfUnavailable=true", body)
+    if code in (200, 201):
+        known_authors().add(fid)
+        log.info("added author %s (%s), unmonitored", name, foreign_id)
+        return "added"
+    if code == 202:
+        log.info("author %s (%s) queued by Chaptarr until its metadata is ready", name, foreign_id)
+        return "queued"
+    text = json.dumps(resp) if not isinstance(resp, str) else resp
+    if "already" in text.lower() or code == 409:
+        known_authors().add(fid)
+        return "exists"
+    raise RuntimeError(f"adding author {name} ({foreign_id}) failed: HTTP {code} {text[:200]}")
 
 
 def run_command(body: dict) -> dict:
@@ -279,7 +365,8 @@ def discover(con) -> list[tuple[str, str]]:
 
 def inbound(con):
     stats = {"discovered": 0, "baseline": 0, "new_pending": 0, "too_fresh": 0, "imported": 0,
-             "would_import": 0, "unmatched": 0, "retry": 0, "failed": 0, "skipped_exported": 0}
+             "would_import": 0, "unmatched": 0, "retry": 0, "waiting": 0, "failed": 0,
+             "skipped_exported": 0}
     found = discover(con)
     stats["discovered"] = len(found)
     known = {(k, p) for k, p in con.execute("SELECT kind, path FROM items")}
@@ -301,7 +388,7 @@ def inbound(con):
         # BACKFILL turned on after the baseline was recorded: queue the baseline
         # (the pre-existing library) for import. Pending items are processed
         # MAX_IMPORTS_PER_RUN at a time, oldest first, so this drains gradually.
-        n = con.execute("UPDATE items SET status='pending', note='backfill' WHERE status='baseline'").rowcount
+        n = con.execute("UPDATE items SET status='pending', backfill=1 WHERE status='baseline'").rowcount
         if n:
             con.commit()
             log.info("BACKFILL: queued %d baseline book folders for import", n)
@@ -326,17 +413,21 @@ def inbound(con):
         stats["new_pending"] += 1
     con.commit()
 
-    # genuinely new books first, then the backfill queue (oldest first)
+    # genuinely new books first, then the backfill queue; least recently tried
+    # first, so books waiting on author metadata never block the rest
     pending = con.execute("SELECT kind, path, attempts FROM items WHERE status='pending' "
-                          "ORDER BY (COALESCE(note,'')='backfill'), first_seen, path LIMIT ?",
-                          (MAX_IMPORTS_PER_RUN,)).fetchall()
+                          "ORDER BY COALESCE(backfill,0), COALESCE(last_try,''), first_seen, path "
+                          "LIMIT ?", (MAX_IMPORTS_PER_RUN,)).fetchall()
     for kind, path, attempts in pending:
         try:
             outcome, note = import_one(con, kind, path)
         except Exception as e:  # noqa: BLE001 - keep going, record and retry
             outcome, note = "retry", f"error: {e}"
             report["errors"].append(f"inbound {path}: {e}")
-        if outcome == "retry":
+        if outcome == "waiting":  # author metadata not ready yet: no attempt used
+            status = "pending"
+            stats["waiting"] += 1
+        elif outcome == "retry":
             attempts += 1
             status = "failed" if attempts >= MAX_ATTEMPTS else "pending"
             stats["failed" if status == "failed" else "retry"] += 1
@@ -392,6 +483,12 @@ def import_one(con, kind: str, path: str) -> tuple[str, str]:
     if not APPLY:
         log.info("[dry-run] %s %s: would import %d file(s) as %s", kind, path, len(items), label)
         return "would_import", f"would import as {label}"
+
+    # Chaptarr 0.9.1000 never adds a NEW author from a ManualImport suggestion
+    # (null-comparison bug), so add it first, unmonitored. 202 => wait.
+    if ensure_author(i0.get("suggestedForeignAuthorId"), i0.get("suggestedAuthorName")) == "queued":
+        cleanup(staged)
+        return "waiting", f"author {i0.get('suggestedAuthorName')} queued for metadata"
 
     files = [{
         "path": i["path"],
