@@ -37,7 +37,7 @@ spec:
           git-sync:
             image:
               repository: registry.k8s.io/git-sync/git-sync
-              tag: v4.8.0
+              tag: v4.8.1
             env:
               GITSYNC_REPO: "git@github.com:mainertoo/wiki.git"
               # Wiki.js v3 pushes to branch v3 (main is the frozen v2 archive).
