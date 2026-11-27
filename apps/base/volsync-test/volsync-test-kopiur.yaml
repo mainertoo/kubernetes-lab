@@ -128,3 +128,75 @@ spec:
   schedule:
     cron: "42 * * * *"
     runOnCreate: false
+---
+# Restore-on-create for volsync-test-rbd, claimed by the PVC's dataSourceRef.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: volsync-test-rbd
+  namespace: volsync-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  source:
+    fromPolicy:
+      name: volsync-test-rbd
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 2m
+---
+# Restore-on-create for volsync-test-cephfs, claimed by the PVC's dataSourceRef.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: volsync-test-cephfs
+  namespace: volsync-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  source:
+    fromPolicy:
+      name: volsync-test-cephfs
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 2m
+---
+# Restore-on-create for volsync-test-ds, claimed by the PVC's dataSourceRef.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: volsync-test-ds
+  namespace: volsync-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  source:
+    fromPolicy:
+      name: volsync-test-ds
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 2m

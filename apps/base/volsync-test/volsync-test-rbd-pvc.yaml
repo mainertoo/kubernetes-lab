@@ -3,6 +3,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: volsync-test-rbd
   namespace: volsync-test
+  annotations:
+    # Create-only: Flux creates this PVC when it is missing and never
+    # updates it. dataSourceRef below differs from the live, bound PVC
+    # (immutable), and without this every reconcile would fail on it.
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
   labels:
     # `backup: hourly` was removed to stop VolSync. This one has to stay for
     # that change to be admitted: the Kyverno gate volsync-pvc-engine-required
@@ -16,3 +21,9 @@ spec:
   resources:
     requests:
       storage: 1Gi
+  # Filled by kopiur from the latest backup when the PVC is created. That
+  # backup may be one VolSync made: the policy continues VolSync's history.
+  dataSourceRef:
+    apiGroup: kopiur.home-operations.com
+    kind: Restore
+    name: volsync-test-rbd
