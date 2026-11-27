@@ -1,7 +1,0 @@
-# Scratch PVCs for the policy rehearsal live here.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kyverno-rehearsal
-  annotations:
-    kustomize.toolkit.fluxcd.io/prune: disabled
