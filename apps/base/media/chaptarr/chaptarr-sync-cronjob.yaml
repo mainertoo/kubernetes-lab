@@ -40,7 +40,7 @@ spec:
             fsGroupChangePolicy: OnRootMismatch
           containers:
             - name: sync
-              image: docker.io/library/python:3.13.18-alpine3.24
+              image: docker.io/library/python:3.15.2-alpine3.24
               command: ["python3", "-I", "/app/chaptarr_sync.py"]
               env:
                 - name: MODE
