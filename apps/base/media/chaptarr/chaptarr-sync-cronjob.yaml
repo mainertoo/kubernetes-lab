@@ -10,9 +10,9 @@ spec:
   # Two-way, loop-free book sync between Chaptarr's own folders and the
   # existing book stack (Audiobookshelf/ReadMeABook/Shelfmark audiobooks,
   # CWA/Calibre ebooks). Logic + full description: sync/chaptarr_sync.py.
-  # Rollout: MODE=dry-run first (logs only); flip to apply once the logs look
-  # right. First run records the existing libraries as a baseline (new books
-  # only); BACKFILL=true would import everything instead.
+  # Rollout: shipped as MODE=dry-run (#2467); apply + BACKFILL since
+  # 2026-11-26. The first run recorded the existing libraries as a baseline;
+  # BACKFILL=true queues that baseline for import, a few books per run.
   schedule: "*/30 * * * *"
   timeZone: America/Los_Angeles
   concurrencyPolicy: Forbid
@@ -43,18 +43,23 @@ spec:
               image: docker.io/library/python:3.15.2-alpine3.24
               command: ["python3", "-I", "/app/chaptarr_sync.py"]
               env:
+                # apply since 2026-11-26 (user chose a staged backfill of the
+                # existing library). Set back to dry-run to pause all writes.
                 - name: MODE
-                  value: dry-run
+                  value: apply
                 - name: INBOUND
                   value: "true"
                 - name: OUTBOUND
                   value: "true"
+                # true = the pre-existing library (the baseline) is queued and
+                # imported too, new books always first.
                 - name: BACKFILL
-                  value: "false"
+                  value: "true"
                 - name: MIN_AGE_MINUTES
                   value: "30"
+                # 5 for the first live runs (verify real imports), then 20.
                 - name: MAX_IMPORTS_PER_RUN
-                  value: "20"
+                  value: "5"
                 - name: CHAPTARR_URL
                   value: http://chaptarr.media.svc.cluster.local:8789
                 - name: CHAPTARR_API_KEY
