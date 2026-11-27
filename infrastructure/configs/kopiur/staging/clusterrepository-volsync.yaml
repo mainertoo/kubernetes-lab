@@ -35,7 +35,11 @@ spec:
     fallbackNamespace: kopiur-system
   maintenance:
     namespace: kopiur-system
-    # VolSync's KopiaMaintenance still owns maintenance on this repository.
-    # Never = kopiur yields to it and reports that it is yielding. The
-    # takeover is a later, separate step.
+    # Off while VolSync's KopiaMaintenance still runs. takeoverPolicy: Never
+    # was not enough: on first connect kopiur 0.11.2 claimed maintenance
+    # ownership from maintenance@volsync and ran a full maintenance, and
+    # VolSync claimed it back on its next run (2026-11-27). Two tools must
+    # not both run maintenance on one repository. Turned on again when the
+    # KopiaMaintenance is removed.
+    enabled: false
     takeoverPolicy: Never
