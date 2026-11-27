@@ -5,16 +5,15 @@ kind: Kustomization
 # Kyverno policies generated the per-PVC Secret, ReplicationSource and
 # ReplicationDestination, and VolSync backed them up to the staging-only
 # Garage bucket volsync-staging.
-# Step 2 (this state): the labels are gone and kopiur policies
+# Step 2 (PR #2471, #2473): the `backup` label is gone and kopiur policies
 # (volsync-test-kopiur.yaml) continue the same history through
-# ClusterRepository `volsync`. VolSync's KopiaMaintenance is still here.
+# ClusterRepository `volsync`.
+# Step 3 (this state): VolSync's KopiaMaintenance is removed and kopiur
+# maintains the repository. The PVCs name a kopiur Restore as their data
+# source and are create-only for Flux (see the annotation on each).
 #
-# No `namespace:` here and no targetNamespace on the Flux Kustomization: the
-# KopiaMaintenance and its Secret belong in volsync-system, as in production.
-# The KopiaMaintenance kind comes from the VolSync chart, so this
-# Kustomization fails its dry-run (and creates nothing) until VolSync is
-# installed. That is the ordering guard: no PVC is created before the
-# ReplicationSource CRD exists.
+# No `namespace:` here and no targetNamespace on the Flux Kustomization;
+# every object sets its own namespace.
 resources:
   - volsync-test-namespace.yaml
   - volsync-test-rbd-pvc.yaml
@@ -22,5 +21,3 @@ resources:
   - volsync-test-ds-pvc.yaml
   - volsync-test-release.yaml
   - volsync-test-kopiur.yaml
-  - volsync-test-maintenance-secret.sops.yaml
-  - volsync-test-maintenance.yaml

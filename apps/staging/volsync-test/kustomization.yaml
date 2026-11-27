@@ -7,16 +7,10 @@ metadata:
 spec:
   interval: 1h
   path: ./apps/base/volsync-test
-  # No targetNamespace: the base also holds the KopiaMaintenance and its
-  # Secret in volsync-system. Every object sets its own namespace.
+  # No targetNamespace: every object sets its own namespace.
   dependsOn:
     - name: infra-controllers
     - name: infra-kopiur-config
-
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
 
   prune: true
   retryInterval: 2m
