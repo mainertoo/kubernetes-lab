@@ -27,7 +27,7 @@ spec:
           app:
             image:
               repository: jgraph/drawio
-              tag: 32.7.4
+              tag: 32.7.7
             # Request only, no limit: sized to the 7-day average so the scheduler
             # counts what this pod really uses (avg and peak 0.4G).
             resources:
