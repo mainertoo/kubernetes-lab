@@ -41,7 +41,7 @@ spec:
           app:
             image:
               repository: ghcr.io/arabcoders/ytptube
-              tag: v2.8.2
+              tag: v2.8.3
             env:
               - name: TZ
                 value: America/Los_Angeles
