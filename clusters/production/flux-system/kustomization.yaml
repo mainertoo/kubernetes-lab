@@ -6,6 +6,23 @@ resources:
 - cluster-secrets.sops.yaml
 - flux-pdbs.yaml
 patches:
+  # SOPS decryption for the flux-system Kustomization itself (it applies
+  # cluster-secrets.sops.yaml). gotk-sync.yaml also carries this block
+  # today, added by hand, but `flux bootstrap` regenerates that file and
+  # commits it to master without it. On the staging rebuild of 2026-11-27
+  # that left the Secret applied as ciphertext. The patch keeps decryption
+  # in place whatever bootstrap writes.
+  - target:
+      kind: Kustomization
+      name: flux-system
+      namespace: flux-system
+    patch: |-
+      - op: add
+        path: /spec/decryption
+        value:
+          provider: sops
+          secretRef:
+            name: sops-age
   # Scale the kustomize/helm/notification controllers to 2 replicas
   # each. They use leader election internally, so the second pod is
   # a hot standby that takes over within seconds if the leader's
