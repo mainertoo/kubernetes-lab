@@ -38,13 +38,23 @@ module "cluster" {
   # update state and update this file to record the post-migration
   # placement.
   #
-  # Post-migration placement, recorded 2026-09-14. While this still said
-  # ["pve-mammoth", "pve-mammoth"], `terraform plan` wanted to destroy and
-  # recreate both workers (node_name forces replacement). For a from-scratch
-  # rebuild, set both back to "pve-mammoth" first, per the workflow above.
+  # Placement history: the workers ran on pve-whistler / pve-zermatt from
+  # 2026-09-14. Set back to pve-mammoth on 2026-11-27 for the from-scratch
+  # rebuild (stage 3 of the kopiur migration), per the workflow above.
+  # `terraform plan` therefore wants to replace both workers; that is the
+  # rebuild. After migrating the workers again, record the new placement here.
   pm_node_name         = "pve-mammoth"
   pm_master_node_names = ["pve-mammoth"]
-  pm_worker_node_names = ["pve-whistler", "pve-zermatt"]
+  pm_worker_node_names = ["pve-mammoth", "pve-mammoth"]
+
+  # VM disks go on Ceph (k3s-rbd), not on pve-mammoth's `local` storage.
+  # `local` there is the slow SPCC SSD that also holds the host's root
+  # filesystem; a busy VM disk on it stalled the host and its Ceph monitor
+  # on 2026-11-25 (and production master-1 on 2026-06-20). RBD images are
+  # raw. The module ignores later datastore changes, so a worker's disk can
+  # be moved to its new host's local NVMe when it is migrated.
+  storage_pool     = "k3s-rbd"
+  disk_file_format = "raw"
 
   # Staging has no Zigbee dongle — skip the USB hardware mapping.
   # Also avoids name collision with production's usb_passthrough mapping
