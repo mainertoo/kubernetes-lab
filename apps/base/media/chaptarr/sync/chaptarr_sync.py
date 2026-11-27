@@ -74,8 +74,9 @@ APPLY = MODE == "apply"
 INBOUND = env_bool("INBOUND", True)
 OUTBOUND = env_bool("OUTBOUND", True)
 BACKFILL = env_bool("BACKFILL", False)
-# re-queue books recorded as "unmatched" (e.g. after a Chaptarr/metadata update)
-RETRY_UNMATCHED = env_bool("RETRY_UNMATCHED", False)
+# One-shot re-queue of "unmatched"/"failed" books: set to any NEW token (e.g. a
+# date); it runs once per distinct value. Empty/"false" = off.
+RETRY_UNMATCHED = env("RETRY_UNMATCHED", "")
 
 CHAPTARR_URL = env("CHAPTARR_URL", "http://chaptarr.media.svc.cluster.local:8789").rstrip("/")
 CHAPTARR_API_KEY = env("CHAPTARR_API_KEY")
@@ -395,11 +396,12 @@ def inbound(con):
             con.commit()
             log.info("BACKFILL: queued %d baseline book folders for import", n)
 
-    if RETRY_UNMATCHED:
+    if RETRY_UNMATCHED.lower() not in ("", "false", "0", "no", "off") and \
+            meta_get(con, "retry_unmatched_token") != RETRY_UNMATCHED:
         n = con.execute("UPDATE items SET status='pending', attempts=0 WHERE status IN ('unmatched','failed')").rowcount
-        if n:
-            con.commit()
-            log.info("RETRY_UNMATCHED: re-queued %d unmatched/failed book folders", n)
+        meta_set(con, "retry_unmatched_token", RETRY_UNMATCHED)
+        con.commit()
+        log.info("RETRY_UNMATCHED=%s: re-queued %d unmatched/failed book folders (once)", RETRY_UNMATCHED, n)
 
     cutoff = time.time() - MIN_AGE_MINUTES * 60
     exported = {r[0] for r in con.execute("SELECT key FROM exported_titles")}
@@ -480,39 +482,60 @@ def import_one(con, kind: str, path: str) -> tuple[str, str]:
     if not items:
         cleanup(staged)
         return "unmatched", "manualimport found no importable files (already in Chaptarr?)"
-    bad = [i for i in items if i.get("rejections") or not i.get("suggestedForeignAuthorId")
-           or not i.get("suggestedForeignBookId")]
-    books = {(i.get("suggestedForeignAuthorId"), i.get("suggestedForeignBookId")) for i in items}
+    # Chaptarr's preview returns one of two shapes per file:
+    #  * LOCAL match (author already in Chaptarr): author/book/edition objects
+    #    with ids -> import with authorId/bookId/editionId.
+    #  * SUGGESTION (unknown author): suggestedForeign{Author,Book,Edition}Id ->
+    #    add the author first (Chaptarr bug, see ensure_author), then import.
+    def local(i):
+        a, b = i.get("author") or {}, i.get("book") or {}
+        return (a.get("id") or 0) > 0 and (b.get("id") or 0) > 0
+
+    def suggested(i):
+        return bool(i.get("suggestedForeignAuthorId") and i.get("suggestedForeignBookId"))
+
+    bad = [i for i in items if i.get("rejections") or not (local(i) or suggested(i))]
+    books = {("local", (i.get("book") or {}).get("id")) if local(i)
+             else ("hc", i.get("suggestedForeignBookId")) for i in items if i not in bad}
     if bad or len(books) != 1:
         reason = "; ".join(r.get("reason", "") for i in bad for r in i.get("rejections", [])) \
             or ("no metadata match" if bad else f"files matched {len(books)} different books")
         cleanup(staged)
         return "unmatched", reason
     i0 = items[0]
-    label = f"{i0.get('suggestedAuthorName')} / {i0.get('suggestedBookTitle')}"
+    if local(i0):
+        label = f"{(i0.get('author') or {}).get('authorName')} / {(i0.get('book') or {}).get('title')}"
+    else:
+        label = f"{i0.get('suggestedAuthorName')} / {i0.get('suggestedBookTitle')}"
     if not APPLY:
         log.info("[dry-run] %s %s: would import %d file(s) as %s", kind, path, len(items), label)
         return "would_import", f"would import as {label}"
 
-    # Chaptarr 0.9.1000 never adds a NEW author from a ManualImport suggestion
-    # (null-comparison bug), so add it first, unmonitored. 202 => wait.
-    if ensure_author(i0.get("suggestedForeignAuthorId"), i0.get("suggestedAuthorName")) == "queued":
-        cleanup(staged)
-        return "waiting", f"author {i0.get('suggestedAuthorName')} queued for metadata"
+    if not local(i0):
+        # Chaptarr 0.9.1000 never adds a NEW author from a ManualImport
+        # suggestion (null-comparison bug), so add it first, unmonitored.
+        if ensure_author(i0.get("suggestedForeignAuthorId"), i0.get("suggestedAuthorName")) == "queued":
+            cleanup(staged)
+            return "waiting", f"author {i0.get('suggestedAuthorName')} queued for metadata"
 
-    files = [{
-        "path": i["path"],
-        "foreignAuthorId": i.get("suggestedForeignAuthorId"),
-        "foreignAuthorName": i.get("suggestedAuthorName"),
-        "foreignBookId": i.get("suggestedForeignBookId"),
-        "foreignBookTitle": i.get("suggestedBookTitle"),
-        "foreignEditionId": i.get("suggestedForeignEditionId"),
-        "foreignEditionTitle": i.get("suggestedEditionTitle"),
-        "selectionSource": 1,  # UserMetadataSuggestion: lets Chaptarr add the author
-        "quality": i.get("quality"),
-        "indexerFlags": 0,
-        "disableReleaseSwitching": False,
-    } for i in items]
+    def file_entry(i):
+        base = {"path": i["path"], "quality": i.get("quality"), "indexerFlags": 0,
+                "disableReleaseSwitching": False}
+        if local(i):
+            return {**base, "authorId": i["author"]["id"], "bookId": i["book"]["id"],
+                    "editionId": i.get("editionId") or (i.get("edition") or {}).get("id") or 0,
+                    "foreignEditionId": i.get("foreignEditionId"),
+                    "selectionSource": 0}  # Automatic: a local author/book
+        return {**base,
+                "foreignAuthorId": i.get("suggestedForeignAuthorId"),
+                "foreignAuthorName": i.get("suggestedAuthorName"),
+                "foreignBookId": i.get("suggestedForeignBookId"),
+                "foreignBookTitle": i.get("suggestedBookTitle"),
+                "foreignEditionId": i.get("suggestedForeignEditionId"),
+                "foreignEditionTitle": i.get("suggestedEditionTitle"),
+                "selectionSource": 1}  # UserMetadataSuggestion
+
+    files = [file_entry(i) for i in items]
     start_id = max([r["id"] for r in history_imports(max_pages=1)] or [0])
     cmd = run_command({"name": "ManualImport", "files": files,
                        "importMode": "move" if kind == "ebook" else "copy",
