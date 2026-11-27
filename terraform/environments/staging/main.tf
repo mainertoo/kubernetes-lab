@@ -38,14 +38,19 @@ module "cluster" {
   # update state and update this file to record the post-migration
   # placement.
   #
-  # Placement history: the workers ran on pve-whistler / pve-zermatt from
-  # 2026-09-14. Set back to pve-mammoth on 2026-11-27 for the from-scratch
-  # rebuild (stage 3 of the kopiur migration), per the workflow above.
-  # `terraform plan` therefore wants to replace both workers; that is the
-  # rebuild. After migrating the workers again, record the new placement here.
+  # Placement after the from-scratch rebuild of 2026-11-27: all three VMs
+  # were created on pve-mammoth, then the workers were live-migrated
+  # (`qm migrate <vmid> <host> --online --with-local-disks`). For the next
+  # from-scratch rebuild, set both workers back to "pve-mammoth" first, per
+  # the workflow above; otherwise leave this as is, because a node_name
+  # change makes `terraform plan` replace the VM.
+  #
+  # After migrating worker-1, point its cloud-init metadata at the staging
+  # file on pve-whistler, where the default name is production's:
+  #   qm set 672 --cicustom "meta=local:snippets/metadata-cloud-config-staging-k3s-worker-1.yaml,user=local:snippets/user-data-cloud-config.yaml"
   pm_node_name         = "pve-mammoth"
   pm_master_node_names = ["pve-mammoth"]
-  pm_worker_node_names = ["pve-mammoth", "pve-mammoth"]
+  pm_worker_node_names = ["pve-whistler", "pve-zermatt"]
 
   # VM disks go on Ceph (k3s-rbd), not on pve-mammoth's `local` storage.
   # `local` there is the slow SPCC SSD that also holds the host's root
