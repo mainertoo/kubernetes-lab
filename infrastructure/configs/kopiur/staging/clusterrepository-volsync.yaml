@@ -1,0 +1,41 @@
+# The Kopia repository VolSync writes on staging (bucket volsync-staging),
+# attached as it is: create.enabled false, so kopiur can connect to it but
+# never initialise it. Rehearsal for attaching production's volsync-kopia
+# bucket. The credentials are a copy of flux-system/volsync-kopia-shared-base.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: ClusterRepository
+metadata:
+  name: volsync
+spec:
+  backend:
+    s3:
+      bucket: volsync-staging
+      endpoint: 192.168.1.252:3900
+      region: us-west-1
+      tls:
+        disableTls: true
+      auth:
+        secretRef:
+          name: kopiur-volsync-repository
+          namespace: kopiur-system
+  encryption:
+    passwordSecretRef:
+      name: kopiur-volsync-repository
+      namespace: kopiur-system
+      key: KOPIA_PASSWORD
+  create:
+    enabled: false
+  allowedNamespaces:
+    all: true
+  credentialProjection:
+    allowed: true
+  catalog:
+    # Snapshots whose identity matches no namespace on this cluster are
+    # listed here.
+    fallbackNamespace: kopiur-system
+  maintenance:
+    namespace: kopiur-system
+    # VolSync's KopiaMaintenance still owns maintenance on this repository.
+    # Never = kopiur yields to it and reports that it is yielding. The
+    # takeover is a later, separate step.
+    takeoverPolicy: Never

@@ -3,9 +3,6 @@ kind: PersistentVolumeClaim
 metadata:
   name: volsync-test-cephfs
   namespace: volsync-test
-  labels:
-    backup: hourly
-    backup-engine: kopia
 spec:
   storageClassName: cephfs
   accessModes:

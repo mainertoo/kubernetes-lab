@@ -11,6 +11,7 @@ spec:
   # Secret in volsync-system. Every object sets its own namespace.
   dependsOn:
     - name: infra-controllers
+    - name: infra-kopiur-config
 
   decryption:
     provider: sops

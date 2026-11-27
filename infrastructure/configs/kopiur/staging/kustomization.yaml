@@ -7,3 +7,6 @@ kind: Kustomization
 resources:
   - kopiur-repository-secret.sops.yaml
   - clusterrepository.yaml
+  # VolSync's repository, attached for the adoption test.
+  - kopiur-volsync-repository-secret.sops.yaml
+  - clusterrepository-volsync.yaml
