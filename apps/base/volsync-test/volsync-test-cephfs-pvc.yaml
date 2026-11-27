@@ -3,6 +3,12 @@ kind: PersistentVolumeClaim
 metadata:
   name: volsync-test-cephfs
   namespace: volsync-test
+  labels:
+    # `backup: hourly` was removed to stop VolSync. This one has to stay for
+    # that change to be admitted: the Kyverno gate volsync-pvc-engine-required
+    # also runs on an update that removes `backup` (the old object still
+    # matches its selector) and then denies a PVC without this label.
+    backup-engine: kopia
 spec:
   storageClassName: cephfs
   accessModes:
