@@ -25,21 +25,14 @@ kind: Kustomization
 #                      isolated from production's k3s-rbd.
 #   - kyverno        — shared with production (../controllers/kyverno), same
 #                      chart and version; patched below to 1 replica per
-#                      controller, no PDBs, no ServiceMonitors. Rehearsal
-#                      target for the ClusterPolicy -> CEL migration
-#                      (docs/plans/kyverno-cel-migration.md), together with:
-#   - volsync        — shared with production (../controllers/volsync/app):
-#                      the same chart and fork image, added 2026-11-26 to
-#                      test adopting VolSync backups into kopiur. Before that
-#                      staging had the CRDs only. Production's ServiceMonitor,
-#                      KopiaMaintenance and maintenance Secret are removed
-#                      below; staging's own KopiaMaintenance lives with the
-#                      test app (apps/base/volsync-test). The backup policy
-#                      is patched below to write to the staging-only Garage
-#                      bucket volsync-staging.
-#   - kyverno-rehearsal — pvc-plumber stub + volsync-kopia-shared-base
-#                      (staging bucket credentials) + scratch namespace
-#                      (./kyverno-rehearsal/).
+#                      controller, no PDBs, no ServiceMonitors. Controller
+#                      only, no policies: it stays as the upgrade canary for
+#                      production's Kyverno until production retires it with
+#                      the VolSync backup policies. (Until 2026-11-27 staging
+#                      also ran VolSync, the backup policies and a
+#                      pvc-plumber stub, first for the Kyverno CEL rehearsal
+#                      and then for the VolSync -> kopiur adoption test; see
+#                      the wiki page backup-and-recovery/kopiur-migration.)
 #   - snapshot-controller — shared with production
 #                      (../controllers/snapshot-controller), patched below
 #                      to 1 replica, no PDB. Production's two
@@ -63,8 +56,10 @@ kind: Kustomization
 #                      *.staging.mainertoo.com. Needs a fresh pangolin
 #                      client registration; follow-up PR once you have
 #                      the secret.
-#   - cnpg / cloudflared / tailscale-operator / intel-gpu / pvc-plumber
-#     (staging runs a stub) / kube-prometheus-stack / etc.
+#   - volsync / pvc-plumber / the Kyverno backup policies: replaced by
+#     kopiur on staging.
+#   - cnpg / cloudflared / tailscale-operator / intel-gpu /
+#     kube-prometheus-stack / etc.
 resources:
   - ../controllers/cert-manager
   - ./traefik-proxy
@@ -78,15 +73,8 @@ resources:
   # CSI snapshots + the kopiur backup operator (staging first).
   - ../controllers/snapshot-controller
   - ../controllers/kopiur
-  # Kyverno CEL migration rehearsal (docs/plans/kyverno-cel-migration.md).
+  # Kyverno controller only (upgrade canary for production).
   - ../controllers/kyverno
-  - ../controllers/volsync/app
-  - ./kyverno-rehearsal
-  # Same VolSync policies as production (legacy backup ClusterPolicy + CEL
-  # engine gate + CEL jitter + RBAC), the baseline for rehearsing the Kyverno
-  # 1.20 cutover. The only backup-labelled PVCs on staging are the two in
-  # the volsync-test namespace (apps/base/volsync-test).
-  - ../controllers/kyverno/policies
 
 patches:
   # The shared cert-manager release enables a ServiceMonitor (#600) for
@@ -157,68 +145,6 @@ patches:
       kind: VolumeSnapshotClass
       metadata:
         name: cephfs-snapclass
-  # VolSync on staging. Production's ServiceMonitor needs Prometheus CRDs
-  # staging does not have. Its KopiaMaintenance and maintenance Secret point
-  # at production's bucket with production's credentials, so neither may
-  # exist here.
-  - patch: |
-      $patch: delete
-      apiVersion: monitoring.coreos.com/v1
-      kind: ServiceMonitor
-      metadata:
-        name: volsync-monitor
-        namespace: volsync-system
-  - patch: |
-      $patch: delete
-      apiVersion: volsync.backube/v1alpha1
-      kind: KopiaMaintenance
-      metadata:
-        name: volsync-kopia-shared
-        namespace: volsync-system
-  - patch: |
-      $patch: delete
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: volsync-kopia-maintenance
-        namespace: volsync-system
-  # The backup policy hardcodes production's Garage endpoint and bucket in
-  # the per-PVC Secret it generates. On staging the same Secret points at the
-  # staging-only bucket volsync-staging, reached on the QNAP's S3 port
-  # directly (no TLS), like the kopiur repository. KOPIA_REPOSITORY is left
-  # exactly as in production on purpose: the fork takes the bucket from
-  # KOPIA_S3_BUCKET and only reads a prefix from the URL, and kopiur's
-  # translator must be tested against that same odd value. Everything else
-  # in this expression is a copy of generate[0] in
-  # ../controllers/kyverno/policies-cel/volsync-pvc-backup-objects.yaml;
-  # keep the two in step.
-  - target:
-      kind: GeneratingPolicy
-      name: volsync-pvc-backup-objects
-    patch: |
-      - op: replace
-        path: /spec/generate/0/expression
-        value: >-
-          generator.Apply(variables.ns, [
-            {
-              "apiVersion": dyn("v1"),
-              "kind": dyn("Secret"),
-              "metadata": dyn({"name": "volsync-" + variables.pvc, "namespace": variables.ns}),
-              "type": dyn("Opaque"),
-              "data": dyn({
-                "KOPIA_REPOSITORY": base64.encode(bytes("s3://garage.lab.mainertoo.com")),
-                "KOPIA_PASSWORD": variables.shared.data.KOPIA_PASSWORD,
-                "AWS_ACCESS_KEY_ID": variables.shared.data.AWS_ACCESS_KEY_ID,
-                "AWS_SECRET_ACCESS_KEY": variables.shared.data.AWS_SECRET_ACCESS_KEY,
-                "KOPIA_S3_ENDPOINT": base64.encode(bytes("192.168.1.252:3900")),
-                "KOPIA_S3_BUCKET": base64.encode(bytes("volsync-staging")),
-                "KOPIA_S3_DISABLE_TLS": base64.encode(bytes("true")),
-                "AWS_DEFAULT_REGION": base64.encode(bytes("us-west-1")),
-                "AWS_REGION": base64.encode(bytes("us-west-1")),
-                "AWS_EC2_METADATA_DISABLED": base64.encode(bytes("true"))
-              })
-            }
-          ])
   # Kyverno on staging: same chart/version as production, sized down.
   # Staging has no Prometheus Operator CRDs (ServiceMonitors would fail the
   # Helm render) and a single replica can't satisfy a minAvailable:1 PDB

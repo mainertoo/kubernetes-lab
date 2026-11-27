@@ -11,6 +11,8 @@ kind: Kustomization
 # Step 3 (this state): VolSync's KopiaMaintenance is removed and kopiur
 # maintains the repository. The PVCs name a kopiur Restore as their data
 # source and are create-only for Flux (see the annotation on each).
+# Step 4: VolSync, the backup policies and the pvc-plumber stub are removed
+# from staging. This app stays as the test of an adopted repository.
 #
 # No `namespace:` here and no targetNamespace on the Flux Kustomization;
 # every object sets its own namespace.
