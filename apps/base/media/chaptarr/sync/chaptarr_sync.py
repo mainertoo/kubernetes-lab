@@ -300,10 +300,31 @@ _LEAD = re.compile(r"^(?:book|vol(?:ume)?|part)?\s*\d+(?:\.\d+)?\s*[-._:)]\s*")
 _ARTICLE = re.compile(r"^(the|a|an)\s+")
 
 
+_FORMAT_JUNK = re.compile(
+    r"\b(mass market paperback|paperback|hardcover|kindle edition|ebook|e-book|audiobook|"
+    r"unabridged|abridged|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|"
+    r"(?:19|20)\d{2})\b")
+
+
+def strip_brackets(t: str) -> str:
+    """Remove (...) and [...] including NESTED ones, e.g.
+    "Thrill Ride (Hardy Boys (All New) Undercover Brothers Book 4)"."""
+    prev = None
+    while prev != t:
+        prev = t
+        t = re.sub(r"\([^()]*\)|\[[^\[\]]*\]", " ", t)
+    return re.sub(r"[()\[\]]", " ", t)
+
+
 def clean_title(t: str) -> str:
-    """Normalised title for comparison: drops (...) / [...], ASIN/ISBN-ish
-    tokens, leading "01 - " / "Book 3:" numbering and a leading article."""
-    t = _LEAD.sub("", (t or "").strip().lower().replace("_", " "))
+    """Normalised title for comparison: drops (...) / [...] (nested too),
+    format/date junk ("Paperback December 1, 1994"), a trailing "by <name>",
+    ASIN/ISBN-ish tokens, leading "01 - " / "Book 3:" numbering and a leading
+    article."""
+    t = strip_brackets((t or "").strip().lower().replace("_", " "))
+    t = re.sub(r"\s+by\s+[a-z .'-]+$", " ", t)
+    t = _FORMAT_JUNK.sub(" ", t)
+    t = _LEAD.sub("", t.strip())
     t = norm(_ASIN.sub(" ", t))
     return _ARTICLE.sub("", t).strip()
 
@@ -479,10 +500,22 @@ def inbound(con):
     con.commit()
 
     # genuinely new books first, then the backfill queue; least recently tried
-    # first, so books waiting on author metadata never block the rest
-    pending = con.execute("SELECT kind, path, attempts FROM items WHERE status='pending' "
-                          "ORDER BY COALESCE(backfill,0), COALESCE(last_try,''), first_seen, path "
-                          "LIMIT ?", (MAX_IMPORTS_PER_RUN,)).fetchall()
+    # first, so books waiting on author metadata never block the rest. Each
+    # run takes up to HALF the batch from each kind (audio/ebook) so both
+    # progress together instead of all Calibre ebooks first (their paths sort
+    # before /data); unused share goes to the other kind.
+    order = "ORDER BY COALESCE(backfill,0), COALESCE(last_try,''), first_seen, path"
+    half = max(1, MAX_IMPORTS_PER_RUN // 2)
+    picked = []
+    for k in ("audio", "ebook"):
+        picked += con.execute(f"SELECT kind, path, attempts FROM items WHERE status='pending' AND kind=? {order} LIMIT ?",
+                              (k, half)).fetchall()
+    if len(picked) < MAX_IMPORTS_PER_RUN:
+        have = {(k, p) for k, p, _ in picked}
+        extra = con.execute(f"SELECT kind, path, attempts FROM items WHERE status='pending' {order} LIMIT ?",
+                            (MAX_IMPORTS_PER_RUN + len(picked),)).fetchall()
+        picked += [r for r in extra if (r[0], r[1]) not in have][:MAX_IMPORTS_PER_RUN - len(picked)]
+    pending = picked
     for kind, path, attempts in pending:
         try:
             outcome, note = import_one(con, kind, path)
@@ -503,6 +536,9 @@ def inbound(con):
                    "unmatched": "unmatched"}[outcome]] += 1
             if outcome == "unmatched":
                 log.info("unmatched %s %s: %s", kind, path, note)
+                reason = note.split(":")[0] if note.startswith("title mismatch") else note[:60]
+                stats.setdefault("unmatched_reasons", {})
+                stats["unmatched_reasons"][reason] = stats["unmatched_reasons"].get(reason, 0) + 1
         con.execute("UPDATE items SET status=?, attempts=?, last_try=?, note=? WHERE kind=? AND path=?",
                     (status, attempts, now(), note[:500], kind, path))
         con.commit()
@@ -719,12 +755,14 @@ def main() -> int:
         report["ledger"] = dict(con.execute("SELECT status, COUNT(*) FROM items GROUP BY status").fetchall())
         report["unmatched"] = [{"path": p, "reason": n} for p, n in con.execute(
             "SELECT path, note FROM items WHERE status='unmatched' ORDER BY last_try DESC LIMIT 200")]
+        report["ledger_by_kind"] = {f"{k}:{st}": n for k, st, n in con.execute(
+            "SELECT kind, status, COUNT(*) FROM items GROUP BY kind, status")}
         try:
             Path(REPORT).write_text(json.dumps(report, indent=2))
         except OSError:
             pass
         con.close()
-    log.info("summary: %s", json.dumps({k: report[k] for k in ("inbound", "outbound", "ledger")}))
+    log.info("summary: %s", json.dumps({k: report.get(k) for k in ("inbound", "outbound", "ledger", "ledger_by_kind")}))
     return 1 if report["errors"] else 0
 
 
