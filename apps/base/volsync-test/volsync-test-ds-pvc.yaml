@@ -1,0 +1,23 @@
+# Shaped like the 35 production PVCs that name a VolSync
+# ReplicationDestination as their data source. dataSourceRef cannot be
+# changed once the PVC is bound, which is the problem the kopiur cutover has
+# to solve; this volume is where that cutover is rehearsed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volsync-test-ds
+  namespace: volsync-test
+  labels:
+    backup: hourly
+    backup-engine: kopia
+spec:
+  storageClassName: ceph-rbd
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: volsync-test-ds-backup
