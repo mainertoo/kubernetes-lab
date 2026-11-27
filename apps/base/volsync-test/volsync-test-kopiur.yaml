@@ -1,0 +1,130 @@
+# kopiur policies that continue the history VolSync wrote. Each policy pins
+# the identity VolSync used, so kopiur adopts the existing snapshots and new
+# ones extend the same series. Without the pin kopiur would write under
+# <policy>@<namespace>:/pvc/<pvc> and start a second, full copy.
+# Values taken from `kubectl kopiur migrate volsync` (offline run).
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: volsync-test-rbd
+  namespace: volsync-test
+spec:
+  mover:
+    inheritSecurityContextFrom:
+      pvcConsumer: {}
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: volsync
+  # The identity VolSync recorded: <pvc>-backup@<namespace>:/data.
+  identity:
+    username: volsync-test-rbd-backup
+    hostname: volsync-test
+  copyMethod: Snapshot
+  volumeSnapshotClassName: ceph-rbd-snapclass
+  sources:
+    - pvc:
+        name: volsync-test-rbd
+      sourcePathOverride: /data
+  retention:
+    keepHourly: 6
+    keepDaily: 3
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: volsync-test-rbd
+  namespace: volsync-test
+spec:
+  policyRef:
+    name: volsync-test-rbd
+  schedule:
+    cron: "42 * * * *"
+    runOnCreate: false
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: volsync-test-cephfs
+  namespace: volsync-test
+spec:
+  mover:
+    inheritSecurityContextFrom:
+      pvcConsumer: {}
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: volsync
+  # The identity VolSync recorded: <pvc>-backup@<namespace>:/data.
+  identity:
+    username: volsync-test-cephfs-backup
+    hostname: volsync-test
+  copyMethod: Snapshot
+  volumeSnapshotClassName: cephfs-snapclass
+  # Shallow snapshot. VolSync did the same; kopiur's translator does not
+  # carry it over.
+  staging:
+    storageClassName: cephfs-backingsnapshot
+    accessModes: [ReadOnlyMany]
+  sources:
+    - pvc:
+        name: volsync-test-cephfs
+      sourcePathOverride: /data
+  retention:
+    keepHourly: 6
+    keepDaily: 3
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: volsync-test-cephfs
+  namespace: volsync-test
+spec:
+  policyRef:
+    name: volsync-test-cephfs
+  schedule:
+    cron: "42 * * * *"
+    runOnCreate: false
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: volsync-test-ds
+  namespace: volsync-test
+spec:
+  mover:
+    inheritSecurityContextFrom:
+      pvcConsumer: {}
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: volsync
+  # The identity VolSync recorded: <pvc>-backup@<namespace>:/data.
+  identity:
+    username: volsync-test-ds-backup
+    hostname: volsync-test
+  copyMethod: Snapshot
+  volumeSnapshotClassName: ceph-rbd-snapclass
+  sources:
+    - pvc:
+        name: volsync-test-ds
+      sourcePathOverride: /data
+  retention:
+    keepHourly: 6
+    keepDaily: 3
+---
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: volsync-test-ds
+  namespace: volsync-test
+spec:
+  policyRef:
+    name: volsync-test-ds
+  schedule:
+    cron: "42 * * * *"
+    runOnCreate: false
