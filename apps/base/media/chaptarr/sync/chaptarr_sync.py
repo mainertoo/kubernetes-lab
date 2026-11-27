@@ -297,6 +297,14 @@ def inbound(con):
             report["inbound"] = stats
             return
         known = {(k, p) for k, p in found}
+    elif BACKFILL:
+        # BACKFILL turned on after the baseline was recorded: queue the baseline
+        # (the pre-existing library) for import. Pending items are processed
+        # MAX_IMPORTS_PER_RUN at a time, oldest first, so this drains gradually.
+        n = con.execute("UPDATE items SET status='pending', note='backfill' WHERE status='baseline'").rowcount
+        if n:
+            con.commit()
+            log.info("BACKFILL: queued %d baseline book folders for import", n)
 
     cutoff = time.time() - MIN_AGE_MINUTES * 60
     exported = {r[0] for r in con.execute("SELECT key FROM exported_titles")}
@@ -318,8 +326,10 @@ def inbound(con):
         stats["new_pending"] += 1
     con.commit()
 
+    # genuinely new books first, then the backfill queue (oldest first)
     pending = con.execute("SELECT kind, path, attempts FROM items WHERE status='pending' "
-                          "ORDER BY first_seen LIMIT ?", (MAX_IMPORTS_PER_RUN,)).fetchall()
+                          "ORDER BY (COALESCE(note,'')='backfill'), first_seen, path LIMIT ?",
+                          (MAX_IMPORTS_PER_RUN,)).fetchall()
     for kind, path, attempts in pending:
         try:
             outcome, note = import_one(con, kind, path)
