@@ -158,7 +158,7 @@ spec:
             image:
               repository: docker.io/valkey/valkey
               # Major 9 to match upstream Immich's docker-compose (valkey:9).
-              tag: 9.2.0
+              tag: 9.2.1
             env:
               - name: TZ
                 value: America/Los_Angeles
