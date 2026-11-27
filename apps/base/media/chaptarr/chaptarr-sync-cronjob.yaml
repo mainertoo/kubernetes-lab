@@ -60,9 +60,11 @@ spec:
                 # 20 since 2026-11-27 (first live runs verified at 5).
                 - name: MAX_IMPORTS_PER_RUN
                   value: "20"
-                # true = re-queue books recorded as unmatched/failed, once.
+                # Any NEW value re-queues unmatched/failed books exactly once
+                # (2026-11-27: re-check books wrongly marked unmatched before
+                # local author matches were supported). "" = off.
                 - name: RETRY_UNMATCHED
-                  value: "false"
+                  value: "2026-11-27-local-match"
                 - name: CHAPTARR_URL
                   value: http://chaptarr.media.svc.cluster.local:8789
                 - name: CHAPTARR_API_KEY
