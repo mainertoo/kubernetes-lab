@@ -74,6 +74,8 @@ APPLY = MODE == "apply"
 INBOUND = env_bool("INBOUND", True)
 OUTBOUND = env_bool("OUTBOUND", True)
 BACKFILL = env_bool("BACKFILL", False)
+# re-queue books recorded as "unmatched" (e.g. after a Chaptarr/metadata update)
+RETRY_UNMATCHED = env_bool("RETRY_UNMATCHED", False)
 
 CHAPTARR_URL = env("CHAPTARR_URL", "http://chaptarr.media.svc.cluster.local:8789").rstrip("/")
 CHAPTARR_API_KEY = env("CHAPTARR_API_KEY")
@@ -393,6 +395,12 @@ def inbound(con):
             con.commit()
             log.info("BACKFILL: queued %d baseline book folders for import", n)
 
+    if RETRY_UNMATCHED:
+        n = con.execute("UPDATE items SET status='pending', attempts=0 WHERE status IN ('unmatched','failed')").rowcount
+        if n:
+            con.commit()
+            log.info("RETRY_UNMATCHED: re-queued %d unmatched/failed book folders", n)
+
     cutoff = time.time() - MIN_AGE_MINUTES * 60
     exported = {r[0] for r in con.execute("SELECT key FROM exported_titles")}
     for kind, path in found:
@@ -436,6 +444,8 @@ def inbound(con):
             status = outcome if APPLY else "pending"
             stats[{"imported": "imported", "would_import": "would_import",
                    "unmatched": "unmatched"}[outcome]] += 1
+            if outcome == "unmatched":
+                log.info("unmatched %s %s: %s", kind, path, note)
         con.execute("UPDATE items SET status=?, attempts=?, last_try=?, note=? WHERE kind=? AND path=?",
                     (status, attempts, now(), note[:500], kind, path))
         con.commit()
@@ -620,6 +630,8 @@ def main() -> int:
     finally:
         report["finished"] = datetime.now(timezone.utc).isoformat()
         report["ledger"] = dict(con.execute("SELECT status, COUNT(*) FROM items GROUP BY status").fetchall())
+        report["unmatched"] = [{"path": p, "reason": n} for p, n in con.execute(
+            "SELECT path, note FROM items WHERE status='unmatched' ORDER BY last_try DESC LIMIT 200")]
         try:
             Path(REPORT).write_text(json.dumps(report, indent=2))
         except OSError:
