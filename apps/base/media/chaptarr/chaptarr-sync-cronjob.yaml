@@ -57,9 +57,12 @@ spec:
                   value: "true"
                 - name: MIN_AGE_MINUTES
                   value: "30"
-                # 5 for the first live runs (verify real imports), then 20.
+                # 20 since 2026-11-27 (first live runs verified at 5).
                 - name: MAX_IMPORTS_PER_RUN
-                  value: "5"
+                  value: "20"
+                # true = re-queue books recorded as unmatched/failed, once.
+                - name: RETRY_UNMATCHED
+                  value: "false"
                 - name: CHAPTARR_URL
                   value: http://chaptarr.media.svc.cluster.local:8789
                 - name: CHAPTARR_API_KEY
