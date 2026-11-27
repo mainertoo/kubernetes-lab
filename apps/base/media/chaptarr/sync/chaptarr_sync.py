@@ -51,6 +51,7 @@ import shutil
 import sqlite3
 import sys
 import time
+import difflib
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -294,6 +295,60 @@ def title_key(author: str, title: str) -> str:
     return f"{a}|{norm(title)}"
 
 
+_ASIN = re.compile(r"\b(b0[a-z0-9]{8}|\d{9}[\dx]|\d{13})\b")
+_LEAD = re.compile(r"^(?:book|vol(?:ume)?|part)?\s*\d+(?:\.\d+)?\s*[-._:)]\s*")
+_ARTICLE = re.compile(r"^(the|a|an)\s+")
+
+
+def clean_title(t: str) -> str:
+    """Normalised title for comparison: drops (...) / [...], ASIN/ISBN-ish
+    tokens, leading "01 - " / "Book 3:" numbering and a leading article."""
+    t = _LEAD.sub("", (t or "").strip().lower().replace("_", " "))
+    t = norm(_ASIN.sub(" ", t))
+    return _ARTICLE.sub("", t).strip()
+
+
+def titles_match(source: str, candidates) -> bool:
+    a = clean_title(source)
+    if not a:
+        return True  # nothing to compare against: trust Chaptarr
+    sub = r":|_ | - "   # subtitle separators (Calibre writes ":" as "_ ")
+    a_main = clean_title(re.split(sub, source or "")[0])
+    for c in candidates:
+        b = clean_title(c or "")
+        if not b:
+            continue
+        b_main = clean_title(re.split(sub, c or "")[0])
+        for x, y in ((a, b), (a_main, b_main), (a, b_main), (a_main, b)):
+            if not x or not y:
+                continue
+            if x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.85:
+                return True
+            short, long_ = sorted((x, y), key=len)
+            # containment only when the short title is most of the long one
+            # ("Prince Lestat" is NOT "Prince Lestat and the Realms of Atlantis")
+            if len(short) >= 4 and short in long_ and len(short.split()) / len(long_.split()) >= 0.6:
+                return True
+        ta, tb = set(a.split()), set(b.split())
+        if ta and tb and len(ta & tb) / max(len(ta), len(tb)) >= 0.8:
+            return True
+    return False
+
+
+def source_title(kind: str, path: str, items: list[dict]) -> str:
+    """Title the existing library uses for this book (for the sanity check)."""
+    if kind == "ebook":
+        _, t = opf_author_title(path)
+        return t or re.sub(r"\s*\(\d+\)$", "", os.path.basename(path))
+    # Audiobook: the folder name, unless the files sit directly in an author
+    # folder (e.g. Shelfmark's "David Grann/*.mp3"), then the file stem.
+    folder = os.path.basename(path.rstrip("/"))
+    parent_is_source = any(os.path.dirname(path.rstrip("/")) == s.rstrip("/") for s in AUDIO_SOURCES)
+    if parent_is_source and items:
+        return re.sub(r"[_ ]?\d+$", "", Path(items[0]["path"]).stem)
+    return folder
+
+
 def newest_mtime(d: Path) -> float:
     m = 0.0
     for f in d.iterdir():
@@ -507,6 +562,15 @@ def import_one(con, kind: str, path: str) -> tuple[str, str]:
         label = f"{(i0.get('author') or {}).get('authorName')} / {(i0.get('book') or {}).get('title')}"
     else:
         label = f"{i0.get('suggestedAuthorName')} / {i0.get('suggestedBookTitle')}"
+    # Sanity check: Chaptarr's identification is occasionally wrong (2026-11-27:
+    # "Prince Lestat" was matched to "Blood Communion"). Hold for review instead.
+    src = source_title(kind, path, items)
+    cands = [(i0.get("book") or {}).get("title")] if local(i0) else \
+        [i0.get("suggestedBookTitle"), i0.get("suggestedEditionTitle")]
+    if not titles_match(src, cands):
+        cleanup(staged)
+        return "unmatched", f"title mismatch: source '{src}' vs Chaptarr '{' / '.join(c for c in cands if c)}'"
+
     if not APPLY:
         log.info("[dry-run] %s %s: would import %d file(s) as %s", kind, path, len(items), label)
         return "would_import", f"would import as {label}"
