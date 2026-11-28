@@ -65,7 +65,7 @@ spec:
                 type: Unconfined
             image:
               repository: docker.io/library/mariadb
-              tag: 13.0.2
+              tag: 13.1.2
             # Keeps the image's docker-entrypoint.sh; replaces only the CMD.
             # The charset/collation flags are what OpenMRS' schema expects.
             args:
