@@ -11,3 +11,5 @@ resources:
   - openmrs/kustomization.yaml
   - kopiur-test/kustomization.yaml
   - volsync-test/kustomization.yaml
+  # Stage 5 recovery test: production backups restored read-only (temporary).
+  - prod-restore-test/kustomization.yaml

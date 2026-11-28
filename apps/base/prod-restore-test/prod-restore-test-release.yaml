@@ -1,0 +1,81 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prod-restore-test
+  namespace: prod-restore-test
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    # Inspector pod: mounts every restored volume read-only so the contents
+    # can be counted and checked. Runs as root to read root-owned files; it
+    # starts no application and has no Service.
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+    controllers:
+      prod-restore-test:
+        type: deployment
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: busybox
+              tag: "1.38.0"
+            command: ["sh", "-c", "trap 'exit 0' TERM; sleep infinity & wait"]
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 512Mi
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+    persistence:
+      vaultwarden:
+        existingClaim: vaultwarden
+        globalMounts:
+          - path: /restore/vaultwarden
+            readOnly: true
+      home-assistant:
+        existingClaim: home-assistant
+        globalMounts:
+          - path: /restore/home-assistant
+            readOnly: true
+      sonarr:
+        existingClaim: sonarr
+        globalMounts:
+          - path: /restore/sonarr
+            readOnly: true
+      paperless-ngx:
+        existingClaim: paperless-ngx
+        globalMounts:
+          - path: /restore/paperless-ngx
+            readOnly: true
+      authentik-media:
+        existingClaim: authentik-media
+        globalMounts:
+          - path: /restore/authentik-media
+            readOnly: true
