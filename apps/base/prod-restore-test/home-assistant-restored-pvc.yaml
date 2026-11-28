@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: authentik-media
+  name: home-assistant-restored
   namespace: prod-restore-test
   annotations:
     # Create-only for Flux: dataSourceRef cannot change on a bound PVC.
     kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
 spec:
-  storageClassName: cephfs
+  storageClassName: ceph-rbd
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 50Gi
   dataSourceRef:
     apiGroup: kopiur.home-operations.com
     kind: Restore
-    name: authentik-media
+    name: home-assistant-restored

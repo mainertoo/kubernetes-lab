@@ -15,9 +15,9 @@ resources:
   - prod-restore-test-repository-secret.sops.yaml
   - prod-restore-test-repository.yaml
   - prod-restore-test-restores.yaml
-  - vaultwarden-pvc.yaml
-  - home-assistant-pvc.yaml
-  - sonarr-pvc.yaml
-  - paperless-ngx-pvc.yaml
-  - authentik-media-pvc.yaml
+  - vaultwarden-restored-pvc.yaml
+  - home-assistant-restored-pvc.yaml
+  - sonarr-restored-pvc.yaml
+  - paperless-ngx-restored-pvc.yaml
+  - authentik-media-restored-pvc.yaml
   - prod-restore-test-release.yaml

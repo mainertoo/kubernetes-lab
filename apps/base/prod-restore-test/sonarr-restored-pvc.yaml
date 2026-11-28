@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: sonarr
+  name: sonarr-restored
   namespace: prod-restore-test
   annotations:
     # Create-only for Flux: dataSourceRef cannot change on a bound PVC.
@@ -16,4 +16,4 @@ spec:
   dataSourceRef:
     apiGroup: kopiur.home-operations.com
     kind: Restore
-    name: sonarr
+    name: sonarr-restored

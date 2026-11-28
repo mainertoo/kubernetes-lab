@@ -55,27 +55,27 @@ spec:
                 enabled: false
     persistence:
       vaultwarden:
-        existingClaim: vaultwarden
+        existingClaim: vaultwarden-restored
         globalMounts:
           - path: /restore/vaultwarden
             readOnly: true
       home-assistant:
-        existingClaim: home-assistant
+        existingClaim: home-assistant-restored
         globalMounts:
           - path: /restore/home-assistant
             readOnly: true
       sonarr:
-        existingClaim: sonarr
+        existingClaim: sonarr-restored
         globalMounts:
           - path: /restore/sonarr
             readOnly: true
       paperless-ngx:
-        existingClaim: paperless-ngx
+        existingClaim: paperless-ngx-restored
         globalMounts:
           - path: /restore/paperless-ngx
             readOnly: true
       authentik-media:
-        existingClaim: authentik-media
+        existingClaim: authentik-media-restored
         globalMounts:
           - path: /restore/authentik-media
             readOnly: true
