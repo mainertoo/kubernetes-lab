@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chaptarr-mediacover
+  namespace: media
+  # Chaptarr's cover-art cache (/config/MediaCover). It holds a cover for EVERY
+  # book in every added author's catalogue (~30 MB per author: 4.4 GB at ~150
+  # authors), which filled the 5Gi config PVC on 2026-11-28 during the library
+  # backfill. Pure cache that Chaptarr re-downloads, so: its own volume and NO
+  # backup labels (keeps the backed-up config PVC small). ceph-rbd is
+  # expandable if it ever needs more.
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 30Gi
