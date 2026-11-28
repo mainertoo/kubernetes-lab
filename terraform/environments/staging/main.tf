@@ -21,36 +21,21 @@ module "cluster" {
   k3s_worker_memory    = "4096"
   k3s_worker_disk_size = "50"
 
-  # Snippets / USB mapping / image download land on pve-mammoth.
+  # Each VM is created on its final Proxmox host. Cloud-init snippets and
+  # the cloud image live in per-host `local` storage, so snippets_per_host
+  # puts a copy of both on every host that runs a VM, under names prefixed
+  # with the cluster name (on pve-whistler the unprefixed names are
+  # production's; a staging worker once booted there with a production
+  # hostname, 2026-05-21).
   #
-  # All 3 staging VMs land on pve-mammoth at terraform creation time
-  # because Proxmox snippets are stored in per-host `local` storage —
-  # creating a VM on a different host whose local doesn't have the
-  # snippet file either fails at VM start (zermatt) or silently reads
-  # whatever same-named snippet that host happens to have, which on
-  # pve-whistler is production's snippet, and the staging worker booted
-  # with hostname `mainertoo-k3s-worker-1` (verified 2026-05-21).
-  #
-  # Post-Phase-4 workflow: bring the cluster up here, install K3s, then
-  # live-migrate worker-1 → pve-whistler and worker-2 → pve-zermatt via
-  # the Proxmox UI. Cloud-init has already been consumed at first boot
-  # so the migration is safe. Then `terraform apply -refresh-only` to
-  # update state and update this file to record the post-migration
-  # placement.
-  #
-  # Placement after the from-scratch rebuild of 2026-11-27: all three VMs
-  # were created on pve-mammoth, then the workers were live-migrated
-  # (`qm migrate <vmid> <host> --online --with-local-disks`). For the next
-  # from-scratch rebuild, set both workers back to "pve-mammoth" first, per
-  # the workflow above; otherwise leave this as is, because a node_name
-  # change makes `terraform plan` replace the VM.
-  #
-  # After migrating worker-1, point its cloud-init metadata at the staging
-  # file on pve-whistler, where the default name is production's:
-  #   qm set 672 --cicustom "meta=local:snippets/metadata-cloud-config-staging-k3s-worker-1.yaml,user=local:snippets/user-data-cloud-config.yaml"
+  # Until the rebuild of 2026-11-28 this cluster used the older route: all
+  # three VMs created on pve-mammoth, workers live-migrated afterwards.
+  # A node_name change makes `terraform plan` replace the VM, so move VMs
+  # with `qm migrate` and then record the new host here.
   pm_node_name         = "pve-mammoth"
   pm_master_node_names = ["pve-mammoth"]
   pm_worker_node_names = ["pve-whistler", "pve-zermatt"]
+  snippets_per_host    = true
 
   # VM disks go on Ceph (k3s-rbd), not on pve-mammoth's `local` storage.
   # `local` there is the slow SPCC SSD that also holds the host's root
