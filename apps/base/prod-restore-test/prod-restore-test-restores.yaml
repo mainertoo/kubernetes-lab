@@ -2,6 +2,12 @@
 # (username = <ReplicationSource name>, hostname = namespace). No
 # SnapshotPolicy: nothing here backs anything up.
 #
+# sourcePath is required with source.identity: VolSync recorded every
+# volume as /data, and without it kopiur matches no snapshot (first attempt,
+# 2026-11-28: all five failed with "no snapshot matched ...@...:"). The
+# objects carry a -restored suffix because a failed populator claim is only
+# retried on a new PVC; renaming lets Flux replace the failed ones.
+#
 # onMissingSnapshot: Fail on all of them. An empty volume would hide a
 # failure to find the backup, which is the thing under test.
 ---
@@ -9,7 +15,7 @@
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: vaultwarden
+  name: vaultwarden-restored
   namespace: prod-restore-test
 spec:
   # Root, with the capabilities to set file ownership, because production
@@ -29,6 +35,7 @@ spec:
     identity:
       username: vaultwarden-backup
       hostname: vaultwarden
+      sourcePath: /data
   target:
     populator: {}
   policy:
@@ -39,7 +46,7 @@ spec:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: home-assistant
+  name: home-assistant-restored
   namespace: prod-restore-test
 spec:
   # Root, with the capabilities to set file ownership, because production
@@ -59,6 +66,7 @@ spec:
     identity:
       username: home-assistant-backup
       hostname: home-assistant
+      sourcePath: /data
   target:
     populator: {}
   policy:
@@ -69,7 +77,7 @@ spec:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: sonarr
+  name: sonarr-restored
   namespace: prod-restore-test
 spec:
   mover:
@@ -87,6 +95,7 @@ spec:
     identity:
       username: sonarr-backup
       hostname: media
+      sourcePath: /data
   target:
     populator: {}
   policy:
@@ -97,7 +106,7 @@ spec:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: paperless-ngx
+  name: paperless-ngx-restored
   namespace: prod-restore-test
 spec:
   mover:
@@ -115,6 +124,7 @@ spec:
     identity:
       username: paperless-ngx-backup
       hostname: paperless-ngx
+      sourcePath: /data
   target:
     populator: {}
   policy:
@@ -125,7 +135,7 @@ spec:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: authentik-media
+  name: authentik-media-restored
   namespace: prod-restore-test
 spec:
   mover:
@@ -143,6 +153,7 @@ spec:
     identity:
       username: authentik-media-backup
       hostname: authentik
+      sourcePath: /data
   target:
     populator: {}
   policy:

@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: home-assistant
+  name: paperless-ngx-restored
   namespace: prod-restore-test
   annotations:
     # Create-only for Flux: dataSourceRef cannot change on a bound PVC.
     kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
 spec:
-  storageClassName: ceph-rbd
+  storageClassName: cephfs
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
-      storage: 50Gi
+      storage: 20Gi
   dataSourceRef:
     apiGroup: kopiur.home-operations.com
     kind: Restore
-    name: home-assistant
+    name: paperless-ngx-restored
