@@ -269,7 +269,7 @@ variable "pm_worker_node_names" {
 }
 
 variable "snippets_per_host" {
-  description = "When true, upload cloud-init snippets (user-data + per-VM metadata) to every Proxmox host that actually hosts a VM in this cluster, not just pm_node_name. Required for a fresh `terraform apply` to succeed when VMs are spread across multiple hosts — Proxmox stores snippets in per-host `local` storage. When true, snippet file_names are also automatically prefixed with cluster_name to avoid collisions if two clusters land snippets on the same Proxmox host. Production keeps this false because its existing snippets and state predate the per-host model; rebuilding production from scratch in the future should set this true. New clusters being built from scratch should set this true."
+  description = "When true, upload cloud-init snippets (user-data + per-VM metadata) and download the cloud image to every Proxmox host that actually hosts a VM in this cluster, not just pm_node_name. Required for a fresh `terraform apply` to succeed when VMs are spread across multiple hosts — Proxmox stores snippets in per-host `local` storage. When true, snippet file_names are also automatically prefixed with cluster_name to avoid collisions if two clusters land snippets on the same Proxmox host. Production keeps this false because its existing snippets and state predate the per-host model; rebuilding production from scratch in the future should set this true. New clusters being built from scratch should set this true."
   type        = bool
   default     = false
 }

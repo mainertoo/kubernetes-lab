@@ -167,8 +167,18 @@ Two ways out:
 - **Build-from-scratch (new cluster):** set `snippets_per_host = true`
   on the module call. Snippets get uploaded to every host that hosts a
   VM, with filenames auto-prefixed by `cluster_name` to avoid
-  collisions. VMs can spread across hosts on the very first
-  `terraform apply`.
+  collisions, and each of those hosts gets its own copy of the cloud
+  image (it lives in per-host `local` storage too, and a VM's disk is
+  imported from the copy on the host it is created on). VMs can spread
+  across hosts on the very first `terraform apply`. Not yet proven by a
+  real build: the staging rebuild of 2026-11-27 used the second route.
+- **Switching an existing cluster to `snippets_per_host = true`:** the
+  plan leaves the VMs alone but replaces the metadata snippets under new
+  names (staging: 8 to add, 3 to destroy). Each VM's `cicustom` still
+  names the old files, and Proxmox refuses to start a VM whose snippet
+  is missing, so after the apply re-point every VM with
+  `qm set <vmid> --cicustom "meta=local:snippets/<cluster>-metadata-cloud-config-k3s-<role>-<n>.yaml,user=local:snippets/<cluster>-user-data-cloud-config.yaml"`.
+  Simpler: make the switch as part of a from-scratch rebuild.
 - **Existing cluster (production, current staging):** keep the default
   `snippets_per_host = false`. Initial apply lands every VM on
   `pm_node_name`; live-migrate workers to their target hosts via the

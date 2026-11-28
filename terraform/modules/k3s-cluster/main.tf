@@ -31,6 +31,23 @@ locals {
   # snippets_per_host = true. Empty when false (the legacy
   # user_data_cloud_config resource handles that case).
   snippet_hosts = var.snippets_per_host ? toset(concat(local.master_node_names, local.worker_node_names)) : toset([])
+
+  # Hosts other than pm_node_name that need their own copy of the cloud
+  # image when snippets_per_host = true. The image lives in per-host `local`
+  # storage like the snippets do, and a VM's disk is imported from the copy
+  # on the host it is created on.
+  image_hosts = setsubtract(local.snippet_hosts, [var.pm_node_name])
+
+  # Cloud image file id per VM: the same-host copy when one exists, else the
+  # copy on pm_node_name.
+  master_image_file_ids = [
+    for n in local.master_node_names :
+    contains(local.image_hosts, n) ? proxmox_virtual_environment_download_file.ubuntu_cloud_image_per_host[n].id : proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
+  ]
+  worker_image_file_ids = [
+    for n in local.worker_node_names :
+    contains(local.image_hosts, n) ? proxmox_virtual_environment_download_file.ubuntu_cloud_image_per_host[n].id : proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
+  ]
 }
 
 data "local_file" "ssh_public_key" {
@@ -235,7 +252,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_master" {
 
   disk {
     datastore_id = var.storage_pool
-    file_id      = proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
+    file_id      = local.master_image_file_ids[count.index]
     interface    = var.disk_interface
     iothread     = var.disk_iothread
     discard      = var.disk_discard
@@ -303,7 +320,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_worker" {
 
   disk {
     datastore_id = var.storage_pool
-    file_id      = proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
+    file_id      = local.worker_image_file_ids[count.index]
     interface    = var.disk_interface
     iothread     = var.disk_iothread
     discard      = var.disk_discard
@@ -359,5 +376,21 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image" {
   # the size mismatch and replaces this resource, which would cascade
   # into every VM via disk.file_id. To pull a newer image, bump the
   # URL to a specific dated build (e.g. ".../20260520/...") and apply.
+  overwrite = false
+}
+
+# Per-host copy of the cloud image, only when snippets_per_host = true and
+# only on hosts other than pm_node_name (which keeps the resource above).
+# Without it a VM created on another host has no image to import its disk
+# from: `local` storage is per host.
+resource "proxmox_virtual_environment_download_file" "ubuntu_cloud_image_per_host" {
+  for_each = local.image_hosts
+
+  content_type = var.pm_cloud_image_content_type
+  datastore_id = var.pm_datastore_id
+  node_name    = each.value
+
+  url = var.pm_cloud_image_url
+
   overwrite = false
 }
