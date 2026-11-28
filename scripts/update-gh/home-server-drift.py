@@ -168,7 +168,18 @@ def portainer():
         flt = json.dumps({"label": [f"com.docker.compose.project={s['Name']}"]})
         cs = p._req("GET", f"endpoints/{ep}/docker/containers/json?all=1&filters="
                     + urllib.parse.quote(flt))
-        live = {norm(c["Image"]) for c in cs if c.get("State") == "running"}
+        live = set()
+        for c in cs:
+            if c.get("State") != "running":
+                continue
+            img = c.get("Image") or ""
+            if img.startswith("sha256:"):
+                # The local tag no longer points at the image this container was
+                # started from (re-pull / prune), so the list shows a bare image
+                # ID. Use the reference the stack asked for instead.
+                img = (p._req("GET", f"endpoints/{ep}/docker/containers/{c['Id']}/json")
+                       .get("Config") or {}).get("Image") or img
+            live.add(norm(img))
         label = (f"portainer/{LIVE_PORTAINER_EPS[ep]}/{s['Name']}"
                  + ("" if auto else " (no auto-update: redeploy by hand)"))
         compare(label, repo, live)
