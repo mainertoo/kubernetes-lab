@@ -63,7 +63,7 @@ spec:
                 type: Unconfined
             image:
               repository: docker.io/library/mariadb
-              tag: 13.0.2
+              tag: 13.1.2
             # Keeps the image's docker-entrypoint.sh (which initialises the
             # datadir and drops to the mysql user); only the CMD is replaced.
             args:
