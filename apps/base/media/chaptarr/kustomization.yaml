@@ -6,6 +6,7 @@ namespace: media
 resources:
   - chaptarr-oidc.sops.yaml
   - chaptarr-pvc.yaml
+  - chaptarr-mediacover-pvc.yaml
   - chaptarr-release.yaml
   - chaptarr-ingressroute.yaml
   - chaptarr-sync-pvc.yaml

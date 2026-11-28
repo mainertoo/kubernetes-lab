@@ -156,6 +156,14 @@ spec:
         existingClaim: chaptarr
         globalMounts:
           - path: /config
+      # Cover-art cache on its own unbacked volume, mounted over the config
+      # PVC's MediaCover folder (see chaptarr-mediacover-pvc.yaml).
+      mediacover:
+        existingClaim: chaptarr-mediacover
+        advancedMounts:
+          chaptarr:
+            app:
+              - path: /config/MediaCover
       # Same QNAP NFS PVC as ReadMeABook/Shelfmark (192.168.1.252:/QNAS/data).
       qnap-data:
         existingClaim: qnap-media-pvc
