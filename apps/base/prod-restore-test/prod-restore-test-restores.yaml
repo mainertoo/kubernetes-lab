@@ -1,0 +1,150 @@
+# One Restore per production volume, selected by the identity VolSync wrote
+# (username = <ReplicationSource name>, hostname = namespace). No
+# SnapshotPolicy: nothing here backs anything up.
+#
+# onMissingSnapshot: Fail on all of them. An empty volume would hide a
+# failure to find the backup, which is the thing under test.
+---
+# vaultwarden: SQLite, runs as root in production
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: vaultwarden
+  namespace: prod-restore-test
+spec:
+  # Root, with the capabilities to set file ownership, because production
+  # runs this app as root and the files are root-owned.
+  mover:
+    privilegedMode: true
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: production-ro
+  source:
+    identity:
+      username: vaultwarden-backup
+      hostname: vaultwarden
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 10m
+---
+# home-assistant: about 10 GiB, runs as root in production
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: home-assistant
+  namespace: prod-restore-test
+spec:
+  # Root, with the capabilities to set file ownership, because production
+  # runs this app as root and the files are root-owned.
+  mover:
+    privilegedMode: true
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: production-ro
+  source:
+    identity:
+      username: home-assistant-backup
+      hostname: home-assistant
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 10m
+---
+# sonarr: SQLite, uid 1000
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: sonarr
+  namespace: prod-restore-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: production-ro
+  source:
+    identity:
+      username: sonarr-backup
+      hostname: media
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 10m
+---
+# paperless-ngx: CephFS
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: paperless-ngx
+  namespace: prod-restore-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: production-ro
+  source:
+    identity:
+      username: paperless-ngx-backup
+      hostname: paperless-ngx
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 10m
+---
+# authentik-media: CephFS, nearly empty
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: authentik-media
+  namespace: prod-restore-test
+spec:
+  mover:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    podSecurityContext:
+      fsGroup: 1000
+  credentialProjection:
+    enabled: true
+  repository:
+    kind: ClusterRepository
+    name: production-ro
+  source:
+    identity:
+      username: authentik-media-backup
+      hostname: authentik
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Fail
+    waitTimeout: 10m

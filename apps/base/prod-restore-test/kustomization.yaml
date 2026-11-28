@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Staging only, temporary: stage 5 of the kopiur migration (wiki:
+# backup-and-recovery/kopiur-migration). Attaches production's backup
+# repository read-only and restores five production volumes from it into
+# new, empty volumes on staging. Nothing here runs an application.
+#
+# To remove: delete the overlay line in apps/staging/kustomization.yaml
+# (Flux prunes everything, volumes included), delete the namespace by hand,
+# then delete the Garage key staging-restore-test-ro.
+#
+# No `namespace:` here: the repository Secret lives in kopiur-system.
+resources:
+  - prod-restore-test-namespace.yaml
+  - prod-restore-test-repository-secret.sops.yaml
+  - prod-restore-test-repository.yaml
+  - prod-restore-test-restores.yaml
+  - vaultwarden-pvc.yaml
+  - home-assistant-pvc.yaml
+  - sonarr-pvc.yaml
+  - paperless-ngx-pvc.yaml
+  - authentik-media-pvc.yaml
+  - prod-restore-test-release.yaml

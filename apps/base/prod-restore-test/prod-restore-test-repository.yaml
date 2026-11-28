@@ -1,0 +1,48 @@
+# Production's VolSync Kopia repository (Garage bucket volsync-kopia), attached
+# to staging READ-ONLY for the stage 5 recovery tests: can a new cluster read
+# production's backups and restore them, at production's snapshot count?
+#
+# Three layers keep it from changing anything in production's backups:
+#   - the Garage key (staging-restore-test-ro) has read permission only;
+#   - mode: ReadOnly, so kopiur serves restores and never writes;
+#   - create and maintenance are off.
+# Only the prod-restore-test namespace may use it.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: ClusterRepository
+metadata:
+  name: production-ro
+spec:
+  mode: ReadOnly
+  backend:
+    s3:
+      bucket: volsync-kopia
+      endpoint: 192.168.1.252:3900
+      region: us-west-1
+      tls:
+        disableTls: true
+      auth:
+        secretRef:
+          name: kopiur-production-ro-repository
+          namespace: kopiur-system
+  encryption:
+    passwordSecretRef:
+      name: kopiur-production-ro-repository
+      namespace: kopiur-system
+      key: KOPIA_PASSWORD
+  create:
+    enabled: false
+  maintenance:
+    enabled: false
+  allowedNamespaces:
+    list:
+      - prod-restore-test
+  credentialProjection:
+    allowed: true
+  catalog:
+    # Production's snapshots name production namespaces that do not exist
+    # here; list them in the test namespace. Three per volume is enough to
+    # see discovery work across all 75 volumes without loading the small
+    # staging control plane with thousands of objects.
+    fallbackNamespace: prod-restore-test
+    retain:
+      perIdentity: 3

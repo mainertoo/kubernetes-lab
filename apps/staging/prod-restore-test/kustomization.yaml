@@ -1,0 +1,27 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-restore-test
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./apps/base/prod-restore-test
+  # No targetNamespace: every object sets its own namespace.
+  dependsOn:
+    - name: infra-controllers
+    - name: infra-kopiur-config
+
+  prune: true
+  retryInterval: 2m
+  timeout: 10m
+  wait: false
+
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

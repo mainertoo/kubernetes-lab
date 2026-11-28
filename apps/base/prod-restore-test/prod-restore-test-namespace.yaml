@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod-restore-test
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    # Two of the restores below run as root to put back root-owned files
+    # (vaultwarden, home-assistant). kopiur refuses a root mover in a
+    # namespace without this opt-in.
+    kopiur.home-operations.com/privileged-movers: "true"
