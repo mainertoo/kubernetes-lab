@@ -112,12 +112,16 @@ spec:
               # kernel hold is lifted before K3s ships the containerd fix.)
               PUID: "1000"
               PGID: "1000"
+            # Memory grows with the library: every added author brings its full
+            # catalogue (~80 books) of metadata. At ~150 authors the working set
+            # was ~1.2-1.4 GiB with peaks to the old 2Gi limit, which OOM-killed
+            # it on 2026-11-28 12:02 UTC during the backfill.
             resources:
               requests:
                 cpu: 50m
-                memory: 256Mi
+                memory: 1Gi
               limits:
-                memory: 2Gi
+                memory: 4Gi
             probes:
               # /ping is unauthenticated and answers {"status":"OK"} once the app
               # is up. Liveness/startup stay off so a first-boot DB build or a
