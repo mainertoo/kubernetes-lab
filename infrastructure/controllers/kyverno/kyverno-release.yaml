@@ -17,6 +17,10 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    # A first install on a new cluster pulls every image cold. The default
+    # 5m was enough on the staging rebuild of 2026-11-27 only on the second
+    # attempt; see the legacyPolicyCheck note in values below.
+    timeout: 15m
     remediation:
       retries: 3
   upgrade:
@@ -26,6 +30,18 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # The chart's pre-install/pre-upgrade hook Job (check-legacy-policies)
+    # fails after 120s by default, image pull included. On a new cluster the
+    # kyverno-cli image took 91s to pull, the Job hit the deadline, the
+    # install failed, and Flux's uninstall remediation then hung on the
+    # pre-delete hook Job (its ServiceAccount is never created by a failed
+    # install). The release stayed wedged for 3 hours until it was suspended,
+    # the Jobs deleted, and resumed (wiki: backup-and-recovery/kopiur-migration).
+    # 10 minutes leaves room for a slow pull and still fails a real hang.
+    upgrade:
+      legacyPolicyCheck:
+        activeDeadlineSeconds: 600
+
     admissionController:
       replicas: 2
       podDisruptionBudget:
